@@ -1,0 +1,36 @@
+{
+  "name": "overdive-dreaming",
+  "version": "1.0.0",
+  "description": "A freediving training tracker for pool disciplines",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+  },
+  "keywords": [
+    "freediving",
+    "training",
+    "tracker"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@sveltejs/adapter-auto": "^7.0.0",
+    "@sveltejs/kit": "^2.49.2",
+    "@sveltejs/vite-plugin-svelte": "^6.2.1",
+    "autoprefixer": "^10.4.23",
+    "postcss": "^8.5.6",
+    "svelte": "^5.46.1",
+    "svelte-check": "^4.3.5",
+    "tailwindcss": "^4.1.18",
+    "tslib": "^2.8.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.0"
+  },
+  "dependencies": {
+    "firebase": "^12.7.0"
+  }
+}

@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+/* Dark theme with teal/green colors */
+:root {
+	--color-primary: #14b8a6; /* teal-500 */
+	--color-secondary: #10b981; /* green-500 */
+	--color-bg: #0f172a; /* slate-900 */
+	--color-bg-card: #1e293b; /* slate-800 */
+	--color-text: #f1f5f9; /* slate-100 */
+	--color-text-muted: #94a3b8; /* slate-400 */
+}
+
+* {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+body {
+	background-color: var(--color-bg);
+	color: var(--color-text);
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
