@@ -1,79 +1,164 @@
 <script lang="ts">
-	let discipline = 'STA';
-	let duration = '';
-	let distance = '';
-	let notes = '';
+	import { onMount } from 'svelte';
+	import { Timestamp } from 'firebase/firestore';
+	import { user } from '$lib/stores/auth';
+	import { getRoutinesForUser, createSession, createRoutineLog } from '$lib/firestore';
+	import RoutineSelector from '$lib/components/RoutineSelector.svelte';
+	import QuickLogForm, { type LogFormData } from '$lib/components/QuickLogForm.svelte';
+	import type { RoutineTemplate } from '$lib/types';
 
-	const disciplines = [
-		{ value: 'STA', label: 'Static Apnea (STA)' },
-		{ value: 'DYN', label: 'Dynamic Apnea (DYN)' },
-		{ value: 'DNF', label: 'Dynamic No Fins (DNF)' },
-		{ value: 'DYNB', label: 'Dynamic Bifins (DYNB)' }
-	];
+	let routines = $state<RoutineTemplate[]>([]);
+	let selectedRoutine = $state<RoutineTemplate | null>(null);
+	let selectedRoutineId = $state<string | undefined>(undefined);
+	let loading = $state(true);
+	let saving = $state(false);
+	let error = $state<string | null>(null);
+	let success = $state<string | null>(null);
 
-	function handleSubmit() {
-		// TODO: Save dive to Firestore
-		console.log({ discipline, duration, distance, notes });
+	onMount(async () => {
+		if (!$user) return;
+
+		try {
+			routines = await getRoutinesForUser($user.uid);
+			loading = false;
+		} catch (err) {
+			console.error('Error loading routines:', err);
+			error = 'Failed to load routines';
+			loading = false;
+		}
+	});
+
+	function handleRoutineSelect(routine: RoutineTemplate) {
+		selectedRoutine = routine;
+		error = null;
+		success = null;
+	}
+
+	function handleCancel() {
+		selectedRoutine = null;
+		selectedRoutineId = undefined;
+	}
+
+	async function handleSubmit(logData: LogFormData) {
+		if (!$user || !selectedRoutine) return;
+
+		saving = true;
+		error = null;
+		success = null;
+
+		try {
+			// 1. Create session for this dive
+			const sessionId = await createSession({
+				userId: $user.uid,
+				date: Timestamp.now()
+			});
+
+			// 2. Create routine log within the session
+			await createRoutineLog(sessionId, {
+				routineId: selectedRoutine.id,
+				sessionId,
+				userId: $user.uid,
+				date: Timestamp.now(),
+				disciplineUsed: logData.disciplineUsed,
+				summary: {
+					lapsCompleted: logData.lapsCompleted || 0,
+					totalTimeSeconds: logData.totalTimeSeconds
+				},
+				breathingTechnique: logData.breathingTechnique,
+				rpe: logData.rpe,
+				joyScale: logData.joyScale,
+				hoursSinceLastMeal: logData.hoursSinceLastMeal,
+				notes: logData.notes,
+				hasDetailedData: false // Quick summary only
+			});
+
+			success = 'Routine logged successfully! 🎉';
+			selectedRoutine = null;
+			selectedRoutineId = undefined;
+
+			// Clear success message after 3 seconds
+			setTimeout(() => {
+				success = null;
+			}, 3000);
+		} catch (err) {
+			console.error('Error saving routine log:', err);
+			error = 'Failed to save routine log. Please try again.';
+		} finally {
+			saving = false;
+		}
 	}
 </script>
 
 <div class="p-6 max-w-2xl mx-auto">
-	<h1 class="text-3xl font-bold mb-6 text-[var(--color-primary)]">Log Dive</h1>
+	<h1
+		class="text-3xl font-bold mb-6 bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] bg-clip-text text-transparent"
+	>
+		Log Training
+	</h1>
 
-	<form on:submit|preventDefault={handleSubmit} class="bg-[var(--color-bg-card)] p-6 rounded-lg">
-		<div class="mb-4">
-			<label for="discipline" class="block mb-2 font-semibold">Discipline</label>
-			<select
-				id="discipline"
-				bind:value={discipline}
-				class="w-full p-3 rounded bg-[var(--color-bg)] border border-[var(--color-text-muted)]/20 focus:border-[var(--color-primary)] outline-none"
-			>
-				{#each disciplines as disc}
-					<option value={disc.value}>{disc.label}</option>
-				{/each}
-			</select>
+	<!-- Loading State -->
+	{#if loading}
+		<div class="bg-[var(--color-bg-card)] p-8 rounded-lg text-center">
+			<div
+				class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[var(--color-primary)] border-r-transparent"
+			></div>
+			<p class="mt-4 text-[var(--color-text-muted)]">Loading routines...</p>
 		</div>
 
-		{#if discipline === 'STA'}
-			<div class="mb-4">
-				<label for="duration" class="block mb-2 font-semibold">Duration (mm:ss)</label>
-				<input
-					id="duration"
-					type="text"
-					bind:value={duration}
-					placeholder="03:30"
-					class="w-full p-3 rounded bg-[var(--color-bg)] border border-[var(--color-text-muted)]/20 focus:border-[var(--color-primary)] outline-none"
-				/>
-			</div>
-		{:else}
-			<div class="mb-4">
-				<label for="distance" class="block mb-2 font-semibold">Distance (meters)</label>
-				<input
-					id="distance"
-					type="number"
-					bind:value={distance}
-					placeholder="75"
-					class="w-full p-3 rounded bg-[var(--color-bg)] border border-[var(--color-text-muted)]/20 focus:border-[var(--color-primary)] outline-none"
-				/>
+		<!-- Error State -->
+	{:else if error}
+		<div class="bg-red-500/10 border border-red-500/50 text-red-500 p-4 rounded-lg mb-6">
+			{error}
+		</div>
+
+		<!-- Success Message -->
+	{:else if success}
+		<div class="bg-green-500/10 border border-green-500/50 text-green-500 p-4 rounded-lg mb-6">
+			{success}
+		</div>
+	{/if}
+
+	<!-- Main Content -->
+	{#if !loading}
+		<div class="bg-[var(--color-bg-card)] p-6 rounded-lg">
+			{#if !selectedRoutine}
+				<!-- Step 1: Select Routine -->
+				<RoutineSelector {routines} bind:selectedRoutineId onSelect={handleRoutineSelect} />
+			{:else}
+				<!-- Step 2: Quick Log Form -->
+				<QuickLogForm routine={selectedRoutine} onSubmit={handleSubmit} onCancel={handleCancel} />
+
+				{#if saving}
+					<div class="mt-4 p-4 bg-[var(--color-bg)] rounded-lg text-center">
+						<div
+							class="inline-block h-6 w-6 animate-spin rounded-full border-4 border-solid border-[var(--color-primary)] border-r-transparent"
+						></div>
+						<p class="mt-2 text-sm text-[var(--color-text-muted)]">Saving...</p>
+					</div>
+				{/if}
+			{/if}
+		</div>
+
+		<!-- Info Card -->
+		{#if !selectedRoutine && routines.length > 0}
+			<div class="mt-6 p-4 bg-[var(--color-bg-card)] rounded-lg">
+				<h3 class="text-sm font-semibold text-[var(--color-text)] mb-2">💡 Quick Tips</h3>
+				<ul class="text-sm text-[var(--color-text-muted)] space-y-1">
+					<li>• Select a routine to log your training session</li>
+					<li>• Only configured fields will be shown in the form</li>
+					<li>• You can add detailed per-lap data later from video review</li>
+				</ul>
 			</div>
 		{/if}
 
-		<div class="mb-6">
-			<label for="notes" class="block mb-2 font-semibold">Notes</label>
-			<textarea
-				id="notes"
-				bind:value={notes}
-				rows="4"
-				placeholder="How did it feel? Any observations?"
-				class="w-full p-3 rounded bg-[var(--color-bg)] border border-[var(--color-text-muted)]/20 focus:border-[var(--color-primary)] outline-none resize-none"
-			/>
-		</div>
-
-		<button
-			type="submit"
-			class="w-full py-3 bg-[var(--color-primary)] hover:bg-[var(--color-primary)]/80 rounded-lg font-semibold transition-colors"
-		>
-			Save Dive
-		</button>
-	</form>
+		<!-- Empty State -->
+		{#if routines.length === 0}
+			<div class="text-center py-8">
+				<p class="text-[var(--color-text-muted)] mb-4">No routines available yet.</p>
+				<p class="text-sm text-[var(--color-text-muted)]">
+					Contact admin to check if default routines have been seeded.
+				</p>
+			</div>
+		{/if}
+	{/if}
 </div>

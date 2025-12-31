@@ -148,47 +148,267 @@ await signOut(auth);
 4. Navigation via bottom nav (Home, Log, Stats, Profile)
 5. Sign out from profile → returns to landing
 
-## Data Models (Planned)
+## Data Models (Finalized)
+
+**Core Hierarchy:** Sessions → (Routines OR Individual Dives)
+- A **session** = one pool visit
+- Sessions contain either **routine logs** (structured training) or **individual dives** (standalone attempts)
+- **Routine templates** are reusable patterns that users create/customize
+
+---
 
 ### User Document (`users/{userId}`)
 ```typescript
-{
+interface User {
   uid: string;
   email: string;
   displayName: string;
   photoURL: string;
+  tier?: 'free' | 'premium'; // For future freemium model (all free during beta)
+  customRoutineCount?: number; // Track how many custom routines created
   createdAt: timestamp;
   updatedAt: timestamp;
 }
 ```
 
-### Dive Document (`dives/{diveId}`)
+---
+
+### Routine Template (`routines/{routineId}`)
+Reusable training patterns. System provides 4 defaults; users can create custom routines.
+
 ```typescript
-{
-  userId: string;
-  discipline: 'STA' | 'DYN' | 'DNF' | 'DYNB';
-  date: timestamp;
-  duration?: string;      // For STA (mm:ss format)
-  distance?: number;      // For DYN/DNF/DYNB (meters)
-  notes?: string;
+interface RoutineTemplate {
+  id: string;
+  name: string; // e.g., "Sweet 16", "CO₂ Builder - 8x50"
+  description: string; // Freeform text explaining the routine
+
+  // Multi-discipline support (routine can apply to multiple)
+  disciplines: ('STA' | 'DYN' | 'DNF' | 'DYNB')[];
+
+  // Flexible tagging system (replaces single adaptationTag)
+  tags: string[]; // e.g., ['co2', 'endurance', 'intermediate']
+  // User-defined; same routine can have different tags for different users
+
+  // Routine structure (ALL OPTIONAL - allows freeform routines)
+  initialBreatheUpTime?: number; // seconds, breathe-up before routine starts
+  restBetweenReps?: number; // seconds, breathing time between each rep
+  lapDistance?: number; // meters, for dynamic disciplines only
+  repDuration?: number; // seconds, for static disciplines only
+  numberOfReps?: number; // total laps/reps in routine
+
+  // Configurable tracking - which variables to capture when logging?
+  trackingConfig: {
+    trackLapsCompleted: boolean;
+    trackTimePerLap: boolean;
+    trackRestBetweenLaps: boolean;
+    trackKicksPerLap: boolean; // DYN/DYNB/DNF
+    trackArmPullsPerLap: boolean; // DNF only
+    trackBreathingTechnique: boolean;
+    trackRPE: boolean; // Rate of Perceived Exertion (1-10)
+    trackJoyScale: boolean; // Enjoyment rating (1-10)
+    trackHoursSinceLastMeal: boolean;
+    trackNotes: boolean;
+  };
+
+  // Media
+  instructionalVideoUrl?: string; // YouTube/Vimeo URL for how-to videos
+
+  // Metadata
+  createdBy: 'system' | string; // 'system' for defaults, userId for custom
+  isPublic: boolean; // For future routine sharing/marketplace
+  tier?: 'free' | 'premium'; // For future freemium enforcement
   createdAt: timestamp;
   updatedAt: timestamp;
 }
 ```
+
+**Default Routines (4 system-provided):**
+1. Dynamic Max Attempt - `tags: ['max-attempt', 'pb']`
+2. Static Max Attempt - `tags: ['max-attempt', 'pb']`
+3. Sweet 16 (16×50m) - `tags: ['co2', 'endurance']`
+4. Gentle 2-Breath (10×1:30) - `tags: ['co2', 'beginner']`
+
+**Free Tier:** 4 defaults + 1 custom = 5 total routines
+
+---
+
+### Session (`sessions/{sessionId}`)
+Represents one pool visit. Contains subcollections for routines and individual dives.
+
+```typescript
+interface Session {
+  id: string;
+  userId: string;
+  date: timestamp;
+  location?: string; // Pool name/location
+  notes?: string; // General session notes
+  createdAt: timestamp;
+  updatedAt: timestamp;
+}
+```
+
+**Subcollections:**
+- `sessions/{sessionId}/routineLogs/{routineLogId}` - Routine instances
+- `sessions/{sessionId}/dives/{diveId}` - Individual dives (non-routine)
+
+---
+
+### Routine Log (`sessions/{sessionId}/routineLogs/{routineLogId}`)
+Instance of completing a routine. Stores performance data based on routine's trackingConfig.
+
+```typescript
+interface RoutineLog {
+  id: string;
+  routineId: string; // References routines/{routineId}
+  sessionId: string; // Parent session
+  userId: string;
+  date: timestamp;
+
+  // Which discipline was used (required if routine applies to multiple)
+  disciplineUsed: 'STA' | 'DYN' | 'DNF' | 'DYNB';
+
+  // Performance data - per-lap details (optional, can add later from video)
+  laps?: {
+    lapNumber: number;
+    timeSeconds?: number;
+    restAfterSeconds?: number;
+    kicks?: number;
+    armPulls?: number;
+  }[];
+
+  // OR summary metrics (quick poolside entry)
+  summary?: {
+    lapsCompleted: number;
+    totalTimeSeconds?: number;
+    averageTimePerLap?: number;
+  };
+
+  // Routine-level data (not per-lap)
+  breathingTechnique?: 'tidal' | 'hyperventilation' | 'hypoventilation';
+  breathingNotes?: string;
+  rpe?: number; // 1-10 scale
+  joyScale?: number; // 1-10 scale
+  hoursSinceLastMeal?: number;
+  notes?: string;
+
+  // Media support
+  thumbnailImageUrl?: string; // Photo from session (for social feed)
+  performanceVideoUrl?: string; // Reference to buddy video (MVP: external URL)
+  videoTimestamp?: timestamp;
+  hasDetailedData: boolean; // Has per-lap data been added from video review?
+
+  createdAt: timestamp;
+  updatedAt: timestamp;
+}
+```
+
+**Key Features:**
+- Quick summary log poolside (fast)
+- Optional detailed per-lap data added later (from video review)
+- All tracking variables are optional (can skip any field)
+
+---
+
+### Individual Dive (`sessions/{sessionId}/dives/{diveId}`)
+Standalone dives not part of a routine (e.g., warm-ups, one-off max attempts).
+
+```typescript
+interface Dive {
+  id: string;
+  sessionId: string; // Parent session
+  userId: string;
+  discipline: 'STA' | 'DYN' | 'DNF' | 'DYNB';
+  date: timestamp;
+
+  // Performance
+  duration?: number; // seconds, for STA or dynamic duration tracking
+  distance?: number; // meters, for DYN/DNF/DYNB
+
+  // Optional metadata
+  notes?: string;
+  breathingTechnique?: 'tidal' | 'hyperventilation' | 'hypoventilation';
+  rpe?: number;
+
+  createdAt: timestamp;
+  updatedAt: timestamp;
+}
+```
+
+---
+
+### Config: Suggested Tags (`config/suggestedTags`)
+Admin-configurable suggested tags for routine editor. No code changes needed to add new tags.
+
+```typescript
+interface SuggestedTags {
+  trainingAdaptations: string[]; // ['co2', 'o2', 'technique', 'mental', 'endurance', 'power']
+  diveTypes: string[]; // ['max-attempt', 'sub-max', 'warm-up', 'recovery']
+  difficultyLevels: string[]; // ['beginner', 'intermediate', 'advanced', 'expert']
+  specialCategories: string[]; // ['competition', 'fun', 'experimental']
+}
+```
+
+**Initial Values:**
+```json
+{
+  "trainingAdaptations": ["co2", "o2", "technique", "mental", "endurance", "power"],
+  "diveTypes": ["max-attempt", "sub-max", "warm-up", "recovery"],
+  "difficultyLevels": ["beginner", "intermediate", "advanced", "expert"],
+  "specialCategories": ["competition", "fun", "experimental"]
+}
+```
+
+---
 
 ### Firestore Security Rules (TODO)
 ```javascript
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // User documents
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
-    match /dives/{diveId} {
+
+    // Routine templates
+    match /routines/{routineId} {
+      // Everyone can read (for browsing public routines)
+      allow read: if request.auth != null;
+
+      // Only creator can write their own routines
+      allow create: if request.auth != null &&
+        request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if request.auth != null &&
+        resource.data.createdBy == request.auth.uid;
+
+      // System routines (createdBy == 'system') are read-only
+      allow update, delete: if resource.data.createdBy != 'system';
+    }
+
+    // Sessions
+    match /sessions/{sessionId} {
       allow read, write: if request.auth != null &&
         request.auth.uid == resource.data.userId;
       allow create: if request.auth != null &&
         request.auth.uid == request.resource.data.userId;
+
+      // Routine logs subcollection
+      match /routineLogs/{routineLogId} {
+        allow read, write: if request.auth != null &&
+          request.auth.uid == get(/databases/$(database)/documents/sessions/$(sessionId)).data.userId;
+      }
+
+      // Individual dives subcollection
+      match /dives/{diveId} {
+        allow read, write: if request.auth != null &&
+          request.auth.uid == get(/databases/$(database)/documents/sessions/$(sessionId)).data.userId;
+      }
+    }
+
+    // Config (read-only for users, write for admin)
+    match /config/{document} {
+      allow read: if request.auth != null;
+      // TODO: Add admin role check for write access
     }
   }
 }
@@ -247,6 +467,7 @@ PUBLIC_FIREBASE_MEASUREMENT_ID=
 - [x] Firebase credentials configured in .env
 - [x] Development server verified working
 - [x] Google sign-in flow tested and working
+- [x] Git repository initialized with initial commit
 
 ### 🚧 TODO - Immediate Next Steps
 - [ ] Implement Firestore integration for dive logging
