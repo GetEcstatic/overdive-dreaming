@@ -53,24 +53,36 @@
 				date: Timestamp.now()
 			});
 
-			// 2. Create routine log within the session
-			await createRoutineLog(sessionId, {
+			// 2. Build routine log data, filtering out undefined values
+			const routineLogData: any = {
 				routineId: selectedRoutine.id,
 				sessionId,
 				userId: $user.uid,
 				date: Timestamp.now(),
 				disciplineUsed: logData.disciplineUsed,
-				summary: {
-					lapsCompleted: logData.lapsCompleted || 0,
-					totalTimeSeconds: logData.totalTimeSeconds
-				},
-				breathingTechnique: logData.breathingTechnique,
-				rpe: logData.rpe,
-				joyScale: logData.joyScale,
-				hoursSinceLastMeal: logData.hoursSinceLastMeal,
-				notes: logData.notes,
 				hasDetailedData: false // Quick summary only
-			});
+			};
+
+			// Only add summary if we have data
+			if (logData.lapsCompleted !== undefined || logData.totalTimeSeconds !== undefined) {
+				routineLogData.summary = {};
+				if (logData.lapsCompleted !== undefined) {
+					routineLogData.summary.lapsCompleted = logData.lapsCompleted;
+				}
+				if (logData.totalTimeSeconds !== undefined) {
+					routineLogData.summary.totalTimeSeconds = logData.totalTimeSeconds;
+				}
+			}
+
+			// Only add optional fields if they have values
+			if (logData.breathingTechnique) routineLogData.breathingTechnique = logData.breathingTechnique;
+			if (logData.rpe !== undefined) routineLogData.rpe = logData.rpe;
+			if (logData.joyScale !== undefined) routineLogData.joyScale = logData.joyScale;
+			if (logData.hoursSinceLastMeal !== undefined) routineLogData.hoursSinceLastMeal = logData.hoursSinceLastMeal;
+			if (logData.notes) routineLogData.notes = logData.notes;
+
+			// 3. Create routine log within the session
+			await createRoutineLog(sessionId, routineLogData);
 
 			success = 'Routine logged successfully! 🎉';
 			selectedRoutine = null;
