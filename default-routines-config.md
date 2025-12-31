@@ -93,8 +93,8 @@ This document specifies the exact configuration for each of the 4 system-provide
 - **Tags:** co2, endurance
 
 **Routine Structure:** *(Pre-defined in template - leave blank if not needed)*
-- **restBetweenReps:** _(Leave blank - user decides rest per session)_
-- **repDistance:** 50 _(Each rep is 50 meters)_
+- **restBetweenReps:** _N/A
+- **repDistance:** 50m
 - **repDuration:** _(N/A for dynamic)_
 - **numberOfReps:** 16 _(16 reps total)_
 
@@ -110,14 +110,14 @@ This document specifies the exact configuration for each of the 4 system-provide
 - **trackLapsCompleted:** true _(Ask: "How many reps completed?" - to see if all 16 were done)_
 - **trackTimePerLap:** true _(Allow entering time per rep - optional, can add later from video)_
 - **trackRestBetweenLaps:** true _(Allow entering rest per rep - optional, can add later from video)_
-- **trackKicksPerLap:** false _(Too detailed for quick logging - but can be added from video review)_
-- **trackArmPullsPerLap:** false _(Too detailed for quick logging - but can be added from video review)_
+- **trackKicksPerLap:** false _(not needed for this routine)_
+- **trackArmPullsPerLap:** false _(not needed for this routine)
 
 **Training Context:**
-- **trackBreathingTechnique:** true _(Ask: "What breathe-up technique?" - tidal/hyperventilation/hypoventilation)_
+- **trackBreathingTechnique:** false _(Ask: "What breathe-up technique?" - tidal/hyperventilation/hypoventilation)_
 - **trackRPE:** true _(Ask: "How difficult?" - 1-10 scale)_
 - **trackJoyScale:** true _(Ask: "How enjoyable?" - 1-10 scale)_
-- **trackHoursSinceLastMeal:** false _(Optional - skip for quick logging)_
+- **trackHoursSinceLastMeal:** true _(Optional - skip for quick logging)_
 - **trackNotes:** true _(Free text notes field)_
 
 ---
@@ -156,7 +156,7 @@ This document specifies the exact configuration for each of the 4 system-provide
 - **trackBreathingTechnique:** true _(Ask: "What breathe-up technique?" - tidal/hyperventilation/hypoventilation)_
 - **trackRPE:** true _(Ask: "How difficult?" - 1-10 scale)_
 - **trackJoyScale:** true _(Ask: "How enjoyable?" - 1-10 scale)_
-- **trackHoursSinceLastMeal:** false _(Optional - skip for quick logging)_
+- **trackHoursSinceLastMeal:** true _(Optional - skip for quick logging)_
 - **trackNotes:** true _(Free text notes field)_
 
 ---
@@ -170,7 +170,7 @@ This document specifies the exact configuration for each of the 4 system-provide
 4. Once you've made your edits, I'll update `scripts/seed-data.ts` to match
 
 **Key Decisions to Make:**
-- Should max attempts track `numberOfReps: 1` or leave it undefined?
-- Should CO₂ routines specify `initialBreatheUpTime` or let users decide each session?
-- Should `restBetweenReps` be pre-defined or user-defined per session?
-- Which tracking fields are essential vs optional for each routine type?
+- Should max attempts track `numberOfReps: 1` or leave it undefined? - leave it undefined
+- Should CO₂ routines specify `initialBreatheUpTime` or let users decide each session? - let users decide
+- Should `restBetweenReps` be pre-defined or user-defined per session? - user defined
+- Which tracking fields are essential vs optional for each routine type? I think this has been addressed above now.

@@ -86,10 +86,10 @@ const intervalTracking: TrackingConfig = {
 	trackKicksPerLap: false,
 	trackArmPullsPerLap: false,
 	// Training context
-	trackBreathingTechnique: true,
+	trackBreathingTechnique: false,
 	trackRPE: true,
 	trackJoyScale: true,
-	trackHoursSinceLastMeal: false,
+	trackHoursSinceLastMeal: true,
 	trackNotes: true
 };
 
@@ -110,7 +110,7 @@ const staticIntervalTracking: TrackingConfig = {
 	trackBreathingTechnique: true,
 	trackRPE: true,
 	trackJoyScale: true,
-	trackHoursSinceLastMeal: false,
+	trackHoursSinceLastMeal: true,
 	trackNotes: true
 };
 
