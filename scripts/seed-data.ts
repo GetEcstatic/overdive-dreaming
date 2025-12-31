@@ -30,13 +30,62 @@ const db = getFirestore(app);
 // DEFAULT ROUTINE TRACKING CONFIGS
 // ============================================================================
 
-// Minimal tracking for max attempts
-const maxAttemptTracking: TrackingConfig = {
+// Tracking for dynamic max attempts
+const dynamicMaxTracking: TrackingConfig = {
+	// Session context
+	trackPoolLength: true,
+	trackInitialBreatheUpTime: true,
+	// Performance metrics
+	trackTotalDistance: true,
+	trackTotalTime: true,
 	trackLapsCompleted: false,
 	trackTimePerLap: true,
 	trackRestBetweenLaps: false,
+	trackKicksPerLap: true,
+	trackArmPullsPerLap: true,
+	// Training context
+	trackBreathingTechnique: true,
+	trackRPE: true,
+	trackJoyScale: true,
+	trackHoursSinceLastMeal: true,
+	trackNotes: true
+};
+
+// Tracking for static max attempts
+const staticMaxTracking: TrackingConfig = {
+	// Session context
+	trackPoolLength: false,
+	trackInitialBreatheUpTime: true,
+	// Performance metrics
+	trackTotalDistance: false,
+	trackTotalTime: true,
+	trackLapsCompleted: false,
+	trackTimePerLap: false,
+	trackRestBetweenLaps: false,
 	trackKicksPerLap: false,
 	trackArmPullsPerLap: false,
+	// Training context
+	trackBreathingTechnique: true,
+	trackRPE: true,
+	trackJoyScale: true,
+	trackHoursSinceLastMeal: true,
+	trackNotes: true
+};
+
+// Tracking for interval routines (Sweet 16, etc.)
+const intervalTracking: TrackingConfig = {
+	// Session context
+	trackPoolLength: true,
+	trackInitialBreatheUpTime: true,
+	// Performance metrics
+	trackTotalDistance: false,
+	trackTotalTime: true,
+	trackLapsCompleted: true,
+	trackTimePerLap: true,
+	trackRestBetweenLaps: true,
+	trackKicksPerLap: false,
+	trackArmPullsPerLap: false,
+	// Training context
 	trackBreathingTechnique: true,
 	trackRPE: true,
 	trackJoyScale: true,
@@ -44,13 +93,20 @@ const maxAttemptTracking: TrackingConfig = {
 	trackNotes: true
 };
 
-// Comprehensive tracking for interval routines
-const intervalTracking: TrackingConfig = {
+// Tracking for static interval routines (Gentle 2-Breath, etc.)
+const staticIntervalTracking: TrackingConfig = {
+	// Session context
+	trackPoolLength: false,
+	trackInitialBreatheUpTime: true,
+	// Performance metrics
+	trackTotalDistance: false,
+	trackTotalTime: true,
 	trackLapsCompleted: true,
-	trackTimePerLap: true,
+	trackTimePerLap: false,
 	trackRestBetweenLaps: true,
 	trackKicksPerLap: false,
 	trackArmPullsPerLap: false,
+	// Training context
 	trackBreathingTechnique: true,
 	trackRPE: true,
 	trackJoyScale: true,
@@ -71,7 +127,7 @@ const defaultRoutines: Omit<RoutineTemplate, 'createdAt' | 'updatedAt'>[] = [
 			'Single maximal effort dive with own-time breathe-up. Track your personal best for DYN, DYNB, or DNF.',
 		disciplines: ['DYN', 'DYNB', 'DNF'],
 		tags: ['max-attempt', 'pb'],
-		trackingConfig: maxAttemptTracking,
+		trackingConfig: dynamicMaxTracking,
 		createdBy: 'system',
 		isPublic: true
 	},
@@ -84,7 +140,7 @@ const defaultRoutines: Omit<RoutineTemplate, 'createdAt' | 'updatedAt'>[] = [
 			'Single maximal static breath-hold with own-time breathe-up. Track your personal best for STA.',
 		disciplines: ['STA'],
 		tags: ['max-attempt', 'pb'],
-		trackingConfig: maxAttemptTracking,
+		trackingConfig: staticMaxTracking,
 		createdBy: 'system',
 		isPublic: true
 	},
@@ -94,10 +150,10 @@ const defaultRoutines: Omit<RoutineTemplate, 'createdAt' | 'updatedAt'>[] = [
 		id: 'system-sweet-16',
 		name: 'Sweet 16',
 		description:
-			'Sixteen 50-meter laps with user-defined rest intervals. Classic CO₂ tolerance builder for dynamic disciplines.',
+			'Sixteen 50-meter reps with user-defined rest intervals. Classic CO₂ tolerance builder for dynamic disciplines.',
 		disciplines: ['DYN', 'DYNB', 'DNF'],
 		tags: ['co2', 'endurance'],
-		lapDistance: 50,
+		repDistance: 50, // 50 meters per rep
 		numberOfReps: 16,
 		trackingConfig: intervalTracking,
 		createdBy: 'system',
@@ -114,7 +170,7 @@ const defaultRoutines: Omit<RoutineTemplate, 'createdAt' | 'updatedAt'>[] = [
 		tags: ['co2', 'beginner'],
 		repDuration: 90, // 1:30 in seconds
 		numberOfReps: 10,
-		trackingConfig: intervalTracking,
+		trackingConfig: staticIntervalTracking,
 		createdBy: 'system',
 		isPublic: true
 	}

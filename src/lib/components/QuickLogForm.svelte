@@ -9,8 +9,14 @@
 
 	export interface LogFormData {
 		disciplineUsed: Discipline;
+		// Session context
+		poolLength?: number;
+		initialBreatheUpTime?: number;
+		// Performance metrics
+		totalDistance?: number;
+		totalTime?: number;
 		lapsCompleted?: number;
-		totalTimeSeconds?: number;
+		// Training context
 		breathingTechnique?: BreathingTechnique;
 		rpe?: number;
 		joyScale?: number;
@@ -22,9 +28,19 @@
 
 	// Form state
 	let disciplineUsed = $state<Discipline>(routine.disciplines[0]);
-	let lapsCompleted = $state<number | undefined>(undefined);
+
+	// Session context
+	let poolLength = $state<number | undefined>(undefined);
+	let breatheUpMinutes = $state<number | undefined>(undefined);
+	let breatheUpSeconds = $state<number | undefined>(undefined);
+
+	// Performance metrics
+	let totalDistance = $state<number | undefined>(undefined);
 	let totalTimeMinutes = $state<number | undefined>(undefined);
 	let totalTimeSeconds = $state<number | undefined>(undefined);
+	let lapsCompleted = $state<number | undefined>(undefined);
+
+	// Training context
 	let breathingTechnique = $state<BreathingTechnique | undefined>(undefined);
 	let rpe = $state<number | undefined>(undefined);
 	let joyScale = $state<number | undefined>(undefined);
@@ -34,15 +50,27 @@
 	function handleSubmit(e: Event) {
 		e.preventDefault();
 
-		const totalSeconds =
+		// Convert mm:ss to total seconds
+		const initialBreatheUp =
+			breatheUpMinutes !== undefined && breatheUpSeconds !== undefined
+				? breatheUpMinutes * 60 + breatheUpSeconds
+				: undefined;
+
+		const totalTimeInSeconds =
 			totalTimeMinutes !== undefined && totalTimeSeconds !== undefined
 				? totalTimeMinutes * 60 + totalTimeSeconds
 				: undefined;
 
 		const data: LogFormData = {
 			disciplineUsed,
+			// Session context
+			poolLength,
+			initialBreatheUpTime: initialBreatheUp,
+			// Performance metrics
+			totalDistance,
+			totalTime: totalTimeInSeconds,
 			lapsCompleted,
-			totalTimeSeconds: totalSeconds,
+			// Training context
 			breathingTechnique,
 			rpe,
 			joyScale,
@@ -82,25 +110,69 @@
 		</div>
 	{/if}
 
-	<!-- Laps Completed -->
-	{#if config.trackLapsCompleted}
+	<!-- Pool Length -->
+	{#if config.trackPoolLength}
 		<div>
-			<label for="lapsCompleted" class="block text-sm font-medium text-[var(--color-text)] mb-2">
-				Laps Completed
+			<label for="poolLength" class="block text-sm font-medium text-[var(--color-text)] mb-2">
+				Pool Length (meters)
 			</label>
 			<input
-				id="lapsCompleted"
+				id="poolLength"
 				type="number"
-				bind:value={lapsCompleted}
+				bind:value={poolLength}
 				min="0"
 				class="w-full px-3 py-2 bg-[var(--color-bg-card)] border border-[var(--color-bg-card)] rounded-lg text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
-				placeholder={routine.numberOfReps ? `Target: ${routine.numberOfReps}` : 'e.g., 16'}
+				placeholder="e.g., 25 or 50"
+			/>
+		</div>
+	{/if}
+
+	<!-- Initial Breathe-Up Time -->
+	{#if config.trackInitialBreatheUpTime}
+		<div>
+			<label class="block text-sm font-medium text-[var(--color-text)] mb-2">
+				Initial Breathe-Up (mm:ss)
+			</label>
+			<div class="flex gap-2">
+				<input
+					type="number"
+					bind:value={breatheUpMinutes}
+					min="0"
+					class="flex-1 px-3 py-2 bg-[var(--color-bg-card)] border border-[var(--color-bg-card)] rounded-lg text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
+					placeholder="mm"
+				/>
+				<span class="self-center text-[var(--color-text-muted)]">:</span>
+				<input
+					type="number"
+					bind:value={breatheUpSeconds}
+					min="0"
+					max="59"
+					class="flex-1 px-3 py-2 bg-[var(--color-bg-card)] border border-[var(--color-bg-card)] rounded-lg text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
+					placeholder="ss"
+				/>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Total Distance -->
+	{#if config.trackTotalDistance}
+		<div>
+			<label for="totalDistance" class="block text-sm font-medium text-[var(--color-text)] mb-2">
+				Total Distance (meters)
+			</label>
+			<input
+				id="totalDistance"
+				type="number"
+				bind:value={totalDistance}
+				min="0"
+				class="w-full px-3 py-2 bg-[var(--color-bg-card)] border border-[var(--color-bg-card)] rounded-lg text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
+				placeholder="e.g., 175"
 			/>
 		</div>
 	{/if}
 
 	<!-- Total Time -->
-	{#if config.trackTimePerLap}
+	{#if config.trackTotalTime}
 		<div>
 			<label class="block text-sm font-medium text-[var(--color-text)] mb-2">
 				Total Time (mm:ss)
@@ -123,6 +195,23 @@
 					placeholder="ss"
 				/>
 			</div>
+		</div>
+	{/if}
+
+	<!-- Laps Completed -->
+	{#if config.trackLapsCompleted}
+		<div>
+			<label for="lapsCompleted" class="block text-sm font-medium text-[var(--color-text)] mb-2">
+				Laps Completed
+			</label>
+			<input
+				id="lapsCompleted"
+				type="number"
+				bind:value={lapsCompleted}
+				min="0"
+				class="w-full px-3 py-2 bg-[var(--color-bg-card)] border border-[var(--color-bg-card)] rounded-lg text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
+				placeholder={routine.numberOfReps ? `Target: ${routine.numberOfReps}` : 'e.g., 16'}
+			/>
 		</div>
 	{/if}
 

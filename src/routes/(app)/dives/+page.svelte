@@ -63,18 +63,26 @@
 				hasDetailedData: false // Quick summary only
 			};
 
-			// Only add summary if we have data
-			if (logData.lapsCompleted !== undefined || logData.totalTimeSeconds !== undefined) {
+			// Session context
+			if (logData.poolLength !== undefined) routineLogData.poolLength = logData.poolLength;
+			if (logData.initialBreatheUpTime !== undefined) routineLogData.initialBreatheUpTime = logData.initialBreatheUpTime;
+
+			// Performance metrics
+			if (logData.totalDistance !== undefined) routineLogData.totalDistance = logData.totalDistance;
+			if (logData.totalTime !== undefined) routineLogData.totalTime = logData.totalTime;
+
+			// Summary (for interval routines)
+			if (logData.lapsCompleted !== undefined || logData.totalTime !== undefined) {
 				routineLogData.summary = {};
 				if (logData.lapsCompleted !== undefined) {
 					routineLogData.summary.lapsCompleted = logData.lapsCompleted;
 				}
-				if (logData.totalTimeSeconds !== undefined) {
-					routineLogData.summary.totalTimeSeconds = logData.totalTimeSeconds;
+				if (logData.totalTime !== undefined) {
+					routineLogData.summary.totalTimeSeconds = logData.totalTime;
 				}
 			}
 
-			// Only add optional fields if they have values
+			// Training context
 			if (logData.breathingTechnique) routineLogData.breathingTechnique = logData.breathingTechnique;
 			if (logData.rpe !== undefined) routineLogData.rpe = logData.rpe;
 			if (logData.joyScale !== undefined) routineLogData.joyScale = logData.joyScale;

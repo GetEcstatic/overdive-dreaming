@@ -33,11 +33,20 @@ export interface User {
 // ============================================================================
 
 export interface TrackingConfig {
-	trackLapsCompleted: boolean;
-	trackTimePerLap: boolean;
-	trackRestBetweenLaps: boolean;
-	trackKicksPerLap: boolean; // DYN/DYNB/DNF
-	trackArmPullsPerLap: boolean; // DNF only
+	// Session context
+	trackPoolLength: boolean; // Pool size in meters
+	trackInitialBreatheUpTime: boolean; // Pre-dive breathe-up time
+
+	// Performance metrics
+	trackTotalDistance: boolean; // Total meters covered (for max attempts)
+	trackTotalTime: boolean; // Total dive duration
+	trackLapsCompleted: boolean; // Number of pool laps completed
+	trackTimePerLap: boolean; // Detailed per-lap times
+	trackRestBetweenLaps: boolean; // Rest between reps
+	trackKicksPerLap: boolean; // Kicks per lap (DYN/DYNB/DNF)
+	trackArmPullsPerLap: boolean; // Arm pulls per lap (DNF only)
+
+	// Training context
 	trackBreathingTechnique: boolean;
 	trackRPE: boolean; // Rate of Perceived Exertion (1-10)
 	trackJoyScale: boolean; // Enjoyment rating (1-10)
@@ -57,11 +66,10 @@ export interface RoutineTemplate {
 	tags: string[]; // e.g., ['co2', 'endurance', 'intermediate']
 
 	// Routine structure (ALL OPTIONAL)
-	initialBreatheUpTime?: number; // seconds, breathe-up before routine starts
 	restBetweenReps?: number; // seconds, breathing time between each rep
-	lapDistance?: number; // meters, for dynamic disciplines only
-	repDuration?: number; // seconds, for static disciplines only
-	numberOfReps?: number; // total laps/reps in routine
+	repDistance?: number; // meters, distance per rep (for dynamic disciplines)
+	repDuration?: number; // seconds, duration per rep (for static disciplines)
+	numberOfReps?: number; // total reps in routine
 
 	// Configurable tracking
 	trackingConfig: TrackingConfig;
@@ -118,6 +126,14 @@ export interface RoutineLog {
 
 	// Which discipline was used (required if routine applies to multiple)
 	disciplineUsed: Discipline;
+
+	// Session context
+	poolLength?: number; // meters - pool size for this routine
+	initialBreatheUpTime?: number; // seconds - actual breathe-up before dive
+
+	// Performance data - max attempt metrics
+	totalDistance?: number; // meters - total distance covered (for max attempts)
+	totalTime?: number; // seconds - total dive duration
 
 	// Performance data - per-lap details (optional, can add later from video)
 	laps?: LapData[];

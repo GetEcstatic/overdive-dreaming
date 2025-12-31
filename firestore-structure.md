@@ -22,12 +22,26 @@ firestore/
 │       ├── description: string
 │       ├── disciplines: string[]
 │       ├── tags: string[]  ⭐ FLEXIBLE TAG SYSTEM
-│       ├── initialBreatheUpTime?: number
-│       ├── restBetweenReps?: number
-│       ├── lapDistance?: number
-│       ├── repDuration?: number
+│       ├── restBetweenReps?: number (seconds)
+│       ├── repDistance?: number (meters - renamed from lapDistance)
+│       ├── repDuration?: number (seconds)
 │       ├── numberOfReps?: number
-│       ├── trackingConfig: {...}
+│       ├── trackingConfig: {
+│       │   trackPoolLength: boolean
+│       │   trackInitialBreatheUpTime: boolean
+│       │   trackTotalDistance: boolean
+│       │   trackTotalTime: boolean
+│       │   trackLapsCompleted: boolean
+│       │   trackTimePerLap: boolean
+│       │   trackRestBetweenLaps: boolean
+│       │   trackKicksPerLap: boolean
+│       │   trackArmPullsPerLap: boolean
+│       │   trackBreathingTechnique: boolean
+│       │   trackRPE: boolean
+│       │   trackJoyScale: boolean
+│       │   trackHoursSinceLastMeal: boolean
+│       │   trackNotes: boolean
+│       │   }
 │       ├── instructionalVideoUrl?: string
 │       ├── createdBy: 'system' | userId
 │       ├── isPublic: boolean
@@ -53,12 +67,16 @@ firestore/
 │       │       ├── userId: string
 │       │       ├── date: timestamp
 │       │       ├── disciplineUsed: 'STA' | 'DYN' | 'DNF' | 'DYNB'
+│       │       ├── poolLength?: number (meters - pool size for this routine)
+│       │       ├── initialBreatheUpTime?: number (seconds - actual breathe-up)
+│       │       ├── totalDistance?: number (meters - for max attempts)
+│       │       ├── totalTime?: number (seconds - total dive duration)
 │       │       ├── laps?: [{lapNumber, timeSeconds, restAfterSeconds, kicks, armPulls}]
 │       │       ├── summary?: {lapsCompleted, totalTimeSeconds, averageTimePerLap}
 │       │       ├── breathingTechnique?: string
 │       │       ├── breathingNotes?: string
-│       │       ├── rpe?: number
-│       │       ├── joyScale?: number
+│       │       ├── rpe?: number (1-10)
+│       │       ├── joyScale?: number (1-10)
 │       │       ├── hoursSinceLastMeal?: number
 │       │       ├── notes?: string
 │       │       ├── thumbnailImageUrl?: string
