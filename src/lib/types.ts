@@ -54,6 +54,24 @@ export interface TrackingConfig {
 	trackNotes: boolean;
 }
 
+export type MetricType =
+	| 'totalDistance'
+	| 'totalTime'
+	| 'lapsCompleted'
+	| 'avgTimePerLap'
+	| 'avgRestBetweenLaps'
+	| 'totalBreathHoldTime'
+	| 'totalBreathingTime'
+	| 'poolLength'
+	| 'initialBreatheUpTime';
+
+export interface DisplayConfig {
+	heroMetric: MetricType;
+	heroMetricLabel: string;
+	secondaryMetric: MetricType;
+	secondaryMetricLabel: string;
+}
+
 export interface RoutineTemplate {
 	id: string;
 	name: string;
@@ -73,6 +91,9 @@ export interface RoutineTemplate {
 
 	// Configurable tracking
 	trackingConfig: TrackingConfig;
+
+	// Display configuration for feed cards
+	displayConfig: DisplayConfig;
 
 	// Media
 	instructionalVideoUrl?: string; // YouTube/Vimeo URL
@@ -154,6 +175,9 @@ export interface RoutineLog {
 	performanceVideoUrl?: string; // Reference to buddy video (MVP: external URL)
 	videoTimestamp?: Timestamp;
 	hasDetailedData: boolean; // Has per-lap data been added from video review?
+
+	// Social features
+	likes?: string[]; // Array of user IDs who have liked this log
 
 	createdAt: Timestamp;
 	updatedAt: Timestamp;

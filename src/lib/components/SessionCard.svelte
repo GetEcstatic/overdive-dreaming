@@ -1,0 +1,479 @@
+<script lang="ts">
+	import type { RoutineLog, RoutineTemplate } from '$lib/types';
+	import { getFormattedMetric } from '$lib/utils/metrics';
+	import { format, formatDistanceToNow } from 'date-fns';
+	import { user } from '$lib/stores/auth';
+	import { db } from '$lib/firebase';
+	import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+
+	let { log, routine }: { log: RoutineLog; routine: RoutineTemplate } = $props();
+
+	// Get hero and secondary metrics from routine's displayConfig
+	const heroMetric = getFormattedMetric(
+		routine.displayConfig.heroMetric,
+		routine.displayConfig.heroMetricLabel,
+		log,
+		routine
+	);
+
+	const secondaryMetric = getFormattedMetric(
+		routine.displayConfig.secondaryMetric,
+		routine.displayConfig.secondaryMetricLabel,
+		log,
+		routine
+	);
+
+	// Format timestamps
+	const timeAgo = formatDistanceToNow(log.date.toDate(), { addSuffix: true });
+	const fullDate = format(log.date.toDate(), 'MMM d, yyyy');
+	const fullTime = format(log.date.toDate(), 'h:mm a');
+
+	// RPE and Joy emoji mapping
+	const rpeEmoji = '💪';
+	const joyEmoji = '😊';
+
+	// Like state - initialize from Firestore
+	let likeCount = $state(log.likes?.length ?? 0);
+	let isLiked = $state(log.likes?.includes($user?.uid ?? '') ?? false);
+
+	async function toggleLike() {
+		if (!$user) return;
+
+		const newIsLiked = !isLiked;
+
+		// Optimistic update
+		isLiked = newIsLiked;
+		likeCount += newIsLiked ? 1 : -1;
+
+		try {
+			// Update Firestore
+			const logRef = doc(db, 'sessions', log.sessionId, 'routineLogs', log.id);
+
+			if (newIsLiked) {
+				await updateDoc(logRef, {
+					likes: arrayUnion($user.uid)
+				});
+			} else {
+				await updateDoc(logRef, {
+					likes: arrayRemove($user.uid)
+				});
+			}
+		} catch (error) {
+			// Revert optimistic update on error
+			console.error('Error toggling like:', error);
+			isLiked = !newIsLiked;
+			likeCount += newIsLiked ? -1 : 1;
+		}
+	}
+</script>
+
+<div class="session-card">
+	<!-- Header with profile info -->
+	<div class="card-header">
+		<div class="profile-section">
+			{#if $user?.photoURL}
+				<img src={$user.photoURL} alt={$user.displayName} class="profile-pic" />
+			{:else}
+				<div class="profile-pic-placeholder">
+					{$user?.displayName?.charAt(0) ?? 'U'}
+				</div>
+			{/if}
+			<div class="profile-info">
+				<div class="user-name">{$user?.displayName ?? 'User'}</div>
+				<div class="session-meta">
+					<span class="date">{fullDate}</span>
+					<span class="separator">•</span>
+					<span class="time">{fullTime}</span>
+					<span class="separator">•</span>
+					<span class="time-ago">{timeAgo}</span>
+				</div>
+			</div>
+		</div>
+		<div class="routine-meta">
+			<span class="routine-name">{routine.name}</span>
+			<span class="separator">•</span>
+			<span class="discipline">{log.disciplineUsed}</span>
+		</div>
+		<div class="gradient-line"></div>
+	</div>
+
+	<!-- Hero Metric -->
+	<div class="hero-section">
+		<div class="hero-label">{heroMetric.label}</div>
+		<div class="hero-value">{heroMetric.value}</div>
+	</div>
+
+	<!-- Secondary Metric, RPE, Joy in boxes -->
+	<div class="metrics-row">
+		<div class="metric-box">
+			<div class="metric-label">{secondaryMetric.label}</div>
+			<div class="metric-value">{secondaryMetric.value}</div>
+		</div>
+
+		<div class="metric-box">
+			<div class="metric-label">{rpeEmoji} RPE</div>
+			<div class="metric-value">{log.rpe ?? '—'}</div>
+		</div>
+
+		<div class="metric-box">
+			<div class="metric-label">{joyEmoji} Joy</div>
+			<div class="metric-value">{log.joyScale ?? '—'}</div>
+		</div>
+	</div>
+
+	<!-- Like/Kudos Footer -->
+	<div class="card-footer">
+		<button
+			class="like-button"
+			class:liked={isLiked}
+			onclick={toggleLike}
+			aria-label="Like this session"
+		>
+			<svg class="like-icon" viewBox="0 0 24 24" fill="currentColor">
+				<path
+					d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+				/>
+			</svg>
+			<span class="like-text">Flow</span>
+		</button>
+		<span class="like-count">{likeCount} {likeCount === 1 ? 'flow' : 'flows'}</span>
+	</div>
+</div>
+
+<style>
+	.session-card {
+		background: var(--color-bg-card);
+		border: 1px solid rgba(148, 163, 184, 0.1);
+		border-radius: 12px;
+		overflow: hidden;
+		transition: all 0.2s ease;
+		margin-bottom: 1.5rem;
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+	}
+
+	.session-card:last-child {
+		margin-bottom: 0;
+	}
+
+	.session-card:hover {
+		border-color: rgba(148, 163, 184, 0.2);
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+		transform: translateY(-2px);
+	}
+
+	/* Header */
+	.card-header {
+		padding: 1rem;
+		padding-bottom: 0.75rem;
+	}
+
+	/* Profile Section */
+	.profile-section {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		margin-bottom: 0.5rem;
+	}
+
+	.profile-pic {
+		width: 40px;
+		height: 40px;
+		border-radius: 50%;
+		object-fit: cover;
+		border: 2px solid rgba(148, 163, 184, 0.2);
+	}
+
+	.profile-pic-placeholder {
+		width: 40px;
+		height: 40px;
+		border-radius: 50%;
+		background: var(--color-primary);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-weight: 700;
+		font-size: 1.125rem;
+		color: white;
+		border: 2px solid rgba(148, 163, 184, 0.2);
+	}
+
+	.profile-info {
+		flex: 1;
+	}
+
+	.user-name {
+		color: var(--color-text);
+		font-weight: 600;
+		font-size: 0.9375rem;
+		margin-bottom: 0.125rem;
+	}
+
+	.session-meta {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		flex-wrap: wrap;
+		font-size: 0.75rem;
+		color: var(--color-text-muted);
+	}
+
+	.date {
+		color: var(--color-text-muted);
+	}
+
+	.time {
+		color: var(--color-text-muted);
+	}
+
+	.time-ago {
+		color: var(--color-text-muted);
+	}
+
+	/* Routine Meta */
+	.routine-meta {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+		font-size: 0.875rem;
+		margin-bottom: 0.75rem;
+		padding-left: 0.25rem;
+	}
+
+	.routine-name {
+		color: var(--color-text);
+		font-weight: 600;
+	}
+
+	.separator {
+		color: var(--color-text-muted);
+	}
+
+	.discipline {
+		color: var(--color-primary);
+		font-weight: 500;
+		text-transform: uppercase;
+		font-size: 0.75rem;
+		letter-spacing: 0.05em;
+	}
+
+	.gradient-line {
+		height: 2px;
+		background: linear-gradient(
+			to right,
+			var(--color-primary),
+			var(--color-secondary),
+			transparent
+		);
+		border-radius: 2px;
+	}
+
+	/* Hero Section */
+	.hero-section {
+		padding: 2rem 1rem;
+		text-align: center;
+		border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+	}
+
+	.hero-label {
+		color: var(--color-text-muted);
+		font-size: 0.75rem;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		margin-bottom: 0.5rem;
+		font-weight: 500;
+	}
+
+	.hero-value {
+		color: var(--color-text);
+		font-size: 2.5rem;
+		font-weight: 700;
+		line-height: 1;
+		background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+		background-clip: text;
+	}
+
+	/* Metrics Row */
+	.metrics-row {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 0.75rem;
+		padding: 1rem;
+	}
+
+	.metric-box {
+		background: rgba(15, 23, 42, 0.5);
+		border: 1px solid rgba(148, 163, 184, 0.1);
+		border-radius: 8px;
+		padding: 0.75rem 0.5rem;
+		text-align: center;
+		transition: all 0.2s ease;
+	}
+
+	.metric-box:hover {
+		background: rgba(15, 23, 42, 0.7);
+		border-color: rgba(148, 163, 184, 0.2);
+	}
+
+	.metric-label {
+		color: var(--color-text-muted);
+		font-size: 0.7rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		margin-bottom: 0.25rem;
+		font-weight: 500;
+	}
+
+	.metric-value {
+		color: var(--color-text);
+		font-size: 1.125rem;
+		font-weight: 600;
+		line-height: 1.2;
+	}
+
+	/* Footer with Like Button */
+	.card-footer {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0.75rem 1rem;
+		border-top: 1px solid rgba(148, 163, 184, 0.1);
+		background: rgba(15, 23, 42, 0.3);
+	}
+
+	.like-button {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		background: transparent;
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		border-radius: 6px;
+		padding: 0.5rem 0.75rem;
+		color: var(--color-text-muted);
+		font-size: 0.875rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.like-button:hover {
+		background: rgba(148, 163, 184, 0.05);
+		border-color: var(--color-primary);
+		color: var(--color-primary);
+	}
+
+	.like-button.liked {
+		background: rgba(20, 184, 166, 0.1);
+		border-color: var(--color-primary);
+		color: var(--color-primary);
+	}
+
+	.like-button.liked .like-icon {
+		fill: var(--color-primary);
+	}
+
+	.like-icon {
+		width: 18px;
+		height: 18px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2;
+		transition: fill 0.2s ease;
+	}
+
+	.like-button.liked .like-icon {
+		fill: var(--color-primary);
+		stroke: var(--color-primary);
+	}
+
+	.like-count {
+		color: var(--color-text-muted);
+		font-size: 0.875rem;
+		font-weight: 500;
+	}
+
+	/* Desktop enhancements */
+	@media (min-width: 768px) {
+		.card-header {
+			padding: 1.25rem 1.5rem;
+			padding-bottom: 1rem;
+		}
+
+		.hero-section {
+			padding: 2.5rem 1.5rem;
+		}
+
+		.hero-value {
+			font-size: 3rem;
+		}
+
+		.metrics-row {
+			padding: 1.25rem 1.5rem;
+			gap: 1rem;
+		}
+
+		.metric-box {
+			padding: 1rem 0.75rem;
+		}
+
+		.metric-value {
+			font-size: 1.25rem;
+		}
+
+		.card-footer {
+			padding: 1rem 1.5rem;
+		}
+
+		.profile-pic,
+		.profile-pic-placeholder {
+			width: 48px;
+			height: 48px;
+		}
+	}
+
+	/* Mobile adjustments */
+	@media (max-width: 640px) {
+		.hero-value {
+			font-size: 2rem;
+		}
+
+		.metrics-row {
+			gap: 0.5rem;
+			padding: 0.75rem;
+		}
+
+		.metric-box {
+			padding: 0.5rem 0.25rem;
+		}
+
+		.metric-label {
+			font-size: 0.65rem;
+		}
+
+		.metric-value {
+			font-size: 1rem;
+		}
+
+		.profile-pic,
+		.profile-pic-placeholder {
+			width: 36px;
+			height: 36px;
+		}
+
+		.session-meta {
+			font-size: 0.7rem;
+		}
+
+		.like-button {
+			padding: 0.4rem 0.6rem;
+			font-size: 0.8125rem;
+		}
+
+		.like-icon {
+			width: 16px;
+			height: 16px;
+		}
+	}
+</style>

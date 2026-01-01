@@ -128,6 +128,12 @@ const defaultRoutines: Omit<RoutineTemplate, 'createdAt' | 'updatedAt'>[] = [
 		disciplines: ['DYN', 'DYNB', 'DNF'],
 		tags: ['max-attempt', 'pb'],
 		trackingConfig: dynamicMaxTracking,
+		displayConfig: {
+			heroMetric: 'totalDistance',
+			heroMetricLabel: 'Distance',
+			secondaryMetric: 'totalTime',
+			secondaryMetricLabel: 'Time'
+		},
 		createdBy: 'system',
 		isPublic: true
 	},
@@ -141,6 +147,12 @@ const defaultRoutines: Omit<RoutineTemplate, 'createdAt' | 'updatedAt'>[] = [
 		disciplines: ['STA'],
 		tags: ['max-attempt', 'pb'],
 		trackingConfig: staticMaxTracking,
+		displayConfig: {
+			heroMetric: 'totalTime',
+			heroMetricLabel: 'Time',
+			secondaryMetric: 'initialBreatheUpTime',
+			secondaryMetricLabel: 'Breathe-Up'
+		},
 		createdBy: 'system',
 		isPublic: true
 	},
@@ -156,6 +168,12 @@ const defaultRoutines: Omit<RoutineTemplate, 'createdAt' | 'updatedAt'>[] = [
 		repDistance: 50, // 50 meters per rep
 		numberOfReps: 16,
 		trackingConfig: intervalTracking,
+		displayConfig: {
+			heroMetric: 'totalTime',
+			heroMetricLabel: 'Total Time',
+			secondaryMetric: 'avgTimePerLap',
+			secondaryMetricLabel: 'Avg/Lap'
+		},
 		createdBy: 'system',
 		isPublic: true
 	},
@@ -171,6 +189,12 @@ const defaultRoutines: Omit<RoutineTemplate, 'createdAt' | 'updatedAt'>[] = [
 		repDuration: 90, // 1:30 in seconds
 		numberOfReps: 10,
 		trackingConfig: staticIntervalTracking,
+		displayConfig: {
+			heroMetric: 'totalBreathHoldTime',
+			heroMetricLabel: 'Total Hold',
+			secondaryMetric: 'totalBreathingTime',
+			secondaryMetricLabel: 'Total Rest'
+		},
 		createdBy: 'system',
 		isPublic: true
 	}
