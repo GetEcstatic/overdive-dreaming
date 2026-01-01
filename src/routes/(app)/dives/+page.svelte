@@ -110,10 +110,8 @@
 </script>
 
 <div class="p-6 max-w-2xl mx-auto">
-	<h1
-		class="text-3xl font-bold mb-6 bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] bg-clip-text text-transparent"
-	>
-		Log Training
+	<h1 class="page-title">
+		Log Your Training
 	</h1>
 
 	<!-- Loading State -->
@@ -161,12 +159,12 @@
 
 		<!-- Info Card -->
 		{#if !selectedRoutine && routines.length > 0}
-			<div class="mt-6 p-4 bg-[var(--color-bg-card)] rounded-lg">
-				<h3 class="text-sm font-semibold text-[var(--color-text)] mb-2">💡 Quick Tips</h3>
-				<ul class="text-sm text-[var(--color-text-muted)] space-y-1">
-					<li>• Select a routine to log your training session</li>
-					<li>• Only configured fields will be shown in the form</li>
-					<li>• You can add detailed per-lap data later from video review</li>
+			<div class="info-card">
+				<h3 class="info-title">💡 Quick Tips</h3>
+				<ul class="info-list">
+					<li>Select a routine to log your training session</li>
+					<li>Only configured fields will be shown in the form</li>
+					<li>You can add detailed per-lap data later from video review</li>
 				</ul>
 			</div>
 		{/if}
@@ -182,3 +180,55 @@
 		{/if}
 	{/if}
 </div>
+
+<style>
+	.page-title {
+		font-size: 1.5rem;
+		font-weight: 700;
+		color: var(--color-text);
+		margin-bottom: 1.5rem;
+		padding-left: 0.25rem;
+	}
+
+	/* Info Card */
+	.info-card {
+		margin-top: 1.5rem;
+		margin-bottom: 4rem;
+		padding: 1.25rem;
+		background: linear-gradient(
+			135deg,
+			rgba(20, 184, 166, 0.05),
+			rgba(16, 185, 129, 0.05)
+		);
+		border: 1px solid rgba(148, 163, 184, 0.15);
+		border-radius: 8px;
+	}
+
+	.info-title {
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--color-text);
+		margin-bottom: 0.75rem;
+	}
+
+	.info-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.info-list li {
+		font-size: 0.875rem;
+		color: var(--color-text-muted);
+		padding-left: 1.25rem;
+		position: relative;
+	}
+
+	.info-list li::before {
+		content: '→';
+		position: absolute;
+		left: 0;
+		color: var(--color-primary);
+		font-weight: 600;
+	}
+</style>
