@@ -54,6 +54,31 @@
 	let hoursSinceLastMeal = $state<number | undefined>(undefined);
 	let notes = $state<string>('');
 
+	// Reactive heart color based on joy scale
+	const joyHeartColor = $derived(() => {
+		if (!joyScale) return '#1a1a1a'; // Very dark for no value
+		// Color gradient from dark to neon pink
+		const colors = [
+			'#1a1a1a', // 0-1: Very dark/black
+			'#3a1a2a', // 2: Dark purple
+			'#5a1a3a', // 3: Purple
+			'#7a1a4a', // 4: Dark magenta
+			'#9a1a5a', // 5: Magenta
+			'#ba1a6a', // 6: Bright magenta
+			'#da1a7a', // 7: Hot pink
+			'#ea1483', // 8: Deeper pink
+			'#f514a0', // 9: Bright pink
+			'#ff1493'  // 10: Neon pink!
+		];
+		const index = Math.min(Math.max(joyScale - 1, 0), 9);
+		return colors[index];
+	});
+
+	const joyHeartIcon = $derived(() => {
+		// Use broken heart for low values, full heart for high
+		return joyScale && joyScale >= 6 ? '💗' : '💔';
+	});
+
 	// Media
 	let photoFile = $state<File | undefined>(undefined);
 	let photoPreviewUrl = $state<string | undefined>(undefined);
@@ -369,7 +394,7 @@
 			{#if config.trackJoyScale}
 				<div class="field-group">
 					<label for="joyScale" class="field-label">
-						Enjoyment{joyScale ? `: ${joyScale}/10` : ''}
+						Enjoyment{joyScale ? `: ${joyScale}/10 ${joyHeartIcon()}` : ''}
 					</label>
 					<input
 						id="joyScale"
@@ -378,11 +403,8 @@
 						min="1"
 						max="10"
 						class="slider joy-slider"
+						style="--joy-heart-color: {joyHeartColor()}"
 					/>
-					<div class="slider-labels">
-						<span>😕</span>
-						<span>😊</span>
-					</div>
 				</div>
 			{/if}
 
@@ -688,16 +710,43 @@
 		cursor: pointer;
 	}
 
+	/* Joy Slider - Dynamic Color Heart */
 	.joy-slider {
-		accent-color: var(--color-secondary);
+		--joy-heart-color: #1a1a1a;
+		accent-color: var(--joy-heart-color);
 	}
 
 	.joy-slider::-webkit-slider-thumb {
-		background: var(--color-secondary);
+		appearance: none;
+		width: 24px;
+		height: 24px;
+		cursor: pointer;
+		background: var(--joy-heart-color);
+		border: none;
+		-webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>');
+		-webkit-mask-size: contain;
+		-webkit-mask-repeat: no-repeat;
+		-webkit-mask-position: center;
+		mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>');
+		mask-size: contain;
+		mask-repeat: no-repeat;
+		mask-position: center;
+		filter: drop-shadow(0 0 8px var(--joy-heart-color));
+		transition: all 0.3s ease;
 	}
 
 	.joy-slider::-moz-range-thumb {
-		background: var(--color-secondary);
+		width: 24px;
+		height: 24px;
+		background: var(--joy-heart-color);
+		border: none;
+		cursor: pointer;
+		mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>');
+		mask-size: contain;
+		mask-repeat: no-repeat;
+		mask-position: center;
+		filter: drop-shadow(0 0 8px var(--joy-heart-color));
+		transition: all 0.3s ease;
 	}
 
 	.slider-labels {

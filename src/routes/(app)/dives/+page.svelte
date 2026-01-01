@@ -4,6 +4,8 @@
 	import { user } from '$lib/stores/auth';
 	import { getRoutinesForUser, createSession, createRoutineLog, updateSession } from '$lib/firestore';
 	import { uploadSessionPhoto } from '$lib/storage';
+	import { getUserPBs, checkIsPB, updateUserPB } from '$lib/utils/personalBests';
+	import { getTimeOfDay, findExistingSession } from '$lib/utils/sessions';
 	import RoutineSelector from '$lib/components/RoutineSelector.svelte';
 	import QuickLogForm, { type LogFormData } from '$lib/components/QuickLogForm.svelte';
 	import type { RoutineTemplate } from '$lib/types';
@@ -48,11 +50,24 @@
 		success = null;
 
 		try {
-			// 1. Create session document first (need sessionId for photo upload)
-			const sessionId = await createSession({
-				userId: $user.uid,
-				date: Timestamp.now()
-			});
+			// 1. Find or create session for current time period
+			const now = new Date();
+			const timeOfDay = getTimeOfDay(now);
+
+			// Check if a session exists for today + time of day
+			let sessionId = await findExistingSession($user.uid, timeOfDay, now);
+
+			if (sessionId) {
+				console.log(`Reusing existing ${timeOfDay} session: ${sessionId}`);
+			} else {
+				// Create new session for this time period
+				sessionId = await createSession({
+					userId: $user.uid,
+					date: Timestamp.now(),
+					timeOfDay
+				});
+				console.log(`Created new ${timeOfDay} session: ${sessionId}`);
+			}
 
 			// 2. Upload photo if provided
 			let photoUrl: string | undefined;
@@ -80,14 +95,39 @@
 				});
 			}
 
-			// 4. Build routine log data, filtering out undefined values
+			// 4. Check if this is a PB (for max-attempt routines only)
+			let isPB = false;
+			const isMaxAttempt = selectedRoutine.tags.includes('max-attempt') || selectedRoutine.tags.includes('pb');
+
+			if (isMaxAttempt) {
+				// Get the dive result (time for STA, distance for dynamic disciplines)
+				const result = logData.disciplineUsed === 'STA'
+					? logData.totalTime
+					: logData.totalDistance;
+
+				if (result !== undefined) {
+					// Get user's current PBs
+					const currentPBs = await getUserPBs($user.uid);
+
+					// Check if this beats the PB
+					isPB = checkIsPB(logData.disciplineUsed, result, currentPBs);
+
+					// If it's a PB, update the user's PBs
+					if (isPB) {
+						await updateUserPB($user.uid, logData.disciplineUsed, result);
+					}
+				}
+			}
+
+			// 5. Build routine log data, filtering out undefined values
 			const routineLogData: any = {
 				routineId: selectedRoutine.id,
 				sessionId,
 				userId: $user.uid,
 				date: Timestamp.now(),
 				disciplineUsed: logData.disciplineUsed,
-				hasDetailedData: false // Quick summary only
+				hasDetailedData: false, // Quick summary only
+				...(isPB && { isPB: true }) // Mark as PB if applicable
 			};
 
 			// Session context
@@ -117,10 +157,13 @@
 			if (logData.hoursSinceLastMeal !== undefined) routineLogData.hoursSinceLastMeal = logData.hoursSinceLastMeal;
 			if (logData.notes) routineLogData.notes = logData.notes;
 
-			// 5. Create routine log within the session
+			// 6. Create routine log within the session
 			await createRoutineLog(sessionId, routineLogData);
 
-			success = 'Routine logged successfully! 🎉';
+			// Show success message with PB indicator
+			success = isPB
+				? '🎉 NEW PERSONAL BEST! Routine logged successfully!'
+				: 'Routine logged successfully! 🎉';
 			selectedRoutine = null;
 			selectedRoutineId = undefined;
 

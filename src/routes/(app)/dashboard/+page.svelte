@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { user } from '$lib/stores/auth';
 	import { db } from '$lib/firebase';
-	import { collection, query, getDocs, doc, getDoc, orderBy, limit } from 'firebase/firestore';
-	import type { RoutineLog, RoutineTemplate, Session } from '$lib/types';
+	import { collection, query, getDocs, doc, getDoc, orderBy, limit, where } from 'firebase/firestore';
+	import type { RoutineLog, RoutineTemplate, Session, PersonalBests } from '$lib/types';
 	import SessionCard from '$lib/components/SessionCard.svelte';
+	import { getUserPBs } from '$lib/utils/personalBests';
 	import { onMount } from 'svelte';
 
 	interface SessionWithRoutine {
@@ -15,6 +16,8 @@
 	let sessions: SessionWithRoutine[] = $state([]);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
+	let personalBests = $state<PersonalBests | undefined>(undefined);
+	let thisWeekCount = $state(0);
 
 	async function fetchRecentSessions() {
 		if (!$user) return;
@@ -23,11 +26,13 @@
 			loading = true;
 			error = null;
 
-			// Query user's sessions
+			// Query user's sessions (filter by userId first!)
+			// Fetch more sessions to ensure we get enough routine logs
 			const sessionsQuery = query(
 				collection(db, 'sessions'),
+				where('userId', '==', $user.uid),
 				orderBy('date', 'desc'),
-				limit(10)
+				limit(50) // Increased to fetch more sessions
 			);
 
 			const sessionsSnapshot = await getDocs(sessionsQuery);
@@ -37,9 +42,6 @@
 			for (const sessionDoc of sessionsSnapshot.docs) {
 				const sessionData = sessionDoc.data();
 				const session = { id: sessionDoc.id, ...sessionData } as Session;
-
-				// Only process this user's sessions
-				if (session.userId !== $user.uid) continue;
 
 				// Get routine logs for this session
 				const routineLogsRef = collection(db, 'sessions', sessionDoc.id, 'routineLogs');
@@ -63,8 +65,20 @@
 			// Sort by date descending
 			sessionsData.sort((a, b) => b.log.date.seconds - a.log.date.seconds);
 
-			// Take only the 10 most recent
-			sessions = sessionsData.slice(0, 10);
+			// Debug logging
+			console.log(`Total routine logs found: ${sessionsData.length}`);
+			console.log(`Sessions queried: ${sessionsSnapshot.size}`);
+
+			// Calculate "This Week" count (last 7 days)
+			const oneWeekAgo = Date.now() / 1000 - 7 * 24 * 60 * 60; // 7 days in seconds
+			thisWeekCount = sessionsData.filter(
+				(item) => item.log.date.seconds >= oneWeekAgo
+			).length;
+
+			// Take only the 20 most recent routine logs for the feed
+			sessions = sessionsData.slice(0, 20);
+
+			console.log(`Displaying ${sessions.length} routine logs in feed`);
 		} catch (err) {
 			console.error('Error fetching sessions:', err);
 			error = `Failed to load recent sessions: ${err instanceof Error ? err.message : String(err)}`;
@@ -73,8 +87,19 @@
 		}
 	}
 
+	async function fetchPBs() {
+		if (!$user) return;
+
+		try {
+			personalBests = await getUserPBs($user.uid);
+		} catch (err) {
+			console.error('Error fetching PBs:', err);
+		}
+	}
+
 	onMount(() => {
 		fetchRecentSessions();
+		fetchPBs();
 	});
 </script>
 
@@ -90,12 +115,46 @@
 					</div>
 					<div class="stat-box">
 						<div class="stat-label">This Week</div>
-						<div class="stat-value secondary">0</div>
+						<div class="stat-value secondary">{thisWeekCount}</div>
 					</div>
-					<div class="stat-box">
-						<div class="stat-label">Personal Best</div>
-						<div class="stat-value primary">—</div>
-					</div>
+
+					<!-- Personal Bests - show all disciplines with PBs -->
+					{#if personalBests}
+						{#if personalBests.STA !== undefined}
+							<div class="stat-box">
+								<div class="stat-label">STA PB</div>
+								<div class="stat-value primary">
+									{Math.floor(personalBests.STA / 60)}:{(Math.floor(personalBests.STA % 60)).toString().padStart(2, '0')}
+								</div>
+							</div>
+						{/if}
+						{#if personalBests.DYN !== undefined}
+							<div class="stat-box">
+								<div class="stat-label">DYN PB</div>
+								<div class="stat-value primary">{personalBests.DYN}m</div>
+							</div>
+						{/if}
+						{#if personalBests.DNF !== undefined}
+							<div class="stat-box">
+								<div class="stat-label">DNF PB</div>
+								<div class="stat-value primary">{personalBests.DNF}m</div>
+							</div>
+						{/if}
+						{#if personalBests.DYNB !== undefined}
+							<div class="stat-box">
+								<div class="stat-label">DYNB PB</div>
+								<div class="stat-value primary">{personalBests.DYNB}m</div>
+							</div>
+						{/if}
+					{/if}
+
+					<!-- Show placeholder if no PBs yet -->
+					{#if !personalBests || (personalBests.STA === undefined && personalBests.DYN === undefined && personalBests.DNF === undefined && personalBests.DYNB === undefined)}
+						<div class="stat-box">
+							<div class="stat-label">Personal Bests</div>
+							<div class="stat-value primary">—</div>
+						</div>
+					{/if}
 				</div>
 			</div>
 
@@ -188,7 +247,7 @@
 
 	.stats-grid {
 		display: grid;
-		grid-template-columns: repeat(3, 1fr);
+		grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 		gap: 1rem;
 	}
 
@@ -233,6 +292,7 @@
 	/* Sessions Section */
 	.sessions-section {
 		margin-top: 0;
+		padding-bottom: 3.5rem; /* Extra space for bottom nav */
 	}
 
 	.section-title {

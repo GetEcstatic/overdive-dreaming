@@ -2,6 +2,7 @@
 	import type { RoutineLog, RoutineTemplate, Session } from '$lib/types';
 	import { getFormattedMetric } from '$lib/utils/metrics';
 	import { getYouTubeEmbedUrl } from '$lib/storage';
+	import { formatTimeOfDay } from '$lib/utils/sessions';
 	import { format, formatDistanceToNow } from 'date-fns';
 	import { user } from '$lib/stores/auth';
 	import { db } from '$lib/firebase';
@@ -10,32 +11,32 @@
 	let { log, routine, session }: { log: RoutineLog; routine: RoutineTemplate; session: Session } = $props();
 
 	// Get hero and secondary metrics from routine's displayConfig
-	const heroMetric = getFormattedMetric(
+	const heroMetric = $derived(getFormattedMetric(
 		routine.displayConfig.heroMetric,
 		routine.displayConfig.heroMetricLabel,
 		log,
 		routine
-	);
+	));
 
-	const secondaryMetric = getFormattedMetric(
+	const secondaryMetric = $derived(getFormattedMetric(
 		routine.displayConfig.secondaryMetric,
 		routine.displayConfig.secondaryMetricLabel,
 		log,
 		routine
-	);
+	));
 
 	// Format timestamps
-	const timeAgo = formatDistanceToNow(log.date.toDate(), { addSuffix: true });
-	const fullDate = format(log.date.toDate(), 'MMM d, yyyy');
-	const fullTime = format(log.date.toDate(), 'h:mm a');
+	const timeAgo = $derived(formatDistanceToNow(log.date.toDate(), { addSuffix: true }));
+	const fullDate = $derived(format(log.date.toDate(), 'MMM d, yyyy'));
+	const fullTime = $derived(format(log.date.toDate(), 'h:mm a'));
 
 	// RPE and Joy emoji mapping
 	const rpeEmoji = '💪';
 	const joyEmoji = '😊';
 
-	// Like state - initialize from Firestore
-	let likeCount = $state(log.likes?.length ?? 0);
-	let isLiked = $state(log.likes?.includes($user?.uid ?? '') ?? false);
+	// Like state - initialize from Firestore (intentionally capture initial value)
+	let likeCount = $state((() => log.likes?.length ?? 0)());
+	let isLiked = $state((() => log.likes?.includes($user?.uid ?? '') ?? false)());
 
 	async function toggleLike() {
 		if (!$user) return;
@@ -83,6 +84,10 @@
 				<div class="user-name">{$user?.displayName ?? 'User'}</div>
 				<div class="session-meta">
 					<span class="date">{fullDate}</span>
+					{#if session.timeOfDay}
+						<span class="separator">•</span>
+						<span class="time-of-day">{formatTimeOfDay(session.timeOfDay)}</span>
+					{/if}
 					<span class="separator">•</span>
 					<span class="time">{fullTime}</span>
 					<span class="separator">•</span>
@@ -240,6 +245,11 @@
 		flex-wrap: wrap;
 		font-size: 0.75rem;
 		color: var(--color-text-muted);
+	}
+
+	.time-of-day {
+		color: var(--color-primary);
+		font-weight: 600;
 	}
 
 	.date {

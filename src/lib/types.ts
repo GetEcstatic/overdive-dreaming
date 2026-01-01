@@ -17,6 +17,13 @@ export type UserTier = 'free' | 'premium';
 // USER
 // ============================================================================
 
+export interface PersonalBests {
+	STA?: number; // Best static apnea time in seconds
+	DYN?: number; // Best dynamic with fins distance in meters
+	DNF?: number; // Best dynamic no fins distance in meters
+	DYNB?: number; // Best dynamic bifins distance in meters
+}
+
 export interface User {
 	uid: string;
 	email: string;
@@ -24,6 +31,7 @@ export interface User {
 	photoURL: string;
 	tier?: UserTier;
 	customRoutineCount?: number;
+	personalBests?: PersonalBests; // Track PB per discipline
 	createdAt: Timestamp;
 	updatedAt: Timestamp;
 }
@@ -112,10 +120,13 @@ export interface RoutineTemplate {
 // SESSION
 // ============================================================================
 
+export type TimeOfDay = 'morning' | 'afternoon' | 'evening';
+
 export interface Session {
 	id: string;
 	userId: string;
 	date: Timestamp;
+	timeOfDay?: TimeOfDay; // Auto-determined: morning (6am-12pm), afternoon (12pm-6pm), evening (6pm-12am)
 	location?: string;
 	notes?: string;
 	photoUrl?: string; // Firebase Storage download URL
@@ -185,6 +196,9 @@ export interface RoutineLog {
 
 	// Social features
 	likes?: string[]; // Array of user IDs who have liked this log
+
+	// PB tracking
+	isPB?: boolean; // True if this dive was a personal best when logged
 
 	createdAt: Timestamp;
 	updatedAt: Timestamp;
