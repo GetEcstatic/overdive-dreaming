@@ -70,12 +70,13 @@
 			// Performance metrics
 			if (logData.totalDistance !== undefined) routineLogData.totalDistance = logData.totalDistance;
 			if (logData.totalTime !== undefined) routineLogData.totalTime = logData.totalTime;
+			if (logData.repDuration !== undefined) routineLogData.repDuration = logData.repDuration;
 
 			// Summary (for interval routines)
-			if (logData.lapsCompleted !== undefined || logData.totalTime !== undefined) {
+			if (logData.repsCompleted !== undefined || logData.totalTime !== undefined) {
 				routineLogData.summary = {};
-				if (logData.lapsCompleted !== undefined) {
-					routineLogData.summary.lapsCompleted = logData.lapsCompleted;
+				if (logData.repsCompleted !== undefined) {
+					routineLogData.summary.repsCompleted = logData.repsCompleted;
 				}
 				if (logData.totalTime !== undefined) {
 					routineLogData.summary.totalTimeSeconds = logData.totalTime;

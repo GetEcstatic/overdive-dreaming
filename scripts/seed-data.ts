@@ -38,7 +38,8 @@ const dynamicMaxTracking: TrackingConfig = {
 	// Performance metrics
 	trackTotalDistance: true,
 	trackTotalTime: true,
-	trackLapsCompleted: false,
+	trackRepsCompleted: false,
+	trackRepDuration: false,
 	trackTimePerLap: true,
 	trackRestBetweenLaps: false,
 	trackKicksPerLap: true,
@@ -59,7 +60,8 @@ const staticMaxTracking: TrackingConfig = {
 	// Performance metrics
 	trackTotalDistance: false,
 	trackTotalTime: true,
-	trackLapsCompleted: false,
+	trackRepsCompleted: false,
+	trackRepDuration: false,
 	trackTimePerLap: false,
 	trackRestBetweenLaps: false,
 	trackKicksPerLap: false,
@@ -80,7 +82,8 @@ const intervalTracking: TrackingConfig = {
 	// Performance metrics
 	trackTotalDistance: false,
 	trackTotalTime: true,
-	trackLapsCompleted: true,
+	trackRepsCompleted: true,
+	trackRepDuration: false,
 	trackTimePerLap: true,
 	trackRestBetweenLaps: true,
 	trackKicksPerLap: false,
@@ -100,8 +103,9 @@ const staticIntervalTracking: TrackingConfig = {
 	trackInitialBreatheUpTime: true,
 	// Performance metrics
 	trackTotalDistance: false,
-	trackTotalTime: true,
-	trackLapsCompleted: true,
+	trackTotalTime: false,
+	trackRepsCompleted: true,
+	trackRepDuration: true,
 	trackTimePerLap: false,
 	trackRestBetweenLaps: true,
 	trackKicksPerLap: false,
@@ -171,8 +175,8 @@ const defaultRoutines: Omit<RoutineTemplate, 'createdAt' | 'updatedAt'>[] = [
 		displayConfig: {
 			heroMetric: 'totalTime',
 			heroMetricLabel: 'Total Time',
-			secondaryMetric: 'avgTimePerLap',
-			secondaryMetricLabel: 'Avg/Lap'
+			secondaryMetric: 'avgTimePerRep',
+			secondaryMetricLabel: 'Avg/Rep'
 		},
 		createdBy: 'system',
 		isPublic: true
@@ -183,17 +187,16 @@ const defaultRoutines: Omit<RoutineTemplate, 'createdAt' | 'updatedAt'>[] = [
 		id: 'system-gentle-2-breath',
 		name: 'Gentle 2-Breath',
 		description:
-			'Ten static holds of 1:30 with recovery periods long enough for just two breaths. Gentle CO₂ tolerance training.',
+			'Ten static holds (target 1:30 each) with recovery periods long enough for just two breaths. Gentle CO₂ tolerance training.',
 		disciplines: ['STA'],
 		tags: ['co2', 'beginner'],
-		repDuration: 90, // 1:30 in seconds
 		numberOfReps: 10,
 		trackingConfig: staticIntervalTracking,
 		displayConfig: {
 			heroMetric: 'totalBreathHoldTime',
 			heroMetricLabel: 'Total Hold',
-			secondaryMetric: 'totalBreathingTime',
-			secondaryMetricLabel: 'Total Rest'
+			secondaryMetric: 'totalBreaths',
+			secondaryMetricLabel: 'Total Breaths'
 		},
 		createdBy: 'system',
 		isPublic: true

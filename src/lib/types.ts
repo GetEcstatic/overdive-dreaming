@@ -40,7 +40,8 @@ export interface TrackingConfig {
 	// Performance metrics
 	trackTotalDistance: boolean; // Total meters covered (for max attempts)
 	trackTotalTime: boolean; // Total dive duration
-	trackLapsCompleted: boolean; // Number of pool laps completed
+	trackRepsCompleted: boolean; // Number of repetitions completed
+	trackRepDuration: boolean; // Duration per rep (for interval training)
 	trackTimePerLap: boolean; // Detailed per-lap times
 	trackRestBetweenLaps: boolean; // Rest between reps
 	trackKicksPerLap: boolean; // Kicks per lap (DYN/DYNB/DNF)
@@ -57,11 +58,13 @@ export interface TrackingConfig {
 export type MetricType =
 	| 'totalDistance'
 	| 'totalTime'
-	| 'lapsCompleted'
+	| 'repsCompleted'
 	| 'avgTimePerLap'
+	| 'avgTimePerRep'
 	| 'avgRestBetweenLaps'
 	| 'totalBreathHoldTime'
 	| 'totalBreathingTime'
+	| 'totalBreaths'
 	| 'poolLength'
 	| 'initialBreatheUpTime';
 
@@ -86,7 +89,6 @@ export interface RoutineTemplate {
 	// Routine structure (ALL OPTIONAL)
 	restBetweenReps?: number; // seconds, breathing time between each rep
 	repDistance?: number; // meters, distance per rep (for dynamic disciplines)
-	repDuration?: number; // seconds, duration per rep (for static disciplines)
 	numberOfReps?: number; // total reps in routine
 
 	// Configurable tracking
@@ -133,9 +135,9 @@ export interface LapData {
 }
 
 export interface RoutineLogSummary {
-	lapsCompleted: number;
+	repsCompleted: number;
 	totalTimeSeconds?: number;
-	averageTimePerLap?: number;
+	averageTimePerRep?: number;
 }
 
 export interface RoutineLog {
@@ -155,6 +157,9 @@ export interface RoutineLog {
 	// Performance data - max attempt metrics
 	totalDistance?: number; // meters - total distance covered (for max attempts)
 	totalTime?: number; // seconds - total dive duration
+
+	// Performance data - interval training metrics
+	repDuration?: number; // seconds - duration per rep (for interval training)
 
 	// Performance data - per-lap details (optional, can add later from video)
 	laps?: LapData[];

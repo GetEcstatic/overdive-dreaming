@@ -21,9 +21,9 @@ export function calculateTotalBreathHoldTime(
 		return log.laps.reduce((sum, lap) => sum + (lap.timeSeconds || 0), 0);
 	}
 
-	// If using fixed rep duration (e.g., Gentle 2-Breath = 90s per rep)
-	if (routine.repDuration && log.summary?.lapsCompleted) {
-		return routine.repDuration * log.summary.lapsCompleted;
+	// If using logged rep duration (e.g., Gentle 2-Breath actual rep duration)
+	if (log.repDuration && log.summary?.repsCompleted) {
+		return log.repDuration * log.summary.repsCompleted;
 	}
 
 	return 0;
@@ -36,6 +36,19 @@ export function calculateTotalBreathHoldTime(
 export function calculateTotalBreathingTime(log: RoutineLog): number {
 	if (log.laps && log.laps.length > 0) {
 		return log.laps.reduce((sum, lap) => sum + (lap.restAfterSeconds || 0), 0);
+	}
+	return 0;
+}
+
+/**
+ * Calculate total breaths taken during interval routine
+ * For Gentle 2-Breath: (repsCompleted - 1) × 2
+ * Used for static interval routines where you take a fixed number of breaths between reps
+ */
+export function calculateTotalBreaths(log: RoutineLog): number {
+	const repsCompleted = log.summary?.repsCompleted || 0;
+	if (repsCompleted > 1) {
+		return (repsCompleted - 1) * 2;
 	}
 	return 0;
 }
@@ -56,9 +69,9 @@ export function calculateAvgTimePerLap(log: RoutineLog): number {
 		return total / log.laps.length;
 	}
 
-	// Calculate from total time and laps completed
-	if (log.totalTime && log.summary?.lapsCompleted) {
-		return log.totalTime / log.summary.lapsCompleted;
+	// Calculate from total time and reps completed
+	if (log.totalTime && log.summary?.repsCompleted) {
+		return log.totalTime / log.summary.repsCompleted;
 	}
 
 	return 0;
@@ -92,10 +105,11 @@ export function getMetricValue(
 		case 'totalTime':
 			return log.totalTime || 0;
 
-		case 'lapsCompleted':
-			return log.summary?.lapsCompleted || 0;
+		case 'repsCompleted':
+			return log.summary?.repsCompleted || 0;
 
 		case 'avgTimePerLap':
+		case 'avgTimePerRep':
 			return calculateAvgTimePerLap(log);
 
 		case 'avgRestBetweenLaps':
@@ -106,6 +120,9 @@ export function getMetricValue(
 
 		case 'totalBreathingTime':
 			return calculateTotalBreathingTime(log);
+
+		case 'totalBreaths':
+			return calculateTotalBreaths(log);
 
 		case 'poolLength':
 			return log.poolLength || 0;
@@ -130,13 +147,15 @@ export function formatMetricValue(metricType: MetricType, value: number): string
 
 		case 'totalTime':
 		case 'avgTimePerLap':
+		case 'avgTimePerRep':
 		case 'avgRestBetweenLaps':
 		case 'totalBreathHoldTime':
 		case 'totalBreathingTime':
 		case 'initialBreatheUpTime':
 			return formatTime(value);
 
-		case 'lapsCompleted':
+		case 'repsCompleted':
+		case 'totalBreaths':
 			return value.toString();
 
 		default:
