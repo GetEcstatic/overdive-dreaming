@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { RoutineTemplate, Discipline, BreathingTechnique } from '$lib/types';
+	import { isValidYouTubeUrl } from '$lib/storage';
 
 	interface Props {
 		routine: RoutineTemplate;
@@ -23,6 +24,9 @@
 		joyScale?: number;
 		hoursSinceLastMeal?: number;
 		notes?: string;
+		// Media
+		photoFile?: File;
+		youtubeUrl?: string;
 	}
 
 	let { routine, onSubmit, onCancel }: Props = $props();
@@ -49,6 +53,59 @@
 	let joyScale = $state<number | undefined>(undefined);
 	let hoursSinceLastMeal = $state<number | undefined>(undefined);
 	let notes = $state<string>('');
+
+	// Media
+	let photoFile = $state<File | undefined>(undefined);
+	let photoPreviewUrl = $state<string | undefined>(undefined);
+	let youtubeUrl = $state<string>('');
+	let youtubeError = $state<string | null>(null);
+
+	function handlePhotoChange(e: Event) {
+		const input = e.target as HTMLInputElement;
+		const file = input.files?.[0];
+
+		if (!file) {
+			photoFile = undefined;
+			photoPreviewUrl = undefined;
+			return;
+		}
+
+		if (!file.type.startsWith('image/')) {
+			alert('Please select an image file');
+			return;
+		}
+
+		if (file.size > 5 * 1024 * 1024) {
+			alert('Image must be under 5MB');
+			return;
+		}
+
+		photoFile = file;
+
+		const reader = new FileReader();
+		reader.onload = (e) => {
+			photoPreviewUrl = e.target?.result as string;
+		};
+		reader.readAsDataURL(file);
+	}
+
+	function removePhoto() {
+		photoFile = undefined;
+		photoPreviewUrl = undefined;
+	}
+
+	function handleYouTubeChange() {
+		if (!youtubeUrl.trim()) {
+			youtubeError = null;
+			return;
+		}
+
+		if (!isValidYouTubeUrl(youtubeUrl)) {
+			youtubeError = 'Invalid YouTube URL';
+		} else {
+			youtubeError = null;
+		}
+	}
 
 	function handleSubmit(e: Event) {
 		e.preventDefault();
@@ -84,7 +141,10 @@
 			rpe,
 			joyScale,
 			hoursSinceLastMeal,
-			notes: notes.trim() || undefined
+			notes: notes.trim() || undefined,
+			// Media
+			photoFile,
+			youtubeUrl: youtubeUrl.trim() || undefined
 		};
 
 		onSubmit(data);
@@ -355,6 +415,53 @@
 			{/if}
 		</div>
 	{/if}
+
+	<!-- Media Section (Optional) -->
+	<div class="form-section">
+		<h4 class="section-title">Media (Optional)</h4>
+
+		<!-- Photo Upload -->
+		<div class="field-group">
+			<label class="field-label">Session Photo</label>
+
+			{#if photoPreviewUrl}
+				<div class="photo-preview">
+					<img src={photoPreviewUrl} alt="Preview" class="preview-image" />
+					<button type="button" onclick={removePhoto} class="remove-photo-btn">
+						Remove
+					</button>
+				</div>
+			{:else}
+				<input
+					type="file"
+					accept="image/jpeg,image/png,image/webp"
+					onchange={handlePhotoChange}
+					class="file-input"
+				/>
+				<p class="field-hint">JPG, PNG, or WebP • Max 5MB</p>
+			{/if}
+		</div>
+
+		<!-- YouTube URL -->
+		<div class="field-group">
+			<label for="youtubeUrl" class="field-label">YouTube Video URL</label>
+			<input
+				id="youtubeUrl"
+				type="url"
+				bind:value={youtubeUrl}
+				oninput={handleYouTubeChange}
+				class="field-input"
+				class:error={youtubeError}
+				placeholder="https://www.youtube.com/watch?v=..."
+			/>
+			{#if youtubeError}
+				<p class="field-error">{youtubeError}</p>
+			{/if}
+			{#if youtubeUrl && !youtubeError}
+				<p class="field-hint field-success">✓ Valid YouTube URL</p>
+			{/if}
+		</div>
+	</div>
 
 	<!-- Action Buttons -->
 	<div class="form-actions">
@@ -642,6 +749,76 @@
 
 	.btn-submit:hover {
 		opacity: 0.9;
+	}
+
+	/* Photo Upload */
+	.photo-preview {
+		position: relative;
+		border-radius: 8px;
+		overflow: hidden;
+		border: 1px solid rgba(148, 163, 184, 0.15);
+	}
+
+	.preview-image {
+		width: 100%;
+		height: auto;
+		display: block;
+		max-height: 300px;
+		object-fit: cover;
+	}
+
+	.remove-photo-btn {
+		position: absolute;
+		top: 0.5rem;
+		right: 0.5rem;
+		padding: 0.5rem 1rem;
+		background: rgba(239, 68, 68, 0.9);
+		color: white;
+		border: none;
+		border-radius: 6px;
+		font-size: 0.75rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: background 0.2s ease;
+	}
+
+	.remove-photo-btn:hover {
+		background: rgba(220, 38, 38, 1);
+	}
+
+	.file-input {
+		width: 100%;
+		padding: 0.75rem;
+		background: var(--color-bg);
+		border: 2px dashed rgba(148, 163, 184, 0.3);
+		border-radius: 8px;
+		color: var(--color-text);
+		cursor: pointer;
+		transition: border-color 0.2s ease;
+	}
+
+	.file-input:hover {
+		border-color: var(--color-primary);
+	}
+
+	.field-hint {
+		font-size: 0.75rem;
+		color: var(--color-text-muted);
+		margin-top: 0.25rem;
+	}
+
+	.field-success {
+		color: var(--color-secondary);
+	}
+
+	.field-error {
+		font-size: 0.75rem;
+		color: #ef4444;
+		margin-top: 0.25rem;
+	}
+
+	.field-input.error {
+		border-color: #ef4444;
 	}
 
 	/* Mobile Responsive Adjustments */

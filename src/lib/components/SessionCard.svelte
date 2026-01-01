@@ -1,12 +1,13 @@
 <script lang="ts">
-	import type { RoutineLog, RoutineTemplate } from '$lib/types';
+	import type { RoutineLog, RoutineTemplate, Session } from '$lib/types';
 	import { getFormattedMetric } from '$lib/utils/metrics';
+	import { getYouTubeEmbedUrl } from '$lib/storage';
 	import { format, formatDistanceToNow } from 'date-fns';
 	import { user } from '$lib/stores/auth';
 	import { db } from '$lib/firebase';
 	import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 
-	let { log, routine }: { log: RoutineLog; routine: RoutineTemplate } = $props();
+	let { log, routine, session }: { log: RoutineLog; routine: RoutineTemplate; session: Session } = $props();
 
 	// Get hero and secondary metrics from routine's displayConfig
 	const heroMetric = getFormattedMetric(
@@ -120,6 +121,30 @@
 			<div class="metric-value">{log.joyScale ?? '—'}</div>
 		</div>
 	</div>
+
+	<!-- Media Section -->
+	{#if session.photoUrl || session.youtubeUrl}
+		<div class="media-section">
+			{#if session.photoUrl}
+				<div class="session-photo">
+					<img src={session.photoUrl} alt="Session" class="photo-image" />
+				</div>
+			{/if}
+
+			{#if session.youtubeUrl}
+				<div class="youtube-embed">
+					<iframe
+						src={getYouTubeEmbedUrl(session.youtubeUrl) || ''}
+						title="Session Video"
+						frameborder="0"
+						allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+						allowfullscreen
+						class="youtube-iframe"
+					></iframe>
+				</div>
+			{/if}
+		</div>
+	{/if}
 
 	<!-- Like/Kudos Footer -->
 	<div class="card-footer">
@@ -394,6 +419,46 @@
 		font-weight: 500;
 	}
 
+	/* Media Section */
+	.media-section {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+		padding: 0 1rem 1rem 1rem;
+	}
+
+	.session-photo {
+		border-radius: 8px;
+		overflow: hidden;
+		border: 1px solid rgba(148, 163, 184, 0.1);
+	}
+
+	.photo-image {
+		width: 100%;
+		height: auto;
+		display: block;
+		max-height: 400px;
+		object-fit: cover;
+	}
+
+	.youtube-embed {
+		position: relative;
+		width: 100%;
+		padding-bottom: 56.25%; /* 16:9 aspect ratio */
+		border-radius: 8px;
+		overflow: hidden;
+		background: rgba(15, 23, 42, 0.5);
+	}
+
+	.youtube-iframe {
+		position: absolute;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100%;
+		border: none;
+	}
+
 	/* Desktop enhancements */
 	@media (min-width: 768px) {
 		.card-header {
@@ -474,6 +539,14 @@
 		.like-icon {
 			width: 16px;
 			height: 16px;
+		}
+
+		.media-section {
+			padding: 0 0.75rem 0.75rem 0.75rem;
+		}
+
+		.photo-image {
+			max-height: 300px;
 		}
 	}
 </style>

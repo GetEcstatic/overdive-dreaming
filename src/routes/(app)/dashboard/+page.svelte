@@ -2,13 +2,14 @@
 	import { user } from '$lib/stores/auth';
 	import { db } from '$lib/firebase';
 	import { collection, query, getDocs, doc, getDoc, orderBy, limit } from 'firebase/firestore';
-	import type { RoutineLog, RoutineTemplate } from '$lib/types';
+	import type { RoutineLog, RoutineTemplate, Session } from '$lib/types';
 	import SessionCard from '$lib/components/SessionCard.svelte';
 	import { onMount } from 'svelte';
 
 	interface SessionWithRoutine {
 		log: RoutineLog;
 		routine: RoutineTemplate;
+		session: Session;
 	}
 
 	let sessions: SessionWithRoutine[] = $state([]);
@@ -35,9 +36,10 @@
 			// For each session, get its routine logs
 			for (const sessionDoc of sessionsSnapshot.docs) {
 				const sessionData = sessionDoc.data();
+				const session = { id: sessionDoc.id, ...sessionData } as Session;
 
 				// Only process this user's sessions
-				if (sessionData.userId !== $user.uid) continue;
+				if (session.userId !== $user.uid) continue;
 
 				// Get routine logs for this session
 				const routineLogsRef = collection(db, 'sessions', sessionDoc.id, 'routineLogs');
@@ -53,7 +55,7 @@
 
 					if (routineSnap.exists()) {
 						const routine = { id: routineSnap.id, ...routineSnap.data() } as RoutineTemplate;
-						sessionsData.push({ log, routine });
+						sessionsData.push({ log, routine, session });
 					}
 				}
 			}
@@ -146,8 +148,8 @@
 				{:else}
 					<!-- Sessions Feed -->
 					<div class="flex flex-col gap-6">
-						{#each sessions as { log, routine }}
-							<SessionCard {log} {routine} />
+						{#each sessions as { log, routine, session }}
+							<SessionCard {log} {routine} {session} />
 						{/each}
 					</div>
 				{/if}

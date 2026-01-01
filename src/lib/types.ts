@@ -118,6 +118,8 @@ export interface Session {
 	date: Timestamp;
 	location?: string;
 	notes?: string;
+	photoUrl?: string; // Firebase Storage download URL
+	youtubeUrl?: string; // YouTube video URL
 	createdAt: Timestamp;
 	updatedAt: Timestamp;
 }

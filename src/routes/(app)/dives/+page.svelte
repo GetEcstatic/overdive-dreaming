@@ -2,7 +2,8 @@
 	import { onMount } from 'svelte';
 	import { Timestamp } from 'firebase/firestore';
 	import { user } from '$lib/stores/auth';
-	import { getRoutinesForUser, createSession, createRoutineLog } from '$lib/firestore';
+	import { getRoutinesForUser, createSession, createRoutineLog, updateSession } from '$lib/firestore';
+	import { uploadSessionPhoto } from '$lib/storage';
 	import RoutineSelector from '$lib/components/RoutineSelector.svelte';
 	import QuickLogForm, { type LogFormData } from '$lib/components/QuickLogForm.svelte';
 	import type { RoutineTemplate } from '$lib/types';
@@ -47,13 +48,39 @@
 		success = null;
 
 		try {
-			// 1. Create session for this dive
+			// 1. Create session document first (need sessionId for photo upload)
 			const sessionId = await createSession({
 				userId: $user.uid,
 				date: Timestamp.now()
 			});
 
-			// 2. Build routine log data, filtering out undefined values
+			// 2. Upload photo if provided
+			let photoUrl: string | undefined;
+			if (logData.photoFile) {
+				try {
+					photoUrl = await uploadSessionPhoto(
+						$user.uid,
+						sessionId,
+						logData.photoFile,
+						(progress) => {
+							console.log('Upload progress:', progress);
+						}
+					);
+				} catch (uploadError) {
+					console.error('Photo upload failed:', uploadError);
+					error = 'Failed to upload photo. Session saved without photo.';
+				}
+			}
+
+			// 3. Update session with media URLs if present
+			if (photoUrl || logData.youtubeUrl) {
+				await updateSession(sessionId, {
+					...(photoUrl && { photoUrl }),
+					...(logData.youtubeUrl && { youtubeUrl: logData.youtubeUrl })
+				});
+			}
+
+			// 4. Build routine log data, filtering out undefined values
 			const routineLogData: any = {
 				routineId: selectedRoutine.id,
 				sessionId,
@@ -90,7 +117,7 @@
 			if (logData.hoursSinceLastMeal !== undefined) routineLogData.hoursSinceLastMeal = logData.hoursSinceLastMeal;
 			if (logData.notes) routineLogData.notes = logData.notes;
 
-			// 3. Create routine log within the session
+			// 5. Create routine log within the session
 			await createRoutineLog(sessionId, routineLogData);
 
 			success = 'Routine logged successfully! 🎉';
