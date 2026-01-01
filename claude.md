@@ -155,6 +155,20 @@ await signOut(auth);
 - Sessions contain either **routine logs** (structured training) or **individual dives** (standalone attempts)
 - **Routine templates** are reusable patterns that users create/customize
 
+**Key Terminology:**
+- **Lap** = one length of the pool (e.g., 25m or 50m) - used for dynamic disciplines
+- **Rep** = one repetition of a routine (could be distance-based OR time-based)
+  - Dynamic example: 1 rep = 50m (2 laps of a 25m pool)
+  - Static example: 1 rep = 1:30 breath hold
+- **Note:** Use "reps" universally; "laps" only when specifically referring to pool lengths
+
+**Recent Architecture Changes (2026-01-01):**
+- Renamed `lapsCompleted` → `repsCompleted` for semantic accuracy
+- Moved `repDuration` from RoutineTemplate to per-session RoutineLog tracking
+- Added `trackRepDuration` field to TrackingConfig
+- Added `totalBreaths` calculated metric: `(repsCompleted - 1) × 2` for 2-breath protocol
+- Static interval routines no longer track total time (auto-calculated from repDuration × repsCompleted)
+
 ---
 
 ### User Document (`users/{userId}`)
@@ -191,9 +205,9 @@ interface RoutineTemplate {
 
   // Routine structure (ALL OPTIONAL - allows freeform routines)
   restBetweenReps?: number; // seconds, breathing time between each rep
-  repDistance?: number; // meters, distance per rep (renamed from lapDistance)
-  repDuration?: number; // seconds, duration per rep (for static disciplines)
+  repDistance?: number; // meters, distance per rep (for dynamic disciplines)
   numberOfReps?: number; // total reps in routine
+  // Note: repDuration is NOT in template - it's logged per-session in RoutineLog
 
   // Configurable tracking - which variables to capture when logging?
   trackingConfig: {
@@ -204,7 +218,8 @@ interface RoutineTemplate {
     // Performance metrics
     trackTotalDistance: boolean; // Total meters covered (for max attempts)
     trackTotalTime: boolean; // Total dive duration
-    trackLapsCompleted: boolean; // Number of pool laps completed
+    trackRepsCompleted: boolean; // Number of repetitions completed
+    trackRepDuration: boolean; // Duration per rep (for interval training)
     trackTimePerLap: boolean; // Detailed per-lap times
     trackRestBetweenLaps: boolean; // Rest between reps
     trackKicksPerLap: boolean; // Kicks per lap (DYN/DYNB/DNF)
@@ -283,6 +298,9 @@ interface RoutineLog {
   totalDistance?: number; // meters - total distance covered (for max attempts)
   totalTime?: number; // seconds - total dive duration
 
+  // Performance data - interval training metrics
+  repDuration?: number; // seconds - duration per rep (for interval training)
+
   // Performance data - per-lap details (optional, can add later from video)
   laps?: {
     lapNumber: number;
@@ -294,9 +312,9 @@ interface RoutineLog {
 
   // OR summary metrics (quick poolside entry)
   summary?: {
-    lapsCompleted: number;
+    repsCompleted: number;
     totalTimeSeconds?: number;
-    averageTimePerLap?: number;
+    averageTimePerRep?: number;
   };
 
   // Routine-level data (not per-lap)
@@ -443,6 +461,41 @@ service cloud.firestore {
 - `onAuthStateChanged` listener in both root and app layouts
 - Prevents flash of unauthenticated content
 
+### RoutineSelector.svelte
+- Dropdown selector for choosing a routine template
+- Displays routine name, description, disciplines, and tags
+- Filters routines available to user
+- Emits `onSelect` event when routine chosen
+
+### QuickLogForm.svelte
+- Dynamic form component that adapts fields based on routine's `trackingConfig`
+- Svelte 5 runes: `$state`, `$derived`, `$props`
+- Handles mm:ss time inputs with split minutes/seconds fields
+- Only shows fields enabled in the routine's tracking configuration
+- Exports `LogFormData` interface for type safety
+- Scoped CSS styling
+
+### SessionCard.svelte
+- Feed card component for displaying completed routine logs
+- Uses metrics utilities to calculate and format display values
+- Shows hero metric (large) and secondary metric (smaller)
+- Displays routine metadata (discipline, date, RPE, joy scale)
+- Responsive card layout with gradient accents
+
+### Utilities
+
+**src/lib/utils/metrics.ts:**
+- `getMetricValue()` - Extracts or calculates metric from routine log
+- `formatMetricValue()` - Formats numbers with appropriate units (meters, time, counts)
+- `calculateTotalBreathHoldTime()` - Sum of all hold durations (repDuration × repsCompleted)
+- `calculateTotalBreaths()` - Calculates (repsCompleted - 1) × 2 for 2-breath protocol
+- `calculateAvgTimePerLap()` - Average time across laps/reps
+- `calculateAvgRestBetweenLaps()` - Average rest intervals
+
+**src/lib/utils/time.ts:**
+- `formatTime()` - Converts seconds to mm:ss format
+- `parseTime()` - Converts mm:ss to seconds
+
 ## Firebase Setup (Required)
 
 ### Environment Variables (.env)
@@ -466,16 +519,14 @@ PUBLIC_FIREBASE_MEASUREMENT_ID=
 ## Current Implementation Status
 
 ### ✅ Completed
-- [x] SvelteKit project initialization
+- [x] SvelteKit project initialization with TypeScript
 - [x] Tailwind CSS v4 setup with dark theme
 - [x] Firebase configuration structure
 - [x] Google authentication UI and logic
 - [x] Route structure with protected routes
 - [x] Mobile bottom navigation
 - [x] Landing page with features showcase
-- [x] Dashboard layout (placeholder stats)
-- [x] Dive logging form UI (discipline selector, input fields)
-- [x] Analytics page layout (placeholder charts)
+- [x] Dashboard layout with session feed
 - [x] Profile page with sign out
 - [x] Auth state management with Svelte stores
 - [x] Responsive mobile-first design
@@ -483,15 +534,34 @@ PUBLIC_FIREBASE_MEASUREMENT_ID=
 - [x] Firebase credentials configured in .env
 - [x] Development server verified working
 - [x] Google sign-in flow tested and working
-- [x] Git repository initialized with initial commit
+- [x] Git repository initialized
+- [x] **Data model implementation:**
+  - [x] Complete TypeScript interfaces (types.ts)
+  - [x] Firestore integration for sessions and routine logs
+  - [x] 4 default routine templates (Dynamic Max, Static Max, Sweet 16, Gentle 2-Breath)
+  - [x] Configurable tracking system per routine
+  - [x] Seed script for database initialization
+- [x] **Routine logging system:**
+  - [x] RoutineSelector component
+  - [x] QuickLogForm component with dynamic fields based on trackingConfig
+  - [x] Save routine logs to Firestore (sessions/{sessionId}/routineLogs/{routineLogId})
+  - [x] Time input fields (mm:ss format)
+  - [x] Success/error messaging
+- [x] **Session feed:**
+  - [x] SessionCard component for displaying logged routines
+  - [x] Metrics calculation utilities (metrics.ts)
+  - [x] Hero and secondary metrics display based on routine displayConfig
+  - [x] Real-time session data fetching
+- [x] **Styling migration:**
+  - [x] Converted from Tailwind to scoped CSS for better maintainability
 
 ### 🚧 TODO - Immediate Next Steps
-- [ ] Implement Firestore integration for dive logging
-- [ ] Add real-time dive history display on dashboard
-- [ ] Implement data fetching and aggregation for analytics
-- [ ] Add form validation for dive entries
-- [ ] Create loading states and error handling
-- [ ] Add success/error toast notifications
+- [ ] Analytics page with real data and charts
+- [ ] Personal bests tracking
+- [ ] Routine history view with filtering
+- [ ] Edit/delete existing routine logs
+- [ ] Add detailed per-lap data entry (video review feature)
+- [ ] Form validation improvements
 
 ### 📋 TODO - Future Features
 - [ ] Chart visualization library (Chart.js or Recharts)
@@ -514,15 +584,25 @@ PUBLIC_FIREBASE_MEASUREMENT_ID=
 - `(name)` - Route groups (don't add to URL path)
 - `[param]` - Dynamic route parameters
 
-### Svelte Reactivity
-- `$store` - Auto-subscribe to store value
-- `$:` - Reactive statements
+### Svelte 5 Runes (New Syntax)
+This project uses Svelte 5 with runes syntax:
+- `let count = $state(0)` - Reactive state
+- `let doubled = $derived(count * 2)` - Derived values
+- `let { prop1, prop2 } = $props()` - Component props
+- `$effect(() => { ... })` - Side effects
+- **Note:** Avoid mixing old syntax (`$:`, `export let`) with runes
+
+### Traditional Svelte Patterns (Still Used)
+- `$store` - Auto-subscribe to store value (for auth stores)
 - `bind:value` - Two-way binding
 - `on:click` - Event handlers
 
-### Tailwind Custom Values
-- Use `[var(--color-name)]` for CSS variable values
-- Example: `bg-[var(--color-primary)]`
+### Styling Approach
+- **Global styles:** `src/app.css` with CSS variables
+- **Component styles:** Scoped `<style>` blocks (preferred)
+- **Tailwind:** Available but minimized in favor of scoped CSS for maintainability
+- **CSS Variables:** Use `var(--color-primary)`, `var(--color-bg-card)`, etc.
+- **Consistency:** Follow existing component patterns (check SessionCard, QuickLogForm)
 
 ### Firebase Best Practices
 - Never commit .env file
@@ -584,13 +664,24 @@ When resuming this project:
 ## Useful File Paths
 
 **Quick reference for common edits:**
-- Auth logic: `src/lib/firebase.ts`, `src/lib/stores/auth.ts`
-- Dive form: `src/routes/(app)/dives/+page.svelte`
-- Dashboard: `src/routes/(app)/dashboard/+page.svelte`
-- Analytics: `src/routes/(app)/analytics/+page.svelte`
-- Theme colors: `src/app.css` (CSS variables)
-- Navigation: `src/lib/components/BottomNav.svelte`
-- Auth layout: `src/routes/(app)/+layout.svelte`
+- **Type definitions:** `src/lib/types.ts` (all interfaces)
+- **Auth logic:** `src/lib/firebase.ts`, `src/lib/stores/auth.ts`
+- **Firestore operations:** `src/lib/firestore.ts`
+- **Metrics utilities:** `src/lib/utils/metrics.ts`
+- **Time utilities:** `src/lib/utils/time.ts`
+- **Components:**
+  - `src/lib/components/BottomNav.svelte` - Navigation
+  - `src/lib/components/RoutineSelector.svelte` - Routine picker
+  - `src/lib/components/QuickLogForm.svelte` - Dynamic logging form
+  - `src/lib/components/SessionCard.svelte` - Feed card display
+- **Pages:**
+  - `src/routes/(app)/dashboard/+page.svelte` - Home/feed
+  - `src/routes/(app)/dives/+page.svelte` - Log routine page
+  - `src/routes/(app)/analytics/+page.svelte` - Analytics
+  - `src/routes/(app)/profile/+page.svelte` - Profile
+  - `src/routes/(app)/+layout.svelte` - Auth wrapper
+- **Database seeding:** `scripts/seed-data.ts`
+- **Theme colors:** `src/app.css` (CSS variables)
 
 ## Questions to Explore Later
 
