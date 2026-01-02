@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { user } from '$lib/stores/auth';
 	import { getRecentActivity, updateRoutineLog } from '$lib/firestore';
-	import { doc, getDoc } from 'firebase/firestore';
+	import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 	import { db } from '$lib/firebase';
-	import type { RoutineLog, RoutineTemplate, PersonalBests } from '$lib/types';
+	import type { RoutineLog, RoutineTemplate, PersonalBests, Discipline } from '$lib/types';
 	import SessionCard from '$lib/components/SessionCard.svelte';
 	import EditRoutineLogModal from '$lib/components/EditRoutineLogModal.svelte';
 	import { getUserPBs, updateUserPB, checkIsPB } from '$lib/utils/personalBests';
@@ -74,6 +74,55 @@
 		}
 	}
 
+	// Helper function to recalculate PB for a discipline from all max attempts
+	async function recalculatePBForDiscipline(discipline: Discipline) {
+		if (!$user) return;
+
+		try {
+			// Query all routine logs for this user and discipline
+			const logsRef = collection(db, 'routineLogs');
+			const q = query(logsRef, where('userId', '==', $user.uid), where('disciplineUsed', '==', discipline));
+
+			const logsSnapshot = await getDocs(q);
+
+			// Find the maximum value from all max attempt logs
+			let maxValue = 0;
+
+			for (const logDoc of logsSnapshot.docs) {
+				const log = logDoc.data() as RoutineLog;
+
+				// Get the routine to check if it's a max attempt
+				const routineRef = doc(db, 'routines', log.routineId);
+				const routineSnap = await getDoc(routineRef);
+
+				if (routineSnap.exists()) {
+					const routine = routineSnap.data() as RoutineTemplate;
+					const isMaxAttempt =
+						routine.tags.includes('max-attempt') || routine.tags.includes('pb');
+
+					if (isMaxAttempt) {
+						// Get the result value
+						const result = discipline === 'STA' ? log.totalTime : log.totalDistance;
+
+						if (result !== undefined && result > maxValue) {
+							maxValue = result;
+						}
+					}
+				}
+			}
+
+			// Update the user's PB with the recalculated value
+			if (maxValue > 0) {
+				await updateUserPB($user.uid, discipline, maxValue);
+			}
+
+			// Refetch PBs to update the UI
+			await fetchPBs();
+		} catch (err) {
+			console.error('Error recalculating PB:', err);
+		}
+	}
+
 	// Modal handlers
 	function handleEditLog(log: RoutineLog, routine: RoutineTemplate) {
 		editingLog = { log, routine };
@@ -84,11 +133,26 @@
 	}
 
 	async function handleSaveLog(updates: Partial<RoutineLog>) {
-		if (!editingLog) return;
+		if (!editingLog || !$user) return;
 
 		try {
 			// Update in Firestore
 			await updateRoutineLog(editingLog.log.id, updates);
+
+			// Check if this is a max attempt routine and if performance metrics changed
+			const isMaxAttempt =
+				editingLog.routine.tags.includes('max-attempt') ||
+				editingLog.routine.tags.includes('pb');
+
+			// If performance metric was updated on a max attempt, recalculate PB
+			// This handles both new PBs and corrections to old PBs
+			if (
+				isMaxAttempt &&
+				(updates.totalTime !== undefined || updates.totalDistance !== undefined)
+			) {
+				// Recalculate the PB for this discipline from all max attempts
+				await recalculatePBForDiscipline(editingLog.log.disciplineUsed);
+			}
 
 			// Optimistic update in local state
 			sessions = sessions.map((s) =>
@@ -97,9 +161,6 @@
 
 			// Close modal
 			editingLog = null;
-
-			// Optional: Refetch to get server timestamps
-			// await fetchRecentSessions();
 		} catch (err) {
 			console.error('Failed to save routine log:', err);
 			throw err; // Let modal display error
