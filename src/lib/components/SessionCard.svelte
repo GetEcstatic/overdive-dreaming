@@ -10,12 +10,10 @@
 
 	let {
 		log,
-		routine,
-		onEdit
+		routine
 	}: {
 		log: RoutineLog;
 		routine: RoutineTemplate;
-		onEdit?: (log: RoutineLog, routine: RoutineTemplate) => void;
 	} = $props();
 
 	// Get hero and secondary metrics from routine's displayConfig
@@ -76,34 +74,10 @@
 		}
 	}
 
-	// Handle card click for editing
-	function handleCardClick(e: MouseEvent) {
-		// Don't trigger if clicking like button or links
-		if ((e.target as HTMLElement).closest('.like-button, a, button')) {
-			return;
-		}
-
-		onEdit?.(log, routine);
-	}
-
-	// Handle keyboard navigation for accessibility
-	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === 'Enter' || e.key === ' ') {
-			e.preventDefault();
-			onEdit?.(log, routine);
-		}
-	}
 </script>
 
-<div
-	class="session-card"
-	class:clickable={onEdit !== undefined}
-	onclick={onEdit ? handleCardClick : undefined}
-	onkeydown={onEdit ? handleKeydown : undefined}
-	role={onEdit ? 'button' : undefined}
-	tabindex={onEdit ? 0 : undefined}
-	aria-label={onEdit ? `Edit routine log for ${routine.name}` : undefined}
->
+<a href="/session/{log.id}" class="card-link">
+	<div class="session-card">
 	<!-- Header with profile info -->
 	<div class="card-header">
 		<div class="profile-section">
@@ -190,7 +164,7 @@
 		<button
 			class="like-button"
 			class:liked={isLiked}
-			onclick={toggleLike}
+			onclick={(e) => { e.preventDefault(); e.stopPropagation(); toggleLike(); }}
 			aria-label="Like this session"
 		>
 			<svg class="like-icon" viewBox="0 0 24 24" fill="currentColor">
@@ -202,28 +176,32 @@
 		</button>
 		<span class="like-count">{likeCount} {likeCount === 1 ? 'flow' : 'flows'}</span>
 	</div>
-</div>
+	</div>
+</a>
 
 <style>
+	.card-link {
+		display: block;
+		text-decoration: none;
+		color: inherit;
+		margin-bottom: 1.5rem;
+	}
+
+	.card-link:last-child {
+		margin-bottom: 0;
+	}
+
 	.session-card {
 		background: var(--color-bg-card);
 		border: 1px solid rgba(148, 163, 184, 0.1);
 		border-radius: 12px;
 		overflow: hidden;
 		transition: all 0.2s ease;
-		margin-bottom: 1.5rem;
 		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-	}
-
-	.session-card.clickable {
 		cursor: pointer;
 	}
 
-	.session-card:last-child {
-		margin-bottom: 0;
-	}
-
-	.session-card:hover {
+	.card-link:hover .session-card {
 		border-color: rgba(148, 163, 184, 0.2);
 		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 		transform: translateY(-2px);

@@ -396,15 +396,22 @@ export async function updateSuggestedTags(tags: SuggestedTags): Promise<void> {
  */
 export async function getRoutineLogsByRoutine(
 	userId: string,
-	routineId: string
+	routineId: string,
+	limitCount?: number
 ): Promise<RoutineLog[]> {
 	const routineLogsRef = collection(db, 'routineLogs');
-	const q = query(
-		routineLogsRef,
+
+	const constraints: QueryConstraint[] = [
 		where('userId', '==', userId),
 		where('routineId', '==', routineId),
 		orderBy('date', 'desc')
-	);
+	];
+
+	if (limitCount) {
+		constraints.push(limit(limitCount));
+	}
+
+	const q = query(routineLogsRef, ...constraints);
 
 	const snapshot = await getDocs(q);
 	const logs: RoutineLog[] = [];

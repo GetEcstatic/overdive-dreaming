@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { page } from '$app/stores';
 	import { user } from '$lib/stores/auth';
 	import { db } from '$lib/firebase';
 	import { collection, query, getDocs, collectionGroup } from 'firebase/firestore';
@@ -106,6 +107,19 @@
 	}
 
 	onMount(() => {
+		// Check for query params to pre-select filters
+		const disciplineParam = $page.url.searchParams.get('discipline');
+		if (disciplineParam && disciplines.includes(disciplineParam as Discipline)) {
+			selectedDiscipline = disciplineParam as Discipline;
+		}
+
+		// Note: routine param is captured but not used yet (would require adding routine filter)
+		const routineParam = $page.url.searchParams.get('routine');
+		if (routineParam) {
+			console.log('Routine filter requested:', routineParam);
+			// TODO: Add routine-specific filtering in future
+		}
+
 		fetchAllLogs();
 	});
 </script>
