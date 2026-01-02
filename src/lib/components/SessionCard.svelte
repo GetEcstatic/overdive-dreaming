@@ -8,7 +8,15 @@
 	import { db } from '$lib/firebase';
 	import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 
-	let { log, routine }: { log: RoutineLog; routine: RoutineTemplate } = $props();
+	let {
+		log,
+		routine,
+		onEdit
+	}: {
+		log: RoutineLog;
+		routine: RoutineTemplate;
+		onEdit?: (log: RoutineLog, routine: RoutineTemplate) => void;
+	} = $props();
 
 	// Get hero and secondary metrics from routine's displayConfig
 	const heroMetric = $derived(getFormattedMetric(
@@ -67,9 +75,35 @@
 			likeCount += newIsLiked ? -1 : 1;
 		}
 	}
+
+	// Handle card click for editing
+	function handleCardClick(e: MouseEvent) {
+		// Don't trigger if clicking like button or links
+		if ((e.target as HTMLElement).closest('.like-button, a, button')) {
+			return;
+		}
+
+		onEdit?.(log, routine);
+	}
+
+	// Handle keyboard navigation for accessibility
+	function handleKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			onEdit?.(log, routine);
+		}
+	}
 </script>
 
-<div class="session-card">
+<div
+	class="session-card"
+	class:clickable={onEdit !== undefined}
+	onclick={onEdit ? handleCardClick : undefined}
+	onkeydown={onEdit ? handleKeydown : undefined}
+	role={onEdit ? 'button' : undefined}
+	tabindex={onEdit ? 0 : undefined}
+	aria-label={onEdit ? `Edit routine log for ${routine.name}` : undefined}
+>
 	<!-- Header with profile info -->
 	<div class="card-header">
 		<div class="profile-section">
@@ -179,6 +213,10 @@
 		transition: all 0.2s ease;
 		margin-bottom: 1.5rem;
 		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+	}
+
+	.session-card.clickable {
+		cursor: pointer;
 	}
 
 	.session-card:last-child {

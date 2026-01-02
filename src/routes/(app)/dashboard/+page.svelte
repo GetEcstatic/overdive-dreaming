@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { user } from '$lib/stores/auth';
-	import { getRecentActivity } from '$lib/firestore';
+	import { getRecentActivity, updateRoutineLog } from '$lib/firestore';
 	import { doc, getDoc } from 'firebase/firestore';
 	import { db } from '$lib/firebase';
 	import type { RoutineLog, RoutineTemplate, PersonalBests } from '$lib/types';
 	import SessionCard from '$lib/components/SessionCard.svelte';
-	import { getUserPBs } from '$lib/utils/personalBests';
+	import EditRoutineLogModal from '$lib/components/EditRoutineLogModal.svelte';
+	import { getUserPBs, updateUserPB, checkIsPB } from '$lib/utils/personalBests';
 	import { onMount } from 'svelte';
 
 	interface LogWithRoutine {
@@ -18,6 +19,9 @@
 	let error = $state<string | null>(null);
 	let personalBests = $state<PersonalBests | undefined>(undefined);
 	let thisWeekCount = $state(0);
+
+	// Modal state for editing
+	let editingLog = $state<{ log: RoutineLog; routine: RoutineTemplate } | null>(null);
 
 	async function fetchRecentSessions() {
 		if (!$user) return;
@@ -67,6 +71,38 @@
 			personalBests = await getUserPBs($user.uid);
 		} catch (err) {
 			console.error('Error fetching PBs:', err);
+		}
+	}
+
+	// Modal handlers
+	function handleEditLog(log: RoutineLog, routine: RoutineTemplate) {
+		editingLog = { log, routine };
+	}
+
+	function handleCloseModal() {
+		editingLog = null;
+	}
+
+	async function handleSaveLog(updates: Partial<RoutineLog>) {
+		if (!editingLog) return;
+
+		try {
+			// Update in Firestore
+			await updateRoutineLog(editingLog.log.id, updates);
+
+			// Optimistic update in local state
+			sessions = sessions.map((s) =>
+				s.log.id === editingLog.log.id ? { ...s, log: { ...s.log, ...updates } } : s
+			);
+
+			// Close modal
+			editingLog = null;
+
+			// Optional: Refetch to get server timestamps
+			// await fetchRecentSessions();
+		} catch (err) {
+			console.error('Failed to save routine log:', err);
+			throw err; // Let modal display error
 		}
 	}
 
@@ -170,12 +206,23 @@
 					<!-- Sessions Feed -->
 					<div class="flex flex-col gap-6">
 						{#each sessions as { log, routine }}
-							<SessionCard {log} {routine} />
+							<SessionCard {log} {routine} onEdit={handleEditLog} />
 						{/each}
 					</div>
 				{/if}
 		</section>
 	</div>
+
+	<!-- Edit Modal -->
+	{#if editingLog}
+		<EditRoutineLogModal
+			open={true}
+			log={editingLog.log}
+			routine={editingLog.routine}
+			onClose={handleCloseModal}
+			onSave={handleSaveLog}
+		/>
+	{/if}
 {/if}
 
 <style>

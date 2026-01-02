@@ -1,0 +1,772 @@
+<script lang="ts">
+	import type { RoutineTemplate, RoutineLog, Discipline, BreathingTechnique } from '$lib/types';
+	import type { LogFormData } from '$lib/components/QuickLogForm.svelte';
+	import {
+		routineLogToFormData,
+		convertSecondsToTimeFields,
+		convertTimeFieldsToSeconds
+	} from '$lib/utils/formData';
+	import MediaManager from '$lib/components/MediaManager.svelte';
+
+	interface Props {
+		routine: RoutineTemplate;
+		initialData: RoutineLog;
+		mode: 'create' | 'edit';
+		onSubmit: (
+			data: LogFormData,
+			photoAction: 'keep' | 'remove' | 'replace' | 'add',
+			youtubeAction: 'keep' | 'remove' | 'update' | 'add'
+		) => void;
+		onCancel: () => void;
+	}
+
+	let { routine, initialData, mode, onSubmit, onCancel }: Props = $props();
+
+	// Pre-populate from initialData
+	const formData = routineLogToFormData(initialData);
+
+	// Form state
+	let disciplineUsed = $state<Discipline>(formData.disciplineUsed);
+
+	// Session context
+	let poolLength = $state<number | undefined>(formData.poolLength);
+	const breatheUpTime = convertSecondsToTimeFields(formData.initialBreatheUpTime);
+	let breatheUpMinutes = $state<number | undefined>(breatheUpTime.minutes);
+	let breatheUpSeconds = $state<number | undefined>(breatheUpTime.seconds);
+
+	// Performance metrics
+	let totalDistance = $state<number | undefined>(formData.totalDistance);
+	const totalTimeFields = convertSecondsToTimeFields(formData.totalTime);
+	let totalTimeMinutes = $state<number | undefined>(totalTimeFields.minutes);
+	let totalTimeSeconds = $state<number | undefined>(totalTimeFields.seconds);
+	let repsCompleted = $state<number | undefined>(formData.repsCompleted);
+	const repDurationFields = convertSecondsToTimeFields(formData.repDuration);
+	let repDurationMinutes = $state<number | undefined>(repDurationFields.minutes);
+	let repDurationSeconds = $state<number | undefined>(repDurationFields.seconds);
+
+	// Training context
+	let breathingTechnique = $state<BreathingTechnique | undefined>(formData.breathingTechnique);
+	let rpe = $state<number | undefined>(formData.rpe);
+	let joyScale = $state<number | undefined>(formData.joyScale);
+	let hoursSinceLastMeal = $state<number | undefined>(formData.hoursSinceLastMeal);
+	let notes = $state<string>(formData.notes || '');
+
+	// Media state
+	let photoFile = $state<File | undefined>(undefined);
+	let photoAction = $state<'keep' | 'remove' | 'replace' | 'add'>('keep');
+	let youtubeUrl = $state<string>(formData.youtubeUrl || '');
+	let youtubeAction = $state<'keep' | 'remove' | 'update' | 'add'>('keep');
+
+	// Reactive heart color based on joy scale (same as QuickLogForm)
+	const joyHeartColor = $derived(() => {
+		if (!joyScale) return '#1a1a1a';
+		const colors = [
+			'#1a1a1a',
+			'#3a1a2a',
+			'#5a1a3a',
+			'#7a1a4a',
+			'#9a1a5a',
+			'#ba1a6a',
+			'#da1a7a',
+			'#ea1483',
+			'#f514a0',
+			'#ff1493'
+		];
+		const index = Math.min(Math.max(joyScale - 1, 0), 9);
+		return colors[index];
+	});
+
+	const joyHeartIcon = $derived(() => {
+		return joyScale && joyScale >= 6 ? '💗' : '💔';
+	});
+
+	// Media handlers
+	function handlePhotoChange(file: File | null, action: 'add' | 'remove' | 'replace') {
+		photoFile = file || undefined;
+		photoAction = action;
+	}
+
+	function handleYoutubeChange(url: string | null, action: 'add' | 'remove' | 'update') {
+		youtubeUrl = url || '';
+		youtubeAction = action;
+	}
+
+	// Form submission
+	function handleSubmit(e: Event) {
+		e.preventDefault();
+
+		// Convert mm:ss to total seconds
+		const initialBreatheUp = convertTimeFieldsToSeconds(breatheUpMinutes, breatheUpSeconds);
+		const totalTimeInSeconds = convertTimeFieldsToSeconds(totalTimeMinutes, totalTimeSeconds);
+		const repDurationInSeconds = convertTimeFieldsToSeconds(repDurationMinutes, repDurationSeconds);
+
+		const data: LogFormData = {
+			disciplineUsed,
+			// Session context
+			poolLength,
+			initialBreatheUpTime: initialBreatheUp,
+			// Performance metrics
+			totalDistance,
+			totalTime: totalTimeInSeconds,
+			repsCompleted,
+			repDuration: repDurationInSeconds,
+			// Training context
+			breathingTechnique,
+			rpe,
+			joyScale,
+			hoursSinceLastMeal,
+			notes: notes.trim() || undefined,
+			// Media
+			photoFile,
+			youtubeUrl: youtubeUrl.trim() || undefined
+		};
+
+		onSubmit(data, photoAction, youtubeAction);
+	}
+
+	const config = routine.trackingConfig;
+
+	// Check if any fields exist in each section
+	const hasSessionContext = $derived(config.trackPoolLength || config.trackInitialBreatheUpTime);
+	const hasPerformanceMetrics = $derived(
+		config.trackTotalDistance ||
+			config.trackTotalTime ||
+			config.trackRepsCompleted ||
+			config.trackRepDuration
+	);
+	const hasTrainingContext = $derived(
+		config.trackBreathingTechnique ||
+			config.trackRPE ||
+			config.trackJoyScale ||
+			config.trackHoursSinceLastMeal ||
+			config.trackNotes
+	);
+</script>
+
+<form onsubmit={handleSubmit} class="log-form">
+	<!-- Form Header -->
+	<div class="form-header">
+		<h3 class="routine-name">{routine.name}</h3>
+		<p class="routine-subtitle">{mode === 'edit' ? 'Edit Log' : 'Quick Log'}</p>
+	</div>
+
+	<!-- Discipline Selector / Badge -->
+	{#if routine.disciplines.length > 1}
+		<div class="form-section">
+			{#if mode === 'edit'}
+				<!-- Locked discipline display -->
+				<label class="section-label">Discipline (locked)</label>
+				<div class="discipline-locked">
+					<span class="discipline-badge">{disciplineUsed}</span>
+					<span class="discipline-hint">Discipline cannot be changed after creation</span>
+				</div>
+			{:else}
+				<!-- Editable discipline selector -->
+				<label class="section-label">Discipline *</label>
+				<div class="discipline-buttons">
+					{#each routine.disciplines as disc}
+						<button
+							type="button"
+							onclick={() => (disciplineUsed = disc)}
+							class="discipline-btn"
+							class:active={disciplineUsed === disc}
+						>
+							{disc}
+						</button>
+					{/each}
+				</div>
+			{/if}
+		</div>
+	{:else if mode === 'edit'}
+		<!-- Single discipline, show locked badge -->
+		<div class="form-section">
+			<label class="section-label">Discipline (locked)</label>
+			<div class="discipline-locked">
+				<span class="discipline-badge">{disciplineUsed}</span>
+				<span class="discipline-hint">Discipline cannot be changed after creation</span>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Session Context Section -->
+	{#if hasSessionContext}
+		<div class="form-section">
+			<h4 class="section-title">Session Details</h4>
+
+			{#if config.trackPoolLength}
+				<div class="field-group">
+					<label for="poolLength" class="field-label">Pool Length (m)</label>
+					<input
+						id="poolLength"
+						type="number"
+						bind:value={poolLength}
+						min="0"
+						class="field-input"
+						placeholder="25 or 50"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackInitialBreatheUpTime}
+				<div class="field-group">
+					<label class="field-label">Initial Breathe-Up</label>
+					<div class="time-input">
+						<input
+							type="number"
+							bind:value={breatheUpMinutes}
+							min="0"
+							class="field-input time-part"
+							placeholder="mm"
+						/>
+						<span class="time-separator">:</span>
+						<input
+							type="number"
+							bind:value={breatheUpSeconds}
+							min="0"
+							max="59"
+							class="field-input time-part"
+							placeholder="ss"
+						/>
+					</div>
+				</div>
+			{/if}
+		</div>
+	{/if}
+
+	<!-- Performance Metrics Section -->
+	{#if hasPerformanceMetrics}
+		<div class="form-section">
+			<h4 class="section-title">Performance</h4>
+
+			{#if config.trackTotalDistance}
+				<div class="field-group">
+					<label for="totalDistance" class="field-label">Total Distance (m)</label>
+					<input
+						id="totalDistance"
+						type="number"
+						bind:value={totalDistance}
+						min="0"
+						class="field-input"
+						placeholder="e.g., 175"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackTotalTime}
+				<div class="field-group">
+					<label class="field-label">Total Time</label>
+					<div class="time-input">
+						<input
+							type="number"
+							bind:value={totalTimeMinutes}
+							min="0"
+							class="field-input time-part"
+							placeholder="mm"
+						/>
+						<span class="time-separator">:</span>
+						<input
+							type="number"
+							bind:value={totalTimeSeconds}
+							min="0"
+							max="59"
+							class="field-input time-part"
+							placeholder="ss"
+						/>
+					</div>
+				</div>
+			{/if}
+
+			{#if config.trackRepsCompleted}
+				<div class="field-group">
+					<label for="repsCompleted" class="field-label">Reps Completed</label>
+					<input
+						id="repsCompleted"
+						type="number"
+						bind:value={repsCompleted}
+						min="0"
+						class="field-input"
+						placeholder={routine.numberOfReps ? `Target: ${routine.numberOfReps}` : 'e.g., 16'}
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackRepDuration}
+				<div class="field-group">
+					<label class="field-label">Rep Duration (target: 1:30)</label>
+					<div class="time-input">
+						<input
+							type="number"
+							bind:value={repDurationMinutes}
+							min="0"
+							class="field-input time-part"
+							placeholder="mm"
+						/>
+						<span class="time-separator">:</span>
+						<input
+							type="number"
+							bind:value={repDurationSeconds}
+							min="0"
+							max="59"
+							class="field-input time-part"
+							placeholder="ss"
+						/>
+					</div>
+				</div>
+			{/if}
+		</div>
+	{/if}
+
+	<!-- Training Context Section -->
+	{#if hasTrainingContext}
+		<div class="form-section">
+			<h4 class="section-title">Training Context</h4>
+
+			{#if config.trackBreathingTechnique}
+				<div class="field-group">
+					<label class="field-label">Breathing Technique</label>
+					<div class="technique-buttons">
+						{#each ['tidal', 'hyperventilation', 'hypoventilation'] as technique}
+							<button
+								type="button"
+								onclick={() => (breathingTechnique = technique as BreathingTechnique)}
+								class="technique-btn"
+								class:active={breathingTechnique === technique}
+							>
+								{technique}
+							</button>
+						{/each}
+					</div>
+				</div>
+			{/if}
+
+			{#if config.trackRPE}
+				<div class="field-group">
+					<label for="rpe" class="field-label">
+						Difficulty (RPE){rpe ? `: ${rpe}/10` : ''}
+					</label>
+					<input
+						id="rpe"
+						type="range"
+						bind:value={rpe}
+						min="1"
+						max="10"
+						class="slider"
+					/>
+					<div class="slider-labels">
+						<span>Easy</span>
+						<span>Hard</span>
+					</div>
+				</div>
+			{/if}
+
+			{#if config.trackJoyScale}
+				<div class="field-group">
+					<label for="joyScale" class="field-label">
+						Enjoyment{joyScale ? `: ${joyScale}/10 ${joyHeartIcon()}` : ''}
+					</label>
+					<input
+						id="joyScale"
+						type="range"
+						bind:value={joyScale}
+						min="1"
+						max="10"
+						class="slider joy-slider"
+						style="--joy-heart-color: {joyHeartColor()}"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackHoursSinceLastMeal}
+				<div class="field-group">
+					<label for="hoursSinceLastMeal" class="field-label">Hours Since Last Meal</label>
+					<input
+						id="hoursSinceLastMeal"
+						type="number"
+						bind:value={hoursSinceLastMeal}
+						min="0"
+						step="0.5"
+						class="field-input"
+						placeholder="e.g., 2.5"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackNotes}
+				<div class="field-group">
+					<label for="notes" class="field-label">Notes</label>
+					<textarea
+						id="notes"
+						bind:value={notes}
+						rows="3"
+						class="field-textarea"
+						placeholder="How did it feel? Any observations..."
+					></textarea>
+				</div>
+			{/if}
+		</div>
+	{/if}
+
+	<!-- Media Section -->
+	<div class="form-section">
+		<h4 class="section-title">Media (Optional)</h4>
+		<MediaManager
+			existingPhotoUrl={initialData.photoUrl}
+			existingYoutubeUrl={initialData.youtubeUrl}
+			onPhotoChange={handlePhotoChange}
+			onYoutubeChange={handleYoutubeChange}
+		/>
+	</div>
+
+	<!-- Action Buttons -->
+	<div class="form-actions">
+		<button type="button" onclick={onCancel} class="btn-cancel"> Cancel </button>
+		<button type="submit" class="btn-submit"> Save Changes </button>
+	</div>
+</form>
+
+<style>
+	/* Copy all styles from QuickLogForm.svelte */
+	.log-form {
+		display: flex;
+		flex-direction: column;
+		gap: 1.5rem;
+	}
+
+	/* Form Header */
+	.form-header {
+		padding-bottom: 1rem;
+		border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+	}
+
+	.routine-name {
+		font-size: 1.125rem;
+		font-weight: 600;
+		color: var(--color-text);
+		margin-bottom: 0.25rem;
+	}
+
+	.routine-subtitle {
+		font-size: 0.875rem;
+		color: var(--color-text-muted);
+	}
+
+	/* Form Sections */
+	.form-section {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+		padding: 1.25rem;
+		background: rgba(20, 184, 166, 0.03);
+		border: 1px solid rgba(148, 163, 184, 0.1);
+		border-radius: 8px;
+	}
+
+	.section-title {
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--color-primary);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		margin-bottom: 0.5rem;
+	}
+
+	.section-label {
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: var(--color-text);
+		margin-bottom: 0.5rem;
+		display: block;
+	}
+
+	/* Discipline Locked Display */
+	.discipline-locked {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		padding: 0.75rem 1rem;
+		background: rgba(148, 163, 184, 0.05);
+		border: 1px solid rgba(148, 163, 184, 0.15);
+		border-radius: 6px;
+	}
+
+	.discipline-badge {
+		display: inline-block;
+		padding: 0.5rem 1rem;
+		background: rgba(20, 184, 166, 0.15);
+		border: 2px solid var(--color-primary);
+		border-radius: 6px;
+		color: var(--color-primary);
+		font-family: 'Courier New', monospace;
+		font-size: 0.875rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		width: fit-content;
+	}
+
+	.discipline-hint {
+		font-size: 0.75rem;
+		color: var(--color-text-muted);
+		font-style: italic;
+	}
+
+	/* Field Groups */
+	.field-group {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.field-label {
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: var(--color-text);
+	}
+
+	/* Input Fields */
+	.field-input {
+		width: 100%;
+		padding: 0.75rem 1rem;
+		background: var(--color-bg);
+		border: 1px solid rgba(148, 163, 184, 0.15);
+		border-radius: 6px;
+		color: var(--color-text);
+		font-size: 0.875rem;
+		outline: none;
+		transition: border-color 0.2s ease;
+	}
+
+	.field-input::placeholder {
+		color: var(--color-text-muted);
+	}
+
+	.field-input:focus {
+		border-color: var(--color-primary);
+	}
+
+	.field-textarea {
+		width: 100%;
+		padding: 0.75rem 1rem;
+		background: var(--color-bg);
+		border: 1px solid rgba(148, 163, 184, 0.15);
+		border-radius: 6px;
+		color: var(--color-text);
+		font-size: 0.875rem;
+		outline: none;
+		resize: none;
+		transition: border-color 0.2s ease;
+		font-family: inherit;
+	}
+
+	.field-textarea::placeholder {
+		color: var(--color-text-muted);
+	}
+
+	.field-textarea:focus {
+		border-color: var(--color-primary);
+	}
+
+	/* Time Input (mm:ss) */
+	.time-input {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.time-part {
+		flex: 1;
+	}
+
+	.time-separator {
+		color: var(--color-text-muted);
+		font-weight: 600;
+		font-size: 1.25rem;
+	}
+
+	/* Discipline Buttons */
+	.discipline-buttons {
+		display: flex;
+		gap: 0.5rem;
+	}
+
+	.discipline-btn {
+		flex: 1;
+		padding: 0.75rem 1rem;
+		background: var(--color-bg);
+		border: 2px solid rgba(148, 163, 184, 0.15);
+		border-radius: 6px;
+		color: var(--color-text-muted);
+		font-family: 'Courier New', monospace;
+		font-size: 0.875rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.discipline-btn:hover {
+		border-color: var(--color-primary);
+	}
+
+	.discipline-btn.active {
+		background: rgba(20, 184, 166, 0.15);
+		border-color: var(--color-primary);
+		color: var(--color-primary);
+	}
+
+	/* Technique Buttons */
+	.technique-buttons {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+
+	.technique-btn {
+		flex: 1;
+		min-width: 120px;
+		padding: 0.625rem 0.75rem;
+		background: var(--color-bg);
+		border: 2px solid rgba(148, 163, 184, 0.15);
+		border-radius: 6px;
+		color: var(--color-text-muted);
+		font-size: 0.75rem;
+		cursor: pointer;
+		transition: all 0.2s ease;
+		text-transform: capitalize;
+	}
+
+	.technique-btn:hover {
+		border-color: var(--color-primary);
+	}
+
+	.technique-btn.active {
+		background: rgba(20, 184, 166, 0.15);
+		border-color: var(--color-primary);
+		color: var(--color-primary);
+	}
+
+	/* Sliders */
+	.slider {
+		width: 100%;
+		height: 6px;
+		background: var(--color-bg);
+		border-radius: 3px;
+		outline: none;
+		appearance: none;
+		cursor: pointer;
+		accent-color: var(--color-primary);
+	}
+
+	.slider::-webkit-slider-thumb {
+		appearance: none;
+		width: 18px;
+		height: 18px;
+		background: var(--color-primary);
+		border-radius: 50%;
+		cursor: pointer;
+	}
+
+	.slider::-moz-range-thumb {
+		width: 18px;
+		height: 18px;
+		background: var(--color-primary);
+		border-radius: 50%;
+		border: none;
+		cursor: pointer;
+	}
+
+	/* Joy Slider - Dynamic Color Heart */
+	.joy-slider {
+		--joy-heart-color: #1a1a1a;
+		accent-color: var(--joy-heart-color);
+	}
+
+	.joy-slider::-webkit-slider-thumb {
+		appearance: none;
+		width: 24px;
+		height: 24px;
+		cursor: pointer;
+		background: var(--joy-heart-color);
+		border: none;
+		-webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>');
+		-webkit-mask-size: contain;
+		-webkit-mask-repeat: no-repeat;
+		-webkit-mask-position: center;
+		mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>');
+		mask-size: contain;
+		mask-repeat: no-repeat;
+		mask-position: center;
+		filter: drop-shadow(0 0 8px var(--joy-heart-color));
+		transition: all 0.3s ease;
+	}
+
+	.joy-slider::-moz-range-thumb {
+		width: 24px;
+		height: 24px;
+		background: var(--joy-heart-color);
+		border: none;
+		cursor: pointer;
+		mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>');
+		mask-size: contain;
+		mask-repeat: no-repeat;
+		mask-position: center;
+		filter: drop-shadow(0 0 8px var(--joy-heart-color));
+		transition: all 0.3s ease;
+	}
+
+	.slider-labels {
+		display: flex;
+		justify-content: space-between;
+		font-size: 0.75rem;
+		color: var(--color-text-muted);
+		margin-top: 0.25rem;
+	}
+
+	/* Action Buttons */
+	.form-actions {
+		display: flex;
+		gap: 0.75rem;
+		padding-top: 1rem;
+	}
+
+	.btn-cancel {
+		flex: 1;
+		padding: 0.875rem 1.5rem;
+		background: var(--color-bg);
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		border-radius: 8px;
+		color: var(--color-text-muted);
+		font-size: 0.875rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.btn-cancel:hover {
+		background: rgba(148, 163, 184, 0.1);
+		color: var(--color-text);
+	}
+
+	.btn-submit {
+		flex: 2;
+		padding: 0.875rem 1.5rem;
+		background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+		border: none;
+		border-radius: 8px;
+		color: white;
+		font-size: 0.875rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: opacity 0.2s ease;
+	}
+
+	.btn-submit:hover {
+		opacity: 0.9;
+	}
+
+	/* Mobile Responsive Adjustments */
+	@media (max-width: 640px) {
+		.technique-btn {
+			min-width: 100px;
+		}
+	}
+</style>
