@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { RoutineLog, RoutineTemplate, Session } from '$lib/types';
+	import type { RoutineLog, RoutineTemplate } from '$lib/types';
 	import { getFormattedMetric } from '$lib/utils/metrics';
 	import { getYouTubeEmbedUrl } from '$lib/storage';
 	import { formatTimeOfDay } from '$lib/utils/sessions';
@@ -8,7 +8,7 @@
 	import { db } from '$lib/firebase';
 	import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 
-	let { log, routine, session }: { log: RoutineLog; routine: RoutineTemplate; session: Session } = $props();
+	let { log, routine }: { log: RoutineLog; routine: RoutineTemplate } = $props();
 
 	// Get hero and secondary metrics from routine's displayConfig
 	const heroMetric = $derived(getFormattedMetric(
@@ -49,7 +49,7 @@
 
 		try {
 			// Update Firestore
-			const logRef = doc(db, 'sessions', log.sessionId, 'routineLogs', log.id);
+			const logRef = doc(db, 'routineLogs', log.id);
 
 			if (newIsLiked) {
 				await updateDoc(logRef, {
@@ -84,9 +84,9 @@
 				<div class="user-name">{$user?.displayName ?? 'User'}</div>
 				<div class="session-meta">
 					<span class="date">{fullDate}</span>
-					{#if session.timeOfDay}
+					{#if log.timeOfDay}
 						<span class="separator">•</span>
-						<span class="time-of-day">{formatTimeOfDay(session.timeOfDay)}</span>
+						<span class="time-of-day">{formatTimeOfDay(log.timeOfDay)}</span>
 					{/if}
 					<span class="separator">•</span>
 					<span class="time">{fullTime}</span>
@@ -128,18 +128,18 @@
 	</div>
 
 	<!-- Media Section -->
-	{#if session.photoUrl || session.youtubeUrl}
+	{#if log.photoUrl || log.youtubeUrl}
 		<div class="media-section">
-			{#if session.photoUrl}
+			{#if log.photoUrl}
 				<div class="session-photo">
-					<img src={session.photoUrl} alt="Session" class="photo-image" />
+					<img src={log.photoUrl} alt="Session" class="photo-image" />
 				</div>
 			{/if}
 
-			{#if session.youtubeUrl}
+			{#if log.youtubeUrl}
 				<div class="youtube-embed">
 					<iframe
-						src={getYouTubeEmbedUrl(session.youtubeUrl) || ''}
+						src={getYouTubeEmbedUrl(log.youtubeUrl) || ''}
 						title="Session Video"
 						frameborder="0"
 						allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"

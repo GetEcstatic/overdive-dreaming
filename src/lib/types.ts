@@ -156,12 +156,18 @@ export interface RoutineLogSummary {
 export interface RoutineLog {
 	id: string;
 	routineId: string; // References routines/{routineId}
-	sessionId: string; // Parent session
 	userId: string;
 	date: Timestamp;
+	timeOfDay?: TimeOfDay; // Auto-determined: morning/afternoon/evening
+	sessionGroup?: string; // Auto-generated group ID (e.g., "2026-01-01-morning")
 
 	// Which discipline was used (required if routine applies to multiple)
 	disciplineUsed: Discipline;
+
+	// Session-level metadata (moved from Session)
+	location?: string; // Pool name/location
+	photoUrl?: string; // Firebase Storage download URL
+	youtubeUrl?: string; // YouTube video URL
 
 	// Session context
 	poolLength?: number; // meters - pool size for this routine

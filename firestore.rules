@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // User documents
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Routine templates
+    match /routines/{routineId} {
+      // Everyone can read (for browsing public routines)
+      allow read: if request.auth != null;
+
+      // Only creator can write their own routines
+      allow create: if request.auth != null &&
+        request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if request.auth != null &&
+        resource.data.createdBy == request.auth.uid;
+
+      // System routines (createdBy == 'system') are read-only
+      allow update, delete: if resource.data.createdBy != 'system';
+    }
+
+    // Routine logs (flat structure)
+    match /routineLogs/{routineLogId} {
+      allow read, write: if request.auth != null &&
+        request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null &&
+        request.auth.uid == request.resource.data.userId;
+    }
+
+    // Config (read-only for users)
+    match /config/{document} {
+      allow read: if request.auth != null;
+      // TODO: Add admin role check for write access
+    }
+  }
+}

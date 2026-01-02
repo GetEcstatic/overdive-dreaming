@@ -1,7 +1,7 @@
 {
   "indexes": [
     {
-      "collectionGroup": "sessions",
+      "collectionGroup": "routineLogs",
       "queryScope": "COLLECTION",
       "fields": [
         {
@@ -15,7 +15,7 @@
       ]
     },
     {
-      "collectionGroup": "sessions",
+      "collectionGroup": "routineLogs",
       "queryScope": "COLLECTION",
       "fields": [
         {
@@ -23,12 +23,30 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "date",
+          "fieldPath": "routineId",
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "timeOfDay",
+          "fieldPath": "date",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "routineLogs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "userId",
           "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sessionGroup",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "date",
+          "order": "DESCENDING"
         }
       ]
     }

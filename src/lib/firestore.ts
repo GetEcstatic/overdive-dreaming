@@ -138,10 +138,13 @@ export async function getRoutinesByTag(
 }
 
 // ============================================================================
-// SESSIONS
+// SESSIONS (DEPRECATED - kept for backward compatibility)
 // ============================================================================
+// NOTE: Session hierarchy is deprecated in favor of flat RoutineLog structure.
+// Sessions are now represented by sessionGroup field in RoutineLogs.
 
 /**
+ * @deprecated Use getRecentActivity() or query routineLogs by sessionGroup instead
  * Get all sessions for a user (with pagination)
  */
 export async function getSessions(userId: string, limitCount = 20): Promise<Session[]> {
@@ -164,6 +167,7 @@ export async function getSessions(userId: string, limitCount = 20): Promise<Sess
 }
 
 /**
+ * @deprecated Sessions are now represented by sessionGroup in RoutineLogs
  * Get a single session by ID
  */
 export async function getSession(sessionId: string): Promise<Session | null> {
@@ -176,6 +180,7 @@ export async function getSession(sessionId: string): Promise<Session | null> {
 }
 
 /**
+ * @deprecated Create routine logs directly instead
  * Create a new session
  */
 export async function createSession(sessionData: SessionFormData): Promise<string> {
@@ -192,6 +197,7 @@ export async function createSession(sessionData: SessionFormData): Promise<strin
 }
 
 /**
+ * @deprecated Update routine logs directly instead
  * Update a session
  */
 export async function updateSession(
@@ -207,6 +213,7 @@ export async function updateSession(
 }
 
 /**
+ * @deprecated Delete routine logs directly instead
  * Delete a session (and all subcollections - handle with care!)
  */
 export async function deleteSession(sessionId: string): Promise<void> {
@@ -217,17 +224,27 @@ export async function deleteSession(sessionId: string): Promise<void> {
 }
 
 // ============================================================================
-// ROUTINE LOGS (Subcollection of Sessions)
+// ROUTINE LOGS (Top-level collection)
 // ============================================================================
 
 /**
- * Get all routine logs for a session
+ * Get all routine logs for a session group
  */
-export async function getRoutineLogsForSession(sessionId: string): Promise<RoutineLog[]> {
-	const routineLogsRef = collection(db, 'sessions', sessionId, 'routineLogs');
-	const snapshot = await getDocs(routineLogsRef);
+export async function getRoutineLogsBySessionGroup(
+	userId: string,
+	sessionGroup: string
+): Promise<RoutineLog[]> {
+	const routineLogsRef = collection(db, 'routineLogs');
+	const q = query(
+		routineLogsRef,
+		where('userId', '==', userId),
+		where('sessionGroup', '==', sessionGroup),
+		orderBy('date', 'desc')
+	);
 
+	const snapshot = await getDocs(q);
 	const logs: RoutineLog[] = [];
+
 	snapshot.forEach((doc) => {
 		logs.push({ id: doc.id, ...doc.data() } as RoutineLog);
 	});
@@ -236,13 +253,10 @@ export async function getRoutineLogsForSession(sessionId: string): Promise<Routi
 }
 
 /**
- * Get a single routine log
+ * Get a single routine log by ID
  */
-export async function getRoutineLog(
-	sessionId: string,
-	routineLogId: string
-): Promise<RoutineLog | null> {
-	const docRef = doc(db, 'sessions', sessionId, 'routineLogs', routineLogId);
+export async function getRoutineLog(routineLogId: string): Promise<RoutineLog | null> {
+	const docRef = doc(db, 'routineLogs', routineLogId);
 	const docSnap = await getDoc(docRef);
 
 	if (!docSnap.exists()) return null;
@@ -253,11 +267,8 @@ export async function getRoutineLog(
 /**
  * Create a new routine log
  */
-export async function createRoutineLog(
-	sessionId: string,
-	logData: RoutineLogFormData
-): Promise<string> {
-	const routineLogsRef = collection(db, 'sessions', sessionId, 'routineLogs');
+export async function createRoutineLog(logData: RoutineLogFormData): Promise<string> {
+	const routineLogsRef = collection(db, 'routineLogs');
 
 	const newLog = {
 		...logData,
@@ -273,11 +284,10 @@ export async function createRoutineLog(
  * Update a routine log (e.g., add detailed data from video review)
  */
 export async function updateRoutineLog(
-	sessionId: string,
 	routineLogId: string,
 	updates: Partial<RoutineLogFormData>
 ): Promise<void> {
-	const docRef = doc(db, 'sessions', sessionId, 'routineLogs', routineLogId);
+	const docRef = doc(db, 'routineLogs', routineLogId);
 
 	await updateDoc(docRef, {
 		...updates,
@@ -288,8 +298,8 @@ export async function updateRoutineLog(
 /**
  * Delete a routine log
  */
-export async function deleteRoutineLog(sessionId: string, routineLogId: string): Promise<void> {
-	const docRef = doc(db, 'sessions', sessionId, 'routineLogs', routineLogId);
+export async function deleteRoutineLog(routineLogId: string): Promise<void> {
+	const docRef = doc(db, 'routineLogs', routineLogId);
 	await deleteDoc(docRef);
 }
 
@@ -381,15 +391,14 @@ export async function updateSuggestedTags(tags: SuggestedTags): Promise<void> {
 // ============================================================================
 
 /**
- * Get all routine logs for a specific routine across all sessions
+ * Get all routine logs for a specific routine
  * Useful for analytics: "How many times have I done this routine?"
  */
 export async function getRoutineLogsByRoutine(
 	userId: string,
 	routineId: string
 ): Promise<RoutineLog[]> {
-	// This requires a collection group query
-	const routineLogsRef = collection(db, 'routineLogs'); // Collection group
+	const routineLogsRef = collection(db, 'routineLogs');
 	const q = query(
 		routineLogsRef,
 		where('userId', '==', userId),
@@ -408,10 +417,9 @@ export async function getRoutineLogsByRoutine(
 }
 
 /**
- * Get recent activity across all sessions
+ * Get recent routine logs for a user (for dashboard/feed display)
  */
 export async function getRecentActivity(userId: string, limitCount = 20): Promise<RoutineLog[]> {
-	// Collection group query to get recent routine logs across all sessions
 	const routineLogsRef = collection(db, 'routineLogs');
 	const q = query(
 		routineLogsRef,

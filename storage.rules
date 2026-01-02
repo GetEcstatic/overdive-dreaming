@@ -1,19 +1,19 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Session photos storage
-    match /session-photos/{userId}/{sessionId}/{fileName} {
+    // Session photos storage (now using routineLogId)
+    match /session-photos/{userId}/{routineLogId}/{fileName} {
       // Read: Any authenticated user can view photos
       allow read: if request.auth != null;
 
-      // Write: Only the session owner can upload
+      // Write: Only the routine log owner can upload
       // Must be an image and under 5MB
       allow write: if request.auth != null
                    && request.auth.uid == userId
                    && request.resource.contentType.matches('image/.*')
                    && request.resource.size < 5 * 1024 * 1024;
 
-      // Delete: Only the session owner can delete
+      // Delete: Only the routine log owner can delete
       allow delete: if request.auth != null
                     && request.auth.uid == userId;
     }

@@ -1,19 +1,19 @@
 <script lang="ts">
 	import { user } from '$lib/stores/auth';
+	import { getRecentActivity } from '$lib/firestore';
+	import { doc, getDoc } from 'firebase/firestore';
 	import { db } from '$lib/firebase';
-	import { collection, query, getDocs, doc, getDoc, orderBy, limit, where } from 'firebase/firestore';
-	import type { RoutineLog, RoutineTemplate, Session, PersonalBests } from '$lib/types';
+	import type { RoutineLog, RoutineTemplate, PersonalBests } from '$lib/types';
 	import SessionCard from '$lib/components/SessionCard.svelte';
 	import { getUserPBs } from '$lib/utils/personalBests';
 	import { onMount } from 'svelte';
 
-	interface SessionWithRoutine {
+	interface LogWithRoutine {
 		log: RoutineLog;
 		routine: RoutineTemplate;
-		session: Session;
 	}
 
-	let sessions: SessionWithRoutine[] = $state([]);
+	let sessions: LogWithRoutine[] = $state([]);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 	let personalBests = $state<PersonalBests | undefined>(undefined);
@@ -26,48 +26,22 @@
 			loading = true;
 			error = null;
 
-			// Query user's sessions (filter by userId first!)
-			// Fetch more sessions to ensure we get enough routine logs
-			const sessionsQuery = query(
-				collection(db, 'sessions'),
-				where('userId', '==', $user.uid),
-				orderBy('date', 'desc'),
-				limit(50) // Increased to fetch more sessions
-			);
+			// Query recent routine logs directly (flat structure)
+			const routineLogs = await getRecentActivity($user.uid, 20);
 
-			const sessionsSnapshot = await getDocs(sessionsQuery);
-			const sessionsData: SessionWithRoutine[] = [];
+			const sessionsData: LogWithRoutine[] = [];
 
-			// For each session, get its routine logs
-			for (const sessionDoc of sessionsSnapshot.docs) {
-				const sessionData = sessionDoc.data();
-				const session = { id: sessionDoc.id, ...sessionData } as Session;
+			// Fetch routine template for each log
+			for (const log of routineLogs) {
+				// Fetch the associated routine template
+				const routineRef = doc(db, 'routines', log.routineId);
+				const routineSnap = await getDoc(routineRef);
 
-				// Get routine logs for this session
-				const routineLogsRef = collection(db, 'sessions', sessionDoc.id, 'routineLogs');
-				const routineLogsSnapshot = await getDocs(routineLogsRef);
-
-				// Process each routine log
-				for (const logDoc of routineLogsSnapshot.docs) {
-					const log = { id: logDoc.id, ...logDoc.data() } as RoutineLog;
-
-					// Fetch the associated routine template
-					const routineRef = doc(db, 'routines', log.routineId);
-					const routineSnap = await getDoc(routineRef);
-
-					if (routineSnap.exists()) {
-						const routine = { id: routineSnap.id, ...routineSnap.data() } as RoutineTemplate;
-						sessionsData.push({ log, routine, session });
-					}
+				if (routineSnap.exists()) {
+					const routine = { id: routineSnap.id, ...routineSnap.data() } as RoutineTemplate;
+					sessionsData.push({ log, routine });
 				}
 			}
-
-			// Sort by date descending
-			sessionsData.sort((a, b) => b.log.date.seconds - a.log.date.seconds);
-
-			// Debug logging
-			console.log(`Total routine logs found: ${sessionsData.length}`);
-			console.log(`Sessions queried: ${sessionsSnapshot.size}`);
 
 			// Calculate "This Week" count (last 7 days)
 			const oneWeekAgo = Date.now() / 1000 - 7 * 24 * 60 * 60; // 7 days in seconds
@@ -75,8 +49,7 @@
 				(item) => item.log.date.seconds >= oneWeekAgo
 			).length;
 
-			// Take only the 20 most recent routine logs for the feed
-			sessions = sessionsData.slice(0, 20);
+			sessions = sessionsData;
 
 			console.log(`Displaying ${sessions.length} routine logs in feed`);
 		} catch (err) {
@@ -187,28 +160,17 @@
 					</div>
 				{:else if sessions.length === 0}
 					<!-- Empty State -->
-					<div
-						class="bg-[var(--color-bg-card)] border border-[rgba(148,163,184,0.1)] rounded-lg p-12 text-center"
-					>
-						<div class="text-4xl mb-4">🏊‍♂️</div>
-						<h3 class="text-xl font-semibold mb-2 text-[var(--color-text)]">
-							No sessions yet
-						</h3>
-						<p class="text-[var(--color-text-muted)] mb-6">
-							Start logging your dives to see them here
-						</p>
-						<a
-							href="/dives"
-							class="inline-block px-6 py-3 bg-[var(--color-primary)] text-white rounded-lg hover:opacity-80 transition font-semibold"
-						>
-							Log Your First Dive
-						</a>
+					<div class="empty-state">
+						<div class="empty-icon">🏊‍♂️</div>
+						<h3 class="empty-title">No sessions yet</h3>
+						<p class="empty-text">Start logging your dives to see them here</p>
+						<a href="/dives" class="empty-cta">Log Your First Dive</a>
 					</div>
 				{:else}
 					<!-- Sessions Feed -->
 					<div class="flex flex-col gap-6">
-						{#each sessions as { log, routine, session }}
-							<SessionCard {log} {routine} {session} />
+						{#each sessions as { log, routine }}
+							<SessionCard {log} {routine} />
 						{/each}
 					</div>
 				{/if}
@@ -233,52 +195,60 @@
 		);
 		border: 1px solid rgba(148, 163, 184, 0.15);
 		border-radius: 12px;
-		padding: 1.5rem;
-		margin-bottom: 2rem;
+		padding: 1rem;
+		margin-bottom: 1.5rem;
 	}
 
 	.summary-title {
-		font-size: 1.125rem;
+		font-size: 0.875rem;
 		font-weight: 600;
 		color: var(--color-text);
-		margin-bottom: 1.25rem;
+		margin-bottom: 0.75rem;
 		text-align: center;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
 	}
 
 	.stats-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-		gap: 1rem;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 0.5rem;
 	}
 
 	@media (max-width: 640px) {
 		.stats-grid {
-			grid-template-columns: 1fr;
-			gap: 0.75rem;
+			grid-template-columns: repeat(2, 1fr);
+			gap: 0.5rem;
 		}
 	}
 
 	.stat-box {
 		text-align: center;
-		padding: 1rem;
+		padding: 0.625rem 0.5rem;
 		background: rgba(15, 23, 42, 0.3);
-		border-radius: 8px;
+		border-radius: 6px;
 		border: 1px solid rgba(148, 163, 184, 0.1);
+		transition: all 0.2s ease;
+	}
+
+	.stat-box:hover {
+		background: rgba(15, 23, 42, 0.5);
+		border-color: rgba(148, 163, 184, 0.2);
 	}
 
 	.stat-label {
-		font-size: 0.75rem;
+		font-size: 0.625rem;
 		color: var(--color-text-muted);
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
-		margin-bottom: 0.5rem;
+		margin-bottom: 0.25rem;
 		font-weight: 500;
 	}
 
 	.stat-value {
-		font-size: 2rem;
+		font-size: 1.25rem;
 		font-weight: 700;
-		line-height: 1;
+		line-height: 1.2;
 	}
 
 	.stat-value.primary {
@@ -307,5 +277,73 @@
 		.stat-value {
 			font-size: 1.75rem;
 		}
+	}
+
+	/* Empty State */
+	.empty-state {
+		background: linear-gradient(
+			135deg,
+			rgba(20, 184, 166, 0.05),
+			rgba(16, 185, 129, 0.05)
+		);
+		border: 1px solid rgba(148, 163, 184, 0.15);
+		border-radius: 12px;
+		padding: 3rem 2rem;
+		text-align: center;
+		margin-bottom: 2rem;
+	}
+
+	.empty-icon {
+		font-size: 4rem;
+		line-height: 1;
+		margin-bottom: 1.5rem;
+		animation: float 3s ease-in-out infinite;
+	}
+
+	@keyframes float {
+		0%, 100% {
+			transform: translateY(0);
+		}
+		50% {
+			transform: translateY(-10px);
+		}
+	}
+
+	.empty-title {
+		font-size: 1.5rem;
+		font-weight: 700;
+		color: var(--color-text);
+		margin-bottom: 0.75rem;
+	}
+
+	.empty-text {
+		font-size: 1rem;
+		color: var(--color-text-muted);
+		margin-bottom: 2rem;
+		max-width: 400px;
+		margin-left: auto;
+		margin-right: auto;
+	}
+
+	.empty-cta {
+		display: inline-block;
+		padding: 0.875rem 2rem;
+		background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+		color: white;
+		font-weight: 600;
+		font-size: 1rem;
+		border-radius: 8px;
+		text-decoration: none;
+		transition: all 0.2s ease;
+		box-shadow: 0 4px 12px rgba(20, 184, 166, 0.3);
+	}
+
+	.empty-cta:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 6px 16px rgba(20, 184, 166, 0.4);
+	}
+
+	.empty-cta:active {
+		transform: translateY(0);
 	}
 </style>
