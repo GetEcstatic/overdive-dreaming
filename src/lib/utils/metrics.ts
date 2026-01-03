@@ -132,6 +132,18 @@ export function getMetricValue(
 		case 'initialBreatheUpTime':
 			return log.initialBreatheUpTime || 0;
 
+		case 'waterTemperature':
+			return log.waterTemperature || 0;
+
+		case 'contractionsOnsetTime':
+			return log.contractionsOnsetTime || 0;
+
+		case 'restingHeartRate':
+			return log.restingHeartRate || 0;
+
+		case 'hrv':
+			return log.hrv || 0;
+
 		default:
 			return 0;
 	}
@@ -154,11 +166,21 @@ export function formatMetricValue(metricType: MetricType, value: number): string
 		case 'totalBreathHoldTime':
 		case 'totalBreathingTime':
 		case 'initialBreatheUpTime':
+		case 'contractionsOnsetTime':
 			return formatTime(value);
 
 		case 'repsCompleted':
 		case 'totalBreaths':
 			return value.toString();
+
+		case 'waterTemperature':
+			return `${value}°C`;
+
+		case 'restingHeartRate':
+			return `${value} bpm`;
+
+		case 'hrv':
+			return `${value}ms`;
 
 		default:
 			return value.toString();

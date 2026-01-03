@@ -13,6 +13,8 @@ export type BreathingTechnique = 'tidal' | 'hyperventilation' | 'hypoventilation
 
 export type UserTier = 'free' | 'premium';
 
+export type PoolType = 'indoor' | 'outdoor';
+
 // ============================================================================
 // USER
 // ============================================================================
@@ -40,6 +42,23 @@ export interface User {
 // ROUTINE TEMPLATE
 // ============================================================================
 
+// Variable table support for progressive protocols
+export interface TableRow {
+	repNumber: number; // 1, 2, 3, ...
+	restBefore: number; // Seconds - breathing time before this rep
+
+	// Static disciplines (STA)
+	targetDuration?: number; // Seconds - target hold time
+
+	// Dynamic disciplines (DYN, DNF, DYNB)
+	targetDistance?: number; // Meters - target distance
+	targetTime?: number; // Seconds - target time (optional, can add from video)
+}
+
+export interface RoutineTable {
+	rows: TableRow[];
+}
+
 export interface TrackingConfig {
 	// Session context
 	trackPoolLength: boolean; // Pool size in meters
@@ -61,6 +80,16 @@ export interface TrackingConfig {
 	trackJoyScale: boolean; // Enjoyment rating (1-10)
 	trackHoursSinceLastMeal: boolean;
 	trackNotes: boolean;
+
+	// NEW METRICS (Custom routine builder)
+	trackWaterTemperature: boolean; // Pool/water temp in Celsius
+	trackContractionsOnsetTime: boolean; // When first contraction occurred (seconds)
+	trackEquipmentUsed: boolean; // Fins type, wetsuit, etc. (text)
+	trackBuddyName: boolean; // Diving partner name
+	trackRestingHeartRate: boolean; // Resting HR for the day (bpm)
+	trackHRV: boolean; // Heart Rate Variability (ms)
+	trackPoolType: boolean; // Indoor vs outdoor
+	trackSambaBO: boolean; // Samba/BO incident flag (boolean)
 }
 
 export type MetricType =
@@ -74,7 +103,11 @@ export type MetricType =
 	| 'totalBreathingTime'
 	| 'totalBreaths'
 	| 'poolLength'
-	| 'initialBreatheUpTime';
+	| 'initialBreatheUpTime'
+	| 'waterTemperature'
+	| 'contractionsOnsetTime'
+	| 'restingHeartRate'
+	| 'hrv';
 
 export interface DisplayConfig {
 	heroMetric: MetricType;
@@ -95,9 +128,13 @@ export interface RoutineTemplate {
 	tags: string[]; // e.g., ['co2', 'endurance', 'intermediate']
 
 	// Routine structure (ALL OPTIONAL)
+	// EITHER uniform intervals (all reps the same)
 	restBetweenReps?: number; // seconds, breathing time between each rep
 	repDistance?: number; // meters, distance per rep (for dynamic disciplines)
 	numberOfReps?: number; // total reps in routine
+
+	// OR variable table (progressive protocols)
+	table?: RoutineTable; // Mutually exclusive with uniform interval fields
 
 	// Configurable tracking
 	trackingConfig: TrackingConfig;
@@ -193,6 +230,16 @@ export interface RoutineLog {
 	joyScale?: number; // 1-10 scale
 	hoursSinceLastMeal?: number;
 	notes?: string;
+
+	// NEW TRACKED DATA (Custom routine builder)
+	waterTemperature?: number; // Celsius
+	contractionsOnsetTime?: number; // Seconds - when first contraction occurred
+	equipmentUsed?: string; // Freeform text - fins type, wetsuit, etc.
+	buddyName?: string; // Diving partner name
+	restingHeartRate?: number; // bpm - resting heart rate for the day
+	hrv?: number; // milliseconds - Heart Rate Variability
+	poolType?: PoolType; // 'indoor' | 'outdoor'
+	sambaBO?: boolean; // Samba/BO incident flag
 
 	// Media support
 	thumbnailImageUrl?: string; // Photo from session (for social feed)
