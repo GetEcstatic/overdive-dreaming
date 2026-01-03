@@ -75,6 +75,7 @@
 		if (trackingConfig.trackHRV) labels.push('HRV');
 		if (trackingConfig.trackPoolType) labels.push('Pool Type');
 		if (trackingConfig.trackSambaBO) labels.push('Samba/BO');
+		if (trackingConfig.trackBreathsBetweenReps) labels.push('Breaths Between Reps');
 		return labels;
 	});
 </script>

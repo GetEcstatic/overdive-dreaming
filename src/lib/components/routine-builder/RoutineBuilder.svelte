@@ -5,13 +5,14 @@
 	 */
 
 	import { user } from '$lib/stores/auth';
-	import { createRoutine } from '$lib/firestore';
+	import { createRoutine, updateRoutine } from '$lib/firestore';
 	import type {
 		Discipline,
 		TrackingConfig,
 		DisplayConfig,
 		RoutineTable,
-		RoutineTemplateFormData
+		RoutineTemplateFormData,
+		RoutineTemplate
 	} from '$lib/types';
 
 	// Step components
@@ -25,12 +26,19 @@
 
 	// Props
 	let {
+		initialData,
+		routineId,
 		onSuccess,
 		onCancel
 	}: {
+		initialData?: RoutineTemplate;
+		routineId?: string;
 		onSuccess?: (routineId: string) => void;
 		onCancel?: () => void;
 	} = $props();
+
+	// Editing mode
+	const isEditing = !!routineId && !!initialData;
 
 	// Wizard state
 	let currentStep = $state(1);
@@ -38,52 +46,66 @@
 	const stepLabels = ['Basic Info', 'Protocol', 'Tracking', 'Display', 'Review'];
 
 	// Form data (Step 1 - Basic Info)
-	let name = $state('');
-	let description = $state('');
-	let disciplines = $state<Discipline[]>([]);
-	let tags = $state<string[]>([]);
+	let name = $state(initialData?.name || '');
+	let description = $state(initialData?.description || '');
+	let disciplines = $state<Discipline[]>(initialData?.disciplines || []);
+	let tags = $state<string[]>(initialData?.tags || []);
 
 	// Form data (Step 2 - Protocol Setup)
-	let protocolType = $state<'none' | 'uniform' | 'table'>('none');
-	let restBetweenReps = $state<number | undefined>(undefined);
-	let repDistance = $state<number | undefined>(undefined);
-	let numberOfReps = $state<number | undefined>(undefined);
-	let table = $state<RoutineTable | undefined>(undefined);
+	// Determine protocol type from initial data
+	let protocolType = $state<'none' | 'uniform' | 'table'>(
+		initialData?.table
+			? 'table'
+			: initialData?.restBetweenReps !== undefined ||
+				  initialData?.repDistance !== undefined ||
+				  initialData?.numberOfReps !== undefined
+				? 'uniform'
+				: 'none'
+	);
+	let restBetweenReps = $state<number | undefined>(initialData?.restBetweenReps);
+	let repDistance = $state<number | undefined>(initialData?.repDistance);
+	let numberOfReps = $state<number | undefined>(initialData?.numberOfReps);
+	let table = $state<RoutineTable | undefined>(initialData?.table);
 
 	// Form data (Step 3 - Tracking Configuration)
-	let trackingConfig = $state<TrackingConfig>({
-		trackPoolLength: false,
-		trackInitialBreatheUpTime: false,
-		trackTotalDistance: false,
-		trackTotalTime: false,
-		trackRepsCompleted: false,
-		trackRepDuration: false,
-		trackTimePerLap: false,
-		trackRestBetweenLaps: false,
-		trackKicksPerLap: false,
-		trackArmPullsPerLap: false,
-		trackBreathingTechnique: false,
-		trackRPE: false,
-		trackJoyScale: false,
-		trackHoursSinceLastMeal: false,
-		trackNotes: false,
-		trackWaterTemperature: false,
-		trackContractionsOnsetTime: false,
-		trackEquipmentUsed: false,
-		trackBuddyName: false,
-		trackRestingHeartRate: false,
-		trackHRV: false,
-		trackPoolType: false,
-		trackSambaBO: false
-	});
+	let trackingConfig = $state<TrackingConfig>(
+		initialData?.trackingConfig || {
+			trackPoolLength: false,
+			trackInitialBreatheUpTime: false,
+			trackTotalDistance: false,
+			trackTotalTime: false,
+			trackRepsCompleted: false,
+			trackRepDuration: false,
+			trackTimePerLap: false,
+			trackRestBetweenLaps: false,
+			trackKicksPerLap: false,
+			trackArmPullsPerLap: false,
+			trackBreathingTechnique: false,
+			trackRPE: false,
+			trackJoyScale: false,
+			trackHoursSinceLastMeal: false,
+			trackNotes: false,
+			trackWaterTemperature: false,
+			trackContractionsOnsetTime: false,
+			trackEquipmentUsed: false,
+			trackBuddyName: false,
+			trackRestingHeartRate: false,
+			trackHRV: false,
+			trackPoolType: false,
+			trackSambaBO: false,
+			trackBreathsBetweenReps: false
+		}
+	);
 
 	// Form data (Step 4 - Display Config)
-	let displayConfig = $state<DisplayConfig>({
-		heroMetric: 'totalDistance',
-		heroMetricLabel: 'Distance',
-		secondaryMetric: 'totalTime',
-		secondaryMetricLabel: 'Time'
-	});
+	let displayConfig = $state<DisplayConfig>(
+		initialData?.displayConfig || {
+			heroMetric: 'totalDistance',
+			heroMetricLabel: 'Distance',
+			secondaryMetric: 'totalTime',
+			secondaryMetricLabel: 'Time'
+		}
+	);
 
 	// Submission state
 	let isSubmitting = $state(false);
@@ -132,7 +154,9 @@
 	// Submit routine
 	async function handleSubmit() {
 		if (!$user) {
-			error = 'You must be logged in to create a routine';
+			error = isEditing
+				? 'You must be logged in to edit a routine'
+				: 'You must be logged in to create a routine';
 			return;
 		}
 
@@ -156,15 +180,29 @@
 				...(protocolType === 'table' && { table })
 			};
 
-			const routineId = await createRoutine($user.uid, routineData);
+			let finalRoutineId: string;
+
+			if (isEditing && routineId) {
+				// Update existing routine
+				await updateRoutine(routineId, routineData);
+				finalRoutineId = routineId;
+			} else {
+				// Create new routine
+				finalRoutineId = await createRoutine($user.uid, routineData);
+			}
 
 			// Success callback
 			if (onSuccess) {
-				onSuccess(routineId);
+				onSuccess(finalRoutineId);
 			}
 		} catch (err) {
-			console.error('Failed to create routine:', err);
-			error = err instanceof Error ? err.message : 'Failed to create routine';
+			console.error(isEditing ? 'Failed to update routine:' : 'Failed to create routine:', err);
+			error =
+				err instanceof Error
+					? err.message
+					: isEditing
+						? 'Failed to update routine'
+						: 'Failed to create routine';
 		} finally {
 			isSubmitting = false;
 		}
@@ -237,7 +275,7 @@
 	{#if isSubmitting}
 		<div class="loading-overlay">
 			<div class="loading-spinner"></div>
-			<p>Creating routine...</p>
+			<p>{isEditing ? 'Updating routine...' : 'Creating routine...'}</p>
 		</div>
 	{/if}
 </div>

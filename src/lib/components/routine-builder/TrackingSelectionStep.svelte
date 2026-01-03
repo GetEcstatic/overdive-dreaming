@@ -115,6 +115,7 @@
 		trackingConfig.trackHRV = enable;
 		trackingConfig.trackPoolType = enable;
 		trackingConfig.trackSambaBO = enable;
+		trackingConfig.trackBreathsBetweenReps = enable;
 	}
 </script>
 
@@ -254,7 +255,7 @@
 	<!-- Training Context & Health -->
 	<div class="tracking-group">
 		<div class="group-header">
-			<h3 class="group-title">Training Context & Health (13)</h3>
+			<h3 class="group-title">Training Context & Health (14)</h3>
 			<div class="group-actions">
 				<button type="button" class="link-btn" onclick={() => toggleTrainingAndHealth(true)}>
 					Select All
@@ -385,6 +386,16 @@
 						Samba/BO Incident <span class="badge-new">NEW</span>
 					</div>
 					<div class="checkbox-description">Track loss of motor control incidents</div>
+				</div>
+			</label>
+
+			<label class="checkbox-item new-metric">
+				<input type="checkbox" bind:checked={trackingConfig.trackBreathsBetweenReps} />
+				<div class="checkbox-content">
+					<div class="checkbox-label">
+						Breaths Between Reps <span class="badge-new">NEW</span>
+					</div>
+					<div class="checkbox-description">Number of breaths between dives/reps</div>
 				</div>
 			</label>
 		</div>

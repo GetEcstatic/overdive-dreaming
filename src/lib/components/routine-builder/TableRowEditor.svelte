@@ -72,7 +72,7 @@
 				type="number"
 				class="time-input"
 				bind:value={restMinutes}
-				on:change={updateRestTime}
+				onchange={updateRestTime}
 				min="0"
 				max="59"
 				placeholder="0"
@@ -82,7 +82,7 @@
 				type="number"
 				class="time-input"
 				bind:value={restSeconds}
-				on:change={updateRestTime}
+				onchange={updateRestTime}
 				min="0"
 				max="59"
 				placeholder="00"
@@ -98,7 +98,7 @@
 					type="number"
 					class="time-input"
 					bind:value={targetMinutes}
-					on:change={updateTargetTime}
+					onchange={updateTargetTime}
 					min="0"
 					max="59"
 					placeholder="0"
@@ -108,7 +108,7 @@
 					type="number"
 					class="time-input"
 					bind:value={targetSeconds}
-					on:change={updateTargetTime}
+					onchange={updateTargetTime}
 					min="0"
 					max="59"
 					placeholder="00"

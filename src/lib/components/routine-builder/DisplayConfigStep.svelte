@@ -129,7 +129,7 @@
 			id="hero-metric"
 			class="form-select"
 			bind:value={displayConfig.heroMetric}
-			on:change={updateHeroLabel}
+			onchange={updateHeroLabel}
 		>
 			{#each availableMetrics as metric}
 				<option value={metric.value}>{metric.label} - {metric.description}</option>
@@ -158,7 +158,7 @@
 			id="secondary-metric"
 			class="form-select"
 			bind:value={displayConfig.secondaryMetric}
-			on:change={updateSecondaryLabel}
+			onchange={updateSecondaryLabel}
 		>
 			{#each availableMetrics as metric}
 				<option value={metric.value}>{metric.label} - {metric.description}</option>

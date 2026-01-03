@@ -90,6 +90,7 @@ export interface TrackingConfig {
 	trackHRV: boolean; // Heart Rate Variability (ms)
 	trackPoolType: boolean; // Indoor vs outdoor
 	trackSambaBO: boolean; // Samba/BO incident flag (boolean)
+	trackBreathsBetweenReps: boolean; // Number of breaths between reps/dives
 }
 
 export type MetricType =
@@ -240,6 +241,7 @@ export interface RoutineLog {
 	hrv?: number; // milliseconds - Heart Rate Variability
 	poolType?: PoolType; // 'indoor' | 'outdoor'
 	sambaBO?: boolean; // Samba/BO incident flag
+	breathsBetweenReps?: number; // Number of breaths between reps/dives
 
 	// Media support
 	thumbnailImageUrl?: string; // Photo from session (for social feed)

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { RoutineTemplate, Discipline, BreathingTechnique } from '$lib/types';
+	import type { RoutineTemplate, Discipline, BreathingTechnique, PoolType } from '$lib/types';
 	import { isValidYouTubeUrl } from '$lib/storage';
 
 	interface Props {
@@ -24,6 +24,16 @@
 		joyScale?: number;
 		hoursSinceLastMeal?: number;
 		notes?: string;
+		// NEW METRICS
+		waterTemperature?: number;
+		contractionsOnsetTime?: number;
+		equipmentUsed?: string;
+		buddyName?: string;
+		restingHeartRate?: number;
+		hrv?: number;
+		poolType?: PoolType;
+		sambaBO?: boolean;
+		breathsBetweenReps?: number;
 		// Media
 		photoFile?: File;
 		youtubeUrl?: string;
@@ -34,6 +44,14 @@
 	// Form state
 	let disciplineUsed = $state<Discipline>(routine.disciplines[0]);
 
+	// Smart defaults from routine table
+	const defaultRepsCompleted = routine.table?.rows.length;
+	const calculatedRepDuration = routine.table?.rows.reduce((sum, row) => {
+		return sum + (row.targetDuration || 0);
+	}, 0);
+	const avgRepDuration =
+		calculatedRepDuration && routine.table ? calculatedRepDuration / routine.table.rows.length : undefined;
+
 	// Session context
 	let poolLength = $state<number | undefined>(undefined);
 	let breatheUpMinutes = $state<number | undefined>(undefined);
@@ -43,9 +61,13 @@
 	let totalDistance = $state<number | undefined>(undefined);
 	let totalTimeMinutes = $state<number | undefined>(undefined);
 	let totalTimeSeconds = $state<number | undefined>(undefined);
-	let repsCompleted = $state<number | undefined>(undefined);
-	let repDurationMinutes = $state<number | undefined>(undefined);
-	let repDurationSeconds = $state<number | undefined>(undefined);
+	let repsCompleted = $state<number | undefined>(defaultRepsCompleted);
+	let repDurationMinutes = $state<number | undefined>(
+		avgRepDuration ? Math.floor(avgRepDuration / 60) : undefined
+	);
+	let repDurationSeconds = $state<number | undefined>(
+		avgRepDuration ? avgRepDuration % 60 : undefined
+	);
 
 	// Training context
 	let breathingTechnique = $state<BreathingTechnique | undefined>(undefined);
@@ -53,6 +75,31 @@
 	let joyScale = $state<number | undefined>(undefined);
 	let hoursSinceLastMeal = $state<number | undefined>(undefined);
 	let notes = $state<string>('');
+
+	// NEW METRICS
+	let waterTemperature = $state<number | undefined>(undefined);
+	let contractionsOnsetMinutes = $state<number | undefined>(undefined);
+	let contractionsOnsetSeconds = $state<number | undefined>(undefined);
+	let equipmentUsed = $state<string>('');
+	let buddyName = $state<string>('');
+	let restingHeartRate = $state<number | undefined>(undefined);
+	let hrv = $state<number | undefined>(undefined);
+	let poolType = $state<PoolType | undefined>(undefined);
+	let sambaBO = $state<boolean>(false);
+	let breathsBetweenReps = $state<number | undefined>(undefined);
+
+	// Auto-calculate total time from variable table based on reps completed
+	$effect(() => {
+		if (routine.table && repsCompleted !== undefined && repsCompleted > 0) {
+			// Sum the targetDuration for the first X reps (where X = repsCompleted)
+			const totalSeconds = routine.table.rows
+				.slice(0, repsCompleted)
+				.reduce((sum, row) => sum + (row.targetDuration || 0), 0);
+
+			totalTimeMinutes = Math.floor(totalSeconds / 60);
+			totalTimeSeconds = totalSeconds % 60;
+		}
+	});
 
 	// Reactive heart color based on joy scale
 	const joyHeartColor = $derived(() => {
@@ -151,6 +198,11 @@
 				? repDurationMinutes * 60 + repDurationSeconds
 				: undefined;
 
+		const contractionsOnset =
+			contractionsOnsetMinutes !== undefined && contractionsOnsetSeconds !== undefined
+				? contractionsOnsetMinutes * 60 + contractionsOnsetSeconds
+				: undefined;
+
 		const data: LogFormData = {
 			disciplineUsed,
 			// Session context
@@ -167,6 +219,16 @@
 			joyScale,
 			hoursSinceLastMeal,
 			notes: notes.trim() || undefined,
+			// NEW METRICS
+			waterTemperature,
+			contractionsOnsetTime: contractionsOnset,
+			equipmentUsed: equipmentUsed.trim() || undefined,
+			buddyName: buddyName.trim() || undefined,
+			restingHeartRate,
+			hrv,
+			poolType,
+			sambaBO: sambaBO || undefined,
+			breathsBetweenReps,
 			// Media
 			photoFile,
 			youtubeUrl: youtubeUrl.trim() || undefined
@@ -286,7 +348,12 @@
 
 			{#if config.trackTotalTime}
 				<div class="field-group">
-					<label class="field-label">Total Time</label>
+					<label class="field-label">
+						Total Time
+						{#if routine.table}
+							<span class="field-hint-inline">(auto-calculated from table)</span>
+						{/if}
+					</label>
 					<div class="time-input">
 						<input
 							type="number"
@@ -433,6 +500,136 @@
 						class="field-textarea"
 						placeholder="How did it feel? Any observations..."
 					></textarea>
+				</div>
+			{/if}
+
+			{#if config.trackWaterTemperature}
+				<div class="field-group">
+					<label for="waterTemperature" class="field-label">Water Temperature (°C)</label>
+					<input
+						id="waterTemperature"
+						type="number"
+						bind:value={waterTemperature}
+						min="0"
+						max="40"
+						step="0.5"
+						class="field-input"
+						placeholder="e.g., 28"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackContractionsOnsetTime}
+				<div class="field-group">
+					<label for="contractionsOnset" class="field-label">Contractions Onset Time (mm:ss)</label>
+					<div class="time-input-group">
+						<input
+							type="number"
+							bind:value={contractionsOnsetMinutes}
+							min="0"
+							max="10"
+							placeholder="MM"
+							class="time-input"
+						/>
+						<span class="time-separator">:</span>
+						<input
+							type="number"
+							bind:value={contractionsOnsetSeconds}
+							min="0"
+							max="59"
+							placeholder="SS"
+							class="time-input"
+						/>
+					</div>
+				</div>
+			{/if}
+
+			{#if config.trackEquipmentUsed}
+				<div class="field-group">
+					<label for="equipmentUsed" class="field-label">Equipment Used</label>
+					<input
+						id="equipmentUsed"
+						type="text"
+						bind:value={equipmentUsed}
+						class="field-input"
+						placeholder="e.g., Monofin, wetsuit, nose clip"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackBuddyName}
+				<div class="field-group">
+					<label for="buddyName" class="field-label">Buddy Name</label>
+					<input
+						id="buddyName"
+						type="text"
+						bind:value={buddyName}
+						class="field-input"
+						placeholder="Training partner's name"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackRestingHeartRate}
+				<div class="field-group">
+					<label for="restingHeartRate" class="field-label">Resting Heart Rate (bpm)</label>
+					<input
+						id="restingHeartRate"
+						type="number"
+						bind:value={restingHeartRate}
+						min="30"
+						max="120"
+						class="field-input"
+						placeholder="e.g., 60"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackHRV}
+				<div class="field-group">
+					<label for="hrv" class="field-label">HRV (ms)</label>
+					<input
+						id="hrv"
+						type="number"
+						bind:value={hrv}
+						min="0"
+						class="field-input"
+						placeholder="e.g., 50"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackPoolType}
+				<div class="field-group">
+					<label for="poolType" class="field-label">Pool Type</label>
+					<select id="poolType" bind:value={poolType} class="field-input">
+						<option value={undefined}>Select pool type...</option>
+						<option value="indoor">Indoor</option>
+						<option value="outdoor">Outdoor</option>
+					</select>
+				</div>
+			{/if}
+
+			{#if config.trackSambaBO}
+				<div class="field-group">
+					<label class="checkbox-label">
+						<input type="checkbox" bind:checked={sambaBO} class="checkbox-input" />
+						<span>Samba/BO Incident Occurred</span>
+					</label>
+				</div>
+			{/if}
+
+			{#if config.trackBreathsBetweenReps}
+				<div class="field-group">
+					<label for="breathsBetweenReps" class="field-label">Breaths Between Reps</label>
+					<input
+						id="breathsBetweenReps"
+						type="number"
+						bind:value={breathsBetweenReps}
+						min="1"
+						class="field-input"
+						placeholder="e.g., 2"
+					/>
 				</div>
 			{/if}
 		</div>
@@ -868,6 +1065,29 @@
 
 	.field-input.error {
 		border-color: #ef4444;
+	}
+
+	.checkbox-label {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		cursor: pointer;
+		font-size: 0.9375rem;
+		color: var(--color-text);
+	}
+
+	.checkbox-input {
+		width: 20px;
+		height: 20px;
+		cursor: pointer;
+		accent-color: var(--color-primary);
+	}
+
+	.field-hint-inline {
+		font-size: 0.75rem;
+		color: var(--color-text-muted);
+		font-weight: 400;
+		margin-left: 0.5rem;
 	}
 
 	/* Mobile Responsive Adjustments */
