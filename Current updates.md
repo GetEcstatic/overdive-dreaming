@@ -13,3 +13,20 @@ Okay, I think we need to reconceptualise how routine editing takes place from
   - Either return to the feed or select (via buttons? Tap? Swipe? Please evaluate) whether to edit the card or to move to analytics page (Still to be properly developed) to see more information on this routine
 
 Please plan for three solutions to improve this UX and lead naturally to the next stage of developing the app (analytics)
+
+
+
+Suggestions
+
+Fewer fields are better: e.g. anywhere duration or time is indicated better to autopopulate the : between mm:ss
+
+Dive watch data capture - .csv file
+- heartrate
+- depth
+- time
+- lap time
+- interval time
+- temperature
+
+
+
