@@ -168,3 +168,140 @@ export function prepareProgressData(
 		.map(([date, value]) => ({ date, value }))
 		.sort((a, b) => a.date.localeCompare(b.date));
 }
+
+/**
+ * Aggregate training volume by week
+ */
+export interface VolumeDataPoint {
+	week: string;
+	byDiscipline: Partial<Record<Discipline, number>>;
+}
+
+export function aggregateVolumeByWeek(
+	logs: RoutineLog[],
+	metric: 'distance' | 'time'
+): VolumeDataPoint[] {
+	const weeklyData: Record<string, Partial<Record<Discipline, number>>> = {};
+
+	for (const log of logs) {
+		// Get week key (start of week)
+		const weekStart = format(log.date.toDate(), 'yyyy-MM-dd');
+
+		if (!weeklyData[weekStart]) {
+			weeklyData[weekStart] = {};
+		}
+
+		const discipline = log.disciplineUsed;
+		const value = metric === 'distance' ? (log.totalDistance || 0) : (log.totalTime || 0);
+
+		if (!weeklyData[weekStart][discipline]) {
+			weeklyData[weekStart][discipline] = 0;
+		}
+
+		weeklyData[weekStart][discipline]! += value;
+	}
+
+	// Convert to array and sort by week
+	return Object.entries(weeklyData)
+		.map(([week, byDiscipline]) => ({ week, byDiscipline }))
+		.sort((a, b) => a.week.localeCompare(b.week));
+}
+
+/**
+ * Time of day performance stats
+ */
+export interface TimeOfDayStats {
+	morning: { avg: number; max: number; count: number };
+	afternoon: { avg: number; max: number; count: number };
+	evening: { avg: number; max: number; count: number };
+}
+
+export function aggregateByTimeOfDay(
+	logs: RoutineLog[],
+	discipline: Discipline,
+	metric: 'distance' | 'time'
+): TimeOfDayStats {
+	const stats: TimeOfDayStats = {
+		morning: { avg: 0, max: 0, count: 0 },
+		afternoon: { avg: 0, max: 0, count: 0 },
+		evening: { avg: 0, max: 0, count: 0 }
+	};
+
+	// Filter by discipline
+	const disciplineLogs = logs.filter((log) => log.disciplineUsed === discipline);
+
+	// Group by time of day
+	const byTimeOfDay: Record<string, number[]> = {
+		morning: [],
+		afternoon: [],
+		evening: []
+	};
+
+	for (const log of disciplineLogs) {
+		const timeOfDay = log.timeOfDay;
+		if (!timeOfDay) continue;
+
+		const value = metric === 'distance' ? (log.totalDistance || 0) : (log.totalTime || 0);
+		if (value > 0) {
+			byTimeOfDay[timeOfDay].push(value);
+		}
+	}
+
+	// Calculate stats for each time period
+	for (const [period, values] of Object.entries(byTimeOfDay)) {
+		if (values.length > 0) {
+			const sum = values.reduce((a, b) => a + b, 0);
+			const avg = sum / values.length;
+			const max = Math.max(...values);
+
+			stats[period as keyof TimeOfDayStats] = {
+				avg,
+				max,
+				count: values.length
+			};
+		}
+	}
+
+	return stats;
+}
+
+/**
+ * PB proximity calculation
+ */
+export interface PBProximityPoint {
+	date: string;
+	percentage: number;
+	discipline: Discipline;
+	value: number;
+}
+
+export function calculatePBProximity(
+	logs: RoutineLog[],
+	personalBests: Record<Discipline, number>
+): PBProximityPoint[] {
+	const proximityData: PBProximityPoint[] = [];
+
+	for (const log of logs) {
+		const discipline = log.disciplineUsed;
+		const pb = personalBests[discipline];
+
+		if (!pb) continue; // No PB for this discipline yet
+
+		// Determine metric based on discipline
+		const isDynamic = ['DYN', 'DNF', 'DYNB'].includes(discipline);
+		const value = isDynamic ? (log.totalDistance || 0) : (log.totalTime || 0);
+
+		if (value > 0) {
+			const percentage = (value / pb) * 100;
+			proximityData.push({
+				date: format(log.date.toDate(), 'yyyy-MM-dd'),
+				percentage,
+				discipline,
+				value
+			});
+		}
+	}
+
+	// Sort by date
+	return proximityData.sort((a, b) => a.date.localeCompare(b.date));
+}

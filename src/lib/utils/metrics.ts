@@ -22,8 +22,10 @@ export function calculateTotalBreathHoldTime(
 	}
 
 	// If using logged rep duration (e.g., Gentle 2-Breath actual rep duration)
-	if (log.repDuration && log.summary?.repsCompleted) {
-		return log.repDuration * log.summary.repsCompleted;
+	// Check both locations where repsCompleted might be stored
+	const repsCompleted = log.repsCompleted || log.summary?.repsCompleted || 0;
+	if (log.repDuration && repsCompleted) {
+		return log.repDuration * repsCompleted;
 	}
 
 	return 0;
@@ -46,7 +48,7 @@ export function calculateTotalBreathingTime(log: RoutineLog): number {
  * Used for static interval routines where you take a fixed number of breaths between reps
  */
 export function calculateTotalBreaths(log: RoutineLog): number {
-	const repsCompleted = log.summary?.repsCompleted || 0;
+	const repsCompleted = log.repsCompleted || log.summary?.repsCompleted || 0;
 	if (repsCompleted > 1) {
 		return (repsCompleted - 1) * 2;
 	}
@@ -106,7 +108,7 @@ export function getMetricValue(
 			return log.totalTime || 0;
 
 		case 'repsCompleted':
-			return log.summary?.repsCompleted || 0;
+			return log.repsCompleted || log.summary?.repsCompleted || 0;
 
 		case 'avgTimePerLap':
 		case 'avgTimePerRep':

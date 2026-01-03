@@ -1,0 +1,247 @@
+<script lang="ts">
+	import type { RoutineLog, Discipline } from '$lib/types';
+	import { aggregateByTimeOfDay } from '$lib/utils/analytics';
+	import { formatTime } from '$lib/utils/time';
+
+	let {
+		logs,
+		discipline,
+		metric = 'distance'
+	}: { logs: RoutineLog[]; discipline: Discipline; metric?: 'distance' | 'time' } = $props();
+
+	const timeOfDayStats = $derived(aggregateByTimeOfDay(logs, discipline, metric));
+
+	const hasSufficientData = $derived(
+		timeOfDayStats.morning.count > 0 ||
+		timeOfDayStats.afternoon.count > 0 ||
+		timeOfDayStats.evening.count > 0
+	);
+
+	const bestPeriod = $derived.by(() => {
+		const periods = [
+			{ name: 'Morning', avg: timeOfDayStats.morning.avg },
+			{ name: 'Afternoon', avg: timeOfDayStats.afternoon.avg },
+			{ name: 'Evening', avg: timeOfDayStats.evening.avg }
+		];
+
+		return periods.reduce((best, current) =>
+			current.avg > best.avg ? current : best
+		);
+	});
+
+	const formatValue = (value: number) => {
+		if (metric === 'distance') {
+			return `${Math.round(value)}m`;
+		} else {
+			return formatTime(value);
+		}
+	};
+
+	const getBarHeight = (avg: number, maxAvg: number) => {
+		if (maxAvg === 0) return 0;
+		return (avg / maxAvg) * 100;
+	};
+
+	const maxAvg = $derived(
+		Math.max(
+			timeOfDayStats.morning.avg,
+			timeOfDayStats.afternoon.avg,
+			timeOfDayStats.evening.avg
+		)
+	);
+</script>
+
+<div class="time-of-day-analysis">
+	<div class="header">
+		<h3 class="title">Performance by Time of Day</h3>
+		<div class="discipline-badge">{discipline}</div>
+	</div>
+
+	{#if !hasSufficientData}
+		<div class="empty-state">
+			<p>Log sessions at different times of day to see patterns</p>
+		</div>
+	{:else}
+		<div class="insight-text">
+			You perform best in <strong>{bestPeriod.name}</strong> sessions
+		</div>
+
+		<div class="bars-container">
+			<!-- Morning -->
+			<div class="time-period">
+				<div class="bar-wrapper">
+					<div
+						class="bar morning"
+						style="height: {getBarHeight(timeOfDayStats.morning.avg, maxAvg)}%"
+					></div>
+				</div>
+				<div class="stats">
+					<div class="stat-value">{formatValue(timeOfDayStats.morning.avg)}</div>
+					<div class="stat-label">Morning</div>
+					<div class="stat-count">{timeOfDayStats.morning.count} sessions</div>
+				</div>
+			</div>
+
+			<!-- Afternoon -->
+			<div class="time-period">
+				<div class="bar-wrapper">
+					<div
+						class="bar afternoon"
+						style="height: {getBarHeight(timeOfDayStats.afternoon.avg, maxAvg)}%"
+					></div>
+				</div>
+				<div class="stats">
+					<div class="stat-value">{formatValue(timeOfDayStats.afternoon.avg)}</div>
+					<div class="stat-label">Afternoon</div>
+					<div class="stat-count">{timeOfDayStats.afternoon.count} sessions</div>
+				</div>
+			</div>
+
+			<!-- Evening -->
+			<div class="time-period">
+				<div class="bar-wrapper">
+					<div
+						class="bar evening"
+						style="height: {getBarHeight(timeOfDayStats.evening.avg, maxAvg)}%"
+					></div>
+				</div>
+				<div class="stats">
+					<div class="stat-value">{formatValue(timeOfDayStats.evening.avg)}</div>
+					<div class="stat-label">Evening</div>
+					<div class="stat-count">{timeOfDayStats.evening.count} sessions</div>
+				</div>
+			</div>
+		</div>
+	{/if}
+</div>
+
+<style>
+	.time-of-day-analysis {
+		background: var(--color-bg-card);
+		border: 1px solid rgba(148, 163, 184, 0.1);
+		border-radius: 12px;
+		padding: 1.5rem;
+		margin-bottom: 1.5rem;
+	}
+
+	.header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 1rem;
+	}
+
+	.title {
+		font-size: 1.25rem;
+		font-weight: 600;
+		color: var(--color-text);
+		margin: 0;
+	}
+
+	.discipline-badge {
+		background: rgba(20, 184, 166, 0.15);
+		color: var(--color-primary);
+		padding: 0.375rem 0.75rem;
+		border-radius: 6px;
+		font-size: 0.875rem;
+		font-weight: 600;
+	}
+
+	.insight-text {
+		color: var(--color-text-muted);
+		font-size: 0.875rem;
+		margin-bottom: 1.5rem;
+	}
+
+	.insight-text strong {
+		color: var(--color-primary);
+		font-weight: 600;
+	}
+
+	.bars-container {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 1.5rem;
+		margin-top: 2rem;
+	}
+
+	.time-period {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+	}
+
+	.bar-wrapper {
+		width: 100%;
+		height: 200px;
+		display: flex;
+		align-items: flex-end;
+		justify-content: center;
+		padding: 0.5rem;
+		background: rgba(15, 23, 42, 0.3);
+		border-radius: 8px;
+		margin-bottom: 1rem;
+	}
+
+	.bar {
+		width: 60%;
+		min-height: 4px;
+		border-radius: 4px 4px 0 0;
+		transition: height 0.3s ease;
+	}
+
+	.bar.morning {
+		background: linear-gradient(to top, #f59e0b, #fbbf24);
+	}
+
+	.bar.afternoon {
+		background: linear-gradient(to top, #14b8a6, #10b981);
+	}
+
+	.bar.evening {
+		background: linear-gradient(to top, #6366f1, #8b5cf6);
+	}
+
+	.stats {
+		text-align: center;
+	}
+
+	.stat-value {
+		font-size: 1.125rem;
+		font-weight: 700;
+		color: var(--color-text);
+		margin-bottom: 0.25rem;
+	}
+
+	.stat-label {
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--color-text);
+		margin-bottom: 0.25rem;
+	}
+
+	.stat-count {
+		font-size: 0.75rem;
+		color: var(--color-text-muted);
+	}
+
+	.empty-state {
+		text-align: center;
+		padding: 3rem 1rem;
+		color: var(--color-text-muted);
+	}
+
+	@media (max-width: 640px) {
+		.bars-container {
+			gap: 1rem;
+		}
+
+		.bar-wrapper {
+			height: 150px;
+		}
+
+		.stat-value {
+			font-size: 1rem;
+		}
+	}
+</style>

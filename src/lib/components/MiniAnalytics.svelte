@@ -5,6 +5,7 @@
 	import LineChart from './LineChart.svelte';
 	import type { RoutineTemplate, RoutineLog } from '$lib/types';
 	import { formatTime } from '$lib/utils/time';
+	import { getMetricValue } from '$lib/utils/metrics';
 
 	let {
 		routine,
@@ -18,6 +19,26 @@
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 
+	// Determine if this metric is "lower is better" (for interval training speed)
+	let lowerIsBetter = $derived.by(() => {
+		// For interval training routines, faster (lower) time is better
+		// Check if routine is interval training (not max attempt)
+		const isMaxAttempt = routine.tags.includes('max-attempt') || routine.tags.includes('pb');
+
+		// If it's an interval routine and using time as hero metric, lower is better
+		if (!isMaxAttempt && routine.displayConfig?.heroMetric === 'totalTime') {
+			return true;
+		}
+
+		// For avgTimePerRep, lower is always better
+		if (routine.displayConfig?.heroMetric === 'avgTimePerRep') {
+			return true;
+		}
+
+		// Otherwise higher is better (distance, breath hold time, etc.)
+		return false;
+	});
+
 	// Derived chart data
 	let chartData = $derived.by(() => {
 		if (recentLogs.length === 0) {
@@ -27,9 +48,8 @@
 			};
 		}
 
-		// Determine primary metric based on discipline
-		const isDynamic = ['DYN', 'DNF', 'DYNB'].includes(recentLogs[0].disciplineUsed);
-		const metricKey = isDynamic ? 'totalDistance' : 'totalTime';
+		// Use the routine's hero metric for charting
+		const heroMetric = routine.displayConfig?.heroMetric || 'totalDistance';
 
 		// Extract values (reverse so oldest is first, newest is last)
 		const reversedLogs = [...recentLogs].reverse();
@@ -38,16 +58,31 @@
 			return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 		});
 
+		// Use getMetricValue to properly calculate metrics (handles calculated metrics)
 		const values = reversedLogs.map((log) => {
-			const value = log[metricKey] || 0;
-			return isDynamic ? value : value / 60; // Convert seconds to minutes for STA
+			const value = getMetricValue(heroMetric, log, routine);
+			// Convert seconds to minutes for time-based metrics
+			if (heroMetric.includes('Time') || heroMetric.includes('time')) {
+				return value / 60; // Convert to minutes
+			}
+			return value;
 		});
+
+		// Determine label based on metric
+		let label = routine.displayConfig?.heroMetricLabel || 'Value';
+		const isTimeMetric = heroMetric.includes('Time') || heroMetric.includes('time');
+
+		if (isTimeMetric) {
+			label = lowerIsBetter ? `${label} (min) - Lower is Better` : `${label} (min)`;
+		} else if (heroMetric === 'totalDistance') {
+			label = `${label} (m)`;
+		}
 
 		return {
 			labels,
 			datasets: [
 				{
-					label: isDynamic ? 'Distance (m)' : 'Time (min)',
+					label,
 					data: values,
 					borderColor: '#14b8a6',
 					backgroundColor: 'rgba(20, 184, 166, 0.1)',
@@ -64,20 +99,26 @@
 	let trend = $derived.by(() => {
 		if (recentLogs.length < 3) return 'stable';
 
-		const values = recentLogs.map((log) => {
-			const isDynamic = ['DYN', 'DNF', 'DYNB'].includes(log.disciplineUsed);
-			return log[isDynamic ? 'totalDistance' : 'totalTime'] || 0;
-		});
+		// Use the same metric as the chart
+		const heroMetric = routine.displayConfig?.heroMetric || 'totalDistance';
 
-		// Compare first half vs second half
+		// Get metric values using the utility function
+		const values = recentLogs.map((log) => getMetricValue(heroMetric, log, routine));
+
+		// Compare first half (newer) vs second half (older)
+		// Note: logs are ordered desc (newest first)
 		const mid = Math.floor(values.length / 2);
 		const firstHalfAvg = values.slice(0, mid).reduce((a, b) => a + b, 0) / mid;
 		const secondHalfAvg = values.slice(mid).reduce((a, b) => a + b, 0) / (values.length - mid);
 
-		const percentChange = ((secondHalfAvg - firstHalfAvg) / firstHalfAvg) * 100;
+		// Calculate: (newer - older) / older to get change %
+		const percentChange = ((firstHalfAvg - secondHalfAvg) / secondHalfAvg) * 100;
 
-		if (percentChange > 5) return 'improving';
-		if (percentChange < -5) return 'declining';
+		// For "lower is better" metrics, invert the interpretation
+		const effectiveChange = lowerIsBetter ? -percentChange : percentChange;
+
+		if (effectiveChange > 5) return 'improving';
+		if (effectiveChange < -5) return 'declining';
 		return 'stable';
 	});
 
@@ -88,13 +129,21 @@
 		const currentLog = recentLogs.find((log) => log.id === currentLogId);
 		if (!currentLog) return false;
 
-		const isDynamic = ['DYN', 'DNF', 'DYNB'].includes(currentLog.disciplineUsed);
-		const metricKey = isDynamic ? 'totalDistance' : 'totalTime';
-		const currentValue = currentLog[metricKey] || 0;
+		// Use the same metric as the chart
+		const heroMetric = routine.displayConfig?.heroMetric || 'totalDistance';
 
-		// Check if this is the max value
-		const maxValue = Math.max(...recentLogs.map((log) => log[metricKey] || 0));
-		return currentValue === maxValue && currentValue > 0;
+		// Get metric values using the utility function
+		const currentValue = getMetricValue(heroMetric, currentLog, routine);
+		const allValues = recentLogs.map((log) => getMetricValue(heroMetric, log, routine));
+
+		// For "lower is better", find minimum; otherwise find maximum
+		if (lowerIsBetter) {
+			const minValue = Math.min(...allValues.filter(v => v > 0));
+			return currentValue === minValue && currentValue > 0;
+		} else {
+			const maxValue = Math.max(...allValues);
+			return currentValue === maxValue && currentValue > 0;
+		}
 	});
 
 	onMount(async () => {

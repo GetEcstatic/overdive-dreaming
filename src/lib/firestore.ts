@@ -13,10 +13,12 @@ import {
 	where,
 	orderBy,
 	limit,
+	startAfter,
 	Timestamp,
 	serverTimestamp,
 	type DocumentData,
-	type QueryConstraint
+	type QueryConstraint,
+	type QueryDocumentSnapshot
 } from 'firebase/firestore';
 import { db } from '$lib/firebase';
 import type {
@@ -443,4 +445,51 @@ export async function getRecentActivity(userId: string, limitCount = 20): Promis
 	});
 
 	return logs;
+}
+
+/**
+ * Get recent routine logs with pagination support (for infinite scroll)
+ * Returns logs and the last document for cursor-based pagination
+ */
+export async function getRecentActivityPaginated(
+	userId: string,
+	limitCount = 20,
+	lastDoc?: QueryDocumentSnapshot<DocumentData>
+): Promise<{
+	logs: RoutineLog[];
+	lastDoc: QueryDocumentSnapshot<DocumentData> | null;
+	hasMore: boolean;
+}> {
+	const routineLogsRef = collection(db, 'routineLogs');
+
+	const constraints: QueryConstraint[] = [
+		where('userId', '==', userId),
+		orderBy('date', 'desc'),
+		limit(limitCount)
+	];
+
+	// Add cursor if provided (for pagination)
+	if (lastDoc) {
+		constraints.push(startAfter(lastDoc));
+	}
+
+	const q = query(routineLogsRef, ...constraints);
+	const snapshot = await getDocs(q);
+
+	const logs: RoutineLog[] = [];
+	snapshot.forEach((doc) => {
+		logs.push({ id: doc.id, ...doc.data() } as RoutineLog);
+	});
+
+	// Get the last document for next pagination
+	const lastVisible = snapshot.docs[snapshot.docs.length - 1] || null;
+
+	// Check if there are more results by seeing if we got a full page
+	const hasMore = snapshot.docs.length === limitCount;
+
+	return {
+		logs,
+		lastDoc: lastVisible,
+		hasMore
+	};
 }

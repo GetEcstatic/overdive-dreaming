@@ -3,9 +3,12 @@
 	import { page } from '$app/stores';
 	import { user } from '$lib/stores/auth';
 	import { db } from '$lib/firebase';
-	import { collection, query, getDocs, collectionGroup } from 'firebase/firestore';
-	import type { RoutineLog, Discipline } from '$lib/types';
+	import { collection, query, getDocs, where, orderBy } from 'firebase/firestore';
+	import type { RoutineLog, Discipline, PersonalBests } from '$lib/types';
 	import LineChart from '$lib/components/LineChart.svelte';
+	import VolumeChart from '$lib/components/analytics/VolumeChart.svelte';
+	import TimeOfDayAnalysis from '$lib/components/analytics/TimeOfDayAnalysis.svelte';
+	import PBProximityChart from '$lib/components/analytics/PBProximityChart.svelte';
 	import {
 		calculatePersonalBests,
 		calculateTrainingSummary,
@@ -14,10 +17,12 @@
 	} from '$lib/utils/analytics';
 	import { formatTime } from '$lib/utils/time';
 	import { format } from 'date-fns';
+	import { getUserPBs } from '$lib/utils/personalBests';
 
 	let timeframe = $state<'1month' | '6months' | '1year'>('1month');
 	let selectedDiscipline = $state<Discipline>('DYN');
 	let allLogs = $state<RoutineLog[]>([]);
+	let userPBs = $state<PersonalBests | undefined>(undefined);
 	let loading = $state(true);
 
 	const timeframes = [
@@ -77,32 +82,35 @@
 		try {
 			loading = true;
 
-			// Query all routine logs for this user across all sessions
-			const sessionsQuery = query(collection(db, 'sessions'));
-			const sessionsSnapshot = await getDocs(sessionsQuery);
+			// Query flat routineLogs collection (current data structure)
+			const routineLogsRef = collection(db, 'routineLogs');
+			const q = query(
+				routineLogsRef,
+				where('userId', '==', $user.uid),
+				orderBy('date', 'desc')
+			);
 
+			const snapshot = await getDocs(q);
 			const logs: RoutineLog[] = [];
 
-			for (const sessionDoc of sessionsSnapshot.docs) {
-				const sessionData = sessionDoc.data();
-				if (sessionData.userId !== $user.uid) continue;
-
-				const routineLogsRef = collection(db, 'sessions', sessionDoc.id, 'routineLogs');
-				const routineLogsSnapshot = await getDocs(routineLogsRef);
-
-				for (const logDoc of routineLogsSnapshot.docs) {
-					logs.push({ id: logDoc.id, ...logDoc.data() } as RoutineLog);
-				}
-			}
-
-			// Sort by date descending
-			logs.sort((a, b) => b.date.seconds - a.date.seconds);
+			snapshot.forEach((doc) => {
+				logs.push({ id: doc.id, ...doc.data() } as RoutineLog);
+			});
 
 			allLogs = logs;
 		} catch (error) {
 			console.error('Error fetching logs:', error);
 		} finally {
 			loading = false;
+		}
+	}
+
+	async function fetchPBs() {
+		if (!$user) return;
+		try {
+			userPBs = await getUserPBs($user.uid);
+		} catch (err) {
+			console.error('Error fetching PBs:', err);
 		}
 	}
 
@@ -121,6 +129,7 @@
 		}
 
 		fetchAllLogs();
+		fetchPBs();
 	});
 </script>
 
@@ -162,6 +171,24 @@
 				</div>
 				<LineChart data={progressChartData} height={300} />
 			</div>
+
+			<!-- NEW: Training Volume Chart -->
+			<VolumeChart logs={filterLogsByTimeframe(allLogs, timeframe)} metric="distance" />
+
+			<!-- NEW: Time of Day Analysis -->
+			<TimeOfDayAnalysis
+				logs={filterLogsByTimeframe(allLogs, timeframe)}
+				discipline={selectedDiscipline}
+				metric={['DYN', 'DNF', 'DYNB'].includes(selectedDiscipline) ? 'distance' : 'time'}
+			/>
+
+			<!-- NEW: PB Proximity Chart -->
+			{#if userPBs}
+				<PBProximityChart
+					logs={filterLogsByTimeframe(allLogs, timeframe)}
+					personalBests={userPBs}
+				/>
+			{/if}
 
 			<!-- Stats Grid -->
 			<div class="stats-grid">

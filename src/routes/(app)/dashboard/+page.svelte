@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { user } from '$lib/stores/auth';
-	import { getRecentActivity } from '$lib/firestore';
-	import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+	import { getRecentActivityPaginated } from '$lib/firestore';
+	import { doc, getDoc, collection, query, where, getDocs, type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore';
 	import { db } from '$lib/firebase';
 	import type { RoutineLog, RoutineTemplate, PersonalBests, Discipline } from '$lib/types';
 	import SessionCard from '$lib/components/SessionCard.svelte';
@@ -15,9 +15,13 @@
 
 	let sessions: LogWithRoutine[] = $state([]);
 	let loading = $state(true);
+	let loadingMore = $state(false);
 	let error = $state<string | null>(null);
 	let personalBests = $state<PersonalBests | undefined>(undefined);
 	let thisWeekCount = $state(0);
+	let lastDoc: QueryDocumentSnapshot<DocumentData> | null = $state(null);
+	let hasMore = $state(true);
+	let feedContainer: HTMLElement | undefined = $state();
 
 	async function fetchRecentSessions() {
 		if (!$user) return;
@@ -26,13 +30,13 @@
 			loading = true;
 			error = null;
 
-			// Query recent routine logs directly (flat structure)
-			const routineLogs = await getRecentActivity($user.uid, 20);
+			// Query recent routine logs with pagination (initial load: 20 items)
+			const result = await getRecentActivityPaginated($user.uid, 20);
 
 			const sessionsData: LogWithRoutine[] = [];
 
 			// Fetch routine template for each log
-			for (const log of routineLogs) {
+			for (const log of result.logs) {
 				// Fetch the associated routine template
 				const routineRef = doc(db, 'routines', log.routineId);
 				const routineSnap = await getDoc(routineRef);
@@ -50,13 +54,62 @@
 			).length;
 
 			sessions = sessionsData;
+			lastDoc = result.lastDoc;
+			hasMore = result.hasMore;
 
-			console.log(`Displaying ${sessions.length} routine logs in feed`);
+			console.log(`Displaying ${sessions.length} routine logs in feed (hasMore: ${hasMore})`);
 		} catch (err) {
 			console.error('Error fetching sessions:', err);
 			error = `Failed to load recent sessions: ${err instanceof Error ? err.message : String(err)}`;
 		} finally {
 			loading = false;
+		}
+	}
+
+	async function loadMoreSessions() {
+		if (!$user || !hasMore || loadingMore || !lastDoc) return;
+
+		try {
+			loadingMore = true;
+
+			// Load next 10 items
+			const result = await getRecentActivityPaginated($user.uid, 10, lastDoc);
+
+			const newSessionsData: LogWithRoutine[] = [];
+
+			// Fetch routine template for each log
+			for (const log of result.logs) {
+				const routineRef = doc(db, 'routines', log.routineId);
+				const routineSnap = await getDoc(routineRef);
+
+				if (routineSnap.exists()) {
+					const routine = { id: routineSnap.id, ...routineSnap.data() } as RoutineTemplate;
+					newSessionsData.push({ log, routine });
+				}
+			}
+
+			// Append new sessions to existing ones
+			sessions = [...sessions, ...newSessionsData];
+			lastDoc = result.lastDoc;
+			hasMore = result.hasMore;
+
+			console.log(`Loaded ${newSessionsData.length} more sessions (total: ${sessions.length}, hasMore: ${hasMore})`);
+		} catch (err) {
+			console.error('Error loading more sessions:', err);
+		} finally {
+			loadingMore = false;
+		}
+	}
+
+	// Infinite scroll detection
+	function handleScroll() {
+		if (!feedContainer || !hasMore || loadingMore) return;
+
+		const { scrollTop, scrollHeight, clientHeight } = feedContainer;
+		const scrolledToBottom = scrollTop + clientHeight >= scrollHeight - 300; // Trigger 300px before bottom
+
+		if (scrolledToBottom) {
+			loadMoreSessions();
 		}
 	}
 
@@ -126,7 +179,7 @@
 </script>
 
 {#if $user}
-	<div class="content-wrapper">
+	<div class="content-wrapper" bind:this={feedContainer} onscroll={handleScroll}>
 		<!-- Summary Stats Card -->
 		<div class="summary-card">
 				<h2 class="summary-title">Training Overview</h2>
@@ -222,6 +275,24 @@
 							<SessionCard {log} {routine} />
 						{/each}
 					</div>
+
+					<!-- Load More Indicator -->
+					{#if loadingMore}
+						<div class="flex items-center justify-center py-8">
+							<div class="text-center">
+								<div
+									class="inline-block w-6 h-6 border-4 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin mb-2"
+								></div>
+								<p class="text-sm text-[var(--color-text-muted)]">Loading more...</p>
+							</div>
+						</div>
+					{:else if !hasMore && sessions.length > 0}
+						<div class="flex items-center justify-center py-8">
+							<p class="text-sm text-[var(--color-text-muted)]">
+								You've reached the end • {sessions.length} sessions total
+							</p>
+						</div>
+					{/if}
 				{/if}
 		</section>
 	</div>
