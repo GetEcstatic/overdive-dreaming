@@ -9,6 +9,7 @@
 	import { getRoutinesForUser, deleteRoutine } from '$lib/firestore';
 	import type { RoutineTemplate } from '$lib/types';
 	import { goto } from '$app/navigation';
+	import { isAdmin } from '$lib/utils/admin';
 
 	let routines = $state<RoutineTemplate[]>([]);
 	let loading = $state(true);
@@ -18,6 +19,9 @@
 	// Separate system and custom routines
 	let systemRoutines = $derived(routines.filter((r) => r.createdBy === 'system'));
 	let customRoutines = $derived(routines.filter((r) => r.createdBy !== 'system'));
+
+	// Check if current user is admin
+	let userIsAdmin = $derived(isAdmin($user?.uid));
 
 	async function loadRoutines() {
 		if (!$user) return;
@@ -161,6 +165,22 @@
 									{#each routine.tags.slice(0, 3) as tag}
 										<span class="tag">{tag}</span>
 									{/each}
+								</div>
+							{/if}
+
+							<!-- Admin-only actions for system routines -->
+							{#if userIsAdmin}
+								<div class="card-actions">
+									<button class="btn-edit" onclick={() => navigateToEdit(routine.id)}>
+										Edit
+									</button>
+									<button
+										class="btn-delete"
+										onclick={() => handleDelete(routine.id, routine.name)}
+										disabled={deletingId === routine.id}
+									>
+										{deletingId === routine.id ? 'Deleting...' : 'Delete'}
+									</button>
 								</div>
 							{/if}
 						</div>
