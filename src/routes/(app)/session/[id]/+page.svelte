@@ -417,7 +417,7 @@
 	.detail-page {
 		max-width: 800px;
 		margin: 0 auto;
-		padding: 1rem 1rem 6rem;
+		padding: 1rem 1rem 10rem; /* Extra padding for action bar (64px) + bottom nav (64px) + buffer */
 		min-height: 100vh;
 	}
 
@@ -642,7 +642,7 @@
 	/* Action Bar */
 	.action-bar {
 		position: fixed;
-		bottom: 0;
+		bottom: 64px; /* Position above bottom nav (64px tall) */
 		left: 0;
 		right: 0;
 		background: var(--color-bg-card);
@@ -778,6 +778,13 @@
 			left: 50%;
 			transform: translateX(-50%);
 			border-radius: 12px 12px 0 0;
+		}
+	}
+
+	/* Desktop - Bottom nav hidden, action bar can be at bottom */
+	@media (min-width: 1024px) {
+		.action-bar {
+			bottom: 0;
 		}
 	}
 </style>
