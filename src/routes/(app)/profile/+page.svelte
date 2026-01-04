@@ -40,6 +40,11 @@
 				</div>
 
 				<div>
+					<label class="block mb-2 font-semibold">User ID</label>
+					<p class="text-[var(--color-text-muted)] font-mono text-sm break-all">{$user.uid}</p>
+				</div>
+
+				<div>
 					<label class="block mb-2 font-semibold">Member Since</label>
 					<p class="text-[var(--color-text-muted)]">
 						{new Date($user.metadata.creationTime || '').toLocaleDateString()}
