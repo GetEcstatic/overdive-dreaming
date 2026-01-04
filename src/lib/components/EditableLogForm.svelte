@@ -51,6 +51,18 @@
 	let hoursSinceLastMeal = $state<number | undefined>(formData.hoursSinceLastMeal);
 	let notes = $state<string>(formData.notes || '');
 
+	// NEW METRICS - Phase 1
+	let menstrualCycleDay = $state<number | undefined>(formData.menstrualCycleDay);
+	let facialGearMask = $state<boolean>(formData.facialGear?.includes('mask') || false);
+	let facialGearNoseclip = $state<boolean>(formData.facialGear?.includes('noseclip') || false);
+	let facialGearGoggles = $state<boolean>(formData.facialGear?.includes('goggles') || false);
+	let facialGearNothing = $state<boolean>(formData.facialGear?.includes('nothing') || false);
+	let basalMood = $state<number | undefined>(formData.basalMood);
+	let minimumSpO2 = $state<number | undefined>(formData.minimumSpO2);
+	let minimumHR = $state<number | undefined>(formData.minimumHR);
+	let bodyWeight = $state<number | undefined>(formData.bodyWeight);
+	let breathingTechniqueLevel = $state<number | undefined>(formData.breathingTechniqueLevel ?? 0);
+
 	// Media state
 	let photoFile = $state<File | undefined>(undefined);
 	let photoAction = $state<'keep' | 'remove' | 'replace' | 'add'>('keep');
@@ -80,6 +92,13 @@
 		return joyScale && joyScale >= 6 ? '💗' : '💔';
 	});
 
+	// Helper function for breathing technique labels
+	function getTechniqueLabel(level: number): string {
+		if (level === 0) return 'Tidal (0)';
+		if (level < 0) return `Hypoventilation (${level})`;
+		return `Hyperventilation (+${level})`;
+	}
+
 	// Media handlers
 	function handlePhotoChange(file: File | null, action: 'add' | 'remove' | 'replace') {
 		photoFile = file || undefined;
@@ -100,6 +119,13 @@
 		const totalTimeInSeconds = convertTimeFieldsToSeconds(totalTimeMinutes, totalTimeSeconds);
 		const repDurationInSeconds = convertTimeFieldsToSeconds(repDurationMinutes, repDurationSeconds);
 
+		// Collect facial gear array
+		const facialGear: string[] = [];
+		if (facialGearMask) facialGear.push('mask');
+		if (facialGearNoseclip) facialGear.push('noseclip');
+		if (facialGearGoggles) facialGear.push('goggles');
+		if (facialGearNothing) facialGear.push('nothing');
+
 		const data: LogFormData = {
 			disciplineUsed,
 			// Session context
@@ -116,6 +142,14 @@
 			joyScale,
 			hoursSinceLastMeal,
 			notes: notes.trim() || undefined,
+			// NEW METRICS - Phase 1
+			menstrualCycleDay,
+			facialGear: facialGear.length > 0 ? facialGear : undefined,
+			basalMood,
+			minimumSpO2,
+			minimumHR,
+			bodyWeight,
+			breathingTechniqueLevel,
 			// Media
 			photoFile,
 			youtubeUrl: youtubeUrl.trim() || undefined
@@ -323,18 +357,26 @@
 
 			{#if config.trackBreathingTechnique}
 				<div class="field-group">
-					<label class="field-label">Breathing Technique</label>
-					<div class="technique-buttons">
-						{#each ['tidal', 'hyperventilation', 'hypoventilation'] as technique}
-							<button
-								type="button"
-								onclick={() => (breathingTechnique = technique as BreathingTechnique)}
-								class="technique-btn"
-								class:active={breathingTechnique === technique}
-							>
-								{technique}
-							</button>
-						{/each}
+					<label for="breathingTechniqueLevel" class="field-label">
+						Breathing Technique{breathingTechniqueLevel !== undefined ? `: ${getTechniqueLabel(breathingTechniqueLevel)}` : ''}
+					</label>
+					<input
+						id="breathingTechniqueLevel"
+						type="range"
+						bind:value={breathingTechniqueLevel}
+						min="-3"
+						max="3"
+						step="1"
+						class="slider breathing-slider"
+					/>
+					<div class="slider-labels breathing-labels">
+						<span>-3<br/><small>Hypo</small></span>
+						<span>-2</span>
+						<span>-1</span>
+						<span>0<br/><small>Tidal</small></span>
+						<span>+1</span>
+						<span>+2</span>
+						<span>+3<br/><small>Hyper</small></span>
 					</div>
 				</div>
 			{/if}
@@ -387,6 +429,114 @@
 						step="0.5"
 						class="field-input"
 						placeholder="e.g., 2.5"
+					/>
+				</div>
+			{/if}
+
+			<!-- NEW METRICS - Phase 1 -->
+			{#if config.trackMenstrualCycleDay}
+				<div class="field-group">
+					<label for="menstrualCycleDay" class="field-label">Menstrual Cycle Day</label>
+					<input
+						id="menstrualCycleDay"
+						type="number"
+						bind:value={menstrualCycleDay}
+						min="1"
+						max="40"
+						class="field-input"
+						placeholder="e.g., 3"
+					/>
+					<p class="field-hint">Day of cycle (1 = day after menstruation starts)</p>
+				</div>
+			{/if}
+
+			{#if config.trackFacialGear}
+				<div class="field-group">
+					<label class="field-label">Facial Gear Used</label>
+					<div class="checkbox-group">
+						<label class="checkbox-label">
+							<input type="checkbox" bind:checked={facialGearMask} class="checkbox-input" />
+							<span>Mask</span>
+						</label>
+						<label class="checkbox-label">
+							<input type="checkbox" bind:checked={facialGearNoseclip} class="checkbox-input" />
+							<span>Nose Clip</span>
+						</label>
+						<label class="checkbox-label">
+							<input type="checkbox" bind:checked={facialGearGoggles} class="checkbox-input" />
+							<span>Goggles</span>
+						</label>
+						<label class="checkbox-label">
+							<input type="checkbox" bind:checked={facialGearNothing} class="checkbox-input" />
+							<span>Nothing</span>
+						</label>
+					</div>
+				</div>
+			{/if}
+
+			{#if config.trackBasalMood}
+				<div class="field-group">
+					<label for="basalMood" class="field-label">
+						Basal Mood (before session){basalMood ? `: ${basalMood}/10` : ''}
+					</label>
+					<input
+						id="basalMood"
+						type="range"
+						bind:value={basalMood}
+						min="1"
+						max="10"
+						class="slider"
+					/>
+					<div class="slider-labels">
+						<span>Low</span>
+						<span>High</span>
+					</div>
+					<p class="field-hint">How was your mood/energy before starting?</p>
+				</div>
+			{/if}
+
+			{#if config.trackMinimumSpO2}
+				<div class="field-group">
+					<label for="minimumSpO2" class="field-label">Minimum SpO2 (%)</label>
+					<input
+						id="minimumSpO2"
+						type="number"
+						bind:value={minimumSpO2}
+						min="0"
+						max="100"
+						class="field-input"
+						placeholder="e.g., 85"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackMinimumHR}
+				<div class="field-group">
+					<label for="minimumHR" class="field-label">Minimum HR (bpm)</label>
+					<input
+						id="minimumHR"
+						type="number"
+						bind:value={minimumHR}
+						min="20"
+						max="200"
+						class="field-input"
+						placeholder="e.g., 42"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackBodyWeight}
+				<div class="field-group">
+					<label for="bodyWeight" class="field-label">Body Weight (kg)</label>
+					<input
+						id="bodyWeight"
+						type="number"
+						bind:value={bodyWeight}
+						min="30"
+						max="200"
+						step="0.1"
+						class="field-input"
+						placeholder="e.g., 72.5"
 					/>
 				</div>
 			{/if}
@@ -718,6 +868,53 @@
 		justify-content: space-between;
 		font-size: 0.75rem;
 		color: var(--color-text-muted);
+		margin-top: 0.25rem;
+	}
+
+	/* Breathing Technique Slider Labels */
+	.breathing-labels {
+		display: grid;
+		grid-template-columns: repeat(7, 1fr);
+		text-align: center;
+		gap: 0.25rem;
+	}
+
+	.breathing-labels small {
+		font-size: 0.65rem;
+		display: block;
+		margin-top: 0.125rem;
+		color: var(--color-text-muted);
+	}
+
+	/* Checkbox Group (for multi-select like facial gear) */
+	.checkbox-group {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		padding: 0.5rem 0;
+	}
+
+	.checkbox-label {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		cursor: pointer;
+		font-size: 0.875rem;
+		color: var(--color-text);
+	}
+
+	.checkbox-input {
+		width: 20px;
+		height: 20px;
+		cursor: pointer;
+		accent-color: var(--color-primary);
+	}
+
+	/* Field Hints */
+	.field-hint {
+		font-size: 0.75rem;
+		color: var(--color-text-muted);
+		font-style: italic;
 		margin-top: 0.25rem;
 	}
 

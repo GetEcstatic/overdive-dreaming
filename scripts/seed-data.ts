@@ -49,7 +49,14 @@ const dynamicMaxTracking: TrackingConfig = {
 	trackRPE: true,
 	trackJoyScale: true,
 	trackHoursSinceLastMeal: true,
-	trackNotes: true
+	trackNotes: true,
+	// NEW METRICS - Phase 1 (Additional from testing)
+	trackMenstrualCycleDay: false,
+	trackFacialGear: false,
+	trackBasalMood: false,
+	trackMinimumSpO2: false,
+	trackMinimumHR: false,
+	trackBodyWeight: false
 };
 
 // Tracking for static max attempts
@@ -71,7 +78,14 @@ const staticMaxTracking: TrackingConfig = {
 	trackRPE: true,
 	trackJoyScale: true,
 	trackHoursSinceLastMeal: true,
-	trackNotes: true
+	trackNotes: true,
+	// NEW METRICS - Phase 1 (Additional from testing)
+	trackMenstrualCycleDay: false,
+	trackFacialGear: false,
+	trackBasalMood: false,
+	trackMinimumSpO2: false,
+	trackMinimumHR: false,
+	trackBodyWeight: false
 };
 
 // Tracking for interval routines (Sweet 16, etc.)
@@ -93,7 +107,14 @@ const intervalTracking: TrackingConfig = {
 	trackRPE: true,
 	trackJoyScale: true,
 	trackHoursSinceLastMeal: true,
-	trackNotes: true
+	trackNotes: true,
+	// NEW METRICS - Phase 1 (Additional from testing)
+	trackMenstrualCycleDay: false,
+	trackFacialGear: false,
+	trackBasalMood: false,
+	trackMinimumSpO2: false,
+	trackMinimumHR: false,
+	trackBodyWeight: false
 };
 
 // Tracking for static interval routines (Gentle 2-Breath, etc.)
@@ -115,7 +136,14 @@ const staticIntervalTracking: TrackingConfig = {
 	trackRPE: true,
 	trackJoyScale: true,
 	trackHoursSinceLastMeal: true,
-	trackNotes: true
+	trackNotes: true,
+	// NEW METRICS - Phase 1 (Additional from testing)
+	trackMenstrualCycleDay: false,
+	trackFacialGear: false,
+	trackBasalMood: false,
+	trackMinimumSpO2: false,
+	trackMinimumHR: false,
+	trackBodyWeight: false
 };
 
 // ============================================================================

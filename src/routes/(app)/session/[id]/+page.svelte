@@ -82,6 +82,13 @@
 			goto('/dashboard');
 		}
 	}
+
+	// Helper function for breathing technique labels
+	function getTechniqueLabel(level: number): string {
+		if (level === 0) return 'Tidal (0)';
+		if (level < 0) return `Hypoventilation (${level})`;
+		return `Hyperventilation (+${level})`;
+	}
 </script>
 
 <svelte:head>
@@ -173,7 +180,7 @@
 	{/if}
 
 	<!-- Session Context -->
-	{#if log.poolLength || log.initialBreatheUpTime || log.breathingTechnique}
+	{#if log.poolLength || log.initialBreatheUpTime || log.breathingTechnique || log.breathingTechniqueLevel !== undefined}
 		<section class="metrics-section">
 			<h2>Session Context</h2>
 			<div class="metrics-grid">
@@ -189,7 +196,12 @@
 						<span class="value">{formatTime(log.initialBreatheUpTime)}</span>
 					</div>
 				{/if}
-				{#if log.breathingTechnique}
+				{#if log.breathingTechniqueLevel !== undefined}
+					<div class="metric-item">
+						<span class="label">Breathing Technique</span>
+						<span class="value">{getTechniqueLabel(log.breathingTechniqueLevel)}</span>
+					</div>
+				{:else if log.breathingTechnique}
 					<div class="metric-item">
 						<span class="label">Breathing Technique</span>
 						<span class="value capitalize">{log.breathingTechnique}</span>
@@ -199,10 +211,10 @@
 		</section>
 	{/if}
 
-	<!-- Subjective Ratings -->
-	{#if log.rpe || log.joyScale || log.hoursSinceLastMeal}
+	<!-- Subjective Ratings & Health Metrics -->
+	{#if log.rpe || log.joyScale || log.hoursSinceLastMeal || log.basalMood || log.menstrualCycleDay || log.minimumSpO2 || log.minimumHR || log.bodyWeight || (log.facialGear && log.facialGear.length > 0)}
 		<section class="metrics-section">
-			<h2>Subjective Ratings</h2>
+			<h2>Subjective Ratings & Health Metrics</h2>
 			<div class="metrics-grid">
 				{#if log.rpe}
 					<div class="metric-item">
@@ -216,10 +228,46 @@
 						<span class="value">{log.joyScale}/10 😊</span>
 					</div>
 				{/if}
+				{#if log.basalMood}
+					<div class="metric-item">
+						<span class="label">Basal Mood</span>
+						<span class="value">{log.basalMood}/10</span>
+					</div>
+				{/if}
 				{#if log.hoursSinceLastMeal}
 					<div class="metric-item">
 						<span class="label">Hours Since Last Meal</span>
 						<span class="value">{log.hoursSinceLastMeal}h</span>
+					</div>
+				{/if}
+				{#if log.menstrualCycleDay}
+					<div class="metric-item">
+						<span class="label">Menstrual Cycle Day</span>
+						<span class="value">Day {log.menstrualCycleDay}</span>
+					</div>
+				{/if}
+				{#if log.facialGear && log.facialGear.length > 0}
+					<div class="metric-item">
+						<span class="label">Facial Gear</span>
+						<span class="value capitalize">{log.facialGear.join(', ')}</span>
+					</div>
+				{/if}
+				{#if log.minimumSpO2}
+					<div class="metric-item">
+						<span class="label">Min SpO2</span>
+						<span class="value">{log.minimumSpO2}%</span>
+					</div>
+				{/if}
+				{#if log.minimumHR}
+					<div class="metric-item">
+						<span class="label">Min HR</span>
+						<span class="value">{log.minimumHR} bpm</span>
+					</div>
+				{/if}
+				{#if log.bodyWeight}
+					<div class="metric-item">
+						<span class="label">Body Weight</span>
+						<span class="value">{log.bodyWeight} kg</span>
 					</div>
 				{/if}
 			</div>
