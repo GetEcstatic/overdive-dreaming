@@ -370,13 +370,13 @@
 						class="slider breathing-slider"
 					/>
 					<div class="slider-labels breathing-labels">
-						<span>-3<br/><small>Hypo</small></span>
+						<span>💀<br/>-3<br/><small>Hypo</small></span>
 						<span>-2</span>
 						<span>-1</span>
 						<span>0<br/><small>Tidal</small></span>
 						<span>+1</span>
 						<span>+2</span>
-						<span>+3<br/><small>Hyper</small></span>
+						<span>👽<br/>+3<br/><small>Hyper</small></span>
 					</div>
 				</div>
 			{/if}
