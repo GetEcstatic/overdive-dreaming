@@ -91,6 +91,14 @@ export interface TrackingConfig {
 	trackPoolType: boolean; // Indoor vs outdoor
 	trackSambaBO: boolean; // Samba/BO incident flag (boolean)
 	trackBreathsBetweenReps: boolean; // Number of breaths between reps/dives
+
+	// NEW METRICS - Phase 1 (Additional metrics from testing)
+	trackMenstrualCycleDay: boolean; // Day of menstrual cycle
+	trackFacialGear: boolean; // Mask, noseclip, goggles, nothing
+	trackBasalMood: boolean; // Mood before session (1-10 scale)
+	trackMinimumSpO2: boolean; // Minimum oxygen saturation percentage
+	trackMinimumHR: boolean; // Minimum heart rate during routine
+	trackBodyWeight: boolean; // Body weight that day (kg)
 }
 
 export type MetricType =
@@ -242,6 +250,15 @@ export interface RoutineLog {
 	poolType?: PoolType; // 'indoor' | 'outdoor'
 	sambaBO?: boolean; // Samba/BO incident flag
 	breathsBetweenReps?: number; // Number of breaths between reps/dives
+
+	// NEW TRACKED DATA - Phase 1 (Additional metrics from testing)
+	menstrualCycleDay?: number; // 1-40, day of menstrual cycle
+	facialGear?: string[]; // Array: ['mask', 'noseclip', 'goggles', 'nothing']
+	basalMood?: number; // 1-10 scale, mood before session
+	minimumSpO2?: number; // 0-100, minimum oxygen saturation percentage
+	minimumHR?: number; // bpm, minimum heart rate during routine
+	bodyWeight?: number; // kg, body weight that day
+	breathingTechniqueLevel?: number; // -3 to +3 (NEW field, coexists with old breathingTechnique)
 
 	// Media support
 	thumbnailImageUrl?: string; // Photo from session (for social feed)

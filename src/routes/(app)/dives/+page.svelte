@@ -119,6 +119,26 @@
 			if (logData.hoursSinceLastMeal !== undefined) routineLogData.hoursSinceLastMeal = logData.hoursSinceLastMeal;
 			if (logData.notes) routineLogData.notes = logData.notes;
 
+			// NEW METRICS (from previous custom routine builder)
+			if (logData.waterTemperature !== undefined) routineLogData.waterTemperature = logData.waterTemperature;
+			if (logData.contractionsOnsetTime !== undefined) routineLogData.contractionsOnsetTime = logData.contractionsOnsetTime;
+			if (logData.equipmentUsed) routineLogData.equipmentUsed = logData.equipmentUsed;
+			if (logData.buddyName) routineLogData.buddyName = logData.buddyName;
+			if (logData.restingHeartRate !== undefined) routineLogData.restingHeartRate = logData.restingHeartRate;
+			if (logData.hrv !== undefined) routineLogData.hrv = logData.hrv;
+			if (logData.poolType) routineLogData.poolType = logData.poolType;
+			if (logData.sambaBO) routineLogData.sambaBO = logData.sambaBO;
+			if (logData.breathsBetweenReps !== undefined) routineLogData.breathsBetweenReps = logData.breathsBetweenReps;
+
+			// NEW METRICS - Phase 1 (Additional from testing)
+			if (logData.menstrualCycleDay !== undefined) routineLogData.menstrualCycleDay = logData.menstrualCycleDay;
+			if (logData.facialGear) routineLogData.facialGear = logData.facialGear;
+			if (logData.basalMood !== undefined) routineLogData.basalMood = logData.basalMood;
+			if (logData.minimumSpO2 !== undefined) routineLogData.minimumSpO2 = logData.minimumSpO2;
+			if (logData.minimumHR !== undefined) routineLogData.minimumHR = logData.minimumHR;
+			if (logData.bodyWeight !== undefined) routineLogData.bodyWeight = logData.bodyWeight;
+			if (logData.breathingTechniqueLevel !== undefined) routineLogData.breathingTechniqueLevel = logData.breathingTechniqueLevel;
+
 			// Media - add YouTube URL if provided
 			if (logData.youtubeUrl) routineLogData.youtubeUrl = logData.youtubeUrl;
 

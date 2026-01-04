@@ -16,8 +16,9 @@ export interface TimeComponents {
  * @returns Object with minutes and seconds
  */
 export function secondsToComponents(totalSeconds: number): TimeComponents {
-	const minutes = Math.floor(totalSeconds / 60);
-	const seconds = totalSeconds % 60;
+	const totalSecondsRounded = Math.round(totalSeconds); // Round to nearest second
+	const minutes = Math.floor(totalSecondsRounded / 60);
+	const seconds = totalSecondsRounded % 60;
 	return { minutes, seconds };
 }
 

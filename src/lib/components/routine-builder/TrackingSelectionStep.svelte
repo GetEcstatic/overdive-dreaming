@@ -34,7 +34,15 @@
 			trackRestingHeartRate: false,
 			trackHRV: false,
 			trackPoolType: false,
-			trackSambaBO: false
+			trackSambaBO: false,
+			trackBreathsBetweenReps: false,
+			// NEW METRICS - Phase 1
+			trackMenstrualCycleDay: false,
+			trackFacialGear: false,
+			trackBasalMood: false,
+			trackMinimumSpO2: false,
+			trackMinimumHR: false,
+			trackBodyWeight: false
 		})
 	}: {
 		trackingConfig: TrackingConfig;
@@ -116,6 +124,13 @@
 		trackingConfig.trackPoolType = enable;
 		trackingConfig.trackSambaBO = enable;
 		trackingConfig.trackBreathsBetweenReps = enable;
+		// NEW METRICS - Phase 1
+		trackingConfig.trackMenstrualCycleDay = enable;
+		trackingConfig.trackFacialGear = enable;
+		trackingConfig.trackBasalMood = enable;
+		trackingConfig.trackMinimumSpO2 = enable;
+		trackingConfig.trackMinimumHR = enable;
+		trackingConfig.trackBodyWeight = enable;
 	}
 </script>
 
@@ -255,7 +270,7 @@
 	<!-- Training Context & Health -->
 	<div class="tracking-group">
 		<div class="group-header">
-			<h3 class="group-title">Training Context & Health (14)</h3>
+			<h3 class="group-title">Training Context & Health (20)</h3>
 			<div class="group-actions">
 				<button type="button" class="link-btn" onclick={() => toggleTrainingAndHealth(true)}>
 					Select All
@@ -396,6 +411,67 @@
 						Breaths Between Reps <span class="badge-new">NEW</span>
 					</div>
 					<div class="checkbox-description">Number of breaths between dives/reps</div>
+				</div>
+			</label>
+
+			<!-- NEW METRICS - Phase 1 (Additional from testing) -->
+			<label class="checkbox-item new-metric">
+				<input type="checkbox" bind:checked={trackingConfig.trackMenstrualCycleDay} />
+				<div class="checkbox-content">
+					<div class="checkbox-label">
+						Menstrual Cycle Day <span class="badge-new">NEW</span>
+					</div>
+					<div class="checkbox-description">Day of menstrual cycle (1-40)</div>
+				</div>
+			</label>
+
+			<label class="checkbox-item new-metric">
+				<input type="checkbox" bind:checked={trackingConfig.trackFacialGear} />
+				<div class="checkbox-content">
+					<div class="checkbox-label">
+						Facial Gear <span class="badge-new">NEW</span>
+					</div>
+					<div class="checkbox-description">Mask, noseclip, goggles, or nothing</div>
+				</div>
+			</label>
+
+			<label class="checkbox-item new-metric">
+				<input type="checkbox" bind:checked={trackingConfig.trackBasalMood} />
+				<div class="checkbox-content">
+					<div class="checkbox-label">
+						Basal Mood <span class="badge-new">NEW</span>
+					</div>
+					<div class="checkbox-description">Mood/feeling before starting session (1-10)</div>
+				</div>
+			</label>
+
+			<label class="checkbox-item new-metric">
+				<input type="checkbox" bind:checked={trackingConfig.trackMinimumSpO2} />
+				<div class="checkbox-content">
+					<div class="checkbox-label">
+						Minimum SpO2% <span class="badge-new">NEW</span>
+					</div>
+					<div class="checkbox-description">Lowest oxygen saturation during routine</div>
+				</div>
+			</label>
+
+			<label class="checkbox-item new-metric">
+				<input type="checkbox" bind:checked={trackingConfig.trackMinimumHR} />
+				<div class="checkbox-content">
+					<div class="checkbox-label">
+						Minimum HR <span class="badge-new">NEW</span>
+					</div>
+					<div class="checkbox-description">Lowest heart rate during routine (bpm)</div>
+				</div>
+			</label>
+
+			<label class="checkbox-item new-metric">
+				<input type="checkbox" bind:checked={trackingConfig.trackBodyWeight} />
+				<div class="checkbox-content">
+					<div class="checkbox-label">
+						Body Weight <span class="badge-new">NEW</span>
+					</div>
+					<div class="checkbox-description">Weight that day (kg)</div>
 				</div>
 			</label>
 		</div>
