@@ -491,13 +491,13 @@
 			{#if config.trackRPE}
 				<div class="field-group">
 					<label for="rpe" class="field-label">
-						Difficulty (RPE){rpe ? `: ${rpe}/10` : ''}
+						Difficulty (RPE){rpe !== undefined ? `: ${rpe}/10` : ''}
 					</label>
 					<input
 						id="rpe"
 						type="range"
 						bind:value={rpe}
-						min="1"
+						min="0"
 						max="10"
 						class="slider"
 					/>
@@ -511,13 +511,13 @@
 			{#if config.trackJoyScale}
 				<div class="field-group">
 					<label for="joyScale" class="field-label">
-						Enjoyment{joyScale ? `: ${joyScale}/10 ${joyHeartIcon()}` : ''}
+						Enjoyment{joyScale !== undefined ? `: ${joyScale}/10 ${joyHeartIcon()}` : ''}
 					</label>
 					<input
 						id="joyScale"
 						type="range"
 						bind:value={joyScale}
-						min="1"
+						min="0"
 						max="10"
 						class="slider joy-slider"
 						style="--joy-heart-color: {joyHeartColor()}"
@@ -727,13 +727,13 @@
 			{#if config.trackBasalMood}
 				<div class="field-group">
 					<label for="basalMood" class="field-label">
-						Basal Mood (before session){basalMood ? `: ${basalMood}/10` : ''}
+						Basal Mood (before session){basalMood !== undefined ? `: ${basalMood}/10` : ''}
 					</label>
 					<input
 						id="basalMood"
 						type="range"
 						bind:value={basalMood}
-						min="1"
+						min="0"
 						max="10"
 						class="slider"
 					/>
