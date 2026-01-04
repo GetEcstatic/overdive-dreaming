@@ -28,10 +28,9 @@
 	// Form state
 	let disciplineUsed = $state<Discipline>(formData.disciplineUsed);
 
-	// Session date
+	// Session date - default to today, allow dates from 2016 onwards
 	const today = new Date();
-	const maxPastDate = new Date();
-	maxPastDate.setFullYear(today.getFullYear() - 1); // 12 months ago
+	const maxPastDate = new Date('2016-01-01'); // Allow dates from 2016
 
 	const formatDateForInput = (date: Date) => {
 		return date.toISOString().split('T')[0]; // YYYY-MM-DD
@@ -208,7 +207,7 @@
 			class="date-input"
 			required
 		/>
-		<p class="field-hint">When did this session take place? (up to 12 months ago)</p>
+		<p class="field-hint">When did this session take place? (dates from 2016 onwards)</p>
 	</div>
 
 	<!-- Discipline Selector / Badge -->
