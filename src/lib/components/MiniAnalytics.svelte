@@ -19,6 +19,13 @@
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 
+	function toJsDate(value: unknown): Date {
+		if (value && typeof (value as { toDate?: () => Date }).toDate === 'function') {
+			return (value as { toDate: () => Date }).toDate();
+		}
+		return new Date(value as string | number | Date);
+	}
+
 	// Determine if this metric is "lower is better" (for interval training speed)
 	let lowerIsBetter = $derived.by(() => {
 		// For interval training routines, faster (lower) time is better
@@ -54,7 +61,7 @@
 		// Extract values (reverse so oldest is first, newest is last)
 		const reversedLogs = [...recentLogs].reverse();
 		const labels = reversedLogs.map((log) => {
-			const date = log.date?.toDate?.() || new Date(log.date);
+			const date = toJsDate(log.date);
 			return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 		});
 

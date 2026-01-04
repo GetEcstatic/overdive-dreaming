@@ -197,6 +197,7 @@ export interface RoutineLogSummary {
 	repsCompleted: number;
 	totalTimeSeconds?: number;
 	averageTimePerRep?: number;
+	averageTimePerLap?: number;
 }
 
 export interface RoutineLog {
@@ -225,6 +226,7 @@ export interface RoutineLog {
 
 	// Performance data - interval training metrics
 	repDuration?: number; // seconds - duration per rep (for interval training)
+	repsCompleted?: number; // legacy field (prefer summary.repsCompleted)
 
 	// Performance data - per-lap details (optional, can add later from video)
 	laps?: LapData[];

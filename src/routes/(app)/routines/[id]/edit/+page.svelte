@@ -10,12 +10,18 @@
 	import type { RoutineTemplate } from '$lib/types';
 	import RoutineBuilder from '$lib/components/routine-builder/RoutineBuilder.svelte';
 
-	let routineId = $page.params.id;
+	let routineId = $page.params.id ?? '';
 	let routine = $state<RoutineTemplate | null>(null);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 
 	async function loadRoutine() {
+		if (!routineId) {
+			error = 'Missing routine ID';
+			loading = false;
+			return;
+		}
+
 		try {
 			loading = true;
 			error = null;

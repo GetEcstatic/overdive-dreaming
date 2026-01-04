@@ -22,6 +22,8 @@
 	let lastDoc: QueryDocumentSnapshot<DocumentData> | null = $state(null);
 	let hasMore = $state(true);
 	let feedContainer: HTMLElement | undefined = $state();
+	let loadMoreSentinel: HTMLDivElement | undefined = $state();
+	let observer: IntersectionObserver | null = null;
 
 	async function fetchRecentSessions() {
 		if (!$user) return;
@@ -176,6 +178,23 @@
 		fetchRecentSessions();
 		fetchPBs();
 	});
+
+	$effect(() => {
+		if (!loadMoreSentinel) return;
+
+		observer?.disconnect();
+		observer = new IntersectionObserver(
+			(entries) => {
+				if (entries[0]?.isIntersecting) {
+					loadMoreSessions();
+				}
+			},
+			{ rootMargin: '300px' }
+		);
+		observer.observe(loadMoreSentinel);
+
+		return () => observer?.disconnect();
+	});
 </script>
 
 {#if $user}
@@ -293,6 +312,14 @@
 							</p>
 						</div>
 					{/if}
+
+					{#if hasMore}
+						<div
+							bind:this={loadMoreSentinel}
+							class="load-more-sentinel"
+							aria-hidden="true"
+						></div>
+					{/if}
 				{/if}
 		</section>
 	</div>
@@ -383,6 +410,10 @@
 	.sessions-section {
 		margin-top: 0;
 		padding-bottom: 3.5rem; /* Extra space for bottom nav */
+	}
+
+	.load-more-sentinel {
+		height: 1px;
 	}
 
 	.section-title {

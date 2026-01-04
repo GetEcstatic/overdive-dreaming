@@ -9,6 +9,7 @@ import {
 	addDoc,
 	updateDoc,
 	deleteDoc,
+	setDoc,
 	query,
 	where,
 	orderBy,
@@ -422,7 +423,7 @@ export async function getSuggestedTags(): Promise<SuggestedTags | null> {
  */
 export async function updateSuggestedTags(tags: SuggestedTags): Promise<void> {
 	const docRef = doc(db, 'config', 'suggestedTags');
-	await updateDoc(docRef, tags);
+	await setDoc(docRef, tags, { merge: true });
 }
 
 // ============================================================================

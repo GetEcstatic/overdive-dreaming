@@ -93,7 +93,13 @@
 			trackHRV: false,
 			trackPoolType: false,
 			trackSambaBO: false,
-			trackBreathsBetweenReps: false
+			trackBreathsBetweenReps: false,
+			trackMenstrualCycleDay: false,
+			trackFacialGear: false,
+			trackBasalMood: false,
+			trackMinimumSpO2: false,
+			trackMinimumHR: false,
+			trackBodyWeight: false
 		}
 	);
 
@@ -123,7 +129,7 @@
 				// Tracking is always valid (can have no fields enabled)
 				return true;
 			case 4: // Display Config
-				return (
+				return !!(
 					displayConfig.heroMetric &&
 					displayConfig.secondaryMetric &&
 					displayConfig.heroMetricLabel &&

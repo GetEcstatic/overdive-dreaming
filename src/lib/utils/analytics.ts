@@ -100,8 +100,10 @@ export function calculateTrainingSummary(
 ): TrainingSummary {
 	const filteredLogs = filterLogsByTimeframe(logs, timeframe);
 
-	// Get unique sessions
-	const uniqueSessions = new Set(filteredLogs.map((log) => log.sessionId));
+	// Get unique sessions (prefer sessionGroup, fallback to date bucket)
+	const uniqueSessions = new Set(
+		filteredLogs.map((log) => log.sessionGroup || log.date.toDate().toDateString())
+	);
 
 	// Calculate weeks in timeframe
 	const weeksInTimeframe = {
