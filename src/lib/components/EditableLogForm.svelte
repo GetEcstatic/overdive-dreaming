@@ -28,6 +28,17 @@
 	// Form state
 	let disciplineUsed = $state<Discipline>(formData.disciplineUsed);
 
+	// Session date
+	const today = new Date();
+	const maxPastDate = new Date();
+	maxPastDate.setFullYear(today.getFullYear() - 1); // 12 months ago
+
+	const formatDateForInput = (date: Date) => {
+		return date.toISOString().split('T')[0]; // YYYY-MM-DD
+	};
+
+	let sessionDate = $state<string>(formData.sessionDate);
+
 	// Session context
 	let poolLength = $state<number | undefined>(formData.poolLength);
 	const breatheUpTime = convertSecondsToTimeFields(formData.initialBreatheUpTime);
@@ -128,6 +139,7 @@
 
 		const data: LogFormData = {
 			disciplineUsed,
+			sessionDate,
 			// Session context
 			poolLength,
 			initialBreatheUpTime: initialBreatheUp,
@@ -182,6 +194,21 @@
 	<div class="form-header">
 		<h3 class="routine-name">{routine.name}</h3>
 		<p class="routine-subtitle">{mode === 'edit' ? 'Edit Log' : 'Quick Log'}</p>
+	</div>
+
+	<!-- Session Date -->
+	<div class="form-section">
+		<label for="sessionDate" class="section-label">Session Date</label>
+		<input
+			id="sessionDate"
+			type="date"
+			bind:value={sessionDate}
+			min={formatDateForInput(maxPastDate)}
+			max={formatDateForInput(today)}
+			class="date-input"
+			required
+		/>
+		<p class="field-hint">When did this session take place? (up to 12 months ago)</p>
 	</div>
 
 	<!-- Discipline Selector / Badge -->
@@ -673,7 +700,8 @@
 	}
 
 	/* Input Fields */
-	.field-input {
+	.field-input,
+	.date-input {
 		width: 100%;
 		padding: 0.75rem 1rem;
 		background: var(--color-bg);

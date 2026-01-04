@@ -10,8 +10,13 @@ import type { LogFormData } from '$lib/components/QuickLogForm.svelte';
  * @returns Form data object ready for editing
  */
 export function routineLogToFormData(log: RoutineLog): LogFormData {
+	// Convert Firestore Timestamp to YYYY-MM-DD format
+	const logDate = log.date.toDate();
+	const sessionDate = logDate.toISOString().split('T')[0];
+
 	return {
 		disciplineUsed: log.disciplineUsed,
+		sessionDate,
 
 		// Session context
 		poolLength: log.poolLength,

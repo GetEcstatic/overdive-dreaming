@@ -57,6 +57,24 @@
 				}
 			}
 
+			// Handle session date changes (requires Firestore Timestamp import)
+			const originalDate = log.date.toDate().toISOString().split('T')[0];
+			if (formData.sessionDate !== originalDate) {
+				const { Timestamp } = await import('firebase/firestore');
+				const newDate = new Date(formData.sessionDate);
+				updates.date = Timestamp.fromDate(newDate);
+
+				// Also update sessionGroup if date changed
+				const getTimeOfDay = (date: Date) => {
+					const hour = date.getHours();
+					if (hour < 12) return 'morning';
+					if (hour < 17) return 'afternoon';
+					return 'evening';
+				};
+				const timeOfDay = getTimeOfDay(newDate);
+				updates.sessionGroup = `${formData.sessionDate}-${timeOfDay}`;
+			}
+
 			// Add changed fields (compare with original log)
 			if (formData.poolLength !== log.poolLength) updates.poolLength = formData.poolLength;
 			if (formData.initialBreatheUpTime !== log.initialBreatheUpTime)
