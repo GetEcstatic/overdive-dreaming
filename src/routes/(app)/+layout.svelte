@@ -48,8 +48,9 @@
 				<!-- Navigation Links -->
 				<div class="nav-links" class:open={mobileMenuOpen}>
 					<a href="/dashboard" class="nav-link" class:active={$page.url.pathname === '/dashboard'} onclick={() => mobileMenuOpen = false}>Feed</a>
-					<a href="/analytics" class="nav-link" class:active={$page.url.pathname === '/analytics'} onclick={() => mobileMenuOpen = false}>Analytics</a>
 					<a href="/dives" class="nav-link" class:active={$page.url.pathname === '/dives'} onclick={() => mobileMenuOpen = false}>Log Dive</a>
+					<a href="/routines" class="nav-link" class:active={$page.url.pathname.startsWith('/routines')} onclick={() => mobileMenuOpen = false}>Routines</a>
+					<a href="/analytics" class="nav-link" class:active={$page.url.pathname === '/analytics'} onclick={() => mobileMenuOpen = false}>Analytics</a>
 					<a href="/profile" class="nav-link" class:active={$page.url.pathname === '/profile'} onclick={() => mobileMenuOpen = false}>Profile</a>
 				</div>
 			</div>
