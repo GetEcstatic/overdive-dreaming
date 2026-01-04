@@ -50,10 +50,10 @@
 		success = null;
 
 		try {
-			// 1. Calculate time of day and session group
-			const now = new Date();
-			const timeOfDay = getTimeOfDay(now);
-			const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+			// 1. Calculate time of day and session group using selected date
+			const sessionDateTime = new Date(logData.sessionDate); // Parse YYYY-MM-DD from form
+			const timeOfDay = getTimeOfDay(sessionDateTime);
+			const dateStr = logData.sessionDate; // Already in YYYY-MM-DD format
 			const sessionGroup = `${dateStr}-${timeOfDay}`; // e.g., "2026-01-01-morning"
 
 			// 2. Check if this is a PB (for max-attempt routines only)
@@ -84,7 +84,7 @@
 			const routineLogData: any = {
 				routineId: selectedRoutine.id,
 				userId: $user.uid,
-				date: Timestamp.now(),
+				date: Timestamp.fromDate(sessionDateTime), // Use selected date instead of now
 				timeOfDay,
 				sessionGroup,
 				disciplineUsed: logData.disciplineUsed,

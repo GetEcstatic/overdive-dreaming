@@ -366,11 +366,11 @@
 		</section>
 	{/if}
 
-	<!-- Sticky Action Bar -->
+	<!-- Action Bar -->
 	<div class="action-bar">
-		<button class="btn btn-secondary" onclick={handleEdit}>Edit Session</button>
-		<button class="btn btn-primary" onclick={handleViewAnalytics}>View Full Analytics</button>
-		<button class="btn btn-danger" onclick={handleDeleteClick}>Delete Session</button>
+		<button class="btn btn-secondary" onclick={handleEdit}>Edit</button>
+		<button class="btn btn-primary" onclick={handleViewAnalytics}>Analytics</button>
+		<button class="btn btn-danger" onclick={handleDeleteClick}>Delete</button>
 	</div>
 </div>
 
@@ -417,7 +417,7 @@
 	.detail-page {
 		max-width: 800px;
 		margin: 0 auto;
-		padding: 1rem 1rem 10rem; /* Extra padding for action bar (64px) + bottom nav (64px) + buffer */
+		padding: 1rem 1rem 5rem; /* Bottom padding for bottom nav clearance */
 		min-height: 100vh;
 	}
 
@@ -641,27 +641,26 @@
 
 	/* Action Bar */
 	.action-bar {
-		position: fixed;
-		bottom: 64px; /* Position above bottom nav (64px tall) */
-		left: 0;
-		right: 0;
-		background: var(--color-bg-card);
-		border-top: 1px solid rgba(148, 163, 184, 0.1);
-		padding: 1rem;
+		margin-top: 2rem;
+		padding: 0.75rem 0;
 		display: flex;
-		gap: 0.75rem;
-		z-index: 10;
+		gap: 0.5rem;
+		border-top: 1px solid rgba(148, 163, 184, 0.1);
+		padding-top: 1.5rem;
 	}
 
 	.btn {
 		flex: 1;
-		padding: 0.875rem 1.5rem;
-		border-radius: 8px;
-		font-weight: 600;
-		font-size: 0.9375rem;
+		padding: 0.5rem 0.75rem;
+		border-radius: 6px;
+		font-weight: 500;
+		font-size: 0.8125rem;
 		cursor: pointer;
 		transition: all 0.2s;
 		border: none;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	.btn-primary {
@@ -755,7 +754,7 @@
 
 	@media (min-width: 768px) {
 		.detail-page {
-			padding: 2rem 2rem 6rem;
+			padding: 2rem 2rem 3rem;
 		}
 
 		.hero-metrics {
@@ -773,18 +772,9 @@
 			grid-template-columns: repeat(2, 1fr);
 		}
 
-		.action-bar {
-			max-width: 800px;
-			left: 50%;
-			transform: translateX(-50%);
-			border-radius: 12px 12px 0 0;
-		}
-	}
-
-	/* Desktop - Bottom nav hidden, action bar can be at bottom */
-	@media (min-width: 1024px) {
-		.action-bar {
-			bottom: 0;
+		.btn {
+			font-size: 0.875rem;
+			padding: 0.625rem 1rem;
 		}
 	}
 </style>

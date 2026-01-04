@@ -10,6 +10,7 @@
 
 	export interface LogFormData {
 		disciplineUsed: Discipline;
+		sessionDate: string; // YYYY-MM-DD format
 		// Session context
 		poolLength?: number;
 		initialBreatheUpTime?: number;
@@ -51,6 +52,17 @@
 
 	// Form state
 	let disciplineUsed = $state<Discipline>(routine.disciplines[0]);
+
+	// Session date - default to today, allow up to 12 months back
+	const today = new Date();
+	const maxPastDate = new Date();
+	maxPastDate.setFullYear(today.getFullYear() - 1); // 12 months ago
+
+	const formatDateForInput = (date: Date) => {
+		return date.toISOString().split('T')[0]; // YYYY-MM-DD
+	};
+
+	let sessionDate = $state<string>(formatDateForInput(today));
 
 	// Smart defaults from routine table
 	const defaultRepsCompleted = routine.table?.rows.length;
@@ -239,6 +251,7 @@
 
 		const data: LogFormData = {
 			disciplineUsed,
+			sessionDate,
 			// Session context
 			poolLength,
 			initialBreatheUpTime: initialBreatheUp,
@@ -303,6 +316,21 @@
 	<div class="form-header">
 		<h3 class="routine-name">{routine.name}</h3>
 		<p class="routine-subtitle">Quick Log</p>
+	</div>
+
+	<!-- Session Date -->
+	<div class="form-section">
+		<label for="sessionDate" class="section-label">Session Date</label>
+		<input
+			id="sessionDate"
+			type="date"
+			bind:value={sessionDate}
+			min={formatDateForInput(maxPastDate)}
+			max={formatDateForInput(today)}
+			class="date-input"
+			required
+		/>
+		<p class="field-hint">When did this session take place? (up to 12 months ago)</p>
 	</div>
 
 	<!-- Discipline Selector (if multi-discipline) -->
@@ -914,7 +942,8 @@
 	}
 
 	/* Input Fields */
-	.field-input {
+	.field-input,
+	.date-input {
 		width: 100%;
 		padding: 0.75rem 1rem;
 		background: var(--color-bg);

@@ -273,9 +273,6 @@
 	}
 
 	.header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
 		margin-bottom: 2rem;
 	}
 
@@ -288,6 +285,7 @@
 			var(--color-secondary)
 		);
 		-webkit-background-clip: text;
+		margin-bottom: 1rem;
 		-webkit-text-fill-color: transparent;
 		background-clip: text;
 	}

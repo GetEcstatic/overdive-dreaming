@@ -1,5 +1,14 @@
 # Deploying Overdive Dreaming to Vercel (Using Firebase Backend)
 
+
+  | Command              | What It Does                     | Affects Production? |
+  |----------------------|----------------------------------|---------------------|
+  | npm run dev          | Local development server         | ❌ No               |
+  | git commit           | Save changes locally             | ❌ No               |
+  | git push origin main | Push to GitHub → Triggers Vercel | ✅ Yes!             |
+
+
+
 This guide explains how to deploy the SvelteKit app to Vercel while **keeping Firebase** for Auth/Firestore/Storage and **not** using Firebase Hosting.
 
 - Target scale: ~50 test users
@@ -112,7 +121,7 @@ In the Vercel dashboard:
 
 1. Open your project.
 2. Go to **Settings → Environment Variables**.
-3. Add variables matching what you use in `firebase.ts`, for example:
+	1. Add variables matching what you use in `firebase.ts`, for example:
 
    - `VITE_FIREBASE_API_KEY`
    - `VITE_FIREBASE_AUTH_DOMAIN`
