@@ -305,6 +305,43 @@ export async function deleteRoutineLog(routineLogId: string): Promise<void> {
 	await deleteDoc(docRef);
 }
 
+/**
+ * Delete all routine logs for a session group (permanent deletion)
+ * Also deletes associated photos from storage
+ * @param userId - User ID owning the logs
+ * @param sessionGroup - Session group ID (e.g., "2026-01-01-morning")
+ * @returns Array of photoUrls that were deleted (for cleanup verification)
+ */
+export async function deleteSessionByGroup(
+	userId: string,
+	sessionGroup: string
+): Promise<{ deletedCount: number; photoUrls: string[] }> {
+	// Get all routine logs for this session group
+	const logs = await getRoutineLogsBySessionGroup(userId, sessionGroup);
+
+	if (logs.length === 0) {
+		return { deletedCount: 0, photoUrls: [] };
+	}
+
+	const photoUrls: string[] = [];
+
+	// Delete each log and collect photo URLs for cleanup
+	for (const log of logs) {
+		// Collect photo URL if exists
+		if (log.photoUrl) {
+			photoUrls.push(log.photoUrl);
+		}
+
+		// Delete the routine log document
+		await deleteRoutineLog(log.id);
+	}
+
+	return {
+		deletedCount: logs.length,
+		photoUrls
+	};
+}
+
 // ============================================================================
 // INDIVIDUAL DIVES (Subcollection of Sessions)
 // ============================================================================

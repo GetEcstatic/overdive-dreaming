@@ -6,9 +6,9 @@
 	import EditRoutineLogModal from '$lib/components/EditRoutineLogModal.svelte';
 	import { getFormattedMetric } from '$lib/utils/metrics';
 	import { formatTime } from '$lib/utils/time';
-	import { getYouTubeEmbedUrl } from '$lib/storage';
+	import { getYouTubeEmbedUrl, deleteSessionPhoto } from '$lib/storage';
 	import { format } from 'date-fns';
-	import { updateRoutineLog } from '$lib/firestore';
+	import { updateRoutineLog, deleteSessionByGroup } from '$lib/firestore';
 	import type { RoutineLog } from '$lib/types';
 
 	let { data } = $props();
@@ -17,6 +17,11 @@
 	// Edit modal state
 	let editingLog = $state<{ log: RoutineLog; routine: typeof routine } | null>(null);
 	let saveError = $state<string | null>(null);
+
+	// Delete confirmation state
+	let showDeleteConfirm = $state(false);
+	let isDeleting = $state(false);
+	let deleteError = $state<string | null>(null);
 
 	// Format date/time
 	const fullDate = $derived(format(log.date.toDate(), 'EEEE, MMMM d, yyyy'));
@@ -81,6 +86,45 @@
 		} else {
 			goto('/dashboard');
 		}
+	}
+
+	function handleDeleteClick() {
+		showDeleteConfirm = true;
+		deleteError = null;
+	}
+
+	async function handleConfirmDelete() {
+		if (!$user || !log.sessionGroup) return;
+
+		isDeleting = true;
+		deleteError = null;
+
+		try {
+			// Delete all routine logs in this session group
+			const result = await deleteSessionByGroup($user.uid, log.sessionGroup);
+
+			// Clean up photos from storage
+			for (const photoUrl of result.photoUrls) {
+				try {
+					await deleteSessionPhoto(photoUrl);
+				} catch (photoError) {
+					console.error('Failed to delete photo:', photoError);
+					// Continue even if photo deletion fails
+				}
+			}
+
+			// Navigate back to dashboard
+			goto('/dashboard');
+		} catch (err) {
+			console.error('Failed to delete session:', err);
+			deleteError = 'Failed to delete session. Please try again.';
+			isDeleting = false;
+		}
+	}
+
+	function handleCancelDelete() {
+		showDeleteConfirm = false;
+		deleteError = null;
 	}
 
 	// Helper function for breathing technique labels
@@ -326,8 +370,34 @@
 	<div class="action-bar">
 		<button class="btn btn-secondary" onclick={handleEdit}>Edit Session</button>
 		<button class="btn btn-primary" onclick={handleViewAnalytics}>View Full Analytics</button>
+		<button class="btn btn-danger" onclick={handleDeleteClick}>Delete Session</button>
 	</div>
 </div>
+
+<!-- Delete Confirmation Dialog -->
+{#if showDeleteConfirm}
+	<div class="modal-overlay" onclick={handleCancelDelete}>
+		<div class="modal-content" onclick={(e) => e.stopPropagation()}>
+			<h2 class="modal-title">Delete Session?</h2>
+			<p class="modal-message">
+				This will permanently delete this session and all associated data. This action cannot be undone.
+			</p>
+
+			{#if deleteError}
+				<div class="error-message">{deleteError}</div>
+			{/if}
+
+			<div class="modal-actions">
+				<button class="btn btn-secondary" onclick={handleCancelDelete} disabled={isDeleting}>
+					Cancel
+				</button>
+				<button class="btn btn-danger" onclick={handleConfirmDelete} disabled={isDeleting}>
+					{isDeleting ? 'Deleting...' : 'Delete Permanently'}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
 
 <!-- Edit Modal -->
 {#if editingLog}
@@ -613,6 +683,74 @@
 	.btn-secondary:hover {
 		background: rgba(148, 163, 184, 0.15);
 		border-color: rgba(148, 163, 184, 0.3);
+	}
+
+	.btn-danger {
+		background: rgba(239, 68, 68, 0.1);
+		color: #ef4444;
+		border: 1px solid rgba(239, 68, 68, 0.3);
+	}
+
+	.btn-danger:hover {
+		background: rgba(239, 68, 68, 0.2);
+		border-color: rgba(239, 68, 68, 0.5);
+	}
+
+	.btn-danger:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	/* Modal */
+	.modal-overlay {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background: rgba(0, 0, 0, 0.75);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 1000;
+		padding: 1rem;
+	}
+
+	.modal-content {
+		background: var(--color-bg-card);
+		border-radius: 12px;
+		padding: 1.5rem;
+		max-width: 500px;
+		width: 100%;
+		box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+	}
+
+	.modal-title {
+		font-size: 1.5rem;
+		font-weight: 700;
+		color: var(--color-text);
+		margin: 0 0 1rem;
+	}
+
+	.modal-message {
+		color: var(--color-text-muted);
+		line-height: 1.6;
+		margin: 0 0 1.5rem;
+	}
+
+	.modal-actions {
+		display: flex;
+		gap: 0.75rem;
+	}
+
+	.error-message {
+		background: rgba(239, 68, 68, 0.1);
+		border: 1px solid rgba(239, 68, 68, 0.3);
+		color: #ef4444;
+		padding: 0.75rem 1rem;
+		border-radius: 8px;
+		margin-bottom: 1rem;
+		font-size: 0.875rem;
 	}
 
 	@media (min-width: 768px) {
