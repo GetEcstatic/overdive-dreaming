@@ -337,23 +337,27 @@
 	.summary-card {
 		background: linear-gradient(
 			135deg,
-			rgba(20, 184, 166, 0.05),
-			rgba(16, 185, 129, 0.05)
+			rgba(20, 184, 166, 0.12),
+			rgba(16, 185, 129, 0.08)
 		);
-		border: 1px solid rgba(148, 163, 184, 0.15);
-		border-radius: 12px;
-		padding: 1rem;
-		margin-bottom: 1.5rem;
+		border: 1px solid rgba(56, 189, 248, 0.35);
+		border-radius: 16px;
+		padding: 1.25rem;
+		margin-bottom: 2rem;
+		box-shadow:
+			0 12px 32px rgba(15, 23, 42, 0.15),
+			0 0 0 1px rgba(56, 189, 248, 0.2),
+			0 0 20px rgba(56, 189, 248, 0.2);
 	}
 
 	.summary-title {
-		font-size: 0.875rem;
+		font-size: 0.75rem;
 		font-weight: 600;
-		color: var(--color-text);
-		margin-bottom: 0.75rem;
-		text-align: center;
+		color: rgba(56, 189, 248, 0.9);
+		margin-bottom: 1rem;
+		text-align: left;
 		text-transform: uppercase;
-		letter-spacing: 0.05em;
+		letter-spacing: 0.12em;
 	}
 
 	.stats-grid {
@@ -372,9 +376,9 @@
 	.stat-box {
 		text-align: center;
 		padding: 0.625rem 0.5rem;
-		background: rgba(15, 23, 42, 0.3);
-		border-radius: 6px;
-		border: 1px solid rgba(148, 163, 184, 0.1);
+		background: rgba(15, 23, 42, 0.2);
+		border-radius: 10px;
+		border: 1px solid rgba(148, 163, 184, 0.12);
 		transition: all 0.2s ease;
 	}
 
@@ -385,7 +389,7 @@
 
 	.stat-label {
 		font-size: 0.625rem;
-		color: var(--color-text-muted);
+		color: rgba(125, 211, 252, 0.8);
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 		margin-bottom: 0.25rem;
