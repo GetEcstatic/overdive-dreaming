@@ -24,6 +24,7 @@
 	let feedContainer: HTMLElement | undefined = $state();
 	let loadMoreSentinel: HTMLDivElement | undefined = $state();
 	let observer: IntersectionObserver | null = null;
+	let lastRefreshAt = 0;
 
 	async function fetchRecentSessions() {
 		if (!$user) return;
@@ -177,6 +178,28 @@
 	onMount(() => {
 		fetchRecentSessions();
 		fetchPBs();
+
+		const refreshSessions = () => {
+			if (loading || loadingMore) return;
+			const now = Date.now();
+			if (now - lastRefreshAt < 1500) return;
+			lastRefreshAt = now;
+			fetchRecentSessions();
+		};
+
+		const handleVisibilityChange = () => {
+			if (document.visibilityState === 'visible') {
+				refreshSessions();
+			}
+		};
+
+		window.addEventListener('focus', refreshSessions);
+		document.addEventListener('visibilitychange', handleVisibilityChange);
+
+		return () => {
+			window.removeEventListener('focus', refreshSessions);
+			document.removeEventListener('visibilitychange', handleVisibilityChange);
+		};
 	});
 
 	$effect(() => {

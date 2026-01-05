@@ -31,7 +31,7 @@
 		routine
 	));
 
-	const sessionTags = $derived(() => {
+	const sessionTags = $derived.by(() => {
 		const tags: string[] = [];
 		if (log.isCompetition) tags.push('Comp');
 		if (log.recordTag) tags.push(log.recordTag);
@@ -232,6 +232,7 @@
 		gap: 0.35rem;
 		flex-wrap: wrap;
 		margin-top: 0.5rem;
+		margin-bottom: 0.6rem;
 	}
 
 	.session-tag {

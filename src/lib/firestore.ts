@@ -6,6 +6,7 @@ import {
 	doc,
 	getDoc,
 	getDocs,
+	getDocsFromServer,
 	addDoc,
 	updateDoc,
 	deleteDoc,
@@ -481,7 +482,13 @@ export async function getRecentActivity(userId: string, limitCount = 20): Promis
 		limit(limitCount)
 	);
 
-	const snapshot = await getDocs(q);
+	let snapshot;
+	try {
+		snapshot = await getDocsFromServer(q);
+	} catch (error) {
+		console.warn('Falling back to cached routine logs:', error);
+		snapshot = await getDocs(q);
+	}
 	const logs: RoutineLog[] = [];
 
 	snapshot.forEach((doc) => {
@@ -518,7 +525,13 @@ export async function getRecentActivityPaginated(
 	}
 
 	const q = query(routineLogsRef, ...constraints);
-	const snapshot = await getDocs(q);
+	let snapshot;
+	try {
+		snapshot = await getDocsFromServer(q);
+	} catch (error) {
+		console.warn('Falling back to cached routine logs:', error);
+		snapshot = await getDocs(q);
+	}
 
 	const logs: RoutineLog[] = [];
 	snapshot.forEach((doc) => {

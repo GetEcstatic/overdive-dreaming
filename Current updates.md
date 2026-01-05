@@ -2,9 +2,44 @@
 
 Note: the app is now deployed on vercel and I have a small number of beta testers logging in to the app. Any changes need to be non-destructive. I don't want users to lose data they have logged.
 
-- edit/full stats/delete buttons on the session-details page are too large and childish. Can we make this smaller (especially height wise) so they don't take up so much screen real-estate. On narrower phone screens it looks like the buttons are truncated also (Tested by resizing on desktop-browser in mobile mode). I also want to make sure that this button module is below the stats on the page, not floating above them
-- Analytics page: the title "Analytics" should be above the drop down box to select the time period (last month/last year etc. etc.) Currently they are side-by-side and the formatting is not nice.
-- When logging sessions I'd like the option to backdate them (e.g. if completing a session log the day after training). I imagine this might have some back-end (firebase) implications. Evaluate and suggest best pathway forward for implementing this.
+I want to start developing the analytics page. 
+
+Page title: Analytics
+
+Metrics should be filtered overall by time period (drop down menu) and user should be able to select time periods for:
+- Last month
+- Last 6 months
+- Last year
+- All time (starting with first recorded session date)
+
+I'd like stats cards to display key stats as follows:
+
+**Pool Sessions card** - showing:
+- Total number of pool sessions (all disciplines)
+- A breakdown of the number of pool sessions by discipline (STA, DYN, DYNB, DNF)
+
+These stats should display for a selected year (dropdown menu) and default to current year
+
+**Competition Card** - showing
+- Number of tagged competition dives 
+- Number of records (only display those that have tags)
+- A breakdown of the records by discipline (STA, DYN, DYNB, DNF)
+These stats should display for a selected year (dropdown menu) and default to current year
+
+**Progress over time**  - this is a chart that includes:
+- Dropdown to select discipline to view
+- X-Axis = time period as per selected time period
+- Y-axis - distance in m (DYN/DYNB/DNF) or time in mm:ss (STA)
+
+**Personal bests Card** - current card works
+
+**Training summary Card** - including:
+- Total sessions for the timeframe
+- Avg session/week
+- Avg RPE
+- Avg Joy
+
+
 
 
 ## Ideas for addtional variables
