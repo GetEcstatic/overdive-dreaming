@@ -371,7 +371,10 @@
 		border: 1px solid rgba(148, 163, 184, 0.15);
 		border-radius: 14px;
 		padding: 1.5rem;
-		box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+		box-shadow:
+			0 6px 18px rgba(15, 23, 42, 0.12),
+			0 0 0 1px rgba(56, 189, 248, 0.15),
+			0 0 18px rgba(56, 189, 248, 0.12);
 		position: relative;
 		overflow: hidden;
 		transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
@@ -426,11 +429,18 @@
 	}
 
 	.stat-card {
-		background: var(--color-bg-card);
-		border: 1px solid rgba(148, 163, 184, 0.15);
+		background: linear-gradient(
+			135deg,
+			rgba(20, 184, 166, 0.08),
+			rgba(16, 185, 129, 0.04)
+		);
+		border: 1px solid rgba(56, 189, 248, 0.25);
 		border-radius: 14px;
 		padding: 1.5rem;
-		box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+		box-shadow:
+			0 8px 22px rgba(15, 23, 42, 0.2),
+			0 0 0 1px rgba(56, 189, 248, 0.2),
+			0 0 22px rgba(56, 189, 248, 0.16);
 		position: relative;
 		overflow: hidden;
 		transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
@@ -460,33 +470,44 @@
 	}
 
 	.stat-card h2 {
-		font-size: 1.15rem;
+		font-size: 0.9rem;
 		font-weight: 600;
-		color: var(--color-text);
-		margin-bottom: 1rem;
+		color: rgba(125, 211, 252, 0.85);
+		margin-bottom: 1.25rem;
+		text-transform: uppercase;
+		letter-spacing: 0.12em;
 	}
 
 	.stat-list {
-		display: flex;
-		flex-direction: column;
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: 0.75rem;
 	}
 
 	.stat-item {
 		display: flex;
-		justify-content: space-between;
+		flex-direction: column;
+		justify-content: center;
 		align-items: center;
-		padding: 0.5rem 0;
+		padding: 0.85rem 0.75rem;
+		background: rgba(15, 23, 42, 0.4);
+		border: 1px solid rgba(148, 163, 184, 0.15);
+		border-radius: 12px;
+		text-align: center;
 	}
 
 	.stat-label {
-		color: var(--color-text-muted);
-		font-size: 0.875rem;
+		color: rgba(125, 211, 252, 0.75);
+		font-size: 0.7rem;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
 	}
 
 	.stat-value {
-		color: var(--color-text);
-		font-weight: 600;
-		font-size: 1rem;
+		color: var(--color-primary);
+		font-weight: 700;
+		font-size: 1.3rem;
+		line-height: 1.2;
+		margin-top: 0.25rem;
 	}
 </style>
