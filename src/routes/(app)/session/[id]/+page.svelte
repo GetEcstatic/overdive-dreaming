@@ -9,6 +9,7 @@
 	import { getYouTubeEmbedUrl, deleteSessionPhoto } from '$lib/storage';
 	import { format } from 'date-fns';
 	import { updateRoutineLog, deleteSessionByGroup } from '$lib/firestore';
+	import { recalculatePBsForDisciplines } from '$lib/utils/personalBests';
 	import type { RoutineLog } from '$lib/types';
 
 	let { data } = $props();
@@ -110,6 +111,14 @@
 				} catch (photoError) {
 					console.error('Failed to delete photo:', photoError);
 					// Continue even if photo deletion fails
+				}
+			}
+
+			if (result.disciplines.length > 0) {
+				try {
+					await recalculatePBsForDisciplines($user.uid, result.disciplines);
+				} catch (pbError) {
+					console.error('Failed to recalculate PBs:', pbError);
 				}
 			}
 

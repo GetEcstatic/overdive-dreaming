@@ -316,15 +316,16 @@ export async function deleteRoutineLog(routineLogId: string): Promise<void> {
 export async function deleteSessionByGroup(
 	userId: string,
 	sessionGroup: string
-): Promise<{ deletedCount: number; photoUrls: string[] }> {
+): Promise<{ deletedCount: number; photoUrls: string[]; disciplines: Discipline[] }> {
 	// Get all routine logs for this session group
 	const logs = await getRoutineLogsBySessionGroup(userId, sessionGroup);
 
 	if (logs.length === 0) {
-		return { deletedCount: 0, photoUrls: [] };
+		return { deletedCount: 0, photoUrls: [], disciplines: [] };
 	}
 
 	const photoUrls: string[] = [];
+	const disciplines = new Set<Discipline>();
 
 	// Delete each log and collect photo URLs for cleanup
 	for (const log of logs) {
@@ -333,13 +334,18 @@ export async function deleteSessionByGroup(
 			photoUrls.push(log.photoUrl);
 		}
 
+		if (log.disciplineUsed) {
+			disciplines.add(log.disciplineUsed);
+		}
+
 		// Delete the routine log document
 		await deleteRoutineLog(log.id);
 	}
 
 	return {
 		deletedCount: logs.length,
-		photoUrls
+		photoUrls,
+		disciplines: Array.from(disciplines)
 	};
 }
 

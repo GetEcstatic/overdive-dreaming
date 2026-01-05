@@ -1,8 +1,8 @@
 // Personal Best (PB) Utilities
 // Functions for checking and updating personal bests
 
-import type { Discipline, PersonalBests } from '$lib/types';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import type { Discipline, PersonalBests, RoutineLog, RoutineTemplate } from '$lib/types';
+import { collection, deleteField, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { db } from '$lib/firebase';
 
 /**
@@ -52,6 +52,26 @@ export async function updateUserPB(
 }
 
 /**
+ * Remove a personal best value for a discipline
+ * @param userId - User's ID
+ * @param discipline - The discipline to clear
+ */
+export async function clearUserPB(userId: string, discipline: Discipline): Promise<void> {
+	const userRef = doc(db, 'users', userId);
+
+	await setDoc(
+		userRef,
+		{
+			personalBests: {
+				[discipline]: deleteField()
+			},
+			updatedAt: new Date()
+		},
+		{ merge: true }
+	);
+}
+
+/**
  * Get user's personal bests from Firestore
  * @param userId - User's ID
  * @returns User's personal bests or undefined
@@ -64,6 +84,54 @@ export async function getUserPBs(userId: string): Promise<PersonalBests | undefi
 
 	const userData = userSnap.data();
 	return userData.personalBests as PersonalBests | undefined;
+}
+
+/**
+ * Recalculate personal bests for specific disciplines
+ * @param userId - User's ID
+ * @param disciplines - Disciplines to recalculate
+ */
+export async function recalculatePBsForDisciplines(
+	userId: string,
+	disciplines: Discipline[]
+): Promise<void> {
+	const uniqueDisciplines = Array.from(new Set(disciplines));
+
+	for (const discipline of uniqueDisciplines) {
+		const logsRef = collection(db, 'routineLogs');
+		const q = query(
+			logsRef,
+			where('userId', '==', userId),
+			where('disciplineUsed', '==', discipline)
+		);
+		const logsSnapshot = await getDocs(q);
+
+		let maxValue = 0;
+
+		for (const logDoc of logsSnapshot.docs) {
+			const log = logDoc.data() as RoutineLog;
+			if (!log.routineId) continue;
+
+			const routineSnap = await getDoc(doc(db, 'routines', log.routineId));
+			if (!routineSnap.exists()) continue;
+
+			const routine = routineSnap.data() as RoutineTemplate;
+			const tags = routine.tags ?? [];
+			const isMaxAttempt = tags.includes('max-attempt') || tags.includes('pb');
+			if (!isMaxAttempt) continue;
+
+			const result = discipline === 'STA' ? log.totalTime : log.totalDistance;
+			if (typeof result === 'number' && result > maxValue) {
+				maxValue = result;
+			}
+		}
+
+		if (maxValue > 0) {
+			await updateUserPB(userId, discipline, maxValue);
+		} else {
+			await clearUserPB(userId, discipline);
+		}
+	}
 }
 
 /**
