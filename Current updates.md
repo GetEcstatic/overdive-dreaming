@@ -1,5 +1,18 @@
 ## Immediate action
 
+Can we remove the "training volume" card and "distance from personal best" card. They are not useful at present.
+
+Let's add the "Pool Sessions" card data to the "Training Summary" card as they are similar.
+
+Cards should then be ordered on the page as follows (top to bottom):
+  - Training Summary
+  - Personal bests
+  - Competition Summary
+  - Progress over time
+  - Performance by time of day
+  
+ 
+
 Note: the app is now deployed on vercel and I have a small number of beta testers logging in to the app. Any changes need to be non-destructive. I don't want users to lose data they have logged.
 
 I want to start developing the analytics page. 

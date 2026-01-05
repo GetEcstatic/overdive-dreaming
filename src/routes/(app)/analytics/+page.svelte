@@ -6,34 +6,34 @@
 	import { collection, query, getDocs, where, orderBy } from 'firebase/firestore';
 	import type { RoutineLog, Discipline, PersonalBests } from '$lib/types';
 	import LineChart from '$lib/components/LineChart.svelte';
-	import VolumeChart from '$lib/components/analytics/VolumeChart.svelte';
 	import TimeOfDayAnalysis from '$lib/components/analytics/TimeOfDayAnalysis.svelte';
-	import PBProximityChart from '$lib/components/analytics/PBProximityChart.svelte';
 	import {
 		calculatePersonalBests,
 		calculateTrainingSummary,
+		calculatePoolSessionStats,
+		calculateCompetitionStats,
 		prepareProgressData,
-		filterLogsByTimeframe
+		filterLogsByTimeframe,
+		type Timeframe
 	} from '$lib/utils/analytics';
 	import { formatTime } from '$lib/utils/time';
 	import { format } from 'date-fns';
-	import { getUserPBs } from '$lib/utils/personalBests';
-
-	let timeframe = $state<'1month' | '6months' | '1year'>('1month');
+	let timeframe = $state<Timeframe>('1month');
 	let selectedDiscipline = $state<Discipline>('DYN');
 	let allLogs = $state<RoutineLog[]>([]);
-	let userPBs = $state<PersonalBests | undefined>(undefined);
 	let loading = $state(true);
 
 	const timeframes = [
 		{ value: '1month', label: 'Last Month' },
 		{ value: '6months', label: 'Last 6 Months' },
-		{ value: '1year', label: 'Last Year' }
+		{ value: '1year', label: 'Last Year' },
+		{ value: 'all', label: 'All Time' }
 	];
 
 	const disciplines = ['DYN', 'DNF', 'DYNB', 'STA'] as Discipline[];
 
 	// Reactive computations
+	const filteredLogs = $derived.by(() => filterLogsByTimeframe(allLogs, timeframe));
 	const personalBests = $derived.by(() => {
 		const pbs = calculatePersonalBests(allLogs);
 		// Group by discipline
@@ -50,9 +50,10 @@
 	});
 
 	const trainingSummary = $derived(calculateTrainingSummary(allLogs, timeframe));
+	const poolStats = $derived(calculatePoolSessionStats(allLogs, timeframe));
+	const competitionStats = $derived(calculateCompetitionStats(allLogs, timeframe));
 
 	const progressChartData = $derived.by(() => {
-		const filteredLogs = filterLogsByTimeframe(allLogs, timeframe);
 		const progressData = prepareProgressData(
 			filteredLogs,
 			selectedDiscipline,
@@ -105,15 +106,6 @@
 		}
 	}
 
-	async function fetchPBs() {
-		if (!$user) return;
-		try {
-			userPBs = await getUserPBs($user.uid);
-		} catch (err) {
-			console.error('Error fetching PBs:', err);
-		}
-	}
-
 	onMount(() => {
 		// Check for query params to pre-select filters
 		const disciplineParam = $page.url.searchParams.get('discipline');
@@ -129,7 +121,6 @@
 		}
 
 		fetchAllLogs();
-		fetchPBs();
 	});
 </script>
 
@@ -159,39 +150,41 @@
 		</div>
 	{:else}
 		<div class="content">
-			<!-- Progress Over Time Chart -->
-			<div class="chart-card">
-				<div class="chart-header">
-					<h2>Progress Over Time</h2>
-					<select bind:value={selectedDiscipline} class="discipline-select">
-						{#each disciplines as disc}
-							<option value={disc}>{disc}</option>
-						{/each}
-					</select>
-				</div>
-				<LineChart data={progressChartData} height={300} />
-			</div>
-
-			<!-- NEW: Training Volume Chart -->
-			<VolumeChart logs={filterLogsByTimeframe(allLogs, timeframe)} metric="distance" />
-
-			<!-- NEW: Time of Day Analysis -->
-			<TimeOfDayAnalysis
-				logs={filterLogsByTimeframe(allLogs, timeframe)}
-				discipline={selectedDiscipline}
-				metric={['DYN', 'DNF', 'DYNB'].includes(selectedDiscipline) ? 'distance' : 'time'}
-			/>
-
-			<!-- NEW: PB Proximity Chart -->
-			{#if userPBs}
-				<PBProximityChart
-					logs={filterLogsByTimeframe(allLogs, timeframe)}
-					personalBests={userPBs}
-				/>
-			{/if}
-
 			<!-- Stats Grid -->
 			<div class="stats-grid">
+				<!-- Training Summary -->
+				<div class="stat-card">
+					<h2>Training Summary</h2>
+					<div class="stat-list">
+						<div class="stat-item">
+							<span class="stat-label">Total Sessions</span>
+							<span class="stat-value">{trainingSummary.totalSessions}</span>
+						</div>
+						{#each disciplines as disc}
+							<div class="stat-item">
+								<span class="stat-label">{disc} Sessions</span>
+								<span class="stat-value">{poolStats.byDiscipline[disc]}</span>
+							</div>
+						{/each}
+						<div class="stat-item">
+							<span class="stat-label">Avg Sessions / Week</span>
+							<span class="stat-value">{trainingSummary.avgPerWeek.toFixed(1)}</span>
+						</div>
+						{#if trainingSummary.avgRPE}
+							<div class="stat-item">
+								<span class="stat-label">Avg RPE</span>
+								<span class="stat-value">{trainingSummary.avgRPE.toFixed(1)}</span>
+							</div>
+						{/if}
+						{#if trainingSummary.avgJoy}
+							<div class="stat-item">
+								<span class="stat-label">Avg Joy</span>
+								<span class="stat-value">{trainingSummary.avgJoy.toFixed(1)}</span>
+							</div>
+						{/if}
+					</div>
+				</div>
+
 				<!-- Personal Bests -->
 				<div class="stat-card">
 					<h2>Personal Bests</h2>
@@ -214,41 +207,53 @@
 					</div>
 				</div>
 
-				<!-- Training Summary -->
+				<!-- Competition Summary -->
 				<div class="stat-card">
-					<h2>Training Summary</h2>
+					<h2>Competition Summary</h2>
 					<div class="stat-list">
 						<div class="stat-item">
-							<span class="stat-label">Total Sessions</span>
-							<span class="stat-value">{trainingSummary.totalSessions}</span>
+							<span class="stat-label">Competition Dives</span>
+							<span class="stat-value">{competitionStats.competitionCount}</span>
 						</div>
 						<div class="stat-item">
-							<span class="stat-label">Total Dives</span>
-							<span class="stat-value">{trainingSummary.totalDives}</span>
+							<span class="stat-label">Records Tagged</span>
+							<span class="stat-value">
+								{competitionStats.recordCount > 0 ? competitionStats.recordCount : '—'}
+							</span>
 						</div>
-						<div class="stat-item">
-							<span class="stat-label">Total Time</span>
-							<span class="stat-value">{formatTime(trainingSummary.totalTime)}</span>
-						</div>
-						<div class="stat-item">
-							<span class="stat-label">Avg per Week</span>
-							<span class="stat-value">{trainingSummary.avgPerWeek.toFixed(1)}</span>
-						</div>
-						{#if trainingSummary.avgRPE}
+						{#each disciplines as disc}
 							<div class="stat-item">
-								<span class="stat-label">💪 Avg RPE</span>
-								<span class="stat-value">{trainingSummary.avgRPE.toFixed(1)}</span>
+								<span class="stat-label">{disc} Records</span>
+								<span class="stat-value">
+									{competitionStats.recordByDiscipline[disc] > 0
+										? competitionStats.recordByDiscipline[disc]
+										: '—'}
+								</span>
 							</div>
-						{/if}
-						{#if trainingSummary.avgJoy}
-							<div class="stat-item">
-								<span class="stat-label">😊 Avg Joy</span>
-								<span class="stat-value">{trainingSummary.avgJoy.toFixed(1)}</span>
-							</div>
-						{/if}
+						{/each}
 					</div>
 				</div>
 			</div>
+
+			<!-- Progress Over Time Chart -->
+			<div class="chart-card">
+				<div class="chart-header">
+					<h2>Progress Over Time</h2>
+					<select bind:value={selectedDiscipline} class="discipline-select">
+						{#each disciplines as disc}
+							<option value={disc}>{disc}</option>
+						{/each}
+					</select>
+				</div>
+				<LineChart data={progressChartData} height={300} />
+			</div>
+
+			<!-- Performance by Time of Day -->
+			<TimeOfDayAnalysis
+				logs={filteredLogs}
+				discipline={selectedDiscipline}
+				metric={['DYN', 'DNF', 'DYNB'].includes(selectedDiscipline) ? 'distance' : 'time'}
+			/>
 		</div>
 	{/if}
 </div>
@@ -353,14 +358,41 @@
 	.content {
 		display: flex;
 		flex-direction: column;
-		gap: 1.5rem;
+		gap: 2rem;
 	}
 
 	.chart-card {
 		background: var(--color-bg-card);
-		border: 1px solid rgba(148, 163, 184, 0.1);
-		border-radius: 12px;
+		border: 1px solid rgba(148, 163, 184, 0.15);
+		border-radius: 14px;
 		padding: 1.5rem;
+		box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+		position: relative;
+		overflow: hidden;
+		transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+	}
+
+	.chart-card::before {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: 1rem;
+		right: 1rem;
+		height: 2px;
+		background: radial-gradient(
+			closest-side,
+			rgba(56, 189, 248, 0.9) 0%,
+			rgba(56, 189, 248, 0.55) 40%,
+			rgba(56, 189, 248, 0.1) 75%,
+			transparent 100%
+		);
+		opacity: 0.8;
+	}
+
+	.chart-card:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 10px 26px rgba(15, 23, 42, 0.18);
+		border-color: rgba(148, 163, 184, 0.25);
 	}
 
 	.chart-header {
@@ -371,7 +403,7 @@
 	}
 
 	.chart-header h2 {
-		font-size: 1.25rem;
+		font-size: 1.15rem;
 		font-weight: 600;
 		color: var(--color-text);
 	}
@@ -390,13 +422,40 @@
 
 	.stat-card {
 		background: var(--color-bg-card);
-		border: 1px solid rgba(148, 163, 184, 0.1);
-		border-radius: 12px;
+		border: 1px solid rgba(148, 163, 184, 0.15);
+		border-radius: 14px;
 		padding: 1.5rem;
+		box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+		position: relative;
+		overflow: hidden;
+		transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+	}
+
+	.stat-card::before {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: 1rem;
+		right: 1rem;
+		height: 2px;
+		background: radial-gradient(
+			closest-side,
+			rgba(56, 189, 248, 0.9) 0%,
+			rgba(56, 189, 248, 0.55) 40%,
+			rgba(56, 189, 248, 0.1) 75%,
+			transparent 100%
+		);
+		opacity: 0.8;
+	}
+
+	.stat-card:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 10px 26px rgba(15, 23, 42, 0.18);
+		border-color: rgba(148, 163, 184, 0.25);
 	}
 
 	.stat-card h2 {
-		font-size: 1.25rem;
+		font-size: 1.15rem;
 		font-weight: 600;
 		color: var(--color-text);
 		margin-bottom: 1rem;

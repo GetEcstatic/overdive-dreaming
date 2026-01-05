@@ -3,7 +3,9 @@
  */
 
 import type { RoutineLog, Discipline } from '$lib/types';
-import { format, subMonths, subYears, isAfter } from 'date-fns';
+import { format, subMonths, subYears, isAfter, differenceInDays } from 'date-fns';
+
+export type Timeframe = '1month' | '6months' | '1year' | 'all';
 
 export interface PersonalBest {
 	discipline: Discipline;
@@ -27,13 +29,32 @@ export interface ProgressDataPoint {
 	value: number;
 }
 
+interface SessionStats {
+	totalSessions: number;
+	byDiscipline: Record<Discipline, number>;
+}
+
+interface CompetitionStats {
+	competitionCount: number;
+	recordCount: number;
+	recordByDiscipline: Record<Discipline, number>;
+}
+
+function getSessionKey(log: RoutineLog): string {
+	return log.sessionGroup || log.date.toDate().toDateString();
+}
+
 /**
  * Get logs within a timeframe
  */
 export function filterLogsByTimeframe(
 	logs: RoutineLog[],
-	timeframe: '1month' | '6months' | '1year'
+	timeframe: Timeframe
 ): RoutineLog[] {
+	if (timeframe === 'all') {
+		return logs;
+	}
+
 	const now = new Date();
 	let cutoffDate: Date;
 
@@ -96,21 +117,27 @@ export function calculatePersonalBests(logs: RoutineLog[]): PersonalBest[] {
  */
 export function calculateTrainingSummary(
 	logs: RoutineLog[],
-	timeframe: '1month' | '6months' | '1year'
+	timeframe: Timeframe
 ): TrainingSummary {
 	const filteredLogs = filterLogsByTimeframe(logs, timeframe);
 
 	// Get unique sessions (prefer sessionGroup, fallback to date bucket)
-	const uniqueSessions = new Set(
-		filteredLogs.map((log) => log.sessionGroup || log.date.toDate().toDateString())
-	);
+	const uniqueSessions = new Set(filteredLogs.map((log) => getSessionKey(log)));
 
 	// Calculate weeks in timeframe
-	const weeksInTimeframe = {
+	let weeksInTimeframe = {
 		'1month': 4,
 		'6months': 26,
-		'1year': 52
+		'1year': 52,
+		'all': 52
 	}[timeframe];
+
+	if (timeframe === 'all' && filteredLogs.length > 0) {
+		const dates = filteredLogs.map((log) => log.date.toDate().getTime());
+		const earliest = new Date(Math.min(...dates));
+		const days = Math.max(1, differenceInDays(new Date(), earliest));
+		weeksInTimeframe = Math.max(1, days / 7);
+	}
 
 	// Total time
 	const totalTime = filteredLogs.reduce((sum, log) => sum + (log.totalTime || 0), 0);
@@ -136,6 +163,76 @@ export function calculateTrainingSummary(
 		avgPerWeek: uniqueSessions.size / weeksInTimeframe,
 		avgRPE,
 		avgJoy
+	};
+}
+
+/**
+ * Calculate pool session stats for a timeframe
+ */
+export function calculatePoolSessionStats(
+	logs: RoutineLog[],
+	timeframe: Timeframe
+): SessionStats {
+	const filteredLogs = filterLogsByTimeframe(logs, timeframe);
+	const sessions = new Set<string>();
+	const byDiscipline: Record<Discipline, Set<string>> = {
+		DYN: new Set(),
+		DNF: new Set(),
+		DYNB: new Set(),
+		STA: new Set()
+	};
+
+	for (const log of filteredLogs) {
+		const key = getSessionKey(log);
+		sessions.add(key);
+		byDiscipline[log.disciplineUsed]?.add(key);
+	}
+
+	const counts: Record<Discipline, number> = {
+		DYN: byDiscipline.DYN.size,
+		DNF: byDiscipline.DNF.size,
+		DYNB: byDiscipline.DYNB.size,
+		STA: byDiscipline.STA.size
+	};
+
+	return {
+		totalSessions: sessions.size,
+		byDiscipline: counts
+	};
+}
+
+/**
+ * Calculate competition and record stats for a timeframe
+ */
+export function calculateCompetitionStats(
+	logs: RoutineLog[],
+	timeframe: Timeframe
+): CompetitionStats {
+	const filteredLogs = filterLogsByTimeframe(logs, timeframe);
+	let competitionCount = 0;
+	let recordCount = 0;
+	const recordByDiscipline: Record<Discipline, number> = {
+		DYN: 0,
+		DNF: 0,
+		DYNB: 0,
+		STA: 0
+	};
+
+	for (const log of filteredLogs) {
+		if (log.isCompetition) {
+			competitionCount += 1;
+		}
+
+		if (log.recordTag) {
+			recordCount += 1;
+			recordByDiscipline[log.disciplineUsed] += 1;
+		}
+	}
+
+	return {
+		competitionCount,
+		recordCount,
+		recordByDiscipline
 	};
 }
 
