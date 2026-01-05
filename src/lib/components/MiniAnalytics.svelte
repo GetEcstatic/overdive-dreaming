@@ -1,11 +1,16 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { user } from '$lib/stores/auth';
-	import { getRoutineLogsByRoutine } from '$lib/firestore';
+	import { getRoutineLogsByRoutine, getUserSettings, getSeasonsForUser } from '$lib/firestore';
 	import LineChart from './LineChart.svelte';
 	import type { RoutineTemplate, RoutineLog } from '$lib/types';
 	import { formatTime } from '$lib/utils/time';
 	import { getMetricValue } from '$lib/utils/metrics';
+	import {
+		filterLogsByDateRange,
+		getTimeframeStartDate,
+		type Timeframe
+	} from '$lib/utils/analytics';
 
 	let {
 		routine,
@@ -18,6 +23,8 @@
 	let recentLogs = $state<RoutineLog[]>([]);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
+	let defaultFilterKey = $state<string>('tf:1month');
+	let defaultTimeframeFallback = $state<Timeframe>('1month');
 
 	function toJsDate(value: unknown): Date {
 		if (value && typeof (value as { toDate?: () => Date }).toDate === 'function') {
@@ -161,8 +168,42 @@
 		}
 
 		try {
-			// Fetch last 10 performances for this routine
-			const logs = await getRoutineLogsByRoutine($user.uid, routine.id, 10);
+			const settings = await getUserSettings($user.uid);
+			if (settings?.defaultTimeframe) {
+				defaultTimeframeFallback = settings.defaultTimeframe;
+			}
+			if (settings?.defaultAnalyticsFilter) {
+				defaultFilterKey = settings.defaultAnalyticsFilter;
+			} else if (settings?.defaultTimeframe) {
+				defaultFilterKey = `tf:${settings.defaultTimeframe}`;
+			}
+
+			let logs: RoutineLog[] = [];
+
+			if (defaultFilterKey.startsWith('season:')) {
+				const seasons = await getSeasonsForUser($user.uid);
+				const seasonId = defaultFilterKey.replace('season:', '');
+				const selectedSeason = seasons.find((season) => season.id === seasonId);
+
+				if (selectedSeason) {
+					const startDate = selectedSeason.startDate.toDate();
+					logs = await getRoutineLogsByRoutine($user.uid, routine.id, undefined, startDate);
+					if (selectedSeason.endDate) {
+						logs = filterLogsByDateRange(logs, startDate, selectedSeason.endDate.toDate());
+					}
+				}
+			}
+
+			if (logs.length === 0) {
+				const timeframeValue = defaultFilterKey.startsWith('tf:')
+					? (defaultFilterKey.replace('tf:', '') as Timeframe)
+					: defaultTimeframeFallback;
+				const sinceDate = getTimeframeStartDate(
+					timeframeValue === 'all' ? '1month' : timeframeValue
+				);
+				logs = await getRoutineLogsByRoutine($user.uid, routine.id, undefined, sinceDate);
+			}
+
 			recentLogs = logs;
 		} catch (err) {
 			console.error('Failed to fetch routine history:', err);

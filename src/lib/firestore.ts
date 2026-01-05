@@ -18,6 +18,7 @@ import {
 	startAfter,
 	Timestamp,
 	serverTimestamp,
+	deleteField,
 	type DocumentData,
 	type QueryConstraint,
 	type QueryDocumentSnapshot
@@ -33,7 +34,10 @@ import type {
 	SessionFormData,
 	RoutineLogFormData,
 	DiveFormData,
-	Discipline
+	Discipline,
+	Season,
+	SeasonFormData,
+	UserSettings
 } from '$lib/types';
 
 // ============================================================================
@@ -434,6 +438,84 @@ export async function updateSuggestedTags(tags: SuggestedTags): Promise<void> {
 }
 
 // ============================================================================
+// USER SETTINGS
+// ============================================================================
+
+export async function getUserSettings(userId: string): Promise<UserSettings | undefined> {
+	const userRef = doc(db, 'users', userId);
+	const userSnap = await getDoc(userRef);
+
+	if (!userSnap.exists()) return undefined;
+
+	const data = userSnap.data();
+	return data.settings as UserSettings | undefined;
+}
+
+export async function updateUserSettings(
+	userId: string,
+	settings: UserSettings
+): Promise<void> {
+	const userRef = doc(db, 'users', userId);
+	await setDoc(
+		userRef,
+		{
+			settings,
+			updatedAt: new Date()
+		},
+		{ merge: true }
+	);
+}
+
+// ============================================================================
+// SEASONS
+// ============================================================================
+
+export async function getSeasonsForUser(userId: string): Promise<Season[]> {
+	const seasonsRef = collection(db, 'seasons');
+	const q = query(seasonsRef, where('userId', '==', userId));
+
+	const snapshot = await getDocs(q);
+	const seasons: Season[] = [];
+
+	snapshot.forEach((doc) => {
+		seasons.push({ id: doc.id, ...doc.data() } as Season);
+	});
+
+	return seasons.sort(
+		(a, b) => b.startDate.toDate().getTime() - a.startDate.toDate().getTime()
+	);
+}
+
+export async function createSeason(seasonData: SeasonFormData): Promise<string> {
+	const seasonsRef = collection(db, 'seasons');
+	const newSeason = {
+		...seasonData,
+		createdAt: serverTimestamp(),
+		updatedAt: serverTimestamp()
+	};
+
+	const docRef = await addDoc(seasonsRef, newSeason);
+	return docRef.id;
+}
+
+export async function updateSeason(
+	seasonId: string,
+	updates: Partial<SeasonFormData> & { endDate?: SeasonFormData['endDate'] | null }
+): Promise<void> {
+	const seasonRef = doc(db, 'seasons', seasonId);
+	const payload: Record<string, unknown> = {
+		...updates,
+		updatedAt: serverTimestamp()
+	};
+
+	if (updates.endDate === null) {
+		payload.endDate = deleteField();
+	}
+
+	await updateDoc(seasonRef, payload);
+}
+
+// ============================================================================
 // ANALYTICS QUERIES
 // ============================================================================
 
@@ -444,7 +526,8 @@ export async function updateSuggestedTags(tags: SuggestedTags): Promise<void> {
 export async function getRoutineLogsByRoutine(
 	userId: string,
 	routineId: string,
-	limitCount?: number
+	limitCount?: number,
+	sinceDate?: Date
 ): Promise<RoutineLog[]> {
 	const routineLogsRef = collection(db, 'routineLogs');
 
@@ -453,6 +536,10 @@ export async function getRoutineLogsByRoutine(
 		where('routineId', '==', routineId),
 		orderBy('date', 'desc')
 	];
+
+	if (sinceDate) {
+		constraints.push(where('date', '>=', Timestamp.fromDate(sinceDate)));
+	}
 
 	if (limitCount) {
 		constraints.push(limit(limitCount));

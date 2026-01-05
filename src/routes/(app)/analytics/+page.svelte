@@ -4,7 +4,7 @@
 	import { user } from '$lib/stores/auth';
 	import { db } from '$lib/firebase';
 	import { collection, query, getDocs, where, orderBy } from 'firebase/firestore';
-	import type { RoutineLog, Discipline, PersonalBests } from '$lib/types';
+	import type { RoutineLog, Discipline, Season } from '$lib/types';
 	import LineChart from '$lib/components/LineChart.svelte';
 	import TimeOfDayAnalysis from '$lib/components/analytics/TimeOfDayAnalysis.svelte';
 	import {
@@ -12,16 +12,23 @@
 		calculateTrainingSummary,
 		calculatePoolSessionStats,
 		calculateCompetitionStats,
+		calculateTrainingSummaryForRange,
+		calculatePoolSessionStatsForRange,
+		calculateCompetitionStatsForRange,
 		prepareProgressData,
 		filterLogsByTimeframe,
+		filterLogsByDateRange,
 		type Timeframe
 	} from '$lib/utils/analytics';
 	import { formatTime } from '$lib/utils/time';
 	import { format } from 'date-fns';
-	let timeframe = $state<Timeframe>('1month');
+	import { getUserSettings, getSeasonsForUser } from '$lib/firestore';
+
+	let filterKey = $state<string>('tf:1month');
 	let selectedDiscipline = $state<Discipline>('DYN');
 	let allLogs = $state<RoutineLog[]>([]);
 	let loading = $state(true);
+	let seasons = $state<Season[]>([]);
 
 	const timeframes = [
 		{ value: '1month', label: 'Last Month' },
@@ -33,7 +40,29 @@
 	const disciplines = ['DYN', 'DNF', 'DYNB', 'STA'] as Discipline[];
 
 	// Reactive computations
-	const filteredLogs = $derived.by(() => filterLogsByTimeframe(allLogs, timeframe));
+	const selectedSeason = $derived.by(() => {
+		if (!filterKey.startsWith('season:')) return undefined;
+		const id = filterKey.replace('season:', '');
+		return seasons.find((season) => season.id === id);
+	});
+
+	const activeTimeframe = $derived.by(() => {
+		if (filterKey.startsWith('tf:')) {
+			return filterKey.replace('tf:', '') as Timeframe;
+		}
+		return '1month' as Timeframe;
+	});
+
+	const filteredLogs = $derived.by(() => {
+		if (selectedSeason) {
+			return filterLogsByDateRange(
+				allLogs,
+				selectedSeason.startDate.toDate(),
+				selectedSeason.endDate?.toDate()
+			);
+		}
+		return filterLogsByTimeframe(allLogs, activeTimeframe);
+	});
 	const personalBests = $derived.by(() => {
 		const pbs = calculatePersonalBests(allLogs);
 		// Group by discipline
@@ -49,9 +78,38 @@
 		return grouped;
 	});
 
-	const trainingSummary = $derived(calculateTrainingSummary(allLogs, timeframe));
-	const poolStats = $derived(calculatePoolSessionStats(allLogs, timeframe));
-	const competitionStats = $derived(calculateCompetitionStats(allLogs, timeframe));
+	const trainingSummary = $derived.by(() => {
+		if (selectedSeason) {
+			return calculateTrainingSummaryForRange(
+				allLogs,
+				selectedSeason.startDate.toDate(),
+				selectedSeason.endDate?.toDate()
+			);
+		}
+		return calculateTrainingSummary(allLogs, activeTimeframe);
+	});
+
+	const poolStats = $derived.by(() => {
+		if (selectedSeason) {
+			return calculatePoolSessionStatsForRange(
+				allLogs,
+				selectedSeason.startDate.toDate(),
+				selectedSeason.endDate?.toDate()
+			);
+		}
+		return calculatePoolSessionStats(allLogs, activeTimeframe);
+	});
+
+	const competitionStats = $derived.by(() => {
+		if (selectedSeason) {
+			return calculateCompetitionStatsForRange(
+				allLogs,
+				selectedSeason.startDate.toDate(),
+				selectedSeason.endDate?.toDate()
+			);
+		}
+		return calculateCompetitionStats(allLogs, activeTimeframe);
+	});
 
 	const progressChartData = $derived.by(() => {
 		const progressData = prepareProgressData(
@@ -106,6 +164,21 @@
 		}
 	}
 
+	async function fetchSettingsAndSeasons() {
+		if (!$user) return;
+		try {
+			const settings = await getUserSettings($user.uid);
+			if (settings?.defaultAnalyticsFilter && filterKey === 'tf:1month') {
+				filterKey = settings.defaultAnalyticsFilter;
+			} else if (settings?.defaultTimeframe && filterKey === 'tf:1month') {
+				filterKey = `tf:${settings.defaultTimeframe}`;
+			}
+			seasons = await getSeasonsForUser($user.uid);
+		} catch (error) {
+			console.error('Error loading settings or seasons:', error);
+		}
+	}
+
 	onMount(() => {
 		// Check for query params to pre-select filters
 		const disciplineParam = $page.url.searchParams.get('discipline');
@@ -121,6 +194,7 @@
 		}
 
 		fetchAllLogs();
+		fetchSettingsAndSeasons();
 	});
 </script>
 
@@ -128,12 +202,21 @@
 	<div class="header">
 		<h1 class="title">Analytics</h1>
 		<select
-			bind:value={timeframe}
+			bind:value={filterKey}
 			class="timeframe-select"
 		>
-			{#each timeframes as tf}
-				<option value={tf.value}>{tf.label}</option>
-			{/each}
+			<optgroup label="Timeframes">
+				{#each timeframes as tf}
+					<option value={`tf:${tf.value}`}>{tf.label}</option>
+				{/each}
+			</optgroup>
+			{#if seasons.length > 0}
+				<optgroup label="Seasons">
+					{#each seasons as season}
+						<option value={`season:${season.id}`}>{season.name}</option>
+					{/each}
+				</optgroup>
+			{/if}
 		</select>
 	</div>
 
@@ -187,7 +270,7 @@
 
 				<!-- Personal Bests -->
 				<div class="stat-card">
-					<h2>Personal Bests</h2>
+					<h2>Personal Bests (All-time)</h2>
 					<div class="stat-list">
 						{#each disciplines as disc}
 							{@const pb = personalBests[disc]}

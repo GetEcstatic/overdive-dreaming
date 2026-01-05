@@ -3,7 +3,7 @@
  */
 
 import type { RoutineLog, Discipline } from '$lib/types';
-import { format, subMonths, subYears, isAfter, differenceInDays } from 'date-fns';
+import { format, subMonths, subYears, isAfter, differenceInDays, isBefore } from 'date-fns';
 
 export type Timeframe = '1month' | '6months' | '1year' | 'all';
 
@@ -44,6 +44,19 @@ function getSessionKey(log: RoutineLog): string {
 	return log.sessionGroup || log.date.toDate().toDateString();
 }
 
+function getCutoffDate(timeframe: Exclude<Timeframe, 'all'>): Date {
+	const now = new Date();
+
+	switch (timeframe) {
+		case '1month':
+			return subMonths(now, 1);
+		case '6months':
+			return subMonths(now, 6);
+		case '1year':
+			return subYears(now, 1);
+	}
+}
+
 /**
  * Get logs within a timeframe
  */
@@ -55,21 +68,7 @@ export function filterLogsByTimeframe(
 		return logs;
 	}
 
-	const now = new Date();
-	let cutoffDate: Date;
-
-	switch (timeframe) {
-		case '1month':
-			cutoffDate = subMonths(now, 1);
-			break;
-		case '6months':
-			cutoffDate = subMonths(now, 6);
-			break;
-		case '1year':
-			cutoffDate = subYears(now, 1);
-			break;
-	}
-
+	const cutoffDate = getCutoffDate(timeframe);
 	return logs.filter((log) => isAfter(log.date.toDate(), cutoffDate));
 }
 
@@ -166,6 +165,41 @@ export function calculateTrainingSummary(
 	};
 }
 
+export function calculateTrainingSummaryForRange(
+	logs: RoutineLog[],
+	startDate: Date,
+	endDate?: Date
+): TrainingSummary {
+	const end = endDate ?? new Date();
+	const filteredLogs = filterLogsByDateRange(logs, startDate, end);
+	const uniqueSessions = new Set(filteredLogs.map((log) => getSessionKey(log)));
+	const days = Math.max(1, differenceInDays(end, startDate));
+	const weeksInRange = Math.max(1, days / 7);
+	const totalTime = filteredLogs.reduce((sum, log) => sum + (log.totalTime || 0), 0);
+
+	const logsWithRPE = filteredLogs.filter((log) => log.rpe !== undefined);
+	const logsWithJoy = filteredLogs.filter((log) => log.joyScale !== undefined);
+
+	const avgRPE =
+		logsWithRPE.length > 0
+			? logsWithRPE.reduce((sum, log) => sum + (log.rpe || 0), 0) / logsWithRPE.length
+			: undefined;
+
+	const avgJoy =
+		logsWithJoy.length > 0
+			? logsWithJoy.reduce((sum, log) => sum + (log.joyScale || 0), 0) / logsWithJoy.length
+			: undefined;
+
+	return {
+		totalSessions: uniqueSessions.size,
+		totalDives: filteredLogs.length,
+		totalTime,
+		avgPerWeek: uniqueSessions.size / weeksInRange,
+		avgRPE,
+		avgJoy
+	};
+}
+
 /**
  * Calculate pool session stats for a timeframe
  */
@@ -174,6 +208,39 @@ export function calculatePoolSessionStats(
 	timeframe: Timeframe
 ): SessionStats {
 	const filteredLogs = filterLogsByTimeframe(logs, timeframe);
+	const sessions = new Set<string>();
+	const byDiscipline: Record<Discipline, Set<string>> = {
+		DYN: new Set(),
+		DNF: new Set(),
+		DYNB: new Set(),
+		STA: new Set()
+	};
+
+	for (const log of filteredLogs) {
+		const key = getSessionKey(log);
+		sessions.add(key);
+		byDiscipline[log.disciplineUsed]?.add(key);
+	}
+
+	const counts: Record<Discipline, number> = {
+		DYN: byDiscipline.DYN.size,
+		DNF: byDiscipline.DNF.size,
+		DYNB: byDiscipline.DYNB.size,
+		STA: byDiscipline.STA.size
+	};
+
+	return {
+		totalSessions: sessions.size,
+		byDiscipline: counts
+	};
+}
+
+export function calculatePoolSessionStatsForRange(
+	logs: RoutineLog[],
+	startDate: Date,
+	endDate?: Date
+): SessionStats {
+	const filteredLogs = filterLogsByDateRange(logs, startDate, endDate);
 	const sessions = new Set<string>();
 	const byDiscipline: Record<Discipline, Set<string>> = {
 		DYN: new Set(),
@@ -234,6 +301,55 @@ export function calculateCompetitionStats(
 		recordCount,
 		recordByDiscipline
 	};
+}
+
+export function calculateCompetitionStatsForRange(
+	logs: RoutineLog[],
+	startDate: Date,
+	endDate?: Date
+): CompetitionStats {
+	const filteredLogs = filterLogsByDateRange(logs, startDate, endDate);
+	let competitionCount = 0;
+	let recordCount = 0;
+	const recordByDiscipline: Record<Discipline, number> = {
+		DYN: 0,
+		DNF: 0,
+		DYNB: 0,
+		STA: 0
+	};
+
+	for (const log of filteredLogs) {
+		if (log.isCompetition) {
+			competitionCount += 1;
+		}
+
+		if (log.recordTag) {
+			recordCount += 1;
+			recordByDiscipline[log.disciplineUsed] += 1;
+		}
+	}
+
+	return {
+		competitionCount,
+		recordCount,
+		recordByDiscipline
+	};
+}
+
+export function filterLogsByDateRange(
+	logs: RoutineLog[],
+	startDate: Date,
+	endDate?: Date
+): RoutineLog[] {
+	const end = endDate ?? new Date();
+	return logs.filter((log) => {
+		const logDate = log.date.toDate();
+		return !isBefore(logDate, startDate) && !isAfter(logDate, end);
+	});
+}
+
+export function getTimeframeStartDate(timeframe: Exclude<Timeframe, 'all'>): Date {
+	return getCutoffDate(timeframe);
 }
 
 /**

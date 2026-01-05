@@ -26,6 +26,11 @@ export interface PersonalBests {
 	DYNB?: number; // Best dynamic bifins distance in meters
 }
 
+export interface UserSettings {
+	defaultTimeframe?: '1month' | '6months' | '1year';
+	defaultAnalyticsFilter?: string;
+}
+
 export interface User {
 	uid: string;
 	email: string;
@@ -34,6 +39,7 @@ export interface User {
 	tier?: UserTier;
 	customRoutineCount?: number;
 	personalBests?: PersonalBests; // Track PB per discipline
+	settings?: UserSettings;
 	createdAt: Timestamp;
 	updatedAt: Timestamp;
 }
@@ -178,6 +184,21 @@ export interface Session {
 	notes?: string;
 	photoUrl?: string; // Firebase Storage download URL
 	youtubeUrl?: string; // YouTube video URL
+	createdAt: Timestamp;
+	updatedAt: Timestamp;
+}
+
+// ============================================================================
+// SEASON
+// ============================================================================
+
+export interface Season {
+	id: string;
+	userId: string;
+	name: string;
+	startDate: Timestamp;
+	endDate?: Timestamp | null;
+	notes?: string;
 	createdAt: Timestamp;
 	updatedAt: Timestamp;
 }
@@ -331,6 +352,8 @@ export type SessionFormData = Omit<Session, 'id' | 'createdAt' | 'updatedAt'>;
 export type RoutineLogFormData = Omit<RoutineLog, 'id' | 'createdAt' | 'updatedAt'>;
 
 export type DiveFormData = Omit<Dive, 'id' | 'createdAt' | 'updatedAt'>;
+
+export type SeasonFormData = Omit<Season, 'id' | 'createdAt' | 'updatedAt'>;
 
 // ============================================================================
 // HELPER TYPES

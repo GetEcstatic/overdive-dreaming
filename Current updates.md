@@ -1,56 +1,15 @@
 ## Immediate action
 
-Can we remove the "training volume" card and "distance from personal best" card. They are not useful at present.
+Okay, let's
 
-Let's add the "Pool Sessions" card data to the "Training Summary" card as they are similar.
+1. Create/edit seasons from within the profile page (Which will also serve as a settings page)
+2. In settings, also allow choice of the default timeframe (via drop down)
+3. The default timeframe selected in settings becomes the default for all charts. This includes those in the session-stats accessible by clicking on a session from the dashboard
+4. Analytics page maintains the dropdown that includes timeframes (as currently defined) and any defined seasons timeframes
+5. Exception is the PB data shown in the training overview section on the dashboard. PB data should be historical.
 
-Cards should then be ordered on the page as follows (top to bottom):
-  - Training Summary
-  - Personal bests
-  - Competition Summary
-  - Progress over time
-  - Performance by time of day
-  
- 
+Please evaluate these suggestions, highlighting any potential problems or suggesting what you think are better solutions.
 
-Note: the app is now deployed on vercel and I have a small number of beta testers logging in to the app. Any changes need to be non-destructive. I don't want users to lose data they have logged.
-
-I want to start developing the analytics page. 
-
-Page title: Analytics
-
-Metrics should be filtered overall by time period (drop down menu) and user should be able to select time periods for:
-- Last month
-- Last 6 months
-- Last year
-- All time (starting with first recorded session date)
-
-I'd like stats cards to display key stats as follows:
-
-**Pool Sessions card** - showing:
-- Total number of pool sessions (all disciplines)
-- A breakdown of the number of pool sessions by discipline (STA, DYN, DYNB, DNF)
-
-These stats should display for a selected year (dropdown menu) and default to current year
-
-**Competition Card** - showing
-- Number of tagged competition dives 
-- Number of records (only display those that have tags)
-- A breakdown of the records by discipline (STA, DYN, DYNB, DNF)
-These stats should display for a selected year (dropdown menu) and default to current year
-
-**Progress over time**  - this is a chart that includes:
-- Dropdown to select discipline to view
-- X-Axis = time period as per selected time period
-- Y-axis - distance in m (DYN/DYNB/DNF) or time in mm:ss (STA)
-
-**Personal bests Card** - current card works
-
-**Training summary Card** - including:
-- Total sessions for the timeframe
-- Avg session/week
-- Avg RPE
-- Avg Joy
 
 
 
