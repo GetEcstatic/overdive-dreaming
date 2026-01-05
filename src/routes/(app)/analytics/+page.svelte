@@ -245,7 +245,12 @@
 						{/each}
 					</select>
 				</div>
-				<LineChart data={progressChartData} height={300} />
+				<LineChart
+					data={progressChartData}
+					height={300}
+					yTickFormatter={selectedDiscipline === 'STA' ? formatTime : undefined}
+					tooltipValueFormatter={selectedDiscipline === 'STA' ? formatTime : undefined}
+				/>
 			</div>
 
 			<!-- Performance by Time of Day -->
