@@ -92,6 +92,9 @@
 				...(isPB && { isPB: true }) // Mark as PB if applicable
 			};
 
+			if (logData.isCompetition) routineLogData.isCompetition = true;
+			if (logData.recordTag) routineLogData.recordTag = logData.recordTag;
+
 			// Session context
 			if (logData.poolLength !== undefined) routineLogData.poolLength = logData.poolLength;
 			if (logData.initialBreatheUpTime !== undefined) routineLogData.initialBreatheUpTime = logData.initialBreatheUpTime;

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { RoutineTemplate, RoutineLog, Discipline, BreathingTechnique } from '$lib/types';
+	import type { RoutineTemplate, RoutineLog, Discipline, BreathingTechnique, RecordTag } from '$lib/types';
 	import type { LogFormData } from '$lib/components/QuickLogForm.svelte';
 	import {
 		routineLogToFormData,
@@ -37,6 +37,8 @@
 	};
 
 	let sessionDate = $state<string>(formData.sessionDate);
+	let isCompetition = $state<boolean>(formData.isCompetition || false);
+	let recordTag = $state<RecordTag | undefined>(formData.recordTag);
 
 	// Session context
 	let poolLength = $state<number | undefined>(formData.poolLength);
@@ -120,6 +122,10 @@
 		youtubeAction = action;
 	}
 
+	function toggleRecordTag(tag: RecordTag) {
+		recordTag = recordTag === tag ? undefined : tag;
+	}
+
 	// Form submission
 	function handleSubmit(e: Event) {
 		e.preventDefault();
@@ -139,6 +145,8 @@
 		const data: LogFormData = {
 			disciplineUsed,
 			sessionDate,
+			isCompetition,
+			recordTag,
 			// Session context
 			poolLength,
 			initialBreatheUpTime: initialBreatheUp,
@@ -208,6 +216,34 @@
 			required
 		/>
 		<p class="field-hint">When did this session take place? (dates from 2016 onwards)</p>
+
+		<div class="field-group">
+			<label class="field-label">Session Tags</label>
+			<div class="tag-row">
+				<button
+					type="button"
+					class="tag-button"
+					class:active={isCompetition}
+					onclick={() => (isCompetition = !isCompetition)}
+				>
+					Comp
+				</button>
+				<span class="tag-group-label">Record</span>
+				<div class="tag-group">
+					{#each ['NR', 'CR', 'WR'] as tag}
+						<button
+							type="button"
+							class="tag-button"
+							class:active={recordTag === tag}
+							onclick={() => toggleRecordTag(tag as RecordTag)}
+						>
+							{tag}
+						</button>
+					{/each}
+				</div>
+			</div>
+			<p class="field-hint">Pick a record tag if applicable (one max)</p>
+		</div>
 	</div>
 
 	<!-- Discipline Selector / Badge -->
@@ -696,6 +732,49 @@
 		font-size: 0.875rem;
 		font-weight: 500;
 		color: var(--color-text);
+	}
+
+	.tag-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		align-items: center;
+	}
+
+	.tag-group-label {
+		font-size: 0.75rem;
+		color: var(--color-text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+	}
+
+	.tag-group {
+		display: flex;
+		gap: 0.35rem;
+		flex-wrap: wrap;
+	}
+
+	.tag-button {
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		background: rgba(15, 23, 42, 0.4);
+		color: var(--color-text);
+		border-radius: 999px;
+		padding: 0.3rem 0.6rem;
+		font-size: 0.75rem;
+		font-weight: 600;
+		letter-spacing: 0.03em;
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.tag-button:hover {
+		border-color: rgba(148, 163, 184, 0.35);
+	}
+
+	.tag-button.active {
+		border-color: rgba(56, 189, 248, 0.6);
+		background: rgba(56, 189, 248, 0.18);
+		color: #e0f2fe;
 	}
 
 	/* Input Fields */

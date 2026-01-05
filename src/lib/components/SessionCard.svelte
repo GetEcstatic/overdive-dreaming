@@ -31,6 +31,13 @@
 		routine
 	));
 
+	const sessionTags = $derived(() => {
+		const tags: string[] = [];
+		if (log.isCompetition) tags.push('Comp');
+		if (log.recordTag) tags.push(log.recordTag);
+		return tags;
+	});
+
 	// Format timestamps
 	const timeAgo = $derived(formatDistanceToNow(log.date.toDate(), { addSuffix: true }));
 	const fullDate = $derived(format(log.date.toDate(), 'MMM d, yyyy'));
@@ -108,6 +115,13 @@
 			<span class="separator">•</span>
 			<span class="discipline">{log.disciplineUsed}</span>
 		</div>
+		{#if sessionTags.length > 0}
+			<div class="session-tags">
+				{#each sessionTags as tag}
+					<span class="session-tag">{tag}</span>
+				{/each}
+			</div>
+		{/if}
 		<div class="gradient-line"></div>
 	</div>
 
@@ -211,6 +225,25 @@
 	.card-header {
 		padding: 1rem;
 		padding-bottom: 0.75rem;
+	}
+
+	.session-tags {
+		display: flex;
+		gap: 0.35rem;
+		flex-wrap: wrap;
+		margin-top: 0.5rem;
+	}
+
+	.session-tag {
+		border: 1px solid rgba(56, 189, 248, 0.4);
+		background: rgba(56, 189, 248, 0.12);
+		color: #e0f2fe;
+		border-radius: 999px;
+		padding: 0.2rem 0.5rem;
+		font-size: 0.7rem;
+		font-weight: 600;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
 	}
 
 	/* Profile Section */

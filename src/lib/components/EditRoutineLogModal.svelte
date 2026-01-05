@@ -96,6 +96,10 @@
 			if (formData.hoursSinceLastMeal !== log.hoursSinceLastMeal)
 				updates.hoursSinceLastMeal = formData.hoursSinceLastMeal;
 			if (formData.notes !== log.notes) updates.notes = formData.notes;
+			if ((formData.isCompetition ?? false) !== (log.isCompetition ?? false)) {
+				updates.isCompetition = formData.isCompetition ?? false;
+			}
+			if (formData.recordTag !== log.recordTag) updates.recordTag = formData.recordTag ?? null;
 
 			// Only save if there are actual updates
 			if (Object.keys(updates).length > 0) {

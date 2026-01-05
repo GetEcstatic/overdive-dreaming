@@ -167,6 +167,7 @@ export interface RoutineTemplate {
 // ============================================================================
 
 export type TimeOfDay = 'morning' | 'afternoon' | 'evening';
+export type RecordTag = 'NR' | 'CR' | 'WR';
 
 export interface Session {
 	id: string;
@@ -273,6 +274,8 @@ export interface RoutineLog {
 
 	// PB tracking
 	isPB?: boolean; // True if this dive was a personal best when logged
+	isCompetition?: boolean; // Competition dive tag
+	recordTag?: RecordTag | null; // Record tag (NR/CR/WR), only one allowed
 
 	createdAt: Timestamp;
 	updatedAt: Timestamp;
