@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { isValidYouTubeUrl, getYouTubeEmbedUrl } from '$lib/storage';
+	import PhotoCropper from '$lib/components/PhotoCropper.svelte';
 
 	interface Props {
 		existingPhotoUrl?: string;
@@ -12,8 +13,11 @@
 
 	// Photo state
 	let photoFile = $state<File | undefined>(undefined);
+	let sourcePhotoFile = $state<File | undefined>(undefined);
 	let photoPreviewUrl = $state<string | undefined>(existingPhotoUrl);
 	let showPhotoUpload = $state(!existingPhotoUrl);
+	let showCropper = $state(false);
+	let pendingPhotoAction = $state<'add' | 'replace'>('add');
 
 	// YouTube state
 	let youtubeUrl = $state<string>(existingYoutubeUrl || '');
@@ -31,8 +35,8 @@
 			return;
 		}
 
-		if (!file.type.startsWith('image/')) {
-			alert('Please select an image file');
+		if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+			alert('Please select a JPG, PNG, or WebP image');
 			return;
 		}
 
@@ -41,23 +45,14 @@
 			return;
 		}
 
-		photoFile = file;
-
-		// Create preview
-		const reader = new FileReader();
-		reader.onload = (e) => {
-			photoPreviewUrl = e.target?.result as string;
-		};
-		reader.readAsDataURL(file);
-
-		// Notify parent
-		const action = existingPhotoUrl ? 'replace' : 'add';
-		onPhotoChange(file, action);
-		showPhotoUpload = false;
+		sourcePhotoFile = file;
+		pendingPhotoAction = existingPhotoUrl ? 'replace' : 'add';
+		showCropper = true;
 	}
 
 	function removePhoto() {
 		photoFile = undefined;
+		sourcePhotoFile = undefined;
 		photoPreviewUrl = undefined;
 		showPhotoUpload = true;
 
@@ -68,6 +63,26 @@
 	function replacePhoto() {
 		showPhotoUpload = true;
 		photoPreviewUrl = undefined;
+	}
+
+	function applyCrop(croppedFile: File, previewUrl: string) {
+		photoFile = croppedFile;
+		photoPreviewUrl = previewUrl;
+		showPhotoUpload = false;
+		showCropper = false;
+		onPhotoChange(croppedFile, pendingPhotoAction);
+	}
+
+	function cancelCrop() {
+		showCropper = false;
+		if (!photoPreviewUrl) {
+			showPhotoUpload = true;
+		}
+	}
+
+	function adjustCrop() {
+		if (!sourcePhotoFile) return;
+		showCropper = true;
 	}
 
 	// YouTube handlers
@@ -121,10 +136,17 @@
 	<div class="field-group">
 		<label class="field-label">Session Photo (Optional)</label>
 
-		{#if photoPreviewUrl && !showPhotoUpload}
+		{#if showCropper && sourcePhotoFile}
+			<PhotoCropper file={sourcePhotoFile} onApply={applyCrop} onCancel={cancelCrop} />
+		{:else if photoPreviewUrl && !showPhotoUpload}
 			<div class="photo-preview">
 				<img src={photoPreviewUrl} alt="Session photo" class="preview-image" />
 				<div class="photo-actions">
+					{#if sourcePhotoFile}
+						<button type="button" onclick={adjustCrop} class="btn-secondary">
+							Adjust Crop
+						</button>
+					{/if}
 					<button type="button" onclick={replacePhoto} class="btn-secondary">
 						Replace
 					</button>

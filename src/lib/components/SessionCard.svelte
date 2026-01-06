@@ -514,8 +514,6 @@
 		width: 100%;
 		height: auto;
 		display: block;
-		max-height: 400px;
-		object-fit: cover;
 	}
 
 	.youtube-embed {
@@ -623,7 +621,7 @@
 		}
 
 		.photo-image {
-			max-height: 300px;
+			height: auto;
 		}
 	}
 </style>

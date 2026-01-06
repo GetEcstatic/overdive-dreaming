@@ -8,6 +8,7 @@
 		CardTag,
 		SessionVisibility
 	} from '$lib/types';
+	import PhotoCropper from '$lib/components/PhotoCropper.svelte';
 	import { isValidYouTubeUrl } from '$lib/storage';
 
 	interface Props {
@@ -183,7 +184,9 @@
 
 	// Media
 	let photoFile = $state<File | undefined>(undefined);
+	let sourcePhotoFile = $state<File | undefined>(undefined);
 	let photoPreviewUrl = $state<string | undefined>(undefined);
+	let showPhotoCropper = $state(false);
 	let youtubeUrl = $state<string>('');
 	let youtubeError = $state<string | null>(null);
 
@@ -197,8 +200,8 @@
 			return;
 		}
 
-		if (!file.type.startsWith('image/')) {
-			alert('Please select an image file');
+		if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+			alert('Please select a JPG, PNG, or WebP image');
 			return;
 		}
 
@@ -207,18 +210,33 @@
 			return;
 		}
 
-		photoFile = file;
-
-		const reader = new FileReader();
-		reader.onload = (e) => {
-			photoPreviewUrl = e.target?.result as string;
-		};
-		reader.readAsDataURL(file);
+		sourcePhotoFile = file;
+		showPhotoCropper = true;
 	}
 
 	function removePhoto() {
 		photoFile = undefined;
+		sourcePhotoFile = undefined;
 		photoPreviewUrl = undefined;
+		showPhotoCropper = false;
+	}
+
+	function applyCrop(croppedFile: File, previewUrl: string) {
+		photoFile = croppedFile;
+		photoPreviewUrl = previewUrl;
+		showPhotoCropper = false;
+	}
+
+	function cancelCrop() {
+		showPhotoCropper = false;
+		if (!photoPreviewUrl) {
+			sourcePhotoFile = undefined;
+		}
+	}
+
+	function adjustCrop() {
+		if (!sourcePhotoFile) return;
+		showPhotoCropper = true;
 	}
 
 	function handleYouTubeChange() {
@@ -935,12 +953,21 @@
 		<div class="field-group">
 			<label class="field-label">Session Photo</label>
 
-			{#if photoPreviewUrl}
+			{#if showPhotoCropper && sourcePhotoFile}
+				<PhotoCropper file={sourcePhotoFile} onApply={applyCrop} onCancel={cancelCrop} />
+			{:else if photoPreviewUrl}
 				<div class="photo-preview">
 					<img src={photoPreviewUrl} alt="Preview" class="preview-image" />
-					<button type="button" onclick={removePhoto} class="remove-photo-btn">
-						Remove
-					</button>
+					<div class="photo-actions">
+						{#if sourcePhotoFile}
+							<button type="button" onclick={adjustCrop} class="btn-secondary">
+								Adjust Crop
+							</button>
+						{/if}
+						<button type="button" onclick={removePhoto} class="remove-photo-btn">
+							Remove
+						</button>
+					</div>
 				</div>
 			{:else}
 				<input
@@ -1319,10 +1346,31 @@
 		object-fit: cover;
 	}
 
-	.remove-photo-btn {
+	.photo-actions {
 		position: absolute;
-		top: 0.5rem;
 		right: 0.5rem;
+		bottom: 0.5rem;
+		display: flex;
+		gap: 0.5rem;
+	}
+
+	.btn-secondary {
+		padding: 0.5rem 0.75rem;
+		background: rgba(148, 163, 184, 0.2);
+		color: white;
+		border: none;
+		border-radius: 6px;
+		font-size: 0.75rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: background 0.2s ease;
+	}
+
+	.btn-secondary:hover {
+		background: rgba(148, 163, 184, 0.35);
+	}
+
+	.remove-photo-btn {
 		padding: 0.5rem 1rem;
 		background: rgba(239, 68, 68, 0.9);
 		color: white;
