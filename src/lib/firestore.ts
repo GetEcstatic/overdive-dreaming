@@ -37,7 +37,8 @@ import type {
 	Discipline,
 	Season,
 	SeasonFormData,
-	UserSettings
+	UserSettings,
+	PublicUserProfile
 } from '$lib/types';
 
 // ============================================================================
@@ -464,6 +465,36 @@ export async function updateUserSettings(
 		},
 		{ merge: true }
 	);
+}
+
+// ============================================================================
+// PUBLIC USER PROFILES (Community feed)
+// ============================================================================
+
+export async function upsertPublicUserProfile(
+	userId: string,
+	profile: Pick<PublicUserProfile, 'displayName' | 'photoURL'>
+): Promise<void> {
+	const docRef = doc(db, 'usersPublic', userId);
+	await setDoc(
+		docRef,
+		{
+			userId,
+			displayName: profile.displayName,
+			photoURL: profile.photoURL ?? null,
+			updatedAt: serverTimestamp()
+		},
+		{ merge: true }
+	);
+}
+
+export async function getPublicUserProfile(
+	userId: string
+): Promise<PublicUserProfile | null> {
+	const docRef = doc(db, 'usersPublic', userId);
+	const docSnap = await getDoc(docRef);
+	if (!docSnap.exists()) return null;
+	return docSnap.data() as PublicUserProfile;
 }
 
 // ============================================================================

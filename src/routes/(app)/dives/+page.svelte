@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { Timestamp } from 'firebase/firestore';
 	import { user } from '$lib/stores/auth';
-	import { getRoutinesForUser, createRoutineLog, updateRoutineLog, getUserSettings } from '$lib/firestore';
+	import { getRoutinesForUser, createRoutineLog, updateRoutineLog, getUserSettings, upsertPublicUserProfile } from '$lib/firestore';
 	import { uploadSessionPhoto } from '$lib/storage';
 	import { getUserPBs, checkIsPB, updateUserPB } from '$lib/utils/personalBests';
 	import { getTimeOfDay } from '$lib/utils/sessions';
@@ -100,6 +100,17 @@
 
 			if ($user.displayName) routineLogData.authorDisplayName = $user.displayName;
 			if ($user.photoURL) routineLogData.authorPhotoURL = $user.photoURL;
+
+			if ($user.displayName) {
+				try {
+					await upsertPublicUserProfile($user.uid, {
+						displayName: $user.displayName,
+						photoURL: $user.photoURL ?? undefined
+					});
+				} catch (profileError) {
+					console.warn('Failed to update public profile:', profileError);
+				}
+			}
 
 			if (logData.isCompetition) routineLogData.isCompetition = true;
 			if (logData.recordTag) routineLogData.recordTag = logData.recordTag;

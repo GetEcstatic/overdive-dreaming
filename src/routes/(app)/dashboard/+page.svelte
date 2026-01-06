@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { user } from '$lib/stores/auth';
-	import { getRecentActivityPaginated, getPublicActivityPaginated } from '$lib/firestore';
+	import { getRecentActivityPaginated, getPublicActivityPaginated, getPublicUserProfile } from '$lib/firestore';
 	import { doc, getDoc, collection, query, where, getDocs, type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore';
 	import { db } from '$lib/firebase';
 	import type { RoutineLog, RoutineTemplate, PersonalBests, Discipline } from '$lib/types';
@@ -34,6 +34,7 @@
 	let loadMoreSentinel: HTMLDivElement | undefined = $state();
 	let observer: IntersectionObserver | null = null;
 	let lastRefreshAt = 0;
+	const profileCache = new Map<string, { displayName: string; photoURL?: string }>();
 	const feedTitle = $derived.by(() => (feedMode === 'community' ? 'Community Sessions' : 'Recent Sessions'));
 	const emptyTitle = $derived.by(() => (feedMode === 'community' ? 'No community sessions yet' : 'No sessions yet'));
 	const emptyText = $derived.by(() =>
@@ -111,6 +112,23 @@
 
 				if (routineSnap.exists()) {
 					const routine = { id: routineSnap.id, ...routineSnap.data() } as RoutineTemplate;
+					if (!log.authorDisplayName) {
+						let profile = profileCache.get(log.userId);
+						if (!profile) {
+							const publicProfile = await getPublicUserProfile(log.userId);
+							if (publicProfile) {
+								profile = {
+									displayName: publicProfile.displayName,
+									photoURL: publicProfile.photoURL ?? undefined
+								};
+								profileCache.set(log.userId, profile);
+							}
+						}
+						if (profile) {
+							log.authorDisplayName = profile.displayName;
+							log.authorPhotoURL = profile.photoURL;
+						}
+					}
 					sessionsData.push({ log, routine });
 				}
 			}
@@ -146,6 +164,23 @@
 
 				if (routineSnap.exists()) {
 					const routine = { id: routineSnap.id, ...routineSnap.data() } as RoutineTemplate;
+					if (!log.authorDisplayName) {
+						let profile = profileCache.get(log.userId);
+						if (!profile) {
+							const publicProfile = await getPublicUserProfile(log.userId);
+							if (publicProfile) {
+								profile = {
+									displayName: publicProfile.displayName,
+									photoURL: publicProfile.photoURL ?? undefined
+								};
+								profileCache.set(log.userId, profile);
+							}
+						}
+						if (profile) {
+							log.authorDisplayName = profile.displayName;
+							log.authorPhotoURL = profile.photoURL;
+						}
+					}
 					newSessionsData.push({ log, routine });
 				}
 			}

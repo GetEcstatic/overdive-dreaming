@@ -46,6 +46,17 @@ export interface User {
 }
 
 // ============================================================================
+// PUBLIC USER PROFILE (minimal fields for community feed)
+// ============================================================================
+
+export interface PublicUserProfile {
+	userId: string;
+	displayName: string;
+	photoURL?: string;
+	updatedAt: Timestamp;
+}
+
+// ============================================================================
 // ROUTINE TEMPLATE
 // ============================================================================
 
