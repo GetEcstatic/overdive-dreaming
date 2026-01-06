@@ -97,9 +97,9 @@
 			bind:value={description}
 			placeholder="Describe the routine and its purpose..."
 			rows="4"
-			maxlength="500"
+			maxlength="800"
 		></textarea>
-		<div class="char-count">{description.length}/500</div>
+		<div class="char-count">{description.length}/800</div>
 	</div>
 
 	<div class="form-section">

@@ -60,6 +60,11 @@
 		goto('/routines/create');
 	}
 
+	function truncateDescription(text: string, maxLength = 100) {
+		if (text.length <= maxLength) return text;
+		return `${text.slice(0, maxLength).trim()}…`;
+	}
+
 	function navigateToEdit(routineId: string) {
 		goto(`/routines/${routineId}/edit`);
 	}
@@ -103,7 +108,7 @@
 								</div>
 							</div>
 
-							<p class="routine-description">{routine.description}</p>
+							<p class="routine-description">{truncateDescription(routine.description)}</p>
 
 							{#if routine.tags.length > 0}
 								<div class="tag-list">
@@ -158,7 +163,7 @@
 								</div>
 							</div>
 
-							<p class="routine-description">{routine.description}</p>
+							<p class="routine-description">{truncateDescription(routine.description)}</p>
 
 							{#if routine.tags.length > 0}
 								<div class="tag-list">
