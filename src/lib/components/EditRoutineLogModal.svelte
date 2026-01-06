@@ -99,6 +99,7 @@
 			if ((formData.isCompetition ?? false) !== (log.isCompetition ?? false)) {
 				updates.isCompetition = formData.isCompetition ?? false;
 			}
+			if (formData.cardTag !== log.cardTag) updates.cardTag = formData.cardTag ?? null;
 			if (formData.recordTag !== log.recordTag) updates.recordTag = formData.recordTag ?? null;
 			if (formData.visibility !== log.visibility) updates.visibility = formData.visibility;
 

@@ -113,6 +113,7 @@
 			}
 
 			if (logData.isCompetition) routineLogData.isCompetition = true;
+			if (logData.cardTag) routineLogData.cardTag = logData.cardTag;
 			if (logData.recordTag) routineLogData.recordTag = logData.recordTag;
 
 			// Session context

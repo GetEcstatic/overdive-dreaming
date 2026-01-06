@@ -1,5 +1,13 @@
 <script lang="ts">
-	import type { RoutineTemplate, RoutineLog, Discipline, BreathingTechnique, RecordTag, SessionVisibility } from '$lib/types';
+	import type {
+		RoutineTemplate,
+		RoutineLog,
+		Discipline,
+		BreathingTechnique,
+		RecordTag,
+		CardTag,
+		SessionVisibility
+	} from '$lib/types';
 	import type { LogFormData } from '$lib/components/QuickLogForm.svelte';
 	import {
 		routineLogToFormData,
@@ -38,6 +46,7 @@
 
 	let sessionDate = $state<string>(formData.sessionDate);
 	let isCompetition = $state<boolean>(formData.isCompetition || false);
+	let cardTag = $state<CardTag | undefined>(formData.cardTag);
 	let recordTag = $state<RecordTag | undefined>(formData.recordTag);
 	let visibility = $state<SessionVisibility>(formData.visibility ?? 'private');
 
@@ -127,6 +136,17 @@
 		recordTag = recordTag === tag ? undefined : tag;
 	}
 
+	function toggleCardTag(tag: CardTag) {
+		cardTag = cardTag === tag ? undefined : tag;
+	}
+
+	$effect(() => {
+		if (!isCompetition) {
+			cardTag = undefined;
+			recordTag = undefined;
+		}
+	});
+
 	// Form submission
 	function handleSubmit(e: Event) {
 		e.preventDefault();
@@ -147,6 +167,7 @@
 			disciplineUsed,
 			sessionDate,
 			isCompetition,
+			cardTag,
 			recordTag,
 			visibility,
 			// Session context
@@ -230,19 +251,39 @@
 				>
 					Comp
 				</button>
-				<span class="tag-group-label">Record</span>
-				<div class="tag-group">
-					{#each ['NR', 'CR', 'WR'] as tag}
-						<button
-							type="button"
-							class="tag-button"
-							class:active={recordTag === tag}
-							onclick={() => toggleRecordTag(tag as RecordTag)}
-						>
-							{tag}
-						</button>
-					{/each}
-				</div>
+				{#if isCompetition}
+					<span class="tag-group-label">Cards</span>
+					<div class="tag-group">
+						{#each [
+							{ value: 'white', label: '⬜️' },
+							{ value: 'yellow', label: '🟨' },
+							{ value: 'red', label: '🟥' }
+						] as card}
+							<button
+								type="button"
+								class="tag-button"
+								class:active={cardTag === card.value}
+								onclick={() => toggleCardTag(card.value as CardTag)}
+								aria-label={`${card.value} card`}
+							>
+								{card.label}
+							</button>
+						{/each}
+					</div>
+					<span class="tag-group-label">Record</span>
+					<div class="tag-group">
+						{#each ['NR', 'CR', 'WR'] as tag}
+							<button
+								type="button"
+								class="tag-button"
+								class:active={recordTag === tag}
+								onclick={() => toggleRecordTag(tag as RecordTag)}
+							>
+								{tag}
+							</button>
+						{/each}
+					</div>
+				{/if}
 			</div>
 			<p class="field-hint">Pick a record tag if applicable (one max)</p>
 		</div>

@@ -18,6 +18,7 @@ export function routineLogToFormData(log: RoutineLog): LogFormData {
 		disciplineUsed: log.disciplineUsed,
 		sessionDate,
 		isCompetition: log.isCompetition || false,
+		cardTag: log.cardTag ?? undefined,
 		recordTag: log.recordTag ?? undefined,
 		visibility: log.visibility ?? 'private',
 

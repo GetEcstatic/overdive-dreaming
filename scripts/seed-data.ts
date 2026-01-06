@@ -237,7 +237,7 @@ const defaultRoutines: Omit<RoutineTemplate, 'createdAt' | 'updatedAt'>[] = [
 
 const suggestedTags: SuggestedTags = {
 	trainingAdaptations: ['co2', 'o2', 'technique', 'mental', 'endurance', 'power'],
-	diveTypes: ['max-attempt', 'sub-max', 'warm-up', 'recovery'],
+	diveTypes: ['max-attempt', 'sub-max', 'warm-up', 'recovery', 'dry'],
 	difficultyLevels: ['beginner', 'intermediate', 'advanced', 'expert'],
 	specialCategories: ['competition', 'fun', 'experimental']
 };

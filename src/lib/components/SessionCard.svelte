@@ -43,6 +43,14 @@
 	const sessionTags = $derived.by(() => {
 		const tags: string[] = [];
 		if (log.isCompetition) tags.push('Comp');
+		if (log.cardTag) {
+			const cardLabels: Record<string, string> = {
+				white: '⬜️',
+				yellow: '🟨',
+				red: '🟥'
+			};
+			tags.push(cardLabels[log.cardTag] ?? log.cardTag);
+		}
 		if (log.recordTag) tags.push(log.recordTag);
 		return tags;
 	});
