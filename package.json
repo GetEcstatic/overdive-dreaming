@@ -10,7 +10,8 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "seed": "tsx scripts/seed-data.ts",
-    "seed:logs": "tsx scripts/seed-historical-logs.ts"
+    "seed:logs": "tsx scripts/seed-historical-logs.ts",
+    "backfill:profiles": "tsx scripts/backfill-public-profiles.ts"
   },
   "keywords": [
     "freediving",
@@ -39,6 +40,7 @@
     "chart.js": "^4.5.1",
     "date-fns": "^4.1.0",
     "firebase": "^12.7.0",
+    "firebase-admin": "^13.6.0",
     "lucide-svelte": "^0.562.0"
   }
 }
