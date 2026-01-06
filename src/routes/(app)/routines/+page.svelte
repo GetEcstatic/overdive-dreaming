@@ -127,10 +127,11 @@
 
 	async function handleSendRoutine() {
 		if (!sendingRoutine || !selectedRecipient) return;
+		const recipient = selectedRecipient;
 
 		try {
 			isSending = true;
-			const routineData: RoutineTemplateFormData = {
+			const routineData = {
 				name: sendingRoutine.name,
 				description: sendingRoutine.description,
 				disciplines: sendingRoutine.disciplines,
@@ -144,9 +145,13 @@
 				instructionalVideoUrl: sendingRoutine.instructionalVideoUrl
 			};
 
-			await createRoutine(selectedRecipient.userId, routineData);
+			const filteredRoutineData = Object.fromEntries(
+				Object.entries(routineData).filter(([, value]) => value !== undefined)
+			) as RoutineTemplateFormData;
+
+			await createRoutine(recipient.userId, filteredRoutineData);
 			closeSendModal();
-			alert(`Routine sent to ${selectedRecipient.displayName}`);
+			alert(`Routine sent to ${recipient.displayName}`);
 		} catch (err) {
 			console.error('Failed to send routine:', err);
 			alert('Failed to send routine');
@@ -322,7 +327,7 @@
 
 {#if sendModalOpen}
 	<div class="modal-backdrop" onclick={closeSendModal}>
-		<div class="modal-panel" onclick|stopPropagation>
+		<div class="modal-panel" onclick={(event) => event.stopPropagation()}>
 			<h3 class="modal-title">Send routine</h3>
 			<p class="modal-subtitle">
 				{sendingRoutine ? `Send "${sendingRoutine.name}" to a user.` : 'Choose a user to send this routine.'}
