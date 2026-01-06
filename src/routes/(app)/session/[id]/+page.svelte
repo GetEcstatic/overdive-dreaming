@@ -8,7 +8,7 @@
 	import { formatTime } from '$lib/utils/time';
 	import { getYouTubeEmbedUrl, deleteSessionPhoto } from '$lib/storage';
 	import { format } from 'date-fns';
-	import { updateRoutineLog, deleteSessionByGroup } from '$lib/firestore';
+	import { updateRoutineLog, deleteRoutineLog, deleteSessionByGroup } from '$lib/firestore';
 	import { recalculatePBsForDisciplines } from '$lib/utils/personalBests';
 	import type { RoutineLog } from '$lib/types';
 
@@ -95,17 +95,31 @@
 	}
 
 	async function handleConfirmDelete() {
-		if (!$user || !log.sessionGroup) return;
+		if (!$user) return;
 
 		isDeleting = true;
 		deleteError = null;
 
 		try {
-			// Delete all routine logs in this session group
-			const result = await deleteSessionByGroup($user.uid, log.sessionGroup);
+			let photoUrls: string[] = [];
+			let disciplines: string[] = [];
+
+			if (log.sessionGroup) {
+				// Delete all routine logs in this session group
+				const result = await deleteSessionByGroup($user.uid, log.sessionGroup);
+				photoUrls = result.photoUrls;
+				disciplines = result.disciplines;
+			} else {
+				// Fallback for legacy logs without sessionGroup
+				if (log.photoUrl) {
+					photoUrls = [log.photoUrl];
+				}
+				disciplines = log.disciplineUsed ? [log.disciplineUsed] : [];
+				await deleteRoutineLog(log.id);
+			}
 
 			// Clean up photos from storage
-			for (const photoUrl of result.photoUrls) {
+			for (const photoUrl of photoUrls) {
 				try {
 					await deleteSessionPhoto(photoUrl);
 				} catch (photoError) {
@@ -114,9 +128,9 @@
 				}
 			}
 
-			if (result.disciplines.length > 0) {
+			if (disciplines.length > 0) {
 				try {
-					await recalculatePBsForDisciplines($user.uid, result.disciplines);
+					await recalculatePBsForDisciplines($user.uid, disciplines);
 				} catch (pbError) {
 					console.error('Failed to recalculate PBs:', pbError);
 				}

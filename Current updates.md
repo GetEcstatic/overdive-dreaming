@@ -1,15 +1,8 @@
 ## Immediate action
 
-Okay, let's
-
-1. Create/edit seasons from within the profile page (Which will also serve as a settings page)
-2. In settings, also allow choice of the default timeframe (via drop down)
-3. The default timeframe selected in settings becomes the default for all charts. This includes those in the session-stats accessible by clicking on a session from the dashboard
-4. Analytics page maintains the dropdown that includes timeframes (as currently defined) and any defined seasons timeframes
-5. Exception is the PB data shown in the training overview section on the dashboard. PB data should be historical.
-
-Please evaluate these suggestions, highlighting any potential problems or suggesting what you think are better solutions.
-
+Add the following tags:
+- white card, yellow card, red card (to the comp tag row. These can be symbols/emojis rather than words)
+- Under Dive types, add "Dry" as a tag option
 
 
 
