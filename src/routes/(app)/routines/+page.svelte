@@ -417,6 +417,7 @@
 		color: var(--color-text-muted);
 		line-height: 1.5;
 		margin: 0 0 1rem 0;
+		white-space: pre-line;
 	}
 
 	.description-toggle {
