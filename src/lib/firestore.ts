@@ -637,3 +637,50 @@ export async function getRecentActivityPaginated(
 		hasMore
 	};
 }
+
+/**
+ * Get recent public routine logs with pagination support (community feed)
+ */
+export async function getPublicActivityPaginated(
+	limitCount = 20,
+	lastDoc?: QueryDocumentSnapshot<DocumentData>
+): Promise<{
+	logs: RoutineLog[];
+	lastDoc: QueryDocumentSnapshot<DocumentData> | null;
+	hasMore: boolean;
+}> {
+	const routineLogsRef = collection(db, 'routineLogs');
+
+	const constraints: QueryConstraint[] = [
+		where('visibility', '==', 'public'),
+		orderBy('date', 'desc'),
+		limit(limitCount)
+	];
+
+	if (lastDoc) {
+		constraints.push(startAfter(lastDoc));
+	}
+
+	const q = query(routineLogsRef, ...constraints);
+	let snapshot;
+	try {
+		snapshot = await getDocsFromServer(q);
+	} catch (error) {
+		console.warn('Falling back to cached public routine logs:', error);
+		snapshot = await getDocs(q);
+	}
+
+	const logs: RoutineLog[] = [];
+	snapshot.forEach((doc) => {
+		logs.push({ id: doc.id, ...doc.data() } as RoutineLog);
+	});
+
+	const lastVisible = snapshot.docs[snapshot.docs.length - 1] || null;
+	const hasMore = snapshot.docs.length === limitCount;
+
+	return {
+		logs,
+		lastDoc: lastVisible,
+		hasMore
+	};
+}

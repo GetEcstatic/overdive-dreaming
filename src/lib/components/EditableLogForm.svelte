@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { RoutineTemplate, RoutineLog, Discipline, BreathingTechnique, RecordTag } from '$lib/types';
+	import type { RoutineTemplate, RoutineLog, Discipline, BreathingTechnique, RecordTag, SessionVisibility } from '$lib/types';
 	import type { LogFormData } from '$lib/components/QuickLogForm.svelte';
 	import {
 		routineLogToFormData,
@@ -39,6 +39,7 @@
 	let sessionDate = $state<string>(formData.sessionDate);
 	let isCompetition = $state<boolean>(formData.isCompetition || false);
 	let recordTag = $state<RecordTag | undefined>(formData.recordTag);
+	let visibility = $state<SessionVisibility>(formData.visibility ?? 'private');
 
 	// Session context
 	let poolLength = $state<number | undefined>(formData.poolLength);
@@ -147,6 +148,7 @@
 			sessionDate,
 			isCompetition,
 			recordTag,
+			visibility,
 			// Session context
 			poolLength,
 			initialBreatheUpTime: initialBreatheUp,
@@ -243,6 +245,29 @@
 				</div>
 			</div>
 			<p class="field-hint">Pick a record tag if applicable (one max)</p>
+		</div>
+
+		<div class="field-group">
+			<label class="field-label">Visibility</label>
+			<div class="tag-row">
+				<button
+					type="button"
+					class="tag-button"
+					class:active={visibility === 'private'}
+					onclick={() => (visibility = 'private')}
+				>
+					Private
+				</button>
+				<button
+					type="button"
+					class="tag-button"
+					class:active={visibility === 'public'}
+					onclick={() => (visibility = 'public')}
+				>
+					Public
+				</button>
+			</div>
+			<p class="field-hint">Public sessions can appear in the community feed.</p>
 		</div>
 	</div>
 

@@ -31,6 +31,15 @@
 		routine
 	));
 
+	const isOwner = $derived($user?.uid === log.userId);
+	const displayName = $derived(
+		isOwner ? ($user?.displayName ?? log.authorDisplayName ?? 'User') : (log.authorDisplayName ?? 'Diver')
+	);
+	const displayPhoto = $derived(
+		isOwner ? ($user?.photoURL ?? log.authorPhotoURL) : log.authorPhotoURL
+	);
+	const displayInitial = $derived(displayName?.charAt(0) ?? 'U');
+
 	const sessionTags = $derived.by(() => {
 		const tags: string[] = [];
 		if (log.isCompetition) tags.push('Comp');
@@ -88,15 +97,15 @@
 	<!-- Header with profile info -->
 	<div class="card-header">
 		<div class="profile-section">
-			{#if $user?.photoURL}
-				<img src={$user.photoURL} alt={$user.displayName} class="profile-pic" />
+			{#if displayPhoto}
+				<img src={displayPhoto} alt={displayName} class="profile-pic" />
 			{:else}
 				<div class="profile-pic-placeholder">
-					{$user?.displayName?.charAt(0) ?? 'U'}
+					{displayInitial}
 				</div>
 			{/if}
 			<div class="profile-info">
-				<div class="user-name">{$user?.displayName ?? 'User'}</div>
+				<div class="user-name">{displayName}</div>
 				<div class="session-meta">
 					<span class="date">{fullDate}</span>
 					{#if log.timeOfDay}

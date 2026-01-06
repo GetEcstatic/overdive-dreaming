@@ -19,6 +19,7 @@ export function routineLogToFormData(log: RoutineLog): LogFormData {
 		sessionDate,
 		isCompetition: log.isCompetition || false,
 		recordTag: log.recordTag ?? undefined,
+		visibility: log.visibility ?? 'private',
 
 		// Session context
 		poolLength: log.poolLength,

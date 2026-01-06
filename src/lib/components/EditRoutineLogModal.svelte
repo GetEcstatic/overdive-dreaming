@@ -100,6 +100,7 @@
 				updates.isCompetition = formData.isCompetition ?? false;
 			}
 			if (formData.recordTag !== log.recordTag) updates.recordTag = formData.recordTag ?? null;
+			if (formData.visibility !== log.visibility) updates.visibility = formData.visibility;
 
 			// Only save if there are actual updates
 			if (Object.keys(updates).length > 0) {

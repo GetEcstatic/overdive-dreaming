@@ -1,11 +1,12 @@
 <script lang="ts">
-	import type { RoutineTemplate, Discipline, BreathingTechnique, PoolType, RecordTag } from '$lib/types';
+	import type { RoutineTemplate, Discipline, BreathingTechnique, PoolType, RecordTag, SessionVisibility } from '$lib/types';
 	import { isValidYouTubeUrl } from '$lib/storage';
 
 	interface Props {
 		routine: RoutineTemplate;
 		onSubmit: (data: LogFormData) => void;
 		onCancel: () => void;
+		defaultVisibility?: SessionVisibility;
 	}
 
 	export interface LogFormData {
@@ -48,9 +49,10 @@
 		// Media
 		photoFile?: File;
 		youtubeUrl?: string;
+		visibility?: SessionVisibility;
 	}
 
-	let { routine, onSubmit, onCancel }: Props = $props();
+	let { routine, onSubmit, onCancel, defaultVisibility = 'private' }: Props = $props();
 
 	// Form state
 	let disciplineUsed = $state<Discipline>(routine.disciplines[0]);
@@ -66,6 +68,7 @@
 	let sessionDate = $state<string>(formatDateForInput(today));
 	let isCompetition = $state<boolean>(false);
 	let recordTag = $state<RecordTag | undefined>(undefined);
+	let visibility = $state<SessionVisibility>(defaultVisibility);
 
 	// Smart defaults from routine table
 	const defaultRepsCompleted = routine.table?.rows.length;
@@ -261,6 +264,7 @@
 			sessionDate,
 			isCompetition,
 			recordTag,
+			visibility,
 			// Session context
 			poolLength,
 			initialBreatheUpTime: initialBreatheUp,
@@ -367,6 +371,29 @@
 				</div>
 			</div>
 			<p class="field-hint">Pick a record tag if applicable (one max)</p>
+		</div>
+
+		<div class="field-group">
+			<label class="field-label">Visibility</label>
+			<div class="tag-row">
+				<button
+					type="button"
+					class="tag-button"
+					class:active={visibility === 'private'}
+					onclick={() => (visibility = 'private')}
+				>
+					Private
+				</button>
+				<button
+					type="button"
+					class="tag-button"
+					class:active={visibility === 'public'}
+					onclick={() => (visibility = 'public')}
+				>
+					Public
+				</button>
+			</div>
+			<p class="field-hint">Public sessions can appear in the community feed.</p>
 		</div>
 	</div>
 

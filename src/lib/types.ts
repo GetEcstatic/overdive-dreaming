@@ -29,6 +29,7 @@ export interface PersonalBests {
 export interface UserSettings {
 	defaultTimeframe?: '1month' | '6months' | '1year';
 	defaultAnalyticsFilter?: string;
+	defaultSessionVisibility?: SessionVisibility;
 }
 
 export interface User {
@@ -174,6 +175,7 @@ export interface RoutineTemplate {
 
 export type TimeOfDay = 'morning' | 'afternoon' | 'evening';
 export type RecordTag = 'NR' | 'CR' | 'WR';
+export type SessionVisibility = 'private' | 'public';
 
 export interface Session {
 	id: string;
@@ -297,6 +299,9 @@ export interface RoutineLog {
 	isPB?: boolean; // True if this dive was a personal best when logged
 	isCompetition?: boolean; // Competition dive tag
 	recordTag?: RecordTag | null; // Record tag (NR/CR/WR), only one allowed
+	visibility?: SessionVisibility; // Public/private visibility for social feed
+	authorDisplayName?: string;
+	authorPhotoURL?: string;
 
 	createdAt: Timestamp;
 	updatedAt: Timestamp;

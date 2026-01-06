@@ -12,7 +12,7 @@
 		getUserSettings,
 		updateUserSettings
 	} from '$lib/firestore';
-	import type { Season } from '$lib/types';
+	import type { Season, SessionVisibility } from '$lib/types';
 
 	type DefaultTimeframe = '1month' | '6months' | '1year';
 
@@ -24,6 +24,7 @@
 
 	let defaultFilterKey = $state<string>('tf:1month');
 	let defaultTimeframeFallback = $state<DefaultTimeframe>('1month');
+	let defaultSessionVisibility = $state<SessionVisibility>('private');
 	let settingsSaving = $state(false);
 	let settingsError = $state<string | null>(null);
 
@@ -76,6 +77,9 @@
 			} else if (settings?.defaultTimeframe) {
 				defaultFilterKey = `tf:${settings.defaultTimeframe}`;
 			}
+			if (settings?.defaultSessionVisibility) {
+				defaultSessionVisibility = settings.defaultSessionVisibility;
+			}
 		} catch (error) {
 			console.error('Failed to load settings:', error);
 			settingsError = 'Failed to load settings.';
@@ -107,7 +111,26 @@
 			}
 			await updateUserSettings($user.uid, {
 				defaultAnalyticsFilter: defaultFilterKey,
-				defaultTimeframe: defaultTimeframeFallback
+				defaultTimeframe: defaultTimeframeFallback,
+				defaultSessionVisibility
+			});
+		} catch (error) {
+			console.error('Failed to update settings:', error);
+			settingsError = 'Failed to save settings.';
+		} finally {
+			settingsSaving = false;
+		}
+	}
+
+	async function handleDefaultVisibilityChange() {
+		if (!$user) return;
+		try {
+			settingsSaving = true;
+			settingsError = null;
+			await updateUserSettings($user.uid, {
+				defaultAnalyticsFilter: defaultFilterKey,
+				defaultTimeframe: defaultTimeframeFallback,
+				defaultSessionVisibility
 			});
 		} catch (error) {
 			console.error('Failed to update settings:', error);
@@ -265,6 +288,20 @@
 					{#if settingsError}
 						<p class="form-hint error-text">{settingsError}</p>
 					{/if}
+				</div>
+				<div class="form-group">
+					<label class="form-label" for="default-visibility">Default Session Visibility</label>
+					<select
+						id="default-visibility"
+						class="form-select"
+						bind:value={defaultSessionVisibility}
+						onchange={handleDefaultVisibilityChange}
+						disabled={settingsSaving}
+					>
+						<option value="private">Private</option>
+						<option value="public">Public</option>
+					</select>
+					<p class="form-hint">New logs default to this setting unless you override per session.</p>
 				</div>
 			</section>
 		</div>

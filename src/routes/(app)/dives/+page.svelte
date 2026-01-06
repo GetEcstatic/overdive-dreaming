@@ -2,13 +2,13 @@
 	import { onMount } from 'svelte';
 	import { Timestamp } from 'firebase/firestore';
 	import { user } from '$lib/stores/auth';
-	import { getRoutinesForUser, createRoutineLog, updateRoutineLog } from '$lib/firestore';
+	import { getRoutinesForUser, createRoutineLog, updateRoutineLog, getUserSettings } from '$lib/firestore';
 	import { uploadSessionPhoto } from '$lib/storage';
 	import { getUserPBs, checkIsPB, updateUserPB } from '$lib/utils/personalBests';
 	import { getTimeOfDay } from '$lib/utils/sessions';
 	import RoutineSelector from '$lib/components/RoutineSelector.svelte';
 	import QuickLogForm, { type LogFormData } from '$lib/components/QuickLogForm.svelte';
-	import type { RoutineTemplate } from '$lib/types';
+	import type { RoutineTemplate, SessionVisibility } from '$lib/types';
 
 	let routines = $state<RoutineTemplate[]>([]);
 	let selectedRoutine = $state<RoutineTemplate | null>(null);
@@ -17,12 +17,17 @@
 	let saving = $state(false);
 	let error = $state<string | null>(null);
 	let success = $state<string | null>(null);
+	let defaultSessionVisibility = $state<SessionVisibility>('private');
 
 	onMount(async () => {
 		if (!$user) return;
 
 		try {
 			routines = await getRoutinesForUser($user.uid);
+			const settings = await getUserSettings($user.uid);
+			if (settings?.defaultSessionVisibility) {
+				defaultSessionVisibility = settings.defaultSessionVisibility;
+			}
 			loading = false;
 		} catch (err) {
 			console.error('Error loading routines:', err);
@@ -89,8 +94,12 @@
 				sessionGroup,
 				disciplineUsed: logData.disciplineUsed,
 				hasDetailedData: false, // Quick summary only
+				visibility: logData.visibility ?? defaultSessionVisibility,
 				...(isPB && { isPB: true }) // Mark as PB if applicable
 			};
+
+			if ($user.displayName) routineLogData.authorDisplayName = $user.displayName;
+			if ($user.photoURL) routineLogData.authorPhotoURL = $user.photoURL;
 
 			if (logData.isCompetition) routineLogData.isCompetition = true;
 			if (logData.recordTag) routineLogData.recordTag = logData.recordTag;
@@ -223,7 +232,12 @@
 				<RoutineSelector {routines} bind:selectedRoutineId onSelect={handleRoutineSelect} />
 			{:else}
 				<!-- Step 2: Quick Log Form -->
-				<QuickLogForm routine={selectedRoutine} onSubmit={handleSubmit} onCancel={handleCancel} />
+				<QuickLogForm
+					routine={selectedRoutine}
+					onSubmit={handleSubmit}
+					onCancel={handleCancel}
+					defaultVisibility={defaultSessionVisibility}
+				/>
 
 				{#if saving}
 					<div class="mt-4 p-4 bg-[var(--color-bg)] rounded-lg text-center">

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { user } from '$lib/stores/auth';
-	import { getRecentActivityPaginated } from '$lib/firestore';
+	import { getRecentActivityPaginated, getPublicActivityPaginated } from '$lib/firestore';
 	import { doc, getDoc, collection, query, where, getDocs, type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore';
 	import { db } from '$lib/firebase';
 	import type { RoutineLog, RoutineTemplate, PersonalBests, Discipline } from '$lib/types';
@@ -13,20 +13,46 @@
 		routine: RoutineTemplate;
 	}
 
-	let sessions: LogWithRoutine[] = $state([]);
+	type FeedMode = 'mine' | 'community';
+
+	let feedMode = $state<FeedMode>('mine');
+	let personalSessions: LogWithRoutine[] = $state([]);
+	let communitySessions: LogWithRoutine[] = $state([]);
+	const sessions = $derived.by(() => (feedMode === 'mine' ? personalSessions : communitySessions));
 	let loading = $state(true);
 	let loadingMore = $state(false);
 	let error = $state<string | null>(null);
 	let personalBests = $state<PersonalBests | undefined>(undefined);
 	let thisWeekCount = $state(0);
-	let lastDoc: QueryDocumentSnapshot<DocumentData> | null = $state(null);
-	let hasMore = $state(true);
+	let personalLastDoc: QueryDocumentSnapshot<DocumentData> | null = $state(null);
+	let communityLastDoc: QueryDocumentSnapshot<DocumentData> | null = $state(null);
+	let personalHasMore = $state(true);
+	let communityHasMore = $state(true);
+	const lastDoc = $derived.by(() => (feedMode === 'mine' ? personalLastDoc : communityLastDoc));
+	const hasMore = $derived.by(() => (feedMode === 'mine' ? personalHasMore : communityHasMore));
 	let feedContainer: HTMLElement | undefined = $state();
 	let loadMoreSentinel: HTMLDivElement | undefined = $state();
 	let observer: IntersectionObserver | null = null;
 	let lastRefreshAt = 0;
+	const feedTitle = $derived.by(() => (feedMode === 'community' ? 'Community Sessions' : 'Recent Sessions'));
+	const emptyTitle = $derived.by(() => (feedMode === 'community' ? 'No community sessions yet' : 'No sessions yet'));
+	const emptyText = $derived.by(() =>
+		feedMode === 'community'
+			? 'Public dives will appear here once people share them'
+			: 'Start logging your dives to see them here'
+	);
 
-	async function fetchRecentSessions() {
+	function setFeedMode(mode: FeedMode) {
+		feedMode = mode;
+		if (typeof localStorage !== 'undefined') {
+			localStorage.setItem('feedMode', mode);
+		}
+		if (mode === 'community' && communitySessions.length === 0) {
+			fetchCommunitySessions();
+		}
+	}
+
+	async function fetchPersonalSessions() {
 		if (!$user) return;
 
 		try {
@@ -56,11 +82,11 @@
 				(item) => item.log.date.seconds >= oneWeekAgo
 			).length;
 
-			sessions = sessionsData;
-			lastDoc = result.lastDoc;
-			hasMore = result.hasMore;
+			personalSessions = sessionsData;
+			personalLastDoc = result.lastDoc;
+			personalHasMore = result.hasMore;
 
-			console.log(`Displaying ${sessions.length} routine logs in feed (hasMore: ${hasMore})`);
+			console.log(`Displaying ${personalSessions.length} routine logs in feed (hasMore: ${personalHasMore})`);
 		} catch (err) {
 			console.error('Error fetching sessions:', err);
 			error = `Failed to load recent sessions: ${err instanceof Error ? err.message : String(err)}`;
@@ -69,14 +95,47 @@
 		}
 	}
 
-	async function loadMoreSessions() {
-		if (!$user || !hasMore || loadingMore || !lastDoc) return;
+	async function fetchCommunitySessions() {
+		if (!$user) return;
+
+		try {
+			loading = true;
+			error = null;
+
+			const result = await getPublicActivityPaginated(20);
+			const sessionsData: LogWithRoutine[] = [];
+
+			for (const log of result.logs) {
+				const routineRef = doc(db, 'routines', log.routineId);
+				const routineSnap = await getDoc(routineRef);
+
+				if (routineSnap.exists()) {
+					const routine = { id: routineSnap.id, ...routineSnap.data() } as RoutineTemplate;
+					sessionsData.push({ log, routine });
+				}
+			}
+
+			communitySessions = sessionsData;
+			communityLastDoc = result.lastDoc;
+			communityHasMore = result.hasMore;
+
+			console.log(`Displaying ${communitySessions.length} community logs (hasMore: ${communityHasMore})`);
+		} catch (err) {
+			console.error('Error fetching community sessions:', err);
+			error = `Failed to load community sessions: ${err instanceof Error ? err.message : String(err)}`;
+		} finally {
+			loading = false;
+		}
+	}
+
+	async function loadMorePersonalSessions() {
+		if (!$user || !personalHasMore || loadingMore || !personalLastDoc) return;
 
 		try {
 			loadingMore = true;
 
 			// Load next 10 items
-			const result = await getRecentActivityPaginated($user.uid, 10, lastDoc);
+			const result = await getRecentActivityPaginated($user.uid, 10, personalLastDoc);
 
 			const newSessionsData: LogWithRoutine[] = [];
 
@@ -92,16 +151,59 @@
 			}
 
 			// Append new sessions to existing ones
-			sessions = [...sessions, ...newSessionsData];
-			lastDoc = result.lastDoc;
-			hasMore = result.hasMore;
+			personalSessions = [...personalSessions, ...newSessionsData];
+			personalLastDoc = result.lastDoc;
+			personalHasMore = result.hasMore;
 
-			console.log(`Loaded ${newSessionsData.length} more sessions (total: ${sessions.length}, hasMore: ${hasMore})`);
+			console.log(
+				`Loaded ${newSessionsData.length} more sessions (total: ${personalSessions.length}, hasMore: ${personalHasMore})`
+			);
 		} catch (err) {
 			console.error('Error loading more sessions:', err);
 		} finally {
 			loadingMore = false;
 		}
+	}
+
+	async function loadMoreCommunitySessions() {
+		if (!$user || !communityHasMore || loadingMore || !communityLastDoc) return;
+
+		try {
+			loadingMore = true;
+
+			const result = await getPublicActivityPaginated(10, communityLastDoc);
+			const newSessionsData: LogWithRoutine[] = [];
+
+			for (const log of result.logs) {
+				const routineRef = doc(db, 'routines', log.routineId);
+				const routineSnap = await getDoc(routineRef);
+
+				if (routineSnap.exists()) {
+					const routine = { id: routineSnap.id, ...routineSnap.data() } as RoutineTemplate;
+					newSessionsData.push({ log, routine });
+				}
+			}
+
+			communitySessions = [...communitySessions, ...newSessionsData];
+			communityLastDoc = result.lastDoc;
+			communityHasMore = result.hasMore;
+
+			console.log(
+				`Loaded ${newSessionsData.length} more community sessions (total: ${communitySessions.length}, hasMore: ${communityHasMore})`
+			);
+		} catch (err) {
+			console.error('Error loading community sessions:', err);
+		} finally {
+			loadingMore = false;
+		}
+	}
+
+	function loadMoreSessions() {
+		if (feedMode === 'community') {
+			loadMoreCommunitySessions();
+			return;
+		}
+		loadMorePersonalSessions();
 	}
 
 	// Infinite scroll detection
@@ -176,7 +278,15 @@
 	}
 
 	onMount(() => {
-		fetchRecentSessions();
+		const savedMode = typeof localStorage !== 'undefined' ? localStorage.getItem('feedMode') : null;
+		if (savedMode === 'community') {
+			feedMode = 'community';
+		}
+
+		fetchPersonalSessions();
+		if (feedMode === 'community') {
+			fetchCommunitySessions();
+		}
 		fetchPBs();
 
 		const refreshSessions = () => {
@@ -184,7 +294,10 @@
 			const now = Date.now();
 			if (now - lastRefreshAt < 1500) return;
 			lastRefreshAt = now;
-			fetchRecentSessions();
+			fetchPersonalSessions();
+			if (feedMode === 'community') {
+				fetchCommunitySessions();
+			}
 		};
 
 		const handleVisibilityChange = () => {
@@ -228,7 +341,7 @@
 				<div class="stats-grid">
 					<div class="stat-box">
 						<div class="stat-label">Recent Dives</div>
-						<div class="stat-value primary">{sessions.length}</div>
+						<div class="stat-value primary">{personalSessions.length}</div>
 					</div>
 					<div class="stat-box">
 						<div class="stat-label">This Week</div>
@@ -279,7 +392,25 @@
 
 			<!-- Recent Sessions Feed -->
 			<section class="sessions-section">
-				<h2 class="section-title">Recent Sessions</h2>
+				<div class="section-header">
+					<h2 class="section-title">{feedTitle}</h2>
+					<div class="feed-toggle">
+						<button
+							type="button"
+							class:active={feedMode === 'mine'}
+							onclick={() => setFeedMode('mine')}
+						>
+							My Sessions
+						</button>
+						<button
+							type="button"
+							class:active={feedMode === 'community'}
+							onclick={() => setFeedMode('community')}
+						>
+							Community
+						</button>
+					</div>
+				</div>
 
 				{#if loading}
 					<!-- Loading State -->
@@ -296,7 +427,9 @@
 					<div class="bg-red-900/20 border border-red-500/50 rounded-lg p-6 text-center">
 						<p class="text-red-400">{error}</p>
 						<button
-							onclick={() => fetchRecentSessions()}
+							onclick={() =>
+								feedMode === 'community' ? fetchCommunitySessions() : fetchPersonalSessions()
+							}
 							class="mt-4 px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:opacity-80 transition"
 						>
 							Try Again
@@ -306,9 +439,11 @@
 					<!-- Empty State -->
 					<div class="empty-state">
 						<div class="empty-icon">🏊‍♂️</div>
-						<h3 class="empty-title">No sessions yet</h3>
-						<p class="empty-text">Start logging your dives to see them here</p>
-						<a href="/dives" class="empty-cta">Log Your First Dive</a>
+						<h3 class="empty-title">{emptyTitle}</h3>
+						<p class="empty-text">{emptyText}</p>
+						{#if feedMode === 'mine'}
+							<a href="/dives" class="empty-cta">Log Your First Dive</a>
+						{/if}
 					</div>
 				{:else}
 					<!-- Sessions Feed -->
@@ -447,8 +582,49 @@
 		font-size: 1.5rem;
 		font-weight: 700;
 		color: var(--color-text);
-		margin-bottom: 1.5rem;
 		padding-left: 0.25rem;
+	}
+
+	.section-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		margin-bottom: 1.5rem;
+	}
+
+	.feed-toggle {
+		display: inline-flex;
+		background: rgba(15, 23, 42, 0.5);
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		border-radius: 999px;
+		padding: 0.25rem;
+		gap: 0.25rem;
+	}
+
+	.feed-toggle button {
+		background: transparent;
+		border: none;
+		color: var(--color-text-muted);
+		padding: 0.35rem 0.9rem;
+		border-radius: 999px;
+		font-size: 0.75rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		cursor: pointer;
+		transition: color 0.2s ease, background 0.2s ease;
+	}
+
+	.feed-toggle button.active {
+		background: rgba(20, 184, 166, 0.2);
+		color: #99f6e4;
+	}
+
+	@media (max-width: 640px) {
+		.section-header {
+			flex-direction: column;
+			align-items: flex-start;
+		}
 	}
 
 	@media (max-width: 768px) {
