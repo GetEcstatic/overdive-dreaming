@@ -19,6 +19,7 @@
 	// Separate system and custom routines
 	let systemRoutines = $derived(routines.filter((r) => r.createdBy === 'system'));
 	let customRoutines = $derived(routines.filter((r) => r.createdBy !== 'system'));
+	let expandedDescriptions = $state<Record<string, boolean>>({});
 
 	// Check if current user is admin
 	let userIsAdmin = $derived(isAdmin($user?.uid));
@@ -65,6 +66,10 @@
 		return `${text.slice(0, maxLength).trim()}…`;
 	}
 
+	function toggleDescription(routineId: string) {
+		expandedDescriptions[routineId] = !expandedDescriptions[routineId];
+	}
+
 	function navigateToEdit(routineId: string) {
 		goto(`/routines/${routineId}/edit`);
 	}
@@ -108,7 +113,22 @@
 								</div>
 							</div>
 
-							<p class="routine-description">{truncateDescription(routine.description)}</p>
+							<p class="routine-description">
+								{#if expandedDescriptions[routine.id]}
+									{routine.description}
+								{:else}
+									{truncateDescription(routine.description)}
+								{/if}
+							</p>
+							{#if routine.description.length > 100}
+								<button
+									class="description-toggle"
+									type="button"
+									onclick={() => toggleDescription(routine.id)}
+								>
+									{expandedDescriptions[routine.id] ? 'Show less' : 'Read more'}
+								</button>
+							{/if}
 
 							{#if routine.tags.length > 0}
 								<div class="tag-list">
@@ -163,7 +183,22 @@
 								</div>
 							</div>
 
-							<p class="routine-description">{truncateDescription(routine.description)}</p>
+							<p class="routine-description">
+								{#if expandedDescriptions[routine.id]}
+									{routine.description}
+								{:else}
+									{truncateDescription(routine.description)}
+								{/if}
+							</p>
+							{#if routine.description.length > 100}
+								<button
+									class="description-toggle"
+									type="button"
+									onclick={() => toggleDescription(routine.id)}
+								>
+									{expandedDescriptions[routine.id] ? 'Show less' : 'Read more'}
+								</button>
+							{/if}
 
 							{#if routine.tags.length > 0}
 								<div class="tag-list">
@@ -382,6 +417,21 @@
 		color: var(--color-text-muted);
 		line-height: 1.5;
 		margin: 0 0 1rem 0;
+	}
+
+	.description-toggle {
+		background: none;
+		border: none;
+		color: var(--color-primary);
+		font-size: 0.8125rem;
+		font-weight: 600;
+		padding: 0;
+		margin: -0.5rem 0 1rem 0;
+		cursor: pointer;
+	}
+
+	.description-toggle:hover {
+		color: var(--color-secondary);
 	}
 
 	.tag-list {
