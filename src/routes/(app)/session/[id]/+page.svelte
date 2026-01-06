@@ -41,6 +41,7 @@
 			routine
 		)
 	);
+	const isOwner = $derived($user?.uid === log.userId);
 
 	// Discipline badge color
 	const disciplineColor = $derived.by(() => {
@@ -390,15 +391,17 @@
 	{/if}
 
 	<!-- Action Bar -->
-	<div class="action-bar">
-		<button class="btn btn-secondary" onclick={handleEdit}>Edit</button>
-		<button class="btn btn-primary" onclick={handleViewAnalytics}>Analytics</button>
-		<button class="btn btn-danger" onclick={handleDeleteClick}>Delete</button>
-	</div>
+	{#if isOwner}
+		<div class="action-bar">
+			<button class="btn btn-secondary" onclick={handleEdit}>Edit</button>
+			<button class="btn btn-primary" onclick={handleViewAnalytics}>Analytics</button>
+			<button class="btn btn-danger" onclick={handleDeleteClick}>Delete</button>
+		</div>
+	{/if}
 </div>
 
 <!-- Delete Confirmation Dialog -->
-{#if showDeleteConfirm}
+{#if showDeleteConfirm && isOwner}
 	<div class="modal-overlay" onclick={handleCancelDelete}>
 		<div class="modal-content" onclick={(e) => e.stopPropagation()}>
 			<h2 class="modal-title">Delete Session?</h2>
@@ -423,7 +426,7 @@
 {/if}
 
 <!-- Edit Modal -->
-{#if editingLog}
+{#if editingLog && isOwner}
 	<EditRoutineLogModal
 		open={true}
 		log={editingLog.log}
