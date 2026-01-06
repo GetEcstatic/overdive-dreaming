@@ -6,8 +6,13 @@
 
 	import { onMount } from 'svelte';
 	import { user } from '$lib/stores/auth';
-	import { getRoutinesForUser, deleteRoutine } from '$lib/firestore';
-	import type { RoutineTemplate } from '$lib/types';
+	import {
+		getRoutinesForUser,
+		deleteRoutine,
+		createRoutine,
+		searchPublicUsersByDisplayName
+	} from '$lib/firestore';
+	import type { RoutineTemplate, RoutineTemplateFormData, PublicUserProfile } from '$lib/types';
 	import { goto } from '$app/navigation';
 	import { isAdmin } from '$lib/utils/admin';
 
@@ -15,6 +20,14 @@
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 	let deletingId = $state<string | null>(null);
+	let sendingRoutine = $state<RoutineTemplate | null>(null);
+	let sendModalOpen = $state(false);
+	let sendQuery = $state('');
+	let searchResults = $state<PublicUserProfile[]>([]);
+	let searchLoading = $state(false);
+	let searchError = $state<string | null>(null);
+	let selectedRecipient = $state<PublicUserProfile | null>(null);
+	let isSending = $state(false);
 
 	// Separate system and custom routines
 	let systemRoutines = $derived(routines.filter((r) => r.createdBy === 'system'));
@@ -72,6 +85,74 @@
 
 	function navigateToEdit(routineId: string) {
 		goto(`/routines/${routineId}/edit`);
+	}
+
+	function openSendModal(routine: RoutineTemplate) {
+		sendingRoutine = routine;
+		sendModalOpen = true;
+		sendQuery = '';
+		searchResults = [];
+		searchError = null;
+		selectedRecipient = null;
+	}
+
+	function closeSendModal() {
+		sendModalOpen = false;
+		sendQuery = '';
+		searchResults = [];
+		searchError = null;
+		selectedRecipient = null;
+		sendingRoutine = null;
+		isSending = false;
+	}
+
+	async function handleSearchInput() {
+		const trimmed = sendQuery.trim();
+		searchError = null;
+		if (trimmed.length < 2) {
+			searchResults = [];
+			return;
+		}
+
+		try {
+			searchLoading = true;
+			searchResults = await searchPublicUsersByDisplayName(trimmed, 8);
+		} catch (err) {
+			console.error('Failed to search users:', err);
+			searchError = 'Failed to search users';
+		} finally {
+			searchLoading = false;
+		}
+	}
+
+	async function handleSendRoutine() {
+		if (!sendingRoutine || !selectedRecipient) return;
+
+		try {
+			isSending = true;
+			const routineData: RoutineTemplateFormData = {
+				name: sendingRoutine.name,
+				description: sendingRoutine.description,
+				disciplines: sendingRoutine.disciplines,
+				tags: sendingRoutine.tags,
+				restBetweenReps: sendingRoutine.restBetweenReps,
+				repDistance: sendingRoutine.repDistance,
+				numberOfReps: sendingRoutine.numberOfReps,
+				table: sendingRoutine.table,
+				trackingConfig: sendingRoutine.trackingConfig,
+				displayConfig: sendingRoutine.displayConfig,
+				instructionalVideoUrl: sendingRoutine.instructionalVideoUrl
+			};
+
+			await createRoutine(selectedRecipient.userId, routineData);
+			closeSendModal();
+			alert(`Routine sent to ${selectedRecipient.displayName}`);
+		} catch (err) {
+			console.error('Failed to send routine:', err);
+			alert('Failed to send routine');
+		} finally {
+			isSending = false;
+		}
 	}
 
 	onMount(() => {
@@ -142,6 +223,11 @@
 							{/if}
 
 							<div class="card-actions">
+								{#if userIsAdmin}
+									<button class="btn-secondary" onclick={() => openSendModal(routine)}>
+										Send
+									</button>
+								{/if}
 								<button class="btn-edit" onclick={() => navigateToEdit(routine.id)}>
 									Edit
 								</button>
@@ -211,6 +297,9 @@
 							<!-- Admin-only actions for system routines -->
 							{#if userIsAdmin}
 								<div class="card-actions">
+									<button class="btn-secondary" onclick={() => openSendModal(routine)}>
+										Send
+									</button>
 									<button class="btn-edit" onclick={() => navigateToEdit(routine.id)}>
 										Edit
 									</button>
@@ -230,6 +319,72 @@
 		{/if}
 	{/if}
 </div>
+
+{#if sendModalOpen}
+	<div class="modal-backdrop" onclick={closeSendModal}>
+		<div class="modal-panel" onclick|stopPropagation>
+			<h3 class="modal-title">Send routine</h3>
+			<p class="modal-subtitle">
+				{sendingRoutine ? `Send "${sendingRoutine.name}" to a user.` : 'Choose a user to send this routine.'}
+			</p>
+
+			<div class="modal-field">
+				<label class="field-label" for="sendSearch">Search by display name</label>
+				<input
+					id="sendSearch"
+					class="field-input"
+					type="text"
+					placeholder="Start typing a name..."
+					bind:value={sendQuery}
+					oninput={handleSearchInput}
+				/>
+				{#if searchLoading}
+					<p class="field-hint">Searching...</p>
+				{:else if searchError}
+					<p class="field-error">{searchError}</p>
+				{/if}
+			</div>
+
+			<div class="results-list">
+				{#if sendQuery.trim().length < 2}
+					<p class="results-empty">Type at least 2 characters to search.</p>
+				{:else if !searchLoading && searchResults.length === 0}
+					<p class="results-empty">No users found.</p>
+				{:else}
+					{#each searchResults as profile}
+						<button
+							type="button"
+							class="result-row"
+							class:selected={selectedRecipient?.userId === profile.userId}
+							onclick={() => (selectedRecipient = profile)}
+						>
+							{#if profile.photoURL}
+								<img src={profile.photoURL} alt={profile.displayName} class="result-avatar" />
+							{:else}
+								<div class="result-avatar placeholder">
+									{profile.displayName.charAt(0)}
+								</div>
+							{/if}
+							<span class="result-name">{profile.displayName}</span>
+						</button>
+					{/each}
+				{/if}
+			</div>
+
+			<div class="modal-actions">
+				<button type="button" class="btn-secondary" onclick={closeSendModal}>Cancel</button>
+				<button
+					type="button"
+					class="btn-primary"
+					onclick={handleSendRoutine}
+					disabled={!selectedRecipient || isSending}
+				>
+					{isSending ? 'Sending...' : 'Send routine'}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
 
 <style>
 	.routines-page {
@@ -433,6 +588,157 @@
 
 	.description-toggle:hover {
 		color: var(--color-secondary);
+	}
+
+	.field-label {
+		font-size: 0.8rem;
+		font-weight: 600;
+		color: var(--color-text);
+	}
+
+	.field-input {
+		width: 100%;
+		padding: 0.65rem 0.75rem;
+		border-radius: 8px;
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		background: rgba(15, 23, 42, 0.7);
+		color: var(--color-text);
+	}
+
+	.field-hint {
+		font-size: 0.75rem;
+		color: var(--color-text-muted);
+	}
+
+	.field-error {
+		font-size: 0.75rem;
+		color: #ef4444;
+	}
+
+	.btn-secondary {
+		padding: 0.5rem 0.9rem;
+		border-radius: 8px;
+		border: 1px solid rgba(148, 163, 184, 0.3);
+		background: rgba(15, 23, 42, 0.6);
+		color: var(--color-text);
+		font-size: 0.85rem;
+		font-weight: 600;
+		cursor: pointer;
+	}
+
+	.btn-primary {
+		padding: 0.5rem 1rem;
+		border-radius: 8px;
+		border: none;
+		background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+		color: #0f172a;
+		font-size: 0.85rem;
+		font-weight: 700;
+		cursor: pointer;
+	}
+
+	.btn-primary:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.modal-backdrop {
+		position: fixed;
+		inset: 0;
+		background: rgba(8, 12, 20, 0.7);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 1.5rem;
+		z-index: 50;
+	}
+
+	.modal-panel {
+		width: min(480px, 100%);
+		background: rgba(15, 23, 42, 0.95);
+		border-radius: 12px;
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		padding: 1.5rem;
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+	}
+
+	.modal-title {
+		font-size: 1.1rem;
+		font-weight: 700;
+		margin: 0;
+		color: var(--color-text);
+	}
+
+	.modal-subtitle {
+		margin: 0;
+		font-size: 0.875rem;
+		color: var(--color-text-muted);
+	}
+
+	.modal-field {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.results-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		max-height: 220px;
+		overflow-y: auto;
+	}
+
+	.results-empty {
+		font-size: 0.85rem;
+		color: var(--color-text-muted);
+	}
+
+	.result-row {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 0.6rem 0.75rem;
+		border-radius: 10px;
+		border: 1px solid rgba(148, 163, 184, 0.15);
+		background: rgba(15, 23, 42, 0.6);
+		color: var(--color-text);
+		cursor: pointer;
+		transition: border-color 0.2s ease, background 0.2s ease;
+	}
+
+	.result-row.selected {
+		border-color: rgba(45, 212, 191, 0.7);
+		background: rgba(20, 184, 166, 0.15);
+	}
+
+	.result-avatar {
+		width: 32px;
+		height: 32px;
+		border-radius: 50%;
+		object-fit: cover;
+	}
+
+	.result-avatar.placeholder {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: rgba(148, 163, 184, 0.2);
+		color: var(--color-text);
+		font-weight: 600;
+	}
+
+	.result-name {
+		font-size: 0.9rem;
+		font-weight: 600;
+	}
+
+	.modal-actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: 0.75rem;
 	}
 
 	.tag-list {

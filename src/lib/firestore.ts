@@ -15,7 +15,9 @@ import {
 	where,
 	orderBy,
 	limit,
+	endAt,
 	startAfter,
+	startAt,
 	Timestamp,
 	serverTimestamp,
 	deleteField,
@@ -495,6 +497,26 @@ export async function getPublicUserProfile(
 	const docSnap = await getDoc(docRef);
 	if (!docSnap.exists()) return null;
 	return docSnap.data() as PublicUserProfile;
+}
+
+export async function searchPublicUsersByDisplayName(
+	searchTerm: string,
+	maxResults = 8
+): Promise<PublicUserProfile[]> {
+	const trimmed = searchTerm.trim();
+	if (!trimmed) return [];
+
+	const usersRef = collection(db, 'usersPublic');
+	const searchQuery = query(
+		usersRef,
+		orderBy('displayName'),
+		startAt(trimmed),
+		endAt(`${trimmed}\uf8ff`),
+		limit(maxResults)
+	);
+
+	const snapshot = await getDocs(searchQuery);
+	return snapshot.docs.map((docSnap) => docSnap.data() as PublicUserProfile);
 }
 
 // ============================================================================
