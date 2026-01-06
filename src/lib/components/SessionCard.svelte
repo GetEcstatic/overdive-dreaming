@@ -7,6 +7,7 @@
 	import { user } from '$lib/stores/auth';
 	import { db } from '$lib/firebase';
 	import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+	import { getPublicUserProfilesByIds } from '$lib/firestore';
 
 	let {
 		log,
@@ -67,6 +68,11 @@
 	// Like state - initialize from Firestore (intentionally capture initial value)
 	let likeCount = $state((() => log.likes?.length ?? 0)());
 	let isLiked = $state((() => log.likes?.includes($user?.uid ?? '') ?? false)());
+	let showFlowList = $state(false);
+	let flowProfiles = $state<{ userId: string; displayName: string }[]>([]);
+	let flowLoading = $state(false);
+	let flowError = $state<string | null>(null);
+	let flowIdsCacheKey = $state('');
 
 	async function toggleLike() {
 		if (!$user) return;
@@ -96,6 +102,55 @@
 			isLiked = !newIsLiked;
 			likeCount += newIsLiked ? -1 : 1;
 		}
+	}
+
+	async function openFlowList(e: MouseEvent) {
+		e.preventDefault();
+		e.stopPropagation();
+
+		if (showFlowList) {
+			showFlowList = false;
+			return;
+		}
+
+		showFlowList = true;
+		flowError = null;
+
+		const ids = log.likes ?? [];
+		const cacheKey = ids.join(',');
+		if (cacheKey === flowIdsCacheKey && flowProfiles.length > 0) return;
+
+		if (ids.length === 0) {
+			flowProfiles = [];
+			flowIdsCacheKey = cacheKey;
+			return;
+		}
+
+		try {
+			flowLoading = true;
+			const profiles = await getPublicUserProfilesByIds(ids);
+			const profileMap = new Map(profiles.map((profile) => [profile.userId, profile.displayName]));
+			const displayNames = ids
+				.map((id) => {
+					if ($user?.uid === id && $user.displayName) return $user.displayName;
+					return profileMap.get(id) ?? 'Unknown';
+				})
+				.map((name, index) => ({ userId: ids[index], displayName: name }));
+
+			flowProfiles = displayNames;
+			flowIdsCacheKey = cacheKey;
+		} catch (error) {
+			console.error('Failed to load flow users:', error);
+			flowError = 'Unable to load users';
+		} finally {
+			flowLoading = false;
+		}
+	}
+
+	function closeFlowList(e: MouseEvent) {
+		e.preventDefault();
+		e.stopPropagation();
+		showFlowList = false;
 	}
 
 </script>
@@ -205,7 +260,30 @@
 			</svg>
 			<span class="like-text">Flow</span>
 		</button>
-		<span class="like-count">{likeCount} {likeCount === 1 ? 'flow' : 'flows'}</span>
+		<button class="like-count" onclick={openFlowList}>
+			{likeCount} {likeCount === 1 ? 'flow' : 'flows'}
+		</button>
+		{#if showFlowList}
+			<div class="flow-popover" onclick={(event) => event.stopPropagation()}>
+				<div class="flow-popover-header">
+					<span>Flows</span>
+					<button type="button" class="flow-close" onclick={closeFlowList}>×</button>
+				</div>
+				{#if flowLoading}
+					<div class="flow-status">Loading...</div>
+				{:else if flowError}
+					<div class="flow-status error">{flowError}</div>
+				{:else if flowProfiles.length === 0}
+					<div class="flow-status">No flows yet</div>
+				{:else}
+					<div class="flow-list">
+						{#each flowProfiles as profile}
+							<div class="flow-item">{profile.displayName}</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
+		{/if}
 	</div>
 	</div>
 </a>
@@ -443,6 +521,7 @@
 		padding: 0.75rem 1rem;
 		border-top: 1px solid rgba(148, 163, 184, 0.1);
 		background: rgba(15, 23, 42, 0.3);
+		position: relative;
 	}
 
 	.like-button {
@@ -494,6 +573,63 @@
 		color: var(--color-text-muted);
 		font-size: 0.875rem;
 		font-weight: 500;
+		background: none;
+		border: none;
+		cursor: pointer;
+		padding: 0;
+	}
+
+	.flow-popover {
+		position: absolute;
+		right: 1rem;
+		bottom: 3.1rem;
+		width: 220px;
+		background: rgba(12, 18, 28, 0.96);
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		border-radius: 10px;
+		padding: 0.75rem;
+		box-shadow: 0 12px 30px rgba(2, 6, 23, 0.45);
+		z-index: 5;
+	}
+
+	.flow-popover-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--color-text);
+		margin-bottom: 0.5rem;
+	}
+
+	.flow-close {
+		background: none;
+		border: none;
+		color: var(--color-text-muted);
+		font-size: 1rem;
+		cursor: pointer;
+	}
+
+	.flow-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+		max-height: 180px;
+		overflow-y: auto;
+	}
+
+	.flow-item {
+		font-size: 0.8125rem;
+		color: var(--color-text);
+	}
+
+	.flow-status {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+	}
+
+	.flow-status.error {
+		color: #f87171;
 	}
 
 	/* Media Section */

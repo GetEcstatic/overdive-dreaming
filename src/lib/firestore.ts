@@ -519,6 +519,27 @@ export async function searchPublicUsersByDisplayName(
 	return snapshot.docs.map((docSnap) => docSnap.data() as PublicUserProfile);
 }
 
+export async function getPublicUserProfilesByIds(
+	userIds: string[]
+): Promise<PublicUserProfile[]> {
+	const uniqueIds = Array.from(new Set(userIds));
+	if (uniqueIds.length === 0) return [];
+
+	const usersRef = collection(db, 'usersPublic');
+	const results: PublicUserProfile[] = [];
+
+	for (let i = 0; i < uniqueIds.length; i += 10) {
+		const batch = uniqueIds.slice(i, i + 10);
+		const batchQuery = query(usersRef, where('userId', 'in', batch));
+		const snapshot = await getDocs(batchQuery);
+		snapshot.forEach((docSnap) => {
+			results.push(docSnap.data() as PublicUserProfile);
+		});
+	}
+
+	return results;
+}
+
 // ============================================================================
 // SEASONS
 // ============================================================================
