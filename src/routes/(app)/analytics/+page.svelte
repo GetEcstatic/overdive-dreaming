@@ -130,8 +130,10 @@
 		datasets: any[];
 		labelDates: string[];
 	} => {
-		const activeDynamics =
-			activeDynamicDisciplines().length > 0 ? activeDynamicDisciplines() : dynamicDisciplines;
+		let activeDynamics = activeDynamicDisciplines();
+		if (!isStaSelected() && activeDynamics.length === 0) {
+			activeDynamics = dynamicDisciplines;
+		}
 		const activeDisciplines = isStaSelected()
 			? [...activeDynamics, 'STA']
 			: activeDynamics;
