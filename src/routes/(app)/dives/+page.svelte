@@ -123,6 +123,9 @@
 			}
 
 			if (logData.isCompetition) routineLogData.isCompetition = true;
+			if (logData.isCompetition && logData.compeitionOrg) {
+				routineLogData.compeitionOrg = logData.compeitionOrg;
+			}
 			if (logData.cardTag) routineLogData.cardTag = logData.cardTag;
 			if (logData.recordTag) routineLogData.recordTag = logData.recordTag;
 

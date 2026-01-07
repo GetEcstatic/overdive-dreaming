@@ -247,6 +247,39 @@
 		</section>
 	{/if}
 
+	<!-- Competition -->
+	{#if log.isCompetition || log.compeitionOrg || log.cardTag || log.recordTag}
+		<section class="metrics-section">
+			<h2>Competition</h2>
+			<div class="metrics-grid">
+				{#if log.isCompetition}
+					<div class="metric-item">
+						<span class="label">Competition</span>
+						<span class="value">Yes</span>
+					</div>
+				{/if}
+				{#if log.compeitionOrg}
+					<div class="metric-item">
+						<span class="label">Organization</span>
+						<span class="value">{log.compeitionOrg.toUpperCase()}</span>
+					</div>
+				{/if}
+				{#if log.cardTag}
+					<div class="metric-item">
+						<span class="label">Card</span>
+						<span class="value capitalize">{log.cardTag}</span>
+					</div>
+				{/if}
+				{#if log.recordTag}
+					<div class="metric-item">
+						<span class="label">Record</span>
+						<span class="value">{log.recordTag}</span>
+					</div>
+				{/if}
+			</div>
+		</section>
+	{/if}
+
 	<!-- Session Context -->
 	{#if log.poolLength || log.initialBreatheUpTime || log.breathingTechnique || log.breathingTechniqueLevel !== undefined}
 		<section class="metrics-section">

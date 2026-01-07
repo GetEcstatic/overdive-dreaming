@@ -25,6 +25,7 @@
 		sessionTime?: string; // HH:MM format
 		timeOfDay?: TimeOfDay;
 		isCompetition?: boolean;
+		compeitionOrg?: string;
 		cardTag?: CardTag;
 		recordTag?: RecordTag;
 		// Session context
@@ -87,6 +88,7 @@
 	let sessionDate = $state<string>(formatDateForInput(today));
 	let sessionTime = $state<string>(formatTimeForInput(today));
 	let isCompetition = $state<boolean>(false);
+	let compeitionOrg = $state<string>('');
 	let cardTag = $state<CardTag | undefined>(undefined);
 	let recordTag = $state<RecordTag | undefined>(undefined);
 	let visibility = $state<SessionVisibility>(defaultVisibility);
@@ -274,6 +276,7 @@
 		if (!isCompetition) {
 			cardTag = undefined;
 			recordTag = undefined;
+			compeitionOrg = '';
 		}
 	});
 
@@ -313,6 +316,7 @@
 			sessionDate,
 			sessionTime,
 			isCompetition,
+			compeitionOrg: isCompetition ? compeitionOrg.trim() || undefined : undefined,
 			cardTag,
 			recordTag,
 			visibility,
@@ -457,6 +461,23 @@
 			</div>
 			<p class="field-hint">Pick a record tag if applicable (one max)</p>
 		</div>
+		{#if isCompetition}
+			<div class="field-group">
+				<label for="competitionOrg" class="field-label">Competition Org</label>
+				<input
+					id="competitionOrg"
+					type="text"
+					bind:value={compeitionOrg}
+					class="field-input"
+					list="competition-org-options"
+					placeholder="AIDA or CMAS"
+				/>
+				<datalist id="competition-org-options">
+					<option value="AIDA"></option>
+					<option value="CMAS"></option>
+				</datalist>
+			</div>
+		{/if}
 
 		<div class="field-group">
 			<label class="field-label">Visibility</label>

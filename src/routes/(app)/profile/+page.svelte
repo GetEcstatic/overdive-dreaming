@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { user } from '$lib/stores/auth';
-	import { auth } from '$lib/firebase';
+	import { auth, db } from '$lib/firebase';
 	import { signOut } from 'firebase/auth';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import { Timestamp } from 'firebase/firestore';
+	import { Timestamp, collection, getDocs, query, where, writeBatch } from 'firebase/firestore';
 	import {
 		getSeasonsForUser,
 		createSeason,
@@ -31,6 +31,12 @@
 	let seasons = $state<Season[]>([]);
 	let seasonsLoading = $state(false);
 	let seasonsError = $state<string | null>(null);
+	let lastImportBatchId = $state<string | null>(null);
+	let lastImportAt = $state<number | null>(null);
+	let importUndoing = $state(false);
+	let importUndoError = $state<string | null>(null);
+	let importUndoSuccess = $state<string | null>(null);
+	const lastImportStorageKey = 'aidaLastImportBatchId';
 
 	let newSeasonName = $state('');
 	let newSeasonStart = $state('');
@@ -217,9 +223,80 @@
 	}
 
 	onMount(() => {
+		if (typeof window !== 'undefined') {
+			lastImportBatchId = window.localStorage.getItem(lastImportStorageKey);
+			const storedAt = window.localStorage.getItem(`${lastImportStorageKey}:at`);
+			lastImportAt = storedAt ? Number(storedAt) : null;
+		}
 		loadSettings();
 		loadSeasons();
 	});
+
+	function formatImportTimestamp(timestamp: number | null): string | null {
+		if (!timestamp) return null;
+		const now = Date.now();
+		const diffMs = now - timestamp;
+		if (diffMs < 0) return null;
+
+		const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+		if (diffHours < 24) {
+			const hoursLabel = diffHours === 1 ? 'hour' : 'hours';
+			return `Imported ${diffHours} ${hoursLabel} ago`;
+		}
+
+		const date = new Date(timestamp);
+		return `Imported ${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
+	}
+
+	async function handleUndoLastImport() {
+		if (!$user || !lastImportBatchId || importUndoing) return;
+		if (!confirm('Undo last AIDA import? This will delete all logs created by that import.')) return;
+
+		importUndoing = true;
+		importUndoError = null;
+		importUndoSuccess = null;
+
+		try {
+			const logsRef = collection(db, 'routineLogs');
+			const logsQuery = query(
+				logsRef,
+				where('userId', '==', $user.uid),
+				where('importBatchId', '==', lastImportBatchId)
+			);
+			const snapshot = await getDocs(logsQuery);
+
+			if (snapshot.empty) {
+				importUndoError = 'No logs found for the last import.';
+				lastImportBatchId = null;
+				lastImportAt = null;
+				if (typeof window !== 'undefined') {
+					window.localStorage.removeItem(lastImportStorageKey);
+					window.localStorage.removeItem(`${lastImportStorageKey}:at`);
+				}
+				return;
+			}
+
+			const docs = snapshot.docs;
+			for (let i = 0; i < docs.length; i += 500) {
+				const batch = writeBatch(db);
+				docs.slice(i, i + 500).forEach((docSnap) => batch.delete(docSnap.ref));
+				await batch.commit();
+			}
+
+			importUndoSuccess = 'Import undone. You can upload again when ready.';
+			lastImportBatchId = null;
+			lastImportAt = null;
+			if (typeof window !== 'undefined') {
+				window.localStorage.removeItem(lastImportStorageKey);
+				window.localStorage.removeItem(`${lastImportStorageKey}:at`);
+			}
+		} catch (error) {
+			console.error('Failed to undo import:', error);
+			importUndoError = 'Failed to undo the import.';
+		} finally {
+			importUndoing = false;
+		}
+	}
 </script>
 
 <div class="profile-container">
@@ -313,6 +390,35 @@
 				</div>
 			</section>
 		</div>
+
+		<section class="profile-card">
+			<div class="card-header">
+				<h2 class="card-title">Imports</h2>
+				<span class="card-subtitle">Bring in competition results from AIDA spreadsheets</span>
+			</div>
+			<a class="button button-secondary full-width" href="/import/aida">
+				Import AIDA Results
+			</a>
+			{#if lastImportBatchId}
+				{#if formatImportTimestamp(lastImportAt)}
+					<p class="form-hint">{formatImportTimestamp(lastImportAt)}</p>
+				{/if}
+				<button
+					type="button"
+					class="button button-secondary full-width"
+					onclick={handleUndoLastImport}
+					disabled={importUndoing}
+				>
+					{importUndoing ? 'Undoing Import...' : 'Undo Last Import'}
+				</button>
+			{/if}
+			{#if importUndoSuccess}
+				<p class="form-hint">{importUndoSuccess}</p>
+			{/if}
+			{#if importUndoError}
+				<p class="form-hint error-text">{importUndoError}</p>
+			{/if}
+		</section>
 
 		<section class="profile-card">
 			<div class="card-header">

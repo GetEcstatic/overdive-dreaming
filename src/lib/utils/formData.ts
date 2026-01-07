@@ -21,6 +21,7 @@ export function routineLogToFormData(log: RoutineLog): LogFormData {
 		sessionTime,
 		timeOfDay: log.timeOfDay,
 		isCompetition: log.isCompetition || false,
+		compeitionOrg: log.compeitionOrg ?? undefined,
 		cardTag: log.cardTag ?? undefined,
 		recordTag: log.recordTag ?? undefined,
 		visibility: log.visibility ?? 'private',

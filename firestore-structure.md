@@ -67,6 +67,11 @@ firestore/
 │       │       ├── userId: string
 │       │       ├── date: timestamp
 │       │       ├── disciplineUsed: 'STA' | 'DYN' | 'DNF' | 'DYNB'
+│       │       ├── isCompetition?: boolean
+│       │       ├── compeitionOrg?: string (e.g., 'AIDA', 'CMAS')
+│       │       ├── importBatchId?: string
+│       │       ├── cardTag?: 'white' | 'yellow' | 'red'
+│       │       ├── recordTag?: 'NR' | 'CR' | 'WR'
 │       │       ├── poolLength?: number (meters - pool size for this routine)
 │       │       ├── initialBreatheUpTime?: number (seconds - actual breathe-up)
 │       │       ├── totalDistance?: number (meters - for max attempts)

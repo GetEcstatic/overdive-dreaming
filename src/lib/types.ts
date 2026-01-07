@@ -310,6 +310,8 @@ export interface RoutineLog {
 	// PB tracking
 	isPB?: boolean; // True if this dive was a personal best when logged
 	isCompetition?: boolean; // Competition dive tag
+	compeitionOrg?: string | null; // Competition organizer (e.g., AIDA, CMAS)
+	importBatchId?: string; // Import batch identifier for undo actions
 	cardTag?: CardTag | null; // Card tag (white/yellow/red), only one allowed
 	recordTag?: RecordTag | null; // Record tag (NR/CR/WR), only one allowed
 	visibility?: SessionVisibility; // Public/private visibility for social feed
