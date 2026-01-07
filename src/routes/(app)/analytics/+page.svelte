@@ -29,6 +29,7 @@
 	let loading = $state(true);
 	let seasons = $state<Season[]>([]);
 	let selectedProgressDisciplines = $state<Discipline[]>(['DYN', 'DNF', 'DYNB']);
+	let progressMetric = $state<'distance' | 'time'>('distance');
 
 	const timeframes = [
 		{ value: '1month', label: 'Last Month' },
@@ -117,33 +118,22 @@
 	const activeDynamicDisciplines = $derived(() =>
 		selectedProgressDisciplines.filter((disc) => disc !== 'STA')
 	);
+	const selectedProgressMetric = $derived(() =>
+		isStaSelected() ? 'time' : progressMetric
+	);
 	const timeOfDayDiscipline = $derived(() =>
 		isStaSelected() ? 'STA' : (activeDynamicDisciplines()[0] ?? 'DYN')
 	);
 
 	const progressChartData = $derived.by(() => {
-		if (isStaSelected()) {
-			const progressData = prepareProgressData(filteredLogs, 'STA', 'time');
-			return {
-				labels: progressData.map((d) => format(new Date(d.date), 'MMM d, yyyy')),
-				datasets: [
-					{
-						label: 'STA',
-						data: progressData.map((d) => d.value),
-						borderColor: '#a78bfa',
-						backgroundColor: 'rgba(167, 139, 250, 0.12)',
-						tension: 0.3,
-						fill: true
-					}
-				]
-			};
-		}
-
 		const activeDynamics =
 			activeDynamicDisciplines().length > 0 ? activeDynamicDisciplines() : dynamicDisciplines;
-		const series = activeDynamics.map((disc) => ({
+		const activeDisciplines = isStaSelected()
+			? [...activeDynamics, 'STA']
+			: activeDynamics;
+		const series = activeDisciplines.map((disc) => ({
 			disc,
-			data: prepareProgressData(filteredLogs, disc, 'distance')
+			data: prepareProgressData(filteredLogs, disc, selectedProgressMetric())
 		}));
 
 		const dates = Array.from(
@@ -223,6 +213,9 @@
 		const disciplineParam = $page.url.searchParams.get('discipline');
 		if (disciplineParam && disciplines.includes(disciplineParam as Discipline)) {
 			selectedProgressDisciplines = [disciplineParam as Discipline];
+			if (disciplineParam === 'STA') {
+				progressMetric = 'time';
+			}
 		}
 
 		// Note: routine param is captured but not used yet (would require adding routine filter)
@@ -370,9 +363,14 @@
 							class:active={selectedProgressDisciplines.includes(disc)}
 							onclick={() => {
 								if (disc === 'STA') {
-									selectedProgressDisciplines = ['STA'];
-								} else if (selectedProgressDisciplines.includes('STA')) {
-									selectedProgressDisciplines = [disc];
+									if (selectedProgressDisciplines.includes('STA')) {
+										selectedProgressDisciplines = selectedProgressDisciplines.filter(
+											(item) => item !== 'STA'
+										);
+									} else {
+										selectedProgressDisciplines = [...selectedProgressDisciplines, 'STA'];
+									}
+									progressMetric = 'time';
 								} else if (selectedProgressDisciplines.includes(disc)) {
 									const next = selectedProgressDisciplines.filter((item) => item !== disc);
 									selectedProgressDisciplines =
@@ -386,11 +384,34 @@
 						</button>
 					{/each}
 				</div>
+				<div class="metric-toggle-row">
+					<button
+						type="button"
+						class="metric-toggle"
+						class:active={selectedProgressMetric() === 'distance'}
+						disabled={isStaSelected()}
+						onclick={() => {
+							if (!isStaSelected()) {
+								progressMetric = 'distance';
+							}
+						}}
+					>
+						Distance
+					</button>
+					<button
+						type="button"
+						class="metric-toggle"
+						class:active={selectedProgressMetric() === 'time'}
+						onclick={() => (progressMetric = 'time')}
+					>
+						Time
+					</button>
+				</div>
 				<LineChart
 					data={progressChartData}
 					height={300}
-					yTickFormatter={isStaSelected() ? formatTime : undefined}
-					tooltipValueFormatter={isStaSelected() ? formatTime : undefined}
+					yTickFormatter={selectedProgressMetric() === 'time' ? formatTime : undefined}
+					tooltipValueFormatter={selectedProgressMetric() === 'time' ? formatTime : undefined}
 				/>
 			</div>
 
@@ -464,6 +485,13 @@
 		margin-top: 0.75rem;
 	}
 
+	.metric-toggle-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-top: 0.5rem;
+	}
+
 	.discipline-toggle {
 		border: 1px solid rgba(148, 163, 184, 0.2);
 		background: rgba(15, 23, 42, 0.4);
@@ -485,6 +513,34 @@
 		border-color: rgba(20, 184, 166, 0.6);
 		background: rgba(20, 184, 166, 0.18);
 		color: #e0f2fe;
+	}
+
+	.metric-toggle {
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		background: rgba(15, 23, 42, 0.4);
+		color: var(--color-text);
+		border-radius: 999px;
+		padding: 0.35rem 0.75rem;
+		font-size: 0.75rem;
+		font-weight: 600;
+		letter-spacing: 0.04em;
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.metric-toggle:hover:not(:disabled) {
+		border-color: rgba(148, 163, 184, 0.35);
+	}
+
+	.metric-toggle.active {
+		border-color: rgba(56, 189, 248, 0.6);
+		background: rgba(56, 189, 248, 0.18);
+		color: #e0f2fe;
+	}
+
+	.metric-toggle:disabled {
+		opacity: 0.45;
+		cursor: not-allowed;
 	}
 
 	.loading,
