@@ -6,8 +6,7 @@
 		BreathingTechnique,
 		RecordTag,
 		CardTag,
-		SessionVisibility,
-		TimeOfDay
+		SessionVisibility
 	} from '$lib/types';
 	import type { LogFormData } from '$lib/components/QuickLogForm.svelte';
 	import {
@@ -45,8 +44,14 @@
 		return date.toISOString().split('T')[0]; // YYYY-MM-DD
 	};
 
+	const formatTimeForInput = (date: Date) => {
+		const hours = String(date.getHours()).padStart(2, '0');
+		const minutes = String(date.getMinutes()).padStart(2, '0');
+		return `${hours}:${minutes}`;
+	};
+
 	let sessionDate = $state<string>(formData.sessionDate);
-	let timeOfDay = $state<TimeOfDay>(formData.timeOfDay ?? 'morning');
+	let sessionTime = $state<string>(formData.sessionTime ?? formatTimeForInput(new Date()));
 	let isCompetition = $state<boolean>(formData.isCompetition || false);
 	let cardTag = $state<CardTag | undefined>(formData.cardTag);
 	let recordTag = $state<RecordTag | undefined>(formData.recordTag);
@@ -174,7 +179,7 @@
 		const data: LogFormData = {
 			disciplineUsed,
 			sessionDate,
-			timeOfDay,
+			sessionTime,
 			isCompetition,
 			cardTag,
 			recordTag,
@@ -251,12 +256,14 @@
 				/>
 			</div>
 			<div class="field-group">
-				<label for="timeOfDay" class="section-label">Time of Day</label>
-				<select id="timeOfDay" bind:value={timeOfDay} class="field-input time-select">
-					<option value="morning">Morning</option>
-					<option value="afternoon">Afternoon</option>
-					<option value="evening">Evening</option>
-				</select>
+				<label for="sessionTime" class="section-label">Time</label>
+				<input
+					id="sessionTime"
+					type="time"
+					bind:value={sessionTime}
+					class="field-input time-field"
+					required
+				/>
 			</div>
 		</div>
 		<p class="field-hint">When did this session take place? (dates from 2016 onwards)</p>
@@ -942,7 +949,7 @@
 		align-items: end;
 	}
 
-	.time-select {
+	.time-field {
 		height: 100%;
 	}
 

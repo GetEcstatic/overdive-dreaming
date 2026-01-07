@@ -47,6 +47,16 @@
 		selectedRoutineId = undefined;
 	}
 
+	function buildSessionDateTime(dateStr: string, timeStr?: string): Date {
+		const dateTime = new Date(dateStr);
+		const fallback = new Date();
+		const [hours, minutes] = (timeStr ?? `${fallback.getHours()}:${fallback.getMinutes()}`)
+			.split(':')
+			.map((value) => Number(value));
+		dateTime.setHours(hours || 0, minutes || 0, 0, 0);
+		return dateTime;
+	}
+
 	async function handleSubmit(logData: LogFormData) {
 		if (!$user || !selectedRoutine) return;
 
@@ -55,8 +65,8 @@
 		success = null;
 
 		try {
-			// 1. Calculate time of day and session group using selected date
-			const sessionDateTime = new Date(logData.sessionDate); // Parse YYYY-MM-DD from form
+			// 1. Calculate time of day and session group using selected date/time
+			const sessionDateTime = buildSessionDateTime(logData.sessionDate, logData.sessionTime);
 			const timeOfDay = getTimeOfDay(sessionDateTime);
 			const dateStr = logData.sessionDate; // Already in YYYY-MM-DD format
 			const sessionGroup = `${dateStr}-${timeOfDay}`; // e.g., "2026-01-01-morning"

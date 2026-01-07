@@ -22,6 +22,7 @@
 	export interface LogFormData {
 		disciplineUsed: Discipline;
 		sessionDate: string; // YYYY-MM-DD format
+		sessionTime?: string; // HH:MM format
 		timeOfDay?: TimeOfDay;
 		isCompetition?: boolean;
 		cardTag?: CardTag;
@@ -77,7 +78,14 @@
 		return date.toISOString().split('T')[0]; // YYYY-MM-DD
 	};
 
+	const formatTimeForInput = (date: Date) => {
+		const hours = String(date.getHours()).padStart(2, '0');
+		const minutes = String(date.getMinutes()).padStart(2, '0');
+		return `${hours}:${minutes}`;
+	};
+
 	let sessionDate = $state<string>(formatDateForInput(today));
+	let sessionTime = $state<string>(formatTimeForInput(today));
 	let isCompetition = $state<boolean>(false);
 	let cardTag = $state<CardTag | undefined>(undefined);
 	let recordTag = $state<RecordTag | undefined>(undefined);
@@ -303,6 +311,7 @@
 		const data: LogFormData = {
 			disciplineUsed,
 			sessionDate,
+			sessionTime,
 			isCompetition,
 			cardTag,
 			recordTag,
@@ -375,16 +384,30 @@
 
 	<!-- Session Date -->
 	<div class="form-section">
-		<label for="sessionDate" class="section-label">Session Date</label>
-		<input
-			id="sessionDate"
-			type="date"
-			bind:value={sessionDate}
-			min={formatDateForInput(maxPastDate)}
-			max={formatDateForInput(today)}
-			class="date-input"
-			required
-		/>
+		<div class="date-time-row">
+			<div class="field-group">
+				<label for="sessionDate" class="section-label">Session Date</label>
+				<input
+					id="sessionDate"
+					type="date"
+					bind:value={sessionDate}
+					min={formatDateForInput(maxPastDate)}
+					max={formatDateForInput(today)}
+					class="date-input"
+					required
+				/>
+			</div>
+			<div class="field-group">
+				<label for="sessionTime" class="section-label">Time</label>
+				<input
+					id="sessionTime"
+					type="time"
+					bind:value={sessionTime}
+					class="field-input time-field"
+					required
+				/>
+			</div>
+		</div>
 		<p class="field-hint">When did this session take place? (dates from 2016 onwards)</p>
 
 		<div class="field-group">
@@ -1141,6 +1164,16 @@
 		border-color: var(--color-primary);
 	}
 
+	.date-input::-webkit-calendar-picker-indicator {
+		filter: invert(0.85) brightness(1.2);
+		opacity: 0.9;
+		cursor: pointer;
+	}
+
+	.date-input::-webkit-calendar-picker-indicator:hover {
+		opacity: 1;
+	}
+
 	.field-textarea {
 		width: 100%;
 		padding: 0.75rem 1rem;
@@ -1178,6 +1211,17 @@
 		color: var(--color-text-muted);
 		font-weight: 600;
 		font-size: 1.25rem;
+	}
+
+	.date-time-row {
+		display: grid;
+		grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+		gap: 1rem;
+		align-items: end;
+	}
+
+	.time-field {
+		height: 100%;
 	}
 
 	/* Discipline Buttons */
@@ -1471,6 +1515,8 @@
 
 	/* Mobile Responsive Adjustments */
 	@media (max-width: 640px) {
-		/* No specific overrides needed for new slider-based UI */
+		.date-time-row {
+			grid-template-columns: minmax(0, 1fr);
+		}
 	}
 </style>

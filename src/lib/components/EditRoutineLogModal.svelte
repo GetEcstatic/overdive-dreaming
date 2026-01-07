@@ -58,25 +58,23 @@
 				}
 			}
 
-			// Handle session date changes (requires Firestore Timestamp import)
-			const originalDate = log.date.toDate().toISOString().split('T')[0];
+			// Handle session date/time changes (requires Firestore Timestamp import)
+			const originalDateTime = log.date.toDate();
+			const originalDate = originalDateTime.toISOString().split('T')[0];
+			const originalTime = originalDateTime.toTimeString().slice(0, 5);
 			const dateChanged = formData.sessionDate !== originalDate;
-			const timeOfDayChanged = formData.timeOfDay !== log.timeOfDay && formData.timeOfDay !== undefined;
+			const timeChanged = (formData.sessionTime ?? originalTime) !== originalTime;
 
-			if (dateChanged) {
+			if (dateChanged || timeChanged) {
 				const { Timestamp } = await import('firebase/firestore');
-				const newDate = new Date(formData.sessionDate);
-				updates.date = Timestamp.fromDate(newDate);
-			}
+				const [hours, minutes] = (formData.sessionTime ?? originalTime).split(':').map(Number);
+				const newDateTime = new Date(formData.sessionDate);
+				newDateTime.setHours(hours, minutes, 0, 0);
+				updates.date = Timestamp.fromDate(newDateTime);
 
-			if (timeOfDayChanged) {
-				updates.timeOfDay = formData.timeOfDay;
-			}
-
-			if (dateChanged || timeOfDayChanged) {
-				const sessionTimeOfDay =
-					formData.timeOfDay ?? log.timeOfDay ?? getTimeOfDay(new Date(formData.sessionDate));
-				updates.sessionGroup = `${formData.sessionDate}-${sessionTimeOfDay}`;
+				const derivedTimeOfDay = getTimeOfDay(newDateTime);
+				updates.timeOfDay = derivedTimeOfDay;
+				updates.sessionGroup = `${formData.sessionDate}-${derivedTimeOfDay}`;
 			}
 
 			// Add changed fields (compare with original log)

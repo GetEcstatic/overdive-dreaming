@@ -13,10 +13,12 @@ export function routineLogToFormData(log: RoutineLog): LogFormData {
 	// Convert Firestore Timestamp to YYYY-MM-DD format
 	const logDate = log.date.toDate();
 	const sessionDate = logDate.toISOString().split('T')[0];
+	const sessionTime = logDate.toTimeString().slice(0, 5);
 
 	return {
 		disciplineUsed: log.disciplineUsed,
 		sessionDate,
+		sessionTime,
 		timeOfDay: log.timeOfDay,
 		isCompetition: log.isCompetition || false,
 		cardTag: log.cardTag ?? undefined,
