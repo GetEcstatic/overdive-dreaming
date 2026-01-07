@@ -151,21 +151,56 @@
 			STA: { border: '#a78bfa', fill: 'rgba(167, 139, 250, 0.12)' }
 		};
 
+		const datasets = series.map((entry) => {
+			const lookup = new Map(entry.data.map((point) => [point.date, point.value]));
+			return {
+				label: entry.disc,
+				data: labelDates.map((date) => lookup.get(date) ?? null),
+				borderColor: colorMap[entry.disc].border,
+				backgroundColor: colorMap[entry.disc].fill,
+				tension: 0.3,
+				fill: false,
+				spanGaps: true
+			};
+		});
+
+		if (series.length === 1) {
+			const values = datasets[0].data as Array<number | null>;
+			const points = values
+				.map((value, index) => (value === null ? null : { x: index, y: value }))
+				.filter(Boolean) as Array<{ x: number; y: number }>;
+
+			if (points.length >= 2) {
+				const sumX = points.reduce((acc, point) => acc + point.x, 0);
+				const sumY = points.reduce((acc, point) => acc + point.y, 0);
+				const sumXY = points.reduce((acc, point) => acc + point.x * point.y, 0);
+				const sumXX = points.reduce((acc, point) => acc + point.x * point.x, 0);
+				const n = points.length;
+				const denominator = n * sumXX - sumX * sumX;
+				const slope = denominator !== 0 ? (n * sumXY - sumX * sumY) / denominator : 0;
+				const intercept = n !== 0 ? (sumY - slope * sumX) / n : 0;
+
+				const trendData = values.map((value, index) =>
+					value === null ? null : slope * index + intercept
+				);
+
+				datasets.push({
+					label: `${series[0].disc} Trend`,
+					data: trendData,
+					borderColor: colorMap[series[0].disc].border,
+					borderDash: [6, 6],
+					borderWidth: 2,
+					pointRadius: 0,
+					fill: false,
+					tension: 0
+				});
+			}
+		}
+
 		return {
 			labels: labelDates.map((date) => format(new Date(date), 'MMM d, yyyy')),
 			labelDates,
-			datasets: series.map((entry) => {
-				const lookup = new Map(entry.data.map((point) => [point.date, point.value]));
-				return {
-					label: entry.disc,
-					data: labelDates.map((date) => lookup.get(date) ?? null),
-					borderColor: colorMap[entry.disc].border,
-					backgroundColor: colorMap[entry.disc].fill,
-					tension: 0.3,
-					fill: false,
-					spanGaps: true
-				};
-			})
+			datasets
 		};
 	});
 
