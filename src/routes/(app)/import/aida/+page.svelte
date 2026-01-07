@@ -63,14 +63,19 @@ let importCurrent = $state(0);
 		return disciplineSet.has(discipline) ? discipline : undefined;
 	}
 
-	function parseExcelDate(value: unknown): Date | null {
+	function parseExcelDate(value: unknown, preferDayMonth = false): Date | null {
 		if (!value) return null;
 
 		if (value instanceof Date && !Number.isNaN(value.getTime())) {
 			const year = value.getFullYear();
-			const month = value.getMonth();
-			const day = value.getDate();
-			return new Date(year, month, day, 12, 0, 0, 0);
+			let month = value.getMonth() + 1;
+			let day = value.getDate();
+			if (preferDayMonth && day <= 12 && month <= 12) {
+				const swapped = day;
+				day = month;
+				month = swapped;
+			}
+			return new Date(year, month - 1, day, 12, 0, 0, 0);
 		}
 
 		if (typeof value === 'number' && Number.isFinite(value)) {
@@ -82,7 +87,9 @@ let importCurrent = $state(0);
 
 		if (typeof value === 'string') {
 			const trimmed = value.trim();
-			const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?$/);
+			const isoMatch = trimmed.match(
+				/^(\d{4})-(\d{1,2})-(\d{1,2})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?$/
+			);
 			if (isoMatch) {
 				const year = Number(isoMatch[1]);
 				const month = Number(isoMatch[2]);
@@ -90,7 +97,9 @@ let importCurrent = $state(0);
 				return new Date(year, month - 1, day, 12, 0, 0, 0);
 			}
 
-			const ukMatch = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?$/);
+			const ukMatch = trimmed.match(
+				/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?$/
+			);
 			if (ukMatch) {
 				const day = Number(ukMatch[1]);
 				const month = Number(ukMatch[2]);
@@ -99,6 +108,10 @@ let importCurrent = $state(0);
 					year = year >= 70 ? 1900 + year : 2000 + year;
 				}
 				return new Date(year, month - 1, day, 12, 0, 0, 0);
+			}
+
+			if (trimmed.includes('/') || trimmed.includes('-')) {
+				return null;
 			}
 
 			const parsed = new Date(trimmed);
@@ -258,7 +271,7 @@ let importCurrent = $state(0);
 				const rowNumber = index + 2;
 				const competition = String(getRowValue(row, 'Competition') ?? '').trim();
 				const discipline = normalizeDiscipline(getRowValue(row, 'Discipline'));
-				const date = parseExcelDate(getRowValue(row, 'Date'));
+				const date = parseExcelDate(getRowValue(row, 'Date'), isCsv);
 				const realisedValue = getRowValue(row, 'Realised performance');
 				const realisedRaw = formatRealisedValue(realisedValue);
 				const cardTag = normalizeCardTag(getRowValue(row, 'Card'));
