@@ -159,7 +159,7 @@
 						}
 					},
 					legend: {
-						display: true,
+						display: false,
 						labels: {
 							color: '#94a3b8',
 							font: {

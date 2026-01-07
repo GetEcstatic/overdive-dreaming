@@ -130,13 +130,11 @@
 		datasets: any[];
 		labelDates: string[];
 	} => {
-		let activeDynamics = activeDynamicDisciplines();
-		if (!isStaSelected() && activeDynamics.length === 0) {
-			activeDynamics = dynamicDisciplines;
-		}
-		const activeDisciplines = isStaSelected()
-			? [...activeDynamics, 'STA']
-			: activeDynamics;
+		const activeDynamics = activeDynamicDisciplines();
+		const activeDisciplines =
+			selectedProgressDisciplines.length > 0
+				? selectedProgressDisciplines
+				: ['DYN'];
 		const series = activeDisciplines.map((disc) => ({
 			disc,
 			data: prepareProgressData(filteredLogs, disc, selectedProgressMetric())
@@ -393,35 +391,6 @@
 				<div class="chart-header">
 					<h2>Progress Over Time</h2>
 				</div>
-				<div class="discipline-toggle-row">
-					{#each progressDisciplines as disc}
-						<button
-							type="button"
-							class="discipline-toggle"
-							class:active={selectedProgressDisciplines.includes(disc)}
-							onclick={() => {
-								if (disc === 'STA') {
-									if (selectedProgressDisciplines.includes('STA')) {
-										selectedProgressDisciplines = selectedProgressDisciplines.filter(
-											(item) => item !== 'STA'
-										);
-									} else {
-										selectedProgressDisciplines = [...selectedProgressDisciplines, 'STA'];
-									}
-									progressMetric = 'time';
-								} else if (selectedProgressDisciplines.includes(disc)) {
-									const next = selectedProgressDisciplines.filter((item) => item !== disc);
-									selectedProgressDisciplines =
-										next.length > 0 ? next : [disc];
-								} else {
-									selectedProgressDisciplines = [...selectedProgressDisciplines, disc];
-								}
-							}}
-						>
-							{disc}
-						</button>
-					{/each}
-				</div>
 				<div class="metric-toggle-row">
 					<button
 						type="button"
@@ -444,6 +413,44 @@
 					>
 						Time
 					</button>
+				</div>
+				<div class="discipline-toggle-row">
+					{#each progressDisciplines as disc}
+						<button
+							type="button"
+							class="discipline-toggle"
+							class:active={selectedProgressDisciplines.includes(disc)}
+							style={`--pill-accent: ${
+								disc === 'DYN'
+									? '#14b8a6'
+									: disc === 'DNF'
+										? '#38bdf8'
+										: disc === 'DYNB'
+											? '#fbbf24'
+											: '#a78bfa'
+							}`}
+							onclick={() => {
+								if (disc === 'STA') {
+									if (selectedProgressDisciplines.includes('STA')) {
+										selectedProgressDisciplines = selectedProgressDisciplines.filter(
+											(item) => item !== 'STA'
+										);
+									} else {
+										selectedProgressDisciplines = [...selectedProgressDisciplines, 'STA'];
+									}
+									progressMetric = 'time';
+								} else if (selectedProgressDisciplines.includes(disc)) {
+									const next = selectedProgressDisciplines.filter((item) => item !== disc);
+									selectedProgressDisciplines =
+										next.length > 0 ? next : [disc];
+								} else {
+									selectedProgressDisciplines = [...selectedProgressDisciplines, disc];
+								}
+							}}
+						>
+							{disc}
+						</button>
+					{/each}
 				</div>
 				<LineChart
 					data={progressChartData}
@@ -549,8 +556,8 @@
 	}
 
 	.discipline-toggle.active {
-		border-color: rgba(20, 184, 166, 0.6);
-		background: rgba(20, 184, 166, 0.18);
+		border-color: color-mix(in srgb, var(--pill-accent), #ffffff 40%);
+		background: color-mix(in srgb, var(--pill-accent), transparent 82%);
 		color: #e0f2fe;
 	}
 
@@ -773,5 +780,11 @@
 		font-size: 1.3rem;
 		line-height: 1.2;
 		margin-top: 0.25rem;
+	}
+
+	@media (max-width: 640px) {
+		.chart-card {
+			padding: 1.1rem 1rem;
+		}
 	}
 </style>
