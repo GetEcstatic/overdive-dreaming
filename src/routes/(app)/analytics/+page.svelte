@@ -125,7 +125,11 @@
 		isStaSelected() ? 'STA' : (activeDynamicDisciplines()[0] ?? 'DYN')
 	);
 
-	const progressChartData = $derived.by(() => {
+	const progressChartData = $derived.by((): {
+		labels: string[];
+		datasets: any[];
+		labelDates: string[];
+	} => {
 		const activeDynamics =
 			activeDynamicDisciplines().length > 0 ? activeDynamicDisciplines() : dynamicDisciplines;
 		const activeDisciplines = isStaSelected()
@@ -136,7 +140,7 @@
 			data: prepareProgressData(filteredLogs, disc, selectedProgressMetric())
 		}));
 
-		const dates = Array.from(
+		const labelDates = Array.from(
 			new Set(series.flatMap((entry) => entry.data.map((point) => point.date)))
 		).sort((a, b) => a.localeCompare(b));
 
@@ -148,12 +152,13 @@
 		};
 
 		return {
-			labels: dates.map((date) => format(new Date(date), 'MMM d, yyyy')),
+			labels: labelDates.map((date) => format(new Date(date), 'MMM d, yyyy')),
+			labelDates,
 			datasets: series.map((entry) => {
 				const lookup = new Map(entry.data.map((point) => [point.date, point.value]));
 				return {
 					label: entry.disc,
-					data: dates.map((date) => lookup.get(date) ?? null),
+					data: labelDates.map((date) => lookup.get(date) ?? null),
 					borderColor: colorMap[entry.disc].border,
 					backgroundColor: colorMap[entry.disc].fill,
 					tension: 0.3,
@@ -162,6 +167,37 @@
 				};
 			})
 		};
+	});
+
+	const progressSeasonBands = $derived.by(() => {
+		if (filterKey !== 'tf:all' || seasons.length === 0) return [];
+		const labelDates = progressChartData.labelDates;
+		if (labelDates.length === 0) return [];
+
+		const parsedLabels = labelDates.map((date) => new Date(date));
+		return seasons
+			.map((season) => {
+				const start = season.startDate.toDate();
+				const end = season.endDate?.toDate() ?? new Date();
+				let startIndex: number | null = null;
+				let endIndex: number | null = null;
+
+				parsedLabels.forEach((date, index) => {
+					if (date >= start && date <= end) {
+						if (startIndex === null) startIndex = index;
+						endIndex = index;
+					}
+				});
+
+				if (startIndex === null || endIndex === null) return null;
+				return {
+					label: season.name,
+					startIndex,
+					endIndex,
+					color: 'rgba(20, 184, 166, 0.08)'
+				};
+			})
+			.filter(Boolean);
 	});
 
 	async function fetchAllLogs() {
@@ -412,6 +448,7 @@
 					height={300}
 					yTickFormatter={selectedProgressMetric() === 'time' ? formatTime : undefined}
 					tooltipValueFormatter={selectedProgressMetric() === 'time' ? formatTime : undefined}
+					seasonBands={progressSeasonBands}
 				/>
 			</div>
 
