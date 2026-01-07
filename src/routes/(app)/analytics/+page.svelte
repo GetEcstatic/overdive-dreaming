@@ -209,16 +209,15 @@
 		const labelDates = progressChartData.labelDates;
 		if (labelDates.length === 0) return [];
 
-		const parsedLabels = labelDates.map((date) => new Date(date));
 		return seasons
 			.map((season) => {
-				const start = season.startDate.toDate();
-				const end = season.endDate?.toDate() ?? new Date();
+				const startKey = format(season.startDate.toDate(), 'yyyy-MM-dd');
+				const endKey = format(season.endDate?.toDate() ?? new Date(), 'yyyy-MM-dd');
 				let startIndex: number | null = null;
 				let endIndex: number | null = null;
 
-				parsedLabels.forEach((date, index) => {
-					if (date >= start && date <= end) {
+				labelDates.forEach((dateKey, index) => {
+					if (dateKey >= startKey && dateKey <= endKey) {
 						if (startIndex === null) startIndex = index;
 						endIndex = index;
 					}
@@ -229,7 +228,9 @@
 					label: season.name,
 					startIndex,
 					endIndex,
-					color: 'rgba(20, 184, 166, 0.08)'
+					color: 'rgba(20, 184, 166, 0.08)',
+					startLabel: format(season.startDate.toDate(), 'MMM d, yyyy'),
+					endLabel: format((season.endDate?.toDate() ?? new Date()), 'MMM d, yyyy')
 				};
 			})
 			.filter(Boolean);

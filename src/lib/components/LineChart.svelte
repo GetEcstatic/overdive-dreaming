@@ -31,6 +31,8 @@
 		startIndex: number;
 		endIndex: number;
 		color?: string;
+		startLabel?: string;
+		endLabel?: string;
 	};
 
 	let {
@@ -51,7 +53,7 @@
 
 	let canvas: HTMLCanvasElement;
 	let chart: Chart | null = null;
-	let hoverBand = $state<{ label: string; x: number; y: number } | null>(null);
+	let hoverBand = $state<{ label: string; range?: string; x: number; y: number } | null>(null);
 
 	function getBandRects(chartInstance: Chart) {
 		const { chartArea, scales } = chartInstance;
@@ -73,7 +75,9 @@
 				chartArea.right,
 				xScale.getPixelForValue(band.endIndex) + halfStep
 			);
-			return { label: band.label, startX, endX };
+			const range =
+				band.startLabel && band.endLabel ? `${band.startLabel} – ${band.endLabel}` : undefined;
+			return { label: band.label, range, startX, endX };
 		});
 	}
 
@@ -91,7 +95,7 @@
 
 		const band = getBandRects(chart).find((item) => x >= item.startX && x <= item.endX);
 		if (band) {
-			hoverBand = { label: band.label, x, y: chartArea.top + 8 };
+			hoverBand = { label: band.label, range: band.range, x, y: chartArea.top + 8 };
 		} else {
 			hoverBand = null;
 		}
@@ -237,7 +241,10 @@
 			class="band-tooltip"
 			style="left: {hoverBand.x}px; top: {hoverBand.y}px;"
 		>
-			{hoverBand.label}
+			<div class="band-label">{hoverBand.label}</div>
+			{#if hoverBand.range}
+				<div class="band-range">{hoverBand.range}</div>
+			{/if}
 		</div>
 	{/if}
 </div>
@@ -261,5 +268,17 @@
 		pointer-events: none;
 		white-space: nowrap;
 		box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+	}
+
+	.band-label {
+		font-size: 0.72rem;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+	}
+
+	.band-range {
+		font-size: 0.65rem;
+		color: rgba(226, 232, 240, 0.75);
+		margin-top: 0.15rem;
 	}
 </style>

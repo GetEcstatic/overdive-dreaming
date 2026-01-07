@@ -42,8 +42,16 @@
 	let editSeasonStart = $state('');
 	let editSeasonEnd = $state('');
 
-	const toInputDate = (date: Date) => date.toISOString().split('T')[0];
-	const fromInputDate = (value: string) => new Date(`${value}T00:00:00`);
+	const toInputDate = (date: Date) => {
+		const year = date.getUTCFullYear();
+		const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+		const day = String(date.getUTCDate()).padStart(2, '0');
+		return `${year}-${month}-${day}`;
+	};
+	const fromInputDate = (value: string) => {
+		const [year, month, day] = value.split('-').map(Number);
+		return new Date(Date.UTC(year, month - 1, day));
+	};
 	const getTimeframeFromFilter = (value: string): DefaultTimeframe | null => {
 		if (!value.startsWith('tf:')) return null;
 		const timeframe = value.replace('tf:', '') as DefaultTimeframe;
