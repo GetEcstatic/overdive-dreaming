@@ -1,8 +1,10 @@
 ## Immediate action
 
-Add the following tags:
-- white card, yellow card, red card (to the comp tag row. These can be symbols/emojis rather than words)
-- Under Dive types, add "Dry" as a tag option
+In the Edit-session page a few things to change or fix:
+- The calendar icon is not visible on desktop sometimes (is it coloured black?) We need to make it more visible
+- We need to be able to change time of day as an option, not just date
+- We're noticing that sometimes after saving, numerical value (such as the the overal distance performed or the length of a pool) are changing. Most of the time it seems to be a -3 change (150m changes to 147m). It doesn't seem to be consistent.
+
 
 
 

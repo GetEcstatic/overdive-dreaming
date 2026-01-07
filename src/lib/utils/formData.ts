@@ -17,6 +17,7 @@ export function routineLogToFormData(log: RoutineLog): LogFormData {
 	return {
 		disciplineUsed: log.disciplineUsed,
 		sessionDate,
+		timeOfDay: log.timeOfDay,
 		isCompetition: log.isCompetition || false,
 		cardTag: log.cardTag ?? undefined,
 		recordTag: log.recordTag ?? undefined,

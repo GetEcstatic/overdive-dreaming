@@ -6,7 +6,8 @@
 		BreathingTechnique,
 		RecordTag,
 		CardTag,
-		SessionVisibility
+		SessionVisibility,
+		TimeOfDay
 	} from '$lib/types';
 	import type { LogFormData } from '$lib/components/QuickLogForm.svelte';
 	import {
@@ -45,6 +46,7 @@
 	};
 
 	let sessionDate = $state<string>(formData.sessionDate);
+	let timeOfDay = $state<TimeOfDay>(formData.timeOfDay ?? 'morning');
 	let isCompetition = $state<boolean>(formData.isCompetition || false);
 	let cardTag = $state<CardTag | undefined>(formData.cardTag);
 	let recordTag = $state<RecordTag | undefined>(formData.recordTag);
@@ -121,6 +123,12 @@
 		return `Hyperventilation (+${level})`;
 	}
 
+	function normalizeNumber(value: number | undefined | null): number | undefined {
+		if (value === undefined || value === null) return undefined;
+		const numeric = typeof value === 'number' ? value : Number(value);
+		return Number.isFinite(numeric) ? numeric : undefined;
+	}
+
 	// Media handlers
 	function handlePhotoChange(file: File | null, action: 'add' | 'remove' | 'replace') {
 		photoFile = file || undefined;
@@ -166,32 +174,33 @@
 		const data: LogFormData = {
 			disciplineUsed,
 			sessionDate,
+			timeOfDay,
 			isCompetition,
 			cardTag,
 			recordTag,
 			visibility,
 			// Session context
-			poolLength,
+			poolLength: normalizeNumber(poolLength),
 			initialBreatheUpTime: initialBreatheUp,
 			// Performance metrics
-			totalDistance,
+			totalDistance: normalizeNumber(totalDistance),
 			totalTime: totalTimeInSeconds,
-			repsCompleted,
+			repsCompleted: normalizeNumber(repsCompleted),
 			repDuration: repDurationInSeconds,
 			// Training context
 			breathingTechnique,
-			rpe,
-			joyScale,
-			hoursSinceLastMeal,
+			rpe: normalizeNumber(rpe),
+			joyScale: normalizeNumber(joyScale),
+			hoursSinceLastMeal: normalizeNumber(hoursSinceLastMeal),
 			notes: notes.trim() || undefined,
 			// NEW METRICS - Phase 1
-			menstrualCycleDay,
+			menstrualCycleDay: normalizeNumber(menstrualCycleDay),
 			facialGear: facialGear.length > 0 ? facialGear : undefined,
-			basalMood,
-			minimumSpO2,
-			minimumHR,
-			bodyWeight,
-			breathingTechniqueLevel,
+			basalMood: normalizeNumber(basalMood),
+			minimumSpO2: normalizeNumber(minimumSpO2),
+			minimumHR: normalizeNumber(minimumHR),
+			bodyWeight: normalizeNumber(bodyWeight),
+			breathingTechniqueLevel: normalizeNumber(breathingTechniqueLevel),
 			// Media
 			photoFile,
 			youtubeUrl: youtubeUrl.trim() || undefined
@@ -228,16 +237,28 @@
 
 	<!-- Session Date -->
 	<div class="form-section">
-		<label for="sessionDate" class="section-label">Session Date</label>
-		<input
-			id="sessionDate"
-			type="date"
-			bind:value={sessionDate}
-			min={formatDateForInput(maxPastDate)}
-			max={formatDateForInput(today)}
-			class="date-input"
-			required
-		/>
+		<div class="date-time-row">
+			<div class="field-group">
+				<label for="sessionDate" class="section-label">Session Date</label>
+				<input
+					id="sessionDate"
+					type="date"
+					bind:value={sessionDate}
+					min={formatDateForInput(maxPastDate)}
+					max={formatDateForInput(today)}
+					class="date-input"
+					required
+				/>
+			</div>
+			<div class="field-group">
+				<label for="timeOfDay" class="section-label">Time of Day</label>
+				<select id="timeOfDay" bind:value={timeOfDay} class="field-input time-select">
+					<option value="morning">Morning</option>
+					<option value="afternoon">Afternoon</option>
+					<option value="evening">Evening</option>
+				</select>
+			</div>
+		</div>
 		<p class="field-hint">When did this session take place? (dates from 2016 onwards)</p>
 
 		<div class="field-group">
@@ -865,6 +886,16 @@
 		border-color: var(--color-primary);
 	}
 
+	.date-input::-webkit-calendar-picker-indicator {
+		filter: invert(0.85) brightness(1.2);
+		opacity: 0.9;
+		cursor: pointer;
+	}
+
+	.date-input::-webkit-calendar-picker-indicator:hover {
+		opacity: 1;
+	}
+
 	.field-textarea {
 		width: 100%;
 		padding: 0.75rem 1rem;
@@ -902,6 +933,17 @@
 		color: var(--color-text-muted);
 		font-weight: 600;
 		font-size: 1.25rem;
+	}
+
+	.date-time-row {
+		display: grid;
+		grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+		gap: 1rem;
+		align-items: end;
+	}
+
+	.time-select {
+		height: 100%;
 	}
 
 	/* Discipline Buttons */
@@ -1134,6 +1176,10 @@
 
 	/* Mobile Responsive Adjustments */
 	@media (max-width: 640px) {
+		.date-time-row {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
 		.technique-btn {
 			min-width: 100px;
 		}

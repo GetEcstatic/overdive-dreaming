@@ -5,6 +5,7 @@
 	import { uploadSessionPhoto, deleteSessionPhoto } from '$lib/storage';
 	import { user } from '$lib/stores/auth';
 	import { onMount } from 'svelte';
+	import { getTimeOfDay } from '$lib/utils/sessions';
 
 	interface Props {
 		open: boolean;
@@ -59,20 +60,23 @@
 
 			// Handle session date changes (requires Firestore Timestamp import)
 			const originalDate = log.date.toDate().toISOString().split('T')[0];
-			if (formData.sessionDate !== originalDate) {
+			const dateChanged = formData.sessionDate !== originalDate;
+			const timeOfDayChanged = formData.timeOfDay !== log.timeOfDay && formData.timeOfDay !== undefined;
+
+			if (dateChanged) {
 				const { Timestamp } = await import('firebase/firestore');
 				const newDate = new Date(formData.sessionDate);
 				updates.date = Timestamp.fromDate(newDate);
+			}
 
-				// Also update sessionGroup if date changed
-				const getTimeOfDay = (date: Date) => {
-					const hour = date.getHours();
-					if (hour < 12) return 'morning';
-					if (hour < 17) return 'afternoon';
-					return 'evening';
-				};
-				const timeOfDay = getTimeOfDay(newDate);
-				updates.sessionGroup = `${formData.sessionDate}-${timeOfDay}`;
+			if (timeOfDayChanged) {
+				updates.timeOfDay = formData.timeOfDay;
+			}
+
+			if (dateChanged || timeOfDayChanged) {
+				const sessionTimeOfDay =
+					formData.timeOfDay ?? log.timeOfDay ?? getTimeOfDay(new Date(formData.sessionDate));
+				updates.sessionGroup = `${formData.sessionDate}-${sessionTimeOfDay}`;
 			}
 
 			// Add changed fields (compare with original log)

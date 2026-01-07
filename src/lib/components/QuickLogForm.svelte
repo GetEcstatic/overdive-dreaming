@@ -6,7 +6,8 @@
 		PoolType,
 		RecordTag,
 		CardTag,
-		SessionVisibility
+		SessionVisibility,
+		TimeOfDay
 	} from '$lib/types';
 	import PhotoCropper from '$lib/components/PhotoCropper.svelte';
 	import { isValidYouTubeUrl } from '$lib/storage';
@@ -21,6 +22,7 @@
 	export interface LogFormData {
 		disciplineUsed: Discipline;
 		sessionDate: string; // YYYY-MM-DD format
+		timeOfDay?: TimeOfDay;
 		isCompetition?: boolean;
 		cardTag?: CardTag;
 		recordTag?: RecordTag;
