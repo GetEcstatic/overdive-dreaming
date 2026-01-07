@@ -233,7 +233,17 @@
 	);
 </script>
 
-<form onsubmit={handleSubmit} class="log-form">
+<form
+	onsubmit={handleSubmit}
+	class="log-form"
+	on:wheel={(e) => {
+		const target = e.target as HTMLInputElement | null;
+		if (target?.type === 'number') {
+			e.preventDefault();
+			target.blur();
+		}
+	}}
+>
 	<!-- Form Header -->
 	<div class="form-header">
 		<h3 class="routine-name">{routine.name}</h3>
