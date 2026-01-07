@@ -9,10 +9,10 @@
 		getSeasonsForUser,
 		createSeason,
 		updateSeason,
-		getUserSettings,
 		updateUserSettings
 	} from '$lib/firestore';
-	import type { Season, SessionVisibility } from '$lib/types';
+	import { getProfileCache, refreshProfileCache, updateProfileCache } from '$lib/utils/profileCache';
+	import type { Season, SessionVisibility, UserSettings } from '$lib/types';
 
 	type DefaultTimeframe = '1month' | '6months' | '1year';
 
@@ -47,6 +47,7 @@
 	let editSeasonName = $state('');
 	let editSeasonStart = $state('');
 	let editSeasonEnd = $state('');
+	const profileCacheTtlMs = 5 * 60 * 1000;
 
 	const toInputDate = (date: Date) => {
 		const year = date.getUTCFullYear();
@@ -78,36 +79,49 @@
 		editSeasonEnd = '';
 	}
 
-	async function loadSettings() {
-		if (!$user) return;
-		try {
-			settingsError = null;
-			const settings = await getUserSettings($user.uid);
-			if (settings?.defaultTimeframe) {
-				defaultTimeframeFallback = settings.defaultTimeframe;
-			}
-			if (settings?.defaultAnalyticsFilter) {
-				defaultFilterKey = settings.defaultAnalyticsFilter;
-			} else if (settings?.defaultTimeframe) {
-				defaultFilterKey = `tf:${settings.defaultTimeframe}`;
-			}
-			if (settings?.defaultSessionVisibility) {
-				defaultSessionVisibility = settings.defaultSessionVisibility;
-			}
-		} catch (error) {
-			console.error('Failed to load settings:', error);
-			settingsError = 'Failed to load settings.';
+	function applySettings(settings?: UserSettings) {
+		if (settings?.defaultTimeframe) {
+			defaultTimeframeFallback = settings.defaultTimeframe;
+		}
+		if (settings?.defaultAnalyticsFilter) {
+			defaultFilterKey = settings.defaultAnalyticsFilter;
+		} else if (settings?.defaultTimeframe) {
+			defaultFilterKey = `tf:${settings.defaultTimeframe}`;
+		}
+		if (settings?.defaultSessionVisibility) {
+			defaultSessionVisibility = settings.defaultSessionVisibility;
 		}
 	}
 
-	async function loadSeasons() {
+	function applyProfileCache(entry: { settings?: UserSettings; seasons?: Season[] }) {
+		if (entry.settings) {
+			applySettings(entry.settings);
+		}
+		if (entry.seasons) {
+			seasons = entry.seasons;
+		}
+	}
+
+	async function initializeProfileData() {
 		if (!$user) return;
+		const cached = getProfileCache($user.uid);
+		if (cached) {
+			applyProfileCache(cached);
+		}
+
+		const isStale =
+			!cached?.fetchedAt || Date.now() - cached.fetchedAt > profileCacheTtlMs;
+		if (!isStale) return;
+
 		try {
 			seasonsLoading = true;
+			settingsError = null;
 			seasonsError = null;
-			seasons = await getSeasonsForUser($user.uid);
+			const fresh = await refreshProfileCache($user.uid);
+			applyProfileCache(fresh);
 		} catch (error) {
-			console.error('Failed to load seasons:', error);
+			console.error('Failed to load profile data:', error);
+			settingsError = 'Failed to load settings.';
 			seasonsError = 'Failed to load seasons.';
 		} finally {
 			seasonsLoading = false;
@@ -123,11 +137,13 @@
 			if (selectedTimeframe) {
 				defaultTimeframeFallback = selectedTimeframe;
 			}
-			await updateUserSettings($user.uid, {
+			const nextSettings: UserSettings = {
 				defaultAnalyticsFilter: defaultFilterKey,
 				defaultTimeframe: defaultTimeframeFallback,
 				defaultSessionVisibility
-			});
+			};
+			await updateUserSettings($user.uid, nextSettings);
+			updateProfileCache($user.uid, { settings: nextSettings });
 		} catch (error) {
 			console.error('Failed to update settings:', error);
 			settingsError = 'Failed to save settings.';
@@ -141,11 +157,13 @@
 		try {
 			settingsSaving = true;
 			settingsError = null;
-			await updateUserSettings($user.uid, {
+			const nextSettings: UserSettings = {
 				defaultAnalyticsFilter: defaultFilterKey,
 				defaultTimeframe: defaultTimeframeFallback,
 				defaultSessionVisibility
-			});
+			};
+			await updateUserSettings($user.uid, nextSettings);
+			updateProfileCache($user.uid, { settings: nextSettings });
 		} catch (error) {
 			console.error('Failed to update settings:', error);
 			settingsError = 'Failed to save settings.';
@@ -176,7 +194,9 @@
 			newSeasonName = '';
 			newSeasonStart = '';
 			newSeasonEnd = '';
-			await loadSeasons();
+			const freshSeasons = await getSeasonsForUser($user.uid);
+			seasons = freshSeasons;
+			updateProfileCache($user.uid, { seasons: freshSeasons });
 		} catch (error) {
 			console.error('Failed to create season:', error);
 			seasonsError = 'Failed to create season.';
@@ -204,7 +224,9 @@
 				endDate: endDate ? Timestamp.fromDate(endDate) : null
 			});
 			cancelEditSeason();
-			await loadSeasons();
+			const freshSeasons = await getSeasonsForUser($user.uid);
+			seasons = freshSeasons;
+			updateProfileCache($user.uid, { seasons: freshSeasons });
 		} catch (error) {
 			console.error('Failed to update season:', error);
 			seasonsError = 'Failed to update season.';
@@ -228,8 +250,7 @@
 			const storedAt = window.localStorage.getItem(`${lastImportStorageKey}:at`);
 			lastImportAt = storedAt ? Number(storedAt) : null;
 		}
-		loadSettings();
-		loadSeasons();
+		initializeProfileData();
 	});
 
 	function formatImportTimestamp(timestamp: number | null): string | null {

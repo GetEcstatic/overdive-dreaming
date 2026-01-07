@@ -7,11 +7,7 @@
 	import SessionCard from '$lib/components/SessionCard.svelte';
 	import { getUserPBs, updateUserPB, checkIsPB } from '$lib/utils/personalBests';
 	import { onMount } from 'svelte';
-
-	interface LogWithRoutine {
-		log: RoutineLog;
-		routine: RoutineTemplate;
-	}
+	import { getDashboardCache, updateDashboardCache, type LogWithRoutine } from '$lib/utils/dashboardCache';
 
 	type FeedMode = 'mine' | 'community';
 
@@ -34,6 +30,7 @@
 	let loadMoreSentinel: HTMLDivElement | undefined = $state();
 	let observer: IntersectionObserver | null = null;
 	let lastRefreshAt = 0;
+	const dashboardCacheTtlMs = 2 * 60 * 1000;
 	const profileCache = new Map<string, { displayName: string; photoURL?: string }>();
 	const feedTitle = $derived.by(() => (feedMode === 'community' ? 'Community Sessions' : 'Recent Sessions'));
 	const emptyTitle = $derived.by(() => (feedMode === 'community' ? 'No community sessions yet' : 'No sessions yet'));
@@ -53,12 +50,14 @@
 		}
 	}
 
-	async function fetchPersonalSessions() {
+	async function fetchPersonalSessions(options: { silent?: boolean } = {}) {
 		if (!$user) return;
 
 		try {
-			loading = true;
-			error = null;
+			if (!options.silent) {
+				loading = true;
+				error = null;
+			}
 
 			// Query recent routine logs with pagination (initial load: 20 items)
 			const result = await getRecentActivityPaginated($user.uid, 20);
@@ -86,22 +85,34 @@
 			personalSessions = sessionsData;
 			personalLastDoc = result.lastDoc;
 			personalHasMore = result.hasMore;
+			updateDashboardCache($user.uid, {
+				personalSessions: sessionsData,
+				personalLastDoc: result.lastDoc,
+				personalHasMore: result.hasMore,
+				thisWeekCount
+			});
 
 			console.log(`Displaying ${personalSessions.length} routine logs in feed (hasMore: ${personalHasMore})`);
 		} catch (err) {
 			console.error('Error fetching sessions:', err);
-			error = `Failed to load recent sessions: ${err instanceof Error ? err.message : String(err)}`;
+			if (!options.silent) {
+				error = `Failed to load recent sessions: ${err instanceof Error ? err.message : String(err)}`;
+			}
 		} finally {
-			loading = false;
+			if (!options.silent) {
+				loading = false;
+			}
 		}
 	}
 
-	async function fetchCommunitySessions() {
+	async function fetchCommunitySessions(options: { silent?: boolean } = {}) {
 		if (!$user) return;
 
 		try {
-			loading = true;
-			error = null;
+			if (!options.silent) {
+				loading = true;
+				error = null;
+			}
 
 			const result = await getPublicActivityPaginated(20);
 			const sessionsData: LogWithRoutine[] = [];
@@ -136,13 +147,22 @@
 			communitySessions = sessionsData;
 			communityLastDoc = result.lastDoc;
 			communityHasMore = result.hasMore;
+			updateDashboardCache($user.uid, {
+				communitySessions: sessionsData,
+				communityLastDoc: result.lastDoc,
+				communityHasMore: result.hasMore
+			});
 
 			console.log(`Displaying ${communitySessions.length} community logs (hasMore: ${communityHasMore})`);
 		} catch (err) {
 			console.error('Error fetching community sessions:', err);
-			error = `Failed to load community sessions: ${err instanceof Error ? err.message : String(err)}`;
+			if (!options.silent) {
+				error = `Failed to load community sessions: ${err instanceof Error ? err.message : String(err)}`;
+			}
 		} finally {
-			loading = false;
+			if (!options.silent) {
+				loading = false;
+			}
 		}
 	}
 
@@ -189,6 +209,11 @@
 			personalSessions = [...personalSessions, ...newSessionsData];
 			personalLastDoc = result.lastDoc;
 			personalHasMore = result.hasMore;
+			updateDashboardCache($user.uid, {
+				personalSessions,
+				personalLastDoc,
+				personalHasMore
+			});
 
 			console.log(
 				`Loaded ${newSessionsData.length} more sessions (total: ${personalSessions.length}, hasMore: ${personalHasMore})`
@@ -222,6 +247,11 @@
 			communitySessions = [...communitySessions, ...newSessionsData];
 			communityLastDoc = result.lastDoc;
 			communityHasMore = result.hasMore;
+			updateDashboardCache($user.uid, {
+				communitySessions,
+				communityLastDoc,
+				communityHasMore
+			});
 
 			console.log(
 				`Loaded ${newSessionsData.length} more community sessions (total: ${communitySessions.length}, hasMore: ${communityHasMore})`
@@ -318,9 +348,25 @@
 			feedMode = 'community';
 		}
 
-		fetchPersonalSessions();
-		if (feedMode === 'community') {
-			fetchCommunitySessions();
+		if ($user) {
+			const cached = getDashboardCache($user.uid);
+			if (cached) {
+				personalSessions = cached.personalSessions;
+				communitySessions = cached.communitySessions;
+				personalLastDoc = cached.personalLastDoc;
+				communityLastDoc = cached.communityLastDoc;
+				personalHasMore = cached.personalHasMore;
+				communityHasMore = cached.communityHasMore;
+				thisWeekCount = cached.thisWeekCount;
+				loading = false;
+			}
+			const isStale = !cached?.fetchedAt || Date.now() - cached.fetchedAt > dashboardCacheTtlMs;
+			if (isStale) {
+				fetchPersonalSessions({ silent: !!cached });
+				if (feedMode === 'community') {
+					fetchCommunitySessions({ silent: !!cached });
+				}
+			}
 		}
 		fetchPBs();
 
@@ -329,9 +375,9 @@
 			const now = Date.now();
 			if (now - lastRefreshAt < 1500) return;
 			lastRefreshAt = now;
-			fetchPersonalSessions();
+			fetchPersonalSessions({ silent: true });
 			if (feedMode === 'community') {
-				fetchCommunitySessions();
+				fetchCommunitySessions({ silent: true });
 			}
 		};
 
