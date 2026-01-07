@@ -25,10 +25,10 @@
 	import { getUserSettings, getSeasonsForUser } from '$lib/firestore';
 
 	let filterKey = $state<string>('tf:1month');
-	let selectedDiscipline = $state<Discipline>('DYN');
 	let allLogs = $state<RoutineLog[]>([]);
 	let loading = $state(true);
 	let seasons = $state<Season[]>([]);
+	let selectedProgressDisciplines = $state<Discipline[]>(['DYN', 'DNF', 'DYNB']);
 
 	const timeframes = [
 		{ value: '1month', label: 'Last Month' },
@@ -38,6 +38,7 @@
 	];
 
 	const disciplines = ['DYN', 'DNF', 'DYNB', 'STA'] as Discipline[];
+	const progressDisciplines: Discipline[] = ['DYN', 'DNF', 'DYNB', 'STA'];
 
 	// Reactive computations
 	const selectedSeason = $derived.by(() => {
@@ -111,27 +112,65 @@
 		return calculateCompetitionStats(allLogs, activeTimeframe);
 	});
 
+	const dynamicDisciplines: Discipline[] = ['DYN', 'DNF', 'DYNB'];
+	const isStaSelected = $derived(() => selectedProgressDisciplines.includes('STA'));
+	const activeDynamicDisciplines = $derived(() =>
+		selectedProgressDisciplines.filter((disc) => disc !== 'STA')
+	);
+	const timeOfDayDiscipline = $derived(() =>
+		isStaSelected() ? 'STA' : (activeDynamicDisciplines()[0] ?? 'DYN')
+	);
+
 	const progressChartData = $derived.by(() => {
-		const progressData = prepareProgressData(
-			filteredLogs,
-			selectedDiscipline,
-			['DYN', 'DNF', 'DYNB'].includes(selectedDiscipline) ? 'distance' : 'time'
-		);
+		if (isStaSelected()) {
+			const progressData = prepareProgressData(filteredLogs, 'STA', 'time');
+			return {
+				labels: progressData.map((d) => format(new Date(d.date), 'MMM d, yyyy')),
+				datasets: [
+					{
+						label: 'STA',
+						data: progressData.map((d) => d.value),
+						borderColor: '#a78bfa',
+						backgroundColor: 'rgba(167, 139, 250, 0.12)',
+						tension: 0.3,
+						fill: true
+					}
+				]
+			};
+		}
+
+		const activeDynamics =
+			activeDynamicDisciplines().length > 0 ? activeDynamicDisciplines() : dynamicDisciplines;
+		const series = activeDynamics.map((disc) => ({
+			disc,
+			data: prepareProgressData(filteredLogs, disc, 'distance')
+		}));
+
+		const dates = Array.from(
+			new Set(series.flatMap((entry) => entry.data.map((point) => point.date)))
+		).sort((a, b) => a.localeCompare(b));
+
+		const colorMap: Record<Discipline, { border: string; fill: string }> = {
+			DYN: { border: '#14b8a6', fill: 'rgba(20, 184, 166, 0.12)' },
+			DNF: { border: '#38bdf8', fill: 'rgba(56, 189, 248, 0.12)' },
+			DYNB: { border: '#fbbf24', fill: 'rgba(251, 191, 36, 0.12)' },
+			STA: { border: '#a78bfa', fill: 'rgba(167, 139, 250, 0.12)' }
+		};
 
 		return {
-			labels: progressData.map((d) => format(new Date(d.date), 'MMM d')),
-			datasets: [
-				{
-					label: ['DYN', 'DNF', 'DYNB'].includes(selectedDiscipline)
-						? 'Distance (m)'
-						: 'Time (s)',
-					data: progressData.map((d) => d.value),
-					borderColor: '#14b8a6',
-					backgroundColor: 'rgba(20, 184, 166, 0.1)',
+			labels: dates.map((date) => format(new Date(date), 'MMM d, yyyy')),
+			datasets: series.map((entry) => {
+				const lookup = new Map(entry.data.map((point) => [point.date, point.value]));
+				return {
+					label: entry.disc,
+					data: dates.map((date) => lookup.get(date) ?? null),
+					borderColor: colorMap[entry.disc].border,
+					backgroundColor: colorMap[entry.disc].fill,
 					tension: 0.3,
-					fill: true
-				}
-			]
+					fill: false,
+					spanGaps: true
+				};
+			})
 		};
 	});
 
@@ -183,7 +222,7 @@
 		// Check for query params to pre-select filters
 		const disciplineParam = $page.url.searchParams.get('discipline');
 		if (disciplineParam && disciplines.includes(disciplineParam as Discipline)) {
-			selectedDiscipline = disciplineParam as Discipline;
+			selectedProgressDisciplines = [disciplineParam as Discipline];
 		}
 
 		// Note: routine param is captured but not used yet (would require adding routine filter)
@@ -322,25 +361,44 @@
 			<div class="chart-card">
 				<div class="chart-header">
 					<h2>Progress Over Time</h2>
-					<select bind:value={selectedDiscipline} class="discipline-select">
-						{#each disciplines as disc}
-							<option value={disc}>{disc}</option>
-						{/each}
-					</select>
+				</div>
+				<div class="discipline-toggle-row">
+					{#each progressDisciplines as disc}
+						<button
+							type="button"
+							class="discipline-toggle"
+							class:active={selectedProgressDisciplines.includes(disc)}
+							onclick={() => {
+								if (disc === 'STA') {
+									selectedProgressDisciplines = ['STA'];
+								} else if (selectedProgressDisciplines.includes('STA')) {
+									selectedProgressDisciplines = [disc];
+								} else if (selectedProgressDisciplines.includes(disc)) {
+									const next = selectedProgressDisciplines.filter((item) => item !== disc);
+									selectedProgressDisciplines =
+										next.length > 0 ? next : [disc];
+								} else {
+									selectedProgressDisciplines = [...selectedProgressDisciplines, disc];
+								}
+							}}
+						>
+							{disc}
+						</button>
+					{/each}
 				</div>
 				<LineChart
 					data={progressChartData}
 					height={300}
-					yTickFormatter={selectedDiscipline === 'STA' ? formatTime : undefined}
-					tooltipValueFormatter={selectedDiscipline === 'STA' ? formatTime : undefined}
+					yTickFormatter={isStaSelected() ? formatTime : undefined}
+					tooltipValueFormatter={isStaSelected() ? formatTime : undefined}
 				/>
 			</div>
 
 			<!-- Performance by Time of Day -->
 			<TimeOfDayAnalysis
 				logs={filteredLogs}
-				discipline={selectedDiscipline}
-				metric={['DYN', 'DNF', 'DYNB'].includes(selectedDiscipline) ? 'distance' : 'time'}
+				discipline={timeOfDayDiscipline()}
+				metric={['DYN', 'DNF', 'DYNB'].includes(timeOfDayDiscipline()) ? 'distance' : 'time'}
 			/>
 		</div>
 	{/if}
@@ -383,8 +441,7 @@
 		background-clip: text;
 	}
 
-	.timeframe-select,
-	.discipline-select {
+	.timeframe-select {
 		padding: 0.5rem 1rem;
 		border-radius: 8px;
 		background: var(--color-bg-card);
@@ -396,9 +453,38 @@
 		transition: border-color 0.2s ease;
 	}
 
-	.timeframe-select:focus,
-	.discipline-select:focus {
+	.timeframe-select:focus {
 		border-color: var(--color-primary);
+	}
+
+	.discipline-toggle-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-top: 0.75rem;
+	}
+
+	.discipline-toggle {
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		background: rgba(15, 23, 42, 0.4);
+		color: var(--color-text);
+		border-radius: 999px;
+		padding: 0.35rem 0.75rem;
+		font-size: 0.75rem;
+		font-weight: 600;
+		letter-spacing: 0.04em;
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.discipline-toggle:hover {
+		border-color: rgba(148, 163, 184, 0.35);
+	}
+
+	.discipline-toggle.active {
+		border-color: rgba(20, 184, 166, 0.6);
+		background: rgba(20, 184, 166, 0.18);
+		color: #e0f2fe;
 	}
 
 	.loading,

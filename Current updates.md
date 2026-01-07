@@ -2,6 +2,8 @@
 
 Anyalytics page:
 - progress over time chart: sometimes it's unclear which year the dates on the x-axis refer to. Can we add a date format with year included?
+- In the progress overtime chart we should be overlay dynamic disciplines (so see lines for DYN and DYNB and DNF on the same chart)
+
 
 
 
