@@ -94,3 +94,45 @@ Prototype two low-effort UX patterns:
 1) Guided Filter Builder (Idea 1)
 2) A/B Compare Modes (Idea 2)
 Then test which is easier to understand for your examples.
+
+## Additional Analytics Card Ideas
+
+### 1. Recovery vs Performance (scatter)
+Plot `totalDistance/totalTime` against `hoursSinceLastMeal`, `restingHeartRate`, or `hrv`.
+- Benefits: quickly shows if recovery metrics correlate with performance.
+- Challenges: requires enough data points and sensible outlier handling.
+
+### 2. Prep Quality Impact
+Compare results by `initialBreatheUpTime` or `breathingTechniqueLevel` buckets.
+- Benefits: actionable insight into pre-dive routines.
+- Challenges: need to define meaningful bucket ranges and handle mixed disciplines.
+
+### 3. Consistency Meter
+Show variance (stdev) of max results over last N sessions by discipline.
+- Benefits: highlights stability vs volatility; good for trend awareness.
+- Challenges: requires clear explanation and consistent data history.
+
+### 4. Competition vs Training Split
+Side-by-side averages and PBs for `isCompetition` vs normal sessions.
+- Benefits: helps users see if comp performance is lower/higher than training.
+- Challenges: smaller competition sample sizes.
+
+### 5. Contraction Window Insight
+Correlate `contractionsOnsetTime` with max result for STA.
+- Benefits: deep insight for advanced users; unique value.
+- Challenges: limited data availability and higher noise.
+
+### 6. Temperature Impact
+Trendline of `waterTemperature` vs result.
+- Benefits: highlights environmental effects on performance.
+- Challenges: seasonality confounds; needs filtering guidance.
+
+### 7. Mood vs Performance
+Compare `basalMood` vs max outcomes by discipline.
+- Benefits: easy personal insight; can reinforce positive habits.
+- Challenges: subjective data; may need gentle framing.
+
+### 8. Time-to-PB Tracker
+Count sessions since last PB by discipline.
+- Benefits: motivating and simple.
+- Challenges: needs clear reset logic on PB detection.

@@ -38,10 +38,28 @@ export function routineLogToFormData(log: RoutineLog): LogFormData {
 
 		// Training context
 		breathingTechnique: log.breathingTechnique,
+		waterTemperature: log.waterTemperature,
+		contractionsOnsetTime: log.contractionsOnsetTime,
+		equipmentUsed: log.equipmentUsed,
+		buddyName: log.buddyName,
+		restingHeartRate: log.restingHeartRate,
+		hrv: log.hrv,
+		poolType: log.poolType,
+		sambaBO: log.sambaBO,
+		breathsBetweenReps: log.breathsBetweenReps,
+		breathingTechniqueLevel: log.breathingTechniqueLevel,
 		rpe: log.rpe,
 		joyScale: log.joyScale,
 		hoursSinceLastMeal: log.hoursSinceLastMeal,
 		notes: log.notes,
+
+		// NEW METRICS - Phase 1
+		menstrualCycleDay: log.menstrualCycleDay,
+		facialGear: log.facialGear,
+		basalMood: log.basalMood,
+		minimumSpO2: log.minimumSpO2,
+		minimumHR: log.minimumHR,
+		bodyWeight: log.bodyWeight,
 
 		// Media - don't include in form data, handled separately
 		photoFile: undefined,

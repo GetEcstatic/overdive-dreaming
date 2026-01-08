@@ -93,6 +93,33 @@
 			if (formData.repDuration !== log.repDuration) updates.repDuration = formData.repDuration;
 			if (formData.breathingTechnique !== log.breathingTechnique)
 				updates.breathingTechnique = formData.breathingTechnique;
+			if (formData.breathingTechniqueLevel !== log.breathingTechniqueLevel) {
+				updates.breathingTechniqueLevel = formData.breathingTechniqueLevel;
+			}
+			if (formData.waterTemperature !== log.waterTemperature)
+				updates.waterTemperature = formData.waterTemperature;
+			if (formData.contractionsOnsetTime !== log.contractionsOnsetTime)
+				updates.contractionsOnsetTime = formData.contractionsOnsetTime;
+			if (formData.equipmentUsed !== log.equipmentUsed)
+				updates.equipmentUsed = formData.equipmentUsed;
+			if (formData.buddyName !== log.buddyName) updates.buddyName = formData.buddyName;
+			if (formData.restingHeartRate !== log.restingHeartRate)
+				updates.restingHeartRate = formData.restingHeartRate;
+			if (formData.hrv !== log.hrv) updates.hrv = formData.hrv;
+			if (formData.poolType !== log.poolType) updates.poolType = formData.poolType;
+			if ((formData.sambaBO ?? false) !== (log.sambaBO ?? false)) {
+				updates.sambaBO = formData.sambaBO ?? false;
+			}
+			if (formData.breathsBetweenReps !== log.breathsBetweenReps)
+				updates.breathsBetweenReps = formData.breathsBetweenReps;
+			if (formData.menstrualCycleDay !== log.menstrualCycleDay)
+				updates.menstrualCycleDay = formData.menstrualCycleDay;
+			if (formData.facialGear !== log.facialGear) updates.facialGear = formData.facialGear;
+			if (formData.basalMood !== log.basalMood) updates.basalMood = formData.basalMood;
+			if (formData.minimumSpO2 !== log.minimumSpO2)
+				updates.minimumSpO2 = formData.minimumSpO2;
+			if (formData.minimumHR !== log.minimumHR) updates.minimumHR = formData.minimumHR;
+			if (formData.bodyWeight !== log.bodyWeight) updates.bodyWeight = formData.bodyWeight;
 			if (formData.rpe !== log.rpe) updates.rpe = formData.rpe;
 			if (formData.joyScale !== log.joyScale) updates.joyScale = formData.joyScale;
 			if (formData.hoursSinceLastMeal !== log.hoursSinceLastMeal)

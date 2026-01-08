@@ -318,7 +318,7 @@
 	{/if}
 
 	<!-- Subjective Ratings & Health Metrics -->
-	{#if log.rpe || log.joyScale || log.hoursSinceLastMeal || log.basalMood || log.menstrualCycleDay || log.minimumSpO2 || log.minimumHR || log.bodyWeight || (log.facialGear && log.facialGear.length > 0)}
+	{#if log.rpe || log.joyScale || log.hoursSinceLastMeal || log.basalMood || log.menstrualCycleDay || log.minimumSpO2 || log.minimumHR || log.restingHeartRate || log.bodyWeight || log.waterTemperature || log.contractionsOnsetTime || log.equipmentUsed || log.buddyName || log.hrv || log.poolType || log.sambaBO || log.breathsBetweenReps || (log.facialGear && log.facialGear.length > 0)}
 		<section class="metrics-section">
 			<h2>Subjective Ratings & Health Metrics</h2>
 			<div class="metrics-grid">
@@ -346,6 +346,30 @@
 						<span class="value">{log.hoursSinceLastMeal}h</span>
 					</div>
 				{/if}
+				{#if log.waterTemperature}
+					<div class="metric-item">
+						<span class="label">Water Temp</span>
+						<span class="value">{log.waterTemperature}°C</span>
+					</div>
+				{/if}
+				{#if log.contractionsOnsetTime}
+					<div class="metric-item">
+						<span class="label">Contractions Onset</span>
+						<span class="value">{formatTime(log.contractionsOnsetTime)}</span>
+					</div>
+				{/if}
+				{#if log.equipmentUsed}
+					<div class="metric-item">
+						<span class="label">Equipment</span>
+						<span class="value">{log.equipmentUsed}</span>
+					</div>
+				{/if}
+				{#if log.buddyName}
+					<div class="metric-item">
+						<span class="label">Buddy Name</span>
+						<span class="value">{log.buddyName}</span>
+					</div>
+				{/if}
 				{#if log.menstrualCycleDay}
 					<div class="metric-item">
 						<span class="label">Menstrual Cycle Day</span>
@@ -368,6 +392,36 @@
 					<div class="metric-item">
 						<span class="label">Min HR</span>
 						<span class="value">{log.minimumHR} bpm</span>
+					</div>
+				{/if}
+				{#if log.restingHeartRate}
+					<div class="metric-item">
+						<span class="label">Resting HR</span>
+						<span class="value">{log.restingHeartRate} bpm</span>
+					</div>
+				{/if}
+				{#if log.hrv}
+					<div class="metric-item">
+						<span class="label">HRV</span>
+						<span class="value">{log.hrv} ms</span>
+					</div>
+				{/if}
+				{#if log.poolType}
+					<div class="metric-item">
+						<span class="label">Pool Type</span>
+						<span class="value capitalize">{log.poolType}</span>
+					</div>
+				{/if}
+				{#if log.sambaBO}
+					<div class="metric-item">
+						<span class="label">Samba/BO</span>
+						<span class="value">Yes</span>
+					</div>
+				{/if}
+				{#if log.breathsBetweenReps}
+					<div class="metric-item">
+						<span class="label">Breaths Between Reps</span>
+						<span class="value">{log.breathsBetweenReps}</span>
 					</div>
 				{/if}
 				{#if log.bodyWeight}

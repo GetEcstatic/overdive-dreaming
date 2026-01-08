@@ -4,6 +4,7 @@
 		RoutineLog,
 		Discipline,
 		BreathingTechnique,
+		PoolType,
 		RecordTag,
 		CardTag,
 		SessionVisibility
@@ -76,6 +77,17 @@
 
 	// Training context
 	let breathingTechnique = $state<BreathingTechnique | undefined>(formData.breathingTechnique);
+	let waterTemperature = $state<number | undefined>(formData.waterTemperature);
+	const contractionsOnsetTimeFields = convertSecondsToTimeFields(formData.contractionsOnsetTime);
+	let contractionsOnsetMinutes = $state<number | undefined>(contractionsOnsetTimeFields.minutes);
+	let contractionsOnsetSeconds = $state<number | undefined>(contractionsOnsetTimeFields.seconds);
+	let equipmentUsed = $state<string>(formData.equipmentUsed ?? '');
+	let buddyName = $state<string>(formData.buddyName ?? '');
+	let restingHeartRate = $state<number | undefined>(formData.restingHeartRate);
+	let hrv = $state<number | undefined>(formData.hrv);
+	let poolType = $state<PoolType | undefined>(formData.poolType);
+	let sambaBO = $state<boolean>(formData.sambaBO || false);
+	let breathsBetweenReps = $state<number | undefined>(formData.breathsBetweenReps);
 	let rpe = $state<number | undefined>(formData.rpe);
 	let joyScale = $state<number | undefined>(formData.joyScale);
 	let hoursSinceLastMeal = $state<number | undefined>(formData.hoursSinceLastMeal);
@@ -170,6 +182,10 @@
 		const initialBreatheUp = convertTimeFieldsToSeconds(breatheUpMinutes, breatheUpSeconds);
 		const totalTimeInSeconds = convertTimeFieldsToSeconds(totalTimeMinutes, totalTimeSeconds);
 		const repDurationInSeconds = convertTimeFieldsToSeconds(repDurationMinutes, repDurationSeconds);
+		const contractionsOnsetTimeInSeconds = convertTimeFieldsToSeconds(
+			contractionsOnsetMinutes,
+			contractionsOnsetSeconds
+		);
 
 		// Collect facial gear array
 		const facialGear: string[] = [];
@@ -197,6 +213,15 @@
 			repDuration: repDurationInSeconds,
 			// Training context
 			breathingTechnique,
+			waterTemperature: normalizeNumber(waterTemperature),
+			contractionsOnsetTime: contractionsOnsetTimeInSeconds,
+			equipmentUsed: equipmentUsed.trim() || undefined,
+			buddyName: buddyName.trim() || undefined,
+			restingHeartRate: normalizeNumber(restingHeartRate),
+			hrv: normalizeNumber(hrv),
+			poolType,
+			sambaBO,
+			breathsBetweenReps: normalizeNumber(breathsBetweenReps),
 			rpe: normalizeNumber(rpe),
 			joyScale: normalizeNumber(joyScale),
 			hoursSinceLastMeal: normalizeNumber(hoursSinceLastMeal),
@@ -232,7 +257,22 @@
 			config.trackRPE ||
 			config.trackJoyScale ||
 			config.trackHoursSinceLastMeal ||
-			config.trackNotes
+			config.trackNotes ||
+			config.trackWaterTemperature ||
+			config.trackContractionsOnsetTime ||
+			config.trackEquipmentUsed ||
+			config.trackBuddyName ||
+			config.trackRestingHeartRate ||
+			config.trackHRV ||
+			config.trackPoolType ||
+			config.trackSambaBO ||
+			config.trackBreathsBetweenReps ||
+			config.trackMenstrualCycleDay ||
+			config.trackFacialGear ||
+			config.trackBasalMood ||
+			config.trackMinimumSpO2 ||
+			config.trackMinimumHR ||
+			config.trackBodyWeight
 	);
 </script>
 
@@ -605,6 +645,136 @@
 						step="0.5"
 						class="field-input"
 						placeholder="e.g., 2.5"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackWaterTemperature}
+				<div class="field-group">
+					<label for="waterTemperature" class="field-label">Water Temperature (°C)</label>
+					<input
+						id="waterTemperature"
+						type="number"
+						bind:value={waterTemperature}
+						min="0"
+						max="40"
+						step="0.5"
+						class="field-input"
+						placeholder="e.g., 28"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackContractionsOnsetTime}
+				<div class="field-group">
+					<label for="contractionsOnset" class="field-label">Contractions Onset Time (mm:ss)</label>
+					<div class="time-input-group">
+						<input
+							type="number"
+							bind:value={contractionsOnsetMinutes}
+							min="0"
+							max="10"
+							placeholder="MM"
+							class="time-input"
+						/>
+						<span class="time-separator">:</span>
+						<input
+							type="number"
+							bind:value={contractionsOnsetSeconds}
+							min="0"
+							max="59"
+							placeholder="SS"
+							class="time-input"
+						/>
+					</div>
+				</div>
+			{/if}
+
+			{#if config.trackEquipmentUsed}
+				<div class="field-group">
+					<label for="equipmentUsed" class="field-label">Equipment Used</label>
+					<input
+						id="equipmentUsed"
+						type="text"
+						bind:value={equipmentUsed}
+						class="field-input"
+						placeholder="e.g., Monofin, wetsuit, nose clip"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackBuddyName}
+				<div class="field-group">
+					<label for="buddyName" class="field-label">Buddy Name</label>
+					<input
+						id="buddyName"
+						type="text"
+						bind:value={buddyName}
+						class="field-input"
+						placeholder="Training partner's name"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackRestingHeartRate}
+				<div class="field-group">
+					<label for="restingHeartRate" class="field-label">Resting Heart Rate (bpm)</label>
+					<input
+						id="restingHeartRate"
+						type="number"
+						bind:value={restingHeartRate}
+						min="30"
+						max="120"
+						class="field-input"
+						placeholder="e.g., 60"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackHRV}
+				<div class="field-group">
+					<label for="hrv" class="field-label">HRV (ms)</label>
+					<input
+						id="hrv"
+						type="number"
+						bind:value={hrv}
+						min="0"
+						class="field-input"
+						placeholder="e.g., 50"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackPoolType}
+				<div class="field-group">
+					<label for="poolType" class="field-label">Pool Type</label>
+					<select id="poolType" bind:value={poolType} class="field-input">
+						<option value={undefined}>Select pool type...</option>
+						<option value="indoor">Indoor</option>
+						<option value="outdoor">Outdoor</option>
+					</select>
+				</div>
+			{/if}
+
+			{#if config.trackSambaBO}
+				<div class="field-group">
+					<label class="checkbox-label">
+						<input type="checkbox" bind:checked={sambaBO} class="checkbox-input" />
+						<span>Samba/BO Incident Occurred</span>
+					</label>
+				</div>
+			{/if}
+
+			{#if config.trackBreathsBetweenReps}
+				<div class="field-group">
+					<label for="breathsBetweenReps" class="field-label">Breaths Between Reps</label>
+					<input
+						id="breathsBetweenReps"
+						type="number"
+						bind:value={breathsBetweenReps}
+						min="1"
+						class="field-input"
+						placeholder="e.g., 2"
 					/>
 				</div>
 			{/if}

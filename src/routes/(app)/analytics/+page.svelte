@@ -6,6 +6,7 @@
 	import { collection, query, getDocs, where, orderBy } from 'firebase/firestore';
 	import type { RoutineLog, Discipline, Season } from '$lib/types';
 	import LineChart from '$lib/components/LineChart.svelte';
+	import ScatterChart from '$lib/components/ScatterChart.svelte';
 	import TimeOfDayAnalysis from '$lib/components/analytics/TimeOfDayAnalysis.svelte';
 	import {
 		calculatePersonalBests,
@@ -21,7 +22,7 @@
 		type Timeframe
 	} from '$lib/utils/analytics';
 	import { formatTime } from '$lib/utils/time';
-	import { format } from 'date-fns';
+	import { format, intervalToDuration } from 'date-fns';
 	import { getUserSettings, getSeasonsForUser } from '$lib/firestore';
 
 	let filterKey = $state<string>('tf:1month');
@@ -40,6 +41,12 @@
 
 	const disciplines = ['DYN', 'DNF', 'DYNB', 'STA'] as Discipline[];
 	const progressDisciplines: Discipline[] = ['DYN', 'DNF', 'DYNB', 'STA'];
+	const disciplineColorMap: Record<Discipline, { border: string; fill: string }> = {
+		DYN: { border: '#14b8a6', fill: 'rgba(20, 184, 166, 0.12)' },
+		DNF: { border: '#38bdf8', fill: 'rgba(56, 189, 248, 0.12)' },
+		DYNB: { border: '#fbbf24', fill: 'rgba(251, 191, 36, 0.12)' },
+		STA: { border: '#a78bfa', fill: 'rgba(167, 139, 250, 0.12)' }
+	};
 	let progressCompOnly = $state(false);
 
 	// Reactive computations
@@ -129,6 +136,111 @@
 		isStaSelected() ? 'STA' : (activeDynamicDisciplines()[0] ?? 'DYN')
 	);
 
+	const breathingImpactDisciplines: Discipline[] = ['DYN', 'DNF', 'DYNB', 'STA'];
+	let breathingImpactSelection = $state<Discipline[]>(['DYN', 'DNF', 'DYNB']);
+
+	const breathingImpactData = $derived.by(() => {
+		const hasDynamic = breathingImpactSelection.some((disc) =>
+			dynamicDisciplines.includes(disc)
+		);
+		const hasSta = breathingImpactSelection.includes('STA');
+		const useSecondaryAxis = hasDynamic && hasSta;
+
+		const datasets = breathingImpactSelection.map((disc) => {
+			const points = filteredLogs
+				.filter((log) => log.disciplineUsed === disc && log.breathingTechniqueLevel !== undefined)
+				.map((log) => {
+					if (disc === 'STA') {
+						if (log.totalTime === undefined) return null;
+						return {
+							x: log.totalTime,
+							y: log.breathingTechniqueLevel,
+							meta: { unit: 'time', axis: useSecondaryAxis ? 'x2' : 'x' }
+						};
+					}
+					if (log.totalDistance === undefined) return null;
+					return {
+						x: log.totalDistance,
+						y: log.breathingTechniqueLevel,
+						meta: { unit: 'distance', axis: 'x' }
+					};
+				})
+				.filter(Boolean);
+
+			return {
+				label: disc,
+				data: points,
+				xAxisID: disc === 'STA' && useSecondaryAxis ? 'x2' : 'x',
+				borderColor: disciplineColorMap[disc].border,
+				backgroundColor: disciplineColorMap[disc].fill,
+				pointRadius: 4,
+				pointHoverRadius: 6
+			};
+		});
+
+		const hasData = datasets.some((dataset) => dataset.data.length > 0);
+
+		return {
+			datasets,
+			hasData,
+			hasDynamic,
+			hasSta,
+			useSecondaryAxis
+		};
+	});
+
+	const breathingImpactChartData = $derived.by(() => ({
+		datasets: breathingImpactData.datasets
+	}));
+
+	const formatBreathingLevel = (value: number) => (value > 0 ? `+${value}` : `${value}`);
+	const formatBreathingTooltip = (context: any) => {
+		const raw = context.raw as { x: number; y: number; meta?: { unit?: string } };
+		const unit = raw?.meta?.unit;
+		const xLabel = unit === 'time' ? formatTime(raw.x) : `${raw.x}m`;
+		return `${context.dataset.label}: ${xLabel} · Level ${formatBreathingLevel(raw.y)}`;
+	};
+
+	const timeToPbStats = $derived.by(() => {
+		const stats: Record<Discipline, { years: number; months: number; days: number } | null> = {
+			DYN: null,
+			DNF: null,
+			DYNB: null,
+			STA: null
+		};
+		const now = new Date();
+
+		for (const disc of disciplines) {
+			const logs = allLogs
+				.filter(
+					(log) =>
+						log.disciplineUsed === disc &&
+						(log.totalDistance !== undefined || log.totalTime !== undefined)
+				)
+				.sort((a, b) => b.date.toMillis() - a.date.toMillis());
+			const pbLog = logs.find((log) => log.isPB);
+			if (!pbLog) {
+				stats[disc] = null;
+				continue;
+			}
+			stats[disc] = intervalToDuration({
+				start: pbLog.date.toDate(),
+				end: now
+			});
+		}
+
+		return stats;
+	});
+
+	const formatTimeToPb = (duration: { years: number; months: number; days: number } | null) => {
+		if (!duration) return '—';
+		const parts = [];
+		if (duration.years) parts.push(`${duration.years}y`);
+		if (duration.months) parts.push(`${duration.months}m`);
+		if (duration.days || parts.length === 0) parts.push(`${duration.days}d`);
+		return parts.join(' ');
+	};
+
 	const progressChartData = $derived.by((): {
 		labels: string[];
 		datasets: any[];
@@ -148,20 +260,13 @@
 			new Set(series.flatMap((entry) => entry.data.map((point) => point.date)))
 		).sort((a, b) => a.localeCompare(b));
 
-		const colorMap: Record<Discipline, { border: string; fill: string }> = {
-			DYN: { border: '#14b8a6', fill: 'rgba(20, 184, 166, 0.12)' },
-			DNF: { border: '#38bdf8', fill: 'rgba(56, 189, 248, 0.12)' },
-			DYNB: { border: '#fbbf24', fill: 'rgba(251, 191, 36, 0.12)' },
-			STA: { border: '#a78bfa', fill: 'rgba(167, 139, 250, 0.12)' }
-		};
-
 		const datasets = series.map((entry) => {
 			const lookup = new Map(entry.data.map((point) => [point.date, point.value]));
 			return {
 				label: entry.disc,
 				data: labelDates.map((date) => lookup.get(date) ?? null),
-				borderColor: colorMap[entry.disc].border,
-				backgroundColor: colorMap[entry.disc].fill,
+				borderColor: disciplineColorMap[entry.disc].border,
+				backgroundColor: disciplineColorMap[entry.disc].fill,
 				tension: 0.3,
 				fill: false,
 				spanGaps: true
@@ -191,7 +296,7 @@
 				datasets.push({
 					label: `${series[0].disc} Trend`,
 					data: trendData,
-					borderColor: colorMap[series[0].disc].border,
+					borderColor: disciplineColorMap[series[0].disc].border,
 					borderDash: [6, 6],
 					borderWidth: 2,
 					pointRadius: 0,
@@ -424,6 +529,73 @@
 						{/each}
 					</div>
 				</div>
+
+				<!-- Sessions Since Last PB -->
+				<div class="stat-card">
+					<h2>Time-to-PB Tracker</h2>
+					<div class="stat-list">
+						{#each disciplines as disc}
+							<div class="stat-item">
+								<span class="stat-label">{disc} Since PB</span>
+								<span class="stat-value">{formatTimeToPb(timeToPbStats[disc])}</span>
+							</div>
+						{/each}
+					</div>
+				</div>
+			</div>
+
+			<!-- Breathing Impact -->
+			<div class="chart-card">
+				<div class="chart-header breathing-impact-header">
+					<h2>Breathing Impact</h2>
+					<div class="discipline-toggle-row">
+						{#each breathingImpactDisciplines as disc}
+							<button
+								type="button"
+								class="discipline-toggle"
+								class:active={breathingImpactSelection.includes(disc)}
+								style={`--pill-accent: ${disciplineColorMap[disc].border}`}
+								onclick={() => {
+									if (breathingImpactSelection.includes(disc)) {
+										const next = breathingImpactSelection.filter((item) => item !== disc);
+										breathingImpactSelection = next.length > 0 ? next : [disc];
+									} else {
+										breathingImpactSelection = [...breathingImpactSelection, disc];
+									}
+								}}
+							>
+								{disc}
+							</button>
+						{/each}
+					</div>
+				</div>
+				{#if !breathingImpactData.hasData}
+					<div class="stat-list">
+						<div class="stat-item">
+							<span class="stat-label">No breathing data yet</span>
+							<span class="stat-value">—</span>
+						</div>
+					</div>
+				{:else}
+					<ScatterChart
+						data={breathingImpactChartData}
+						height={300}
+						xTickFormatter={
+							breathingImpactData.hasSta && !breathingImpactData.hasDynamic ? formatTime : undefined
+						}
+						xSecondaryTickFormatter={formatTime}
+						yTickFormatter={formatBreathingLevel}
+						yStepSize={1}
+						tooltipFormatter={formatBreathingTooltip}
+						showLegend={false}
+						yMin={-3}
+						yMax={3}
+						showSecondaryX={breathingImpactData.useSecondaryAxis}
+						xTitle={breathingImpactData.hasDynamic ? 'Distance (m)' : 'Time (mm:ss)'}
+						xSecondaryTitle={breathingImpactData.useSecondaryAxis ? 'Time (mm:ss)' : undefined}
+						yTitle="Breathing Level"
+					/>
+				{/if}
 			</div>
 
 			<!-- Progress Over Time Chart -->
@@ -734,6 +906,27 @@
 		font-size: 1.15rem;
 		font-weight: 600;
 		color: var(--color-text);
+	}
+
+	.card-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 0.75rem;
+		flex-wrap: wrap;
+		margin-bottom: 1rem;
+	}
+
+	.card-header h2 {
+		margin-bottom: 0;
+	}
+
+	.card-header .metric-toggle-row {
+		margin-top: 0;
+	}
+
+	.breathing-impact-header {
+		margin-bottom: 1.5rem;
 	}
 
 	.stats-grid {
