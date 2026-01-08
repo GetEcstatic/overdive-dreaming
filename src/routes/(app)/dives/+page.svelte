@@ -6,6 +6,7 @@
 	import { uploadSessionPhoto } from '$lib/storage';
 	import { getUserPBs, checkIsPB, updateUserPB } from '$lib/utils/personalBests';
 	import { getTimeOfDay } from '$lib/utils/sessions';
+	import { clearDashboardCache } from '$lib/utils/dashboardCache';
 	import RoutineSelector from '$lib/components/RoutineSelector.svelte';
 	import QuickLogForm, { type LogFormData } from '$lib/components/QuickLogForm.svelte';
 	import type { RoutineTemplate, SessionVisibility } from '$lib/types';
@@ -206,6 +207,7 @@
 			success = isPB
 				? '🎉 NEW PERSONAL BEST! Routine logged successfully!'
 				: 'Routine logged successfully! 🎉';
+			clearDashboardCache($user.uid);
 			selectedRoutine = null;
 			selectedRoutineId = undefined;
 

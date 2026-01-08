@@ -47,3 +47,7 @@ export function updateDashboardCache(
 	dashboardCache.set(userId, next);
 	return next;
 }
+
+export function clearDashboardCache(userId: string): void {
+	dashboardCache.delete(userId);
+}

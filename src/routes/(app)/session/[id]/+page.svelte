@@ -10,6 +10,7 @@
 	import { format } from 'date-fns';
 	import { updateRoutineLog, deleteRoutineLog, deleteSessionByGroup } from '$lib/firestore';
 	import { recalculatePBsForDisciplines } from '$lib/utils/personalBests';
+	import { clearDashboardCache } from '$lib/utils/dashboardCache';
 	import type { RoutineLog } from '$lib/types';
 
 	let { data } = $props();
@@ -69,6 +70,9 @@
 		try {
 			// Update Firestore
 			await updateRoutineLog(editingLog.log.id, updates);
+			if ($user) {
+				clearDashboardCache($user.uid);
+			}
 
 			// Reload page to show updated data
 			window.location.reload();
@@ -138,6 +142,7 @@
 			}
 
 			// Navigate back to dashboard
+			clearDashboardCache($user.uid);
 			goto('/dashboard');
 		} catch (err) {
 			console.error('Failed to delete session:', err);
