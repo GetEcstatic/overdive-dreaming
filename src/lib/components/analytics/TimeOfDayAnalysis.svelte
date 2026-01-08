@@ -4,12 +4,21 @@
 	import { formatTime } from '$lib/utils/time';
 
 	let {
-		logs,
-		discipline,
-		metric = 'distance'
-	}: { logs: RoutineLog[]; discipline: Discipline; metric?: 'distance' | 'time' } = $props();
+		logs
+	}: { logs: RoutineLog[] } = $props();
 
-	const timeOfDayStats = $derived(aggregateByTimeOfDay(logs, discipline, metric));
+	const disciplines: Discipline[] = ['DYN', 'DNF', 'DYNB', 'STA'];
+	let selectedDiscipline = $state<Discipline>('DYN');
+	const disciplineColorMap: Record<Discipline, { border: string; fill: string }> = {
+		DYN: { border: '#14b8a6', fill: 'rgba(20, 184, 166, 0.12)' },
+		DNF: { border: '#38bdf8', fill: 'rgba(56, 189, 248, 0.12)' },
+		DYNB: { border: '#fbbf24', fill: 'rgba(251, 191, 36, 0.12)' },
+		STA: { border: '#a78bfa', fill: 'rgba(167, 139, 250, 0.12)' }
+	};
+
+	const metric = $derived(selectedDiscipline === 'STA' ? 'time' : 'distance');
+
+	const timeOfDayStats = $derived(aggregateByTimeOfDay(logs, selectedDiscipline, metric));
 
 	const hasSufficientData = $derived(
 		timeOfDayStats.morning.count > 0 ||
@@ -54,7 +63,19 @@
 <div class="time-of-day-analysis">
 	<div class="header">
 		<h3 class="title">Performance by Time of Day</h3>
-		<div class="discipline-badge">{discipline}</div>
+		<div class="discipline-toggle-row">
+			{#each disciplines as disc}
+				<button
+					type="button"
+					class="discipline-toggle"
+					class:active={selectedDiscipline === disc}
+					style={`--pill-accent: ${disciplineColorMap[disc].border}`}
+					onclick={() => (selectedDiscipline = disc)}
+				>
+					{disc}
+				</button>
+			{/each}
+		</div>
 	</div>
 
 	{#if !hasSufficientData}
@@ -138,13 +159,33 @@
 		margin: 0;
 	}
 
-	.discipline-badge {
-		background: rgba(20, 184, 166, 0.15);
-		color: var(--color-primary);
-		padding: 0.375rem 0.75rem;
-		border-radius: 6px;
-		font-size: 0.875rem;
+	.discipline-toggle-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+
+	.discipline-toggle {
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		background: rgba(15, 23, 42, 0.4);
+		color: var(--color-text);
+		border-radius: 999px;
+		padding: 0.35rem 0.75rem;
+		font-size: 0.75rem;
 		font-weight: 600;
+		letter-spacing: 0.04em;
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.discipline-toggle:hover {
+		border-color: rgba(148, 163, 184, 0.35);
+	}
+
+	.discipline-toggle.active {
+		border-color: color-mix(in srgb, var(--pill-accent), #ffffff 40%);
+		background: color-mix(in srgb, var(--pill-accent), transparent 82%);
+		color: #e0f2fe;
 	}
 
 	.insight-text {

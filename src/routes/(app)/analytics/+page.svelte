@@ -132,9 +132,6 @@
 	const selectedProgressMetric = $derived(() =>
 		isStaSelected() ? 'time' : progressMetric
 	);
-	const timeOfDayDiscipline = $derived(() =>
-		isStaSelected() ? 'STA' : (activeDynamicDisciplines()[0] ?? 'DYN')
-	);
 
 	const breathingImpactDisciplines: Discipline[] = ['DYN', 'DNF', 'DYNB', 'STA'];
 	let breathingImpactSelection = $state<Discipline[]>(['DYN', 'DNF', 'DYNB']);
@@ -211,14 +208,24 @@
 		const now = new Date();
 
 		for (const disc of disciplines) {
-			const logs = allLogs
-				.filter(
-					(log) =>
-						log.disciplineUsed === disc &&
-						(log.totalDistance !== undefined || log.totalTime !== undefined)
-				)
-				.sort((a, b) => b.date.toMillis() - a.date.toMillis());
-			const pbLog = logs.find((log) => log.isPB);
+			const logs = allLogs.filter((log) => log.disciplineUsed === disc);
+			const metricValues = logs
+				.map((log) => {
+					if (disc === 'STA') return log.totalTime;
+					return log.totalDistance;
+				})
+				.filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+			if (metricValues.length === 0) {
+				stats[disc] = null;
+				continue;
+			}
+			const maxValue = Math.max(...metricValues);
+			const pbLog = logs
+				.filter((log) => {
+					const value = disc === 'STA' ? log.totalTime : log.totalDistance;
+					return value === maxValue;
+				})
+				.sort((a, b) => b.date.toMillis() - a.date.toMillis())[0];
 			if (!pbLog) {
 				stats[disc] = null;
 				continue;
@@ -589,7 +596,7 @@
 						tooltipFormatter={formatBreathingTooltip}
 						showLegend={false}
 						yMin={-3}
-						yMax={3}
+						yMax={3.5}
 						showSecondaryX={breathingImpactData.useSecondaryAxis}
 						xTitle={breathingImpactData.hasDynamic ? 'Distance (m)' : 'Time (mm:ss)'}
 						xSecondaryTitle={breathingImpactData.useSecondaryAxis ? 'Time (mm:ss)' : undefined}
@@ -683,11 +690,7 @@
 			</div>
 
 			<!-- Performance by Time of Day -->
-			<TimeOfDayAnalysis
-				logs={filteredLogs}
-				discipline={timeOfDayDiscipline()}
-				metric={['DYN', 'DNF', 'DYNB'].includes(timeOfDayDiscipline()) ? 'distance' : 'time'}
-			/>
+	<TimeOfDayAnalysis logs={filteredLogs} />
 		</div>
 	{/if}
 </div>

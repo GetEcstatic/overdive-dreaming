@@ -48,10 +48,7 @@
 	let canvas: HTMLCanvasElement;
 	let chart: Chart | null = null;
 
-	onMount(() => {
-		const ctx = canvas.getContext('2d');
-		if (!ctx) return;
-
+	const buildScales = () => {
 		const scales: Record<string, any> = {
 			x: {
 				type: 'linear',
@@ -115,46 +112,62 @@
 			};
 		}
 
+		return scales;
+	};
+
+	const applyChartOptions = () => ({
+		responsive: true,
+		maintainAspectRatio: false,
+		plugins: {
+			legend: {
+				display: showLegend,
+				labels: {
+					color: '#94a3b8',
+					font: {
+						size: 11
+					}
+				}
+			},
+			tooltip: {
+				backgroundColor: '#1e293b',
+				titleColor: '#f1f5f9',
+				bodyColor: '#f1f5f9',
+				borderColor: '#14b8a6',
+				borderWidth: 1,
+				callbacks: {
+					label: (context) => {
+						if (tooltipFormatter) {
+							return tooltipFormatter(context);
+						}
+						const raw = context.raw as { x: number; y: number };
+						return `${context.dataset.label}: ${raw.x} · Level ${raw.y}`;
+					}
+				}
+			}
+		},
+		scales: buildScales()
+	});
+
+	onMount(() => {
+		const ctx = canvas.getContext('2d');
+		if (!ctx) return;
+
 		chart = new Chart(ctx, {
 			type: 'scatter',
 			data,
-			options: {
-				responsive: true,
-				maintainAspectRatio: false,
-				plugins: {
-					legend: {
-						display: showLegend,
-						labels: {
-							color: '#94a3b8',
-							font: {
-								size: 11
-							}
-						}
-					},
-					tooltip: {
-						backgroundColor: '#1e293b',
-						titleColor: '#f1f5f9',
-						bodyColor: '#f1f5f9',
-						borderColor: '#14b8a6',
-						borderWidth: 1,
-						callbacks: {
-							label: (context) => {
-								if (tooltipFormatter) {
-									return tooltipFormatter(context);
-								}
-								const raw = context.raw as { x: number; y: number };
-								return `${context.dataset.label}: ${raw.x} · Level ${raw.y}`;
-							}
-						}
-					}
-				},
-				scales
-			}
+			options: applyChartOptions()
 		});
 
 		return () => {
 			chart?.destroy();
 		};
+	});
+
+	$effect(() => {
+		if (!chart) return;
+		chart.data = data;
+		chart.options = applyChartOptions();
+		chart.update();
 	});
 </script>
 
