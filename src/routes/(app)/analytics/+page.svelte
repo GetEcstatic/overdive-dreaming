@@ -40,6 +40,7 @@
 
 	const disciplines = ['DYN', 'DNF', 'DYNB', 'STA'] as Discipline[];
 	const progressDisciplines: Discipline[] = ['DYN', 'DNF', 'DYNB', 'STA'];
+	let progressCompOnly = $state(false);
 
 	// Reactive computations
 	const selectedSeason = $derived.by(() => {
@@ -65,6 +66,9 @@
 		}
 		return filterLogsByTimeframe(allLogs, activeTimeframe);
 	});
+	const progressLogs = $derived.by(() =>
+		progressCompOnly ? filteredLogs.filter((log) => log.isCompetition) : filteredLogs
+	);
 	const personalBests = $derived.by(() => {
 		const pbs = calculatePersonalBests(allLogs);
 		// Group by discipline
@@ -137,7 +141,7 @@
 				: ['DYN'];
 		const series = activeDisciplines.map((disc) => ({
 			disc,
-			data: prepareProgressData(filteredLogs, disc, selectedProgressMetric())
+			data: prepareProgressData(progressLogs, disc, selectedProgressMetric())
 		}));
 
 		const labelDates = Array.from(
@@ -425,7 +429,7 @@
 			<!-- Progress Over Time Chart -->
 			<div class="chart-card">
 				<div class="chart-header">
-					<h2>Progress Over Time</h2>
+					<h2>Max Dive Progress</h2>
 				</div>
 				<div class="metric-toggle-row">
 					<button
@@ -487,6 +491,15 @@
 							{disc}
 						</button>
 					{/each}
+					<button
+						type="button"
+						class="discipline-toggle"
+						class:active={progressCompOnly}
+						style="--pill-accent: #f97316"
+						onclick={() => (progressCompOnly = !progressCompOnly)}
+					>
+						Comp
+					</button>
 				</div>
 				<LineChart
 					data={progressChartData}
