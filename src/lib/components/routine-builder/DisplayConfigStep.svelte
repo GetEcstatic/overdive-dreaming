@@ -23,6 +23,11 @@
 		{ value: 'totalTime', label: 'Total Time', description: 'Total dive duration' },
 		{ value: 'repsCompleted', label: 'Reps Completed', description: 'Number of repetitions' },
 		{
+			value: 'totalRepDistance',
+			label: 'Total Rep Distance',
+			description: 'Reps completed × rep distance'
+		},
+		{
 			value: 'avgTimePerLap',
 			label: 'Avg Time Per Lap',
 			description: 'Average time per lap/rep'

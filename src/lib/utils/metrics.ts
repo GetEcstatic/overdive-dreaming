@@ -92,6 +92,22 @@ export function calculateAvgRestBetweenLaps(log: RoutineLog): number {
 }
 
 /**
+ * Calculate total rep distance (repsCompleted × repDistance)
+ * Used for interval routines where each rep covers a specific distance
+ * Returns meters, or 0 if no data available
+ */
+export function calculateTotalRepDistance(log: RoutineLog): number {
+	const repsCompleted = log.repsCompleted || log.summary?.repsCompleted || 0;
+	const repDistance = log.repDistance || 0;
+
+	if (repsCompleted > 0 && repDistance > 0) {
+		return repsCompleted * repDistance;
+	}
+
+	return 0;
+}
+
+/**
  * Get a metric value from a routine log
  * Handles both direct fields and calculated metrics
  */
@@ -109,6 +125,9 @@ export function getMetricValue(
 
 		case 'repsCompleted':
 			return log.repsCompleted || log.summary?.repsCompleted || 0;
+
+		case 'totalRepDistance':
+			return calculateTotalRepDistance(log);
 
 		case 'avgTimePerLap':
 		case 'avgTimePerRep':
@@ -156,6 +175,7 @@ export function getMetricValue(
 export function formatMetricValue(metricType: MetricType, value: number): string {
 	switch (metricType) {
 		case 'totalDistance':
+		case 'totalRepDistance':
 		case 'poolLength':
 			return `${value}m`;
 

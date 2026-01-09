@@ -36,6 +36,7 @@
 		totalTime?: number;
 		repsCompleted?: number;
 		repDuration?: number;
+		repDistance?: number;
 		// Training context
 		breathingTechnique?: BreathingTechnique;
 		rpe?: number;
@@ -117,6 +118,7 @@
 	let repDurationSeconds = $state<number | undefined>(
 		avgRepDuration ? avgRepDuration % 60 : undefined
 	);
+	let repDistance = $state<number | undefined>(undefined);
 
 	// Training context
 	let breathingTechnique = $state<BreathingTechnique | undefined>(undefined);
@@ -328,6 +330,7 @@
 			totalTime: totalTimeInSeconds,
 			repsCompleted,
 			repDuration: repDurationInSeconds,
+			repDistance,
 			// Training context
 			breathingTechnique,
 			rpe,
@@ -368,7 +371,8 @@
 		config.trackTotalDistance ||
 			config.trackTotalTime ||
 			config.trackRepsCompleted ||
-			config.trackRepDuration
+			config.trackRepDuration ||
+			config.trackRepDistance
 	);
 	const hasTrainingContext = $derived(
 		config.trackBreathingTechnique ||
@@ -650,6 +654,20 @@
 							placeholder="ss"
 						/>
 					</div>
+				</div>
+			{/if}
+
+			{#if config.trackRepDistance}
+				<div class="field-group">
+					<label for="repDistance" class="field-label">Rep Distance (m)</label>
+					<input
+						id="repDistance"
+						type="number"
+						bind:value={repDistance}
+						min="0"
+						class="field-input"
+						placeholder="e.g., 50"
+					/>
 				</div>
 			{/if}
 		</div>

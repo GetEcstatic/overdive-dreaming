@@ -91,6 +91,7 @@
 				}
 			}
 			if (formData.repDuration !== log.repDuration) updates.repDuration = formData.repDuration;
+			if (formData.repDistance !== log.repDistance) updates.repDistance = formData.repDistance;
 			if (formData.breathingTechnique !== log.breathingTechnique)
 				updates.breathingTechnique = formData.breathingTechnique;
 			if (formData.breathingTechniqueLevel !== log.breathingTechniqueLevel) {

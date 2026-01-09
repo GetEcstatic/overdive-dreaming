@@ -16,6 +16,7 @@
 			trackTotalTime: false,
 			trackRepsCompleted: false,
 			trackRepDuration: false,
+			trackRepDistance: false,
 			trackTimePerLap: false,
 			trackRestBetweenLaps: false,
 			trackKicksPerLap: false,
@@ -103,6 +104,7 @@
 		trackingConfig.trackTotalTime = enable;
 		trackingConfig.trackRepsCompleted = enable;
 		trackingConfig.trackRepDuration = enable;
+		trackingConfig.trackRepDistance = enable;
 		trackingConfig.trackTimePerLap = enable;
 		trackingConfig.trackRestBetweenLaps = enable;
 		trackingConfig.trackKicksPerLap = enable;
@@ -188,7 +190,7 @@
 	<!-- Performance Metrics -->
 	<div class="tracking-group">
 		<div class="group-header">
-			<h3 class="group-title">Performance Metrics (8)</h3>
+			<h3 class="group-title">Performance Metrics (9)</h3>
 			<div class="group-actions">
 				<button type="button" class="link-btn" onclick={() => togglePerformanceMetrics(true)}>
 					Select All
@@ -230,6 +232,14 @@
 				<div class="checkbox-content">
 					<div class="checkbox-label">Rep Duration</div>
 					<div class="checkbox-description">Duration per rep (for interval training)</div>
+				</div>
+			</label>
+
+			<label class="checkbox-item">
+				<input type="checkbox" bind:checked={trackingConfig.trackRepDistance} />
+				<div class="checkbox-content">
+					<div class="checkbox-label">Rep Distance</div>
+					<div class="checkbox-description">Distance per rep (for interval training)</div>
 				</div>
 			</label>
 

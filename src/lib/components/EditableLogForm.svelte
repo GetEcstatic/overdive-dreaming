@@ -74,6 +74,7 @@
 	const repDurationFields = convertSecondsToTimeFields(formData.repDuration);
 	let repDurationMinutes = $state<number | undefined>(repDurationFields.minutes);
 	let repDurationSeconds = $state<number | undefined>(repDurationFields.seconds);
+	let repDistance = $state<number | undefined>(formData.repDistance);
 
 	// Training context
 	let breathingTechnique = $state<BreathingTechnique | undefined>(formData.breathingTechnique);
@@ -211,6 +212,7 @@
 			totalTime: totalTimeInSeconds,
 			repsCompleted: normalizeNumber(repsCompleted),
 			repDuration: repDurationInSeconds,
+			repDistance: normalizeNumber(repDistance),
 			// Training context
 			breathingTechnique,
 			waterTemperature: normalizeNumber(waterTemperature),
@@ -250,7 +252,8 @@
 		config.trackTotalDistance ||
 			config.trackTotalTime ||
 			config.trackRepsCompleted ||
-			config.trackRepDuration
+			config.trackRepDuration ||
+			config.trackRepDistance
 	);
 	const hasTrainingContext = $derived(
 		config.trackBreathingTechnique ||
@@ -561,6 +564,20 @@
 							placeholder="ss"
 						/>
 					</div>
+				</div>
+			{/if}
+
+			{#if config.trackRepDistance}
+				<div class="field-group">
+					<label for="repDistance" class="field-label">Rep Distance (m)</label>
+					<input
+						id="repDistance"
+						type="number"
+						bind:value={repDistance}
+						min="0"
+						class="field-input"
+						placeholder="e.g., 50"
+					/>
 				</div>
 			{/if}
 		</div>

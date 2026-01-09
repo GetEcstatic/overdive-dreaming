@@ -87,6 +87,7 @@ export interface TrackingConfig {
 	trackTotalTime: boolean; // Total dive duration
 	trackRepsCompleted: boolean; // Number of repetitions completed
 	trackRepDuration: boolean; // Duration per rep (for interval training)
+	trackRepDistance: boolean; // Distance per rep (for interval training)
 	trackTimePerLap: boolean; // Detailed per-lap times
 	trackRestBetweenLaps: boolean; // Rest between reps
 	trackKicksPerLap: boolean; // Kicks per lap (DYN/DYNB/DNF)
@@ -123,6 +124,7 @@ export type MetricType =
 	| 'totalDistance'
 	| 'totalTime'
 	| 'repsCompleted'
+	| 'totalRepDistance'
 	| 'avgTimePerLap'
 	| 'avgTimePerRep'
 	| 'avgRestBetweenLaps'
@@ -262,6 +264,7 @@ export interface RoutineLog {
 
 	// Performance data - interval training metrics
 	repDuration?: number; // seconds - duration per rep (for interval training)
+	repDistance?: number; // meters - distance per rep (for interval training)
 	repsCompleted?: number; // legacy field (prefer summary.repsCompleted)
 
 	// Performance data - per-lap details (optional, can add later from video)

@@ -138,6 +138,7 @@
 			if (logData.totalDistance !== undefined) routineLogData.totalDistance = logData.totalDistance;
 			if (logData.totalTime !== undefined) routineLogData.totalTime = logData.totalTime;
 			if (logData.repDuration !== undefined) routineLogData.repDuration = logData.repDuration;
+			if (logData.repDistance !== undefined) routineLogData.repDistance = logData.repDistance;
 
 			// Summary (for interval routines)
 			if (logData.repsCompleted !== undefined || logData.totalTime !== undefined) {
