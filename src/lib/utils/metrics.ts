@@ -129,6 +129,9 @@ export function getMetricValue(
 		case 'totalRepDistance':
 			return calculateTotalRepDistance(log);
 
+		case 'repDuration':
+			return log.repDuration || 0;
+
 		case 'avgTimePerLap':
 		case 'avgTimePerRep':
 			return calculateAvgTimePerLap(log);
@@ -180,6 +183,7 @@ export function formatMetricValue(metricType: MetricType, value: number): string
 			return `${value}m`;
 
 		case 'totalTime':
+		case 'repDuration':
 		case 'avgTimePerLap':
 		case 'avgTimePerRep':
 		case 'avgRestBetweenLaps':

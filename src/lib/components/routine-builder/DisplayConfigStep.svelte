@@ -28,6 +28,11 @@
 			description: 'Reps completed × rep distance'
 		},
 		{
+			value: 'repDuration',
+			label: 'Rep Duration',
+			description: 'Duration per rep (interval training)'
+		},
+		{
 			value: 'avgTimePerLap',
 			label: 'Avg Time Per Lap',
 			description: 'Average time per lap/rep'

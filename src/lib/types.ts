@@ -125,6 +125,7 @@ export type MetricType =
 	| 'totalTime'
 	| 'repsCompleted'
 	| 'totalRepDistance'
+	| 'repDuration'
 	| 'avgTimePerLap'
 	| 'avgTimePerRep'
 	| 'avgRestBetweenLaps'
