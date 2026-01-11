@@ -137,7 +137,12 @@
 		<label class="field-label">Session Photo (Optional)</label>
 
 		{#if showCropper && sourcePhotoFile}
-			<PhotoCropper file={sourcePhotoFile} onApply={applyCrop} onCancel={cancelCrop} />
+			<PhotoCropper 
+				file={sourcePhotoFile} 
+				onApply={applyCrop} 
+				onCancel={cancelCrop}
+				autoApplyOnLoad={true}
+			/>
 		{:else if photoPreviewUrl && !showPhotoUpload}
 			<div class="photo-preview">
 				<img src={photoPreviewUrl} alt="Session photo" class="preview-image" />

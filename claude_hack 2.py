@@ -130,11 +130,8 @@ Keep on doing this until you get a proper instructions!
 # Send a message to yebo - edit the text below and run this cell
 
 send('''
-with the new updates the connection o the yebo client terminates IMMEDIATELY???
-
-This is worse than before.     
-Can you also print out the times of events before each event 
-
+In the session-editor and quick log, when adding a photo, the image doesn't save unless the "use crop" button is pressed. The use crop button is redundant so automate this when the save button is clicked.
+     
 ''' + prompt_hack)
 
 

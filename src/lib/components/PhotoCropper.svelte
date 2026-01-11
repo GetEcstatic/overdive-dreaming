@@ -5,9 +5,10 @@ import { onDestroy, onMount, tick } from 'svelte';
 		file: File;
 		onApply: (file: File, previewUrl: string) => void;
 		onCancel: () => void;
+		autoApplyOnLoad?: boolean; // Auto-apply crop when image first loads
 	}
 
-	let { file, onApply, onCancel }: Props = $props();
+	let { file, onApply, onCancel, autoApplyOnLoad = false }: Props = $props();
 
 	let cropContainer: HTMLDivElement | null = null;
 	let imageEl: HTMLImageElement | null = null;
@@ -75,6 +76,15 @@ let loadError = $state<string | null>(null);
 		centerImage();
 		isLoading = false;
 		requestAnimationFrame(() => drawPreview());
+		
+		// Auto-apply the initial crop if enabled
+		if (autoApplyOnLoad) {
+			// Small delay to ensure canvas is ready
+			await tick();
+			requestAnimationFrame(() => {
+				applyCrop();
+			});
+		}
 	}
 
 	function handleZoomChange(nextZoom: number) {

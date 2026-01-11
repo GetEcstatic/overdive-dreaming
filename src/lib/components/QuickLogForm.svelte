@@ -1018,7 +1018,12 @@
 			<label class="field-label">Session Photo</label>
 
 			{#if showPhotoCropper && sourcePhotoFile}
-				<PhotoCropper file={sourcePhotoFile} onApply={applyCrop} onCancel={cancelCrop} />
+				<PhotoCropper 
+					file={sourcePhotoFile} 
+					onApply={applyCrop} 
+					onCancel={cancelCrop}
+					autoApplyOnLoad={true}
+				/>
 			{:else if photoPreviewUrl}
 				<div class="photo-preview">
 					<img src={photoPreviewUrl} alt="Preview" class="preview-image" />
