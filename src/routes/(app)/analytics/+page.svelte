@@ -551,60 +551,6 @@
 				</div>
 			</div>
 
-			<!-- Breathing Impact -->
-			<div class="chart-card">
-				<div class="chart-header breathing-impact-header">
-					<h2>Breathing Impact</h2>
-					<div class="discipline-toggle-row">
-						{#each breathingImpactDisciplines as disc}
-							<button
-								type="button"
-								class="discipline-toggle"
-								class:active={breathingImpactSelection.includes(disc)}
-								style={`--pill-accent: ${disciplineColorMap[disc].border}`}
-								onclick={() => {
-									if (breathingImpactSelection.includes(disc)) {
-										const next = breathingImpactSelection.filter((item) => item !== disc);
-										breathingImpactSelection = next.length > 0 ? next : [disc];
-									} else {
-										breathingImpactSelection = [...breathingImpactSelection, disc];
-									}
-								}}
-							>
-								{disc}
-							</button>
-						{/each}
-					</div>
-				</div>
-				{#if !breathingImpactData.hasData}
-					<div class="stat-list">
-						<div class="stat-item">
-							<span class="stat-label">No breathing data yet</span>
-							<span class="stat-value">—</span>
-						</div>
-					</div>
-				{:else}
-					<ScatterChart
-						data={breathingImpactChartData}
-						height={300}
-						xTickFormatter={
-							breathingImpactData.hasSta && !breathingImpactData.hasDynamic ? formatTime : undefined
-						}
-						xSecondaryTickFormatter={formatTime}
-						yTickFormatter={formatBreathingLevel}
-						yStepSize={1}
-						tooltipFormatter={formatBreathingTooltip}
-						showLegend={false}
-						yMin={-3}
-						yMax={3.5}
-						showSecondaryX={breathingImpactData.useSecondaryAxis}
-						xTitle={breathingImpactData.hasDynamic ? 'Distance (m)' : 'Time (mm:ss)'}
-						xSecondaryTitle={breathingImpactData.useSecondaryAxis ? 'Time (mm:ss)' : undefined}
-						yTitle="Breathing Level"
-					/>
-				{/if}
-			</div>
-
 			<!-- Progress Over Time Chart -->
 			<div class="chart-card">
 				<div class="chart-header">
@@ -687,6 +633,60 @@
 					tooltipValueFormatter={selectedProgressMetric() === 'time' ? formatTime : undefined}
 					seasonBands={progressSeasonBands}
 				/>
+			</div>
+
+			<!-- Breathing Impact -->
+			<div class="chart-card">
+				<div class="chart-header breathing-impact-header">
+					<h2>Breathing Impact</h2>
+					<div class="discipline-toggle-row">
+						{#each breathingImpactDisciplines as disc}
+							<button
+								type="button"
+								class="discipline-toggle"
+								class:active={breathingImpactSelection.includes(disc)}
+								style={`--pill-accent: ${disciplineColorMap[disc].border}`}
+								onclick={() => {
+									if (breathingImpactSelection.includes(disc)) {
+										const next = breathingImpactSelection.filter((item) => item !== disc);
+										breathingImpactSelection = next.length > 0 ? next : [disc];
+									} else {
+										breathingImpactSelection = [...breathingImpactSelection, disc];
+									}
+								}}
+							>
+								{disc}
+							</button>
+						{/each}
+					</div>
+				</div>
+				{#if !breathingImpactData.hasData}
+					<div class="stat-list">
+						<div class="stat-item">
+							<span class="stat-label">No breathing data yet</span>
+							<span class="stat-value">—</span>
+						</div>
+					</div>
+				{:else}
+					<ScatterChart
+						data={breathingImpactChartData}
+						height={300}
+						xTickFormatter={
+							breathingImpactData.hasSta && !breathingImpactData.hasDynamic ? formatTime : undefined
+						}
+						xSecondaryTickFormatter={formatTime}
+						yTickFormatter={formatBreathingLevel}
+						yStepSize={1}
+						tooltipFormatter={formatBreathingTooltip}
+						showLegend={false}
+						yMin={-3}
+						yMax={3.5}
+						showSecondaryX={breathingImpactData.useSecondaryAxis}
+						xTitle={breathingImpactData.hasDynamic ? 'Distance (m)' : 'Time (mm:ss)'}
+						xSecondaryTitle={breathingImpactData.useSecondaryAxis ? 'Time (mm:ss)' : undefined}
+						yTitle="Breathing Level"
+					/>
+				{/if}
 			</div>
 
 			<!-- Performance by Time of Day -->
