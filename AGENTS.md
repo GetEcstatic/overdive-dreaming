@@ -8,6 +8,29 @@
 - `scripts/` contains data seeding utilities (Firestore seed helpers).
 - There are no dedicated test directories today.
 
+## Key Modules
+
+### Authentication (`src/lib/stores/auth.ts`)
+Centralized auth state management. Key exports:
+- `user`, `loading`, `authError` — Svelte stores for auth state
+- `isAuthenticated`, `userId` — Derived stores for common checks
+- `initAuthListener()` — Initialize Firebase auth listener (call once at app startup)
+- `signInWithGoogle()` — Sign in with Google popup
+- `signOut()` — Sign out current user
+- `getCurrentUser()`, `getCurrentUserId()` — Synchronous getters
+- `waitForAuth()` — Promise that resolves when auth state is determined
+
+### Firestore (`src/lib/firestore.ts`)
+CRUD operations for all collections:
+- Routine Templates (system + user custom)
+- Routine Logs (training sessions)
+- Seasons (training periods)
+- User Settings
+- Personal Bests
+
+### Storage (`src/lib/storage.ts`)
+Firebase Storage helpers for photo upload/delete with thumbnail generation.
+
 ## Build, Test, and Development Commands
 - `npm run dev` — start the Vite dev server for local development.
 - `npm run build` — create a production build.
