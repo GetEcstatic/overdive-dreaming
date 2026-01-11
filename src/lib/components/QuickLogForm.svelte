@@ -201,6 +201,7 @@
 	let sourcePhotoFile = $state<File | undefined>(undefined);
 	let photoPreviewUrl = $state<string | undefined>(undefined);
 	let showPhotoCropper = $state(false);
+	let triggerPhotoCrop = $state<(() => void) | undefined>(undefined);
 	let youtubeUrl = $state<string>('');
 	let youtubeError = $state<string | null>(null);
 
@@ -284,6 +285,20 @@
 
 	function handleSubmit(e: Event) {
 		e.preventDefault();
+
+		// Auto-apply photo crop if cropper is still open
+		if (showPhotoCropper && sourcePhotoFile && !photoFile && triggerPhotoCrop) {
+			triggerPhotoCrop();
+			// The applyCrop callback will set photoFile, then we continue with submit
+			// Use a small timeout to let the crop complete
+			setTimeout(() => doSubmit(), 100);
+			return;
+		}
+		
+		doSubmit();
+	}
+	
+	function doSubmit() {
 
 		// Convert mm:ss to total seconds
 		const initialBreatheUp =
@@ -1022,7 +1037,7 @@
 					file={sourcePhotoFile} 
 					onApply={applyCrop} 
 					onCancel={cancelCrop}
-					autoApplyOnLoad={true}
+					bind:triggerApply={triggerPhotoCrop}
 				/>
 			{:else if photoPreviewUrl}
 				<div class="photo-preview">

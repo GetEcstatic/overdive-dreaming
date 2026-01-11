@@ -130,7 +130,7 @@ Keep on doing this until you get a proper instructions!
 # Send a message to yebo - edit the text below and run this cell
 
 send('''
-In the session-editor and quick log, when adding a photo, the image doesn't save unless the "use crop" button is pressed. The use crop button is redundant so automate this when the save button is clicked.
+That removed the apply-crop button, but it also removed crop functionality. I can no longer zoom or move the image within the crop area.
      
 ''' + prompt_hack)
 

@@ -111,6 +111,7 @@
 	let photoAction = $state<'keep' | 'remove' | 'replace' | 'add'>('keep');
 	let youtubeUrl = $state<string>(formData.youtubeUrl || '');
 	let youtubeAction = $state<'keep' | 'remove' | 'update' | 'add'>('keep');
+	let triggerMediaCrop = $state<(() => void) | undefined>(undefined);
 
 	// Reactive heart color based on joy scale (same as QuickLogForm)
 	const joyHeartColor = $derived(() => {
@@ -178,6 +179,19 @@
 	// Form submission
 	function handleSubmit(e: Event) {
 		e.preventDefault();
+
+		// Auto-apply photo crop if cropper is still open
+		if (triggerMediaCrop) {
+			triggerMediaCrop();
+			// Give time for crop to complete, then submit
+			setTimeout(() => doSubmit(), 100);
+			return;
+		}
+		
+		doSubmit();
+	}
+
+	function doSubmit() {
 
 		// Convert mm:ss to total seconds
 		const initialBreatheUp = convertTimeFieldsToSeconds(breatheUpMinutes, breatheUpSeconds);
@@ -927,6 +941,7 @@
 			existingYoutubeUrl={initialData.youtubeUrl}
 			onPhotoChange={handlePhotoChange}
 			onYoutubeChange={handleYoutubeChange}
+			bind:triggerApplyCrop={triggerMediaCrop}
 		/>
 	</div>
 

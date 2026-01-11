@@ -7,9 +7,10 @@
 		existingYoutubeUrl?: string;
 		onPhotoChange: (file: File | null, action: 'add' | 'remove' | 'replace') => void;
 		onYoutubeChange: (url: string | null, action: 'add' | 'remove' | 'update') => void;
+		triggerApplyCrop?: () => void; // Bindable: parent can trigger crop application
 	}
 
-	let { existingPhotoUrl, existingYoutubeUrl, onPhotoChange, onYoutubeChange }: Props = $props();
+	let { existingPhotoUrl, existingYoutubeUrl, onPhotoChange, onYoutubeChange, triggerApplyCrop = $bindable() }: Props = $props();
 
 	// Photo state
 	let photoFile = $state<File | undefined>(undefined);
@@ -18,6 +19,16 @@
 	let showPhotoUpload = $state(!existingPhotoUrl);
 	let showCropper = $state(false);
 	let pendingPhotoAction = $state<'add' | 'replace'>('add');
+	let triggerPhotoCropInner = $state<(() => void) | undefined>(undefined);
+
+	// Expose method to trigger crop from parent
+	$effect(() => {
+		triggerApplyCrop = () => {
+			if (showCropper && sourcePhotoFile && triggerPhotoCropInner) {
+				triggerPhotoCropInner();
+			}
+		};
+	});
 
 	// YouTube state
 	let youtubeUrl = $state<string>(existingYoutubeUrl || '');
@@ -141,7 +152,7 @@
 				file={sourcePhotoFile} 
 				onApply={applyCrop} 
 				onCancel={cancelCrop}
-				autoApplyOnLoad={true}
+				bind:triggerApply={triggerPhotoCropInner}
 			/>
 		{:else if photoPreviewUrl && !showPhotoUpload}
 			<div class="photo-preview">
