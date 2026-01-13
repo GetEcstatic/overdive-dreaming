@@ -73,9 +73,17 @@
 		}
 		return filterLogsByTimeframe(allLogs, activeTimeframe);
 	});
-	const progressLogs = $derived.by(() =>
-		progressCompOnly ? filteredLogs.filter((log) => log.isCompetition) : filteredLogs
-	);
+	// Only show max attempt routines in progress chart
+	const MAX_ATTEMPT_ROUTINE_IDS = ['system-dynamic-max', 'system-static-max'];
+	const progressLogs = $derived.by(() => {
+		// First filter to only max attempt routines
+		let logs = filteredLogs.filter((log) => MAX_ATTEMPT_ROUTINE_IDS.includes(log.routineId));
+		// Then optionally filter to competition-only
+		if (progressCompOnly) {
+			logs = logs.filter((log) => log.isCompetition);
+		}
+		return logs;
+	});
 	const personalBests = $derived.by(() => {
 		const pbs = calculatePersonalBests(allLogs);
 		// Group by discipline
