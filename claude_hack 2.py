@@ -130,8 +130,10 @@ Keep on doing this until you get a proper instructions!
 # Send a message to yebo - edit the text below and run this cell
 
 send('''
-That removed the apply-crop button, but it also removed crop functionality. I can no longer zoom or move the image within the crop area.
-     
+Looks good to start with.
+     To fix: the training recommendation bar (e.g. to much gray zone) extends beyond the cards width on the right side on mobile 
+     Only training intensity by distance is visible. Can we include pills for STA (Time) and Dynamics (distance)?
+          
 ''' + prompt_hack)
 
 

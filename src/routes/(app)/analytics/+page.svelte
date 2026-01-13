@@ -8,6 +8,7 @@
 	import LineChart from '$lib/components/LineChart.svelte';
 	import ScatterChart from '$lib/components/ScatterChart.svelte';
 	import TimeOfDayAnalysis from '$lib/components/analytics/TimeOfDayAnalysis.svelte';
+	import RPEZoneChart from '$lib/components/analytics/RPEZoneChart.svelte';
 	import {
 		calculatePersonalBests,
 		calculateTrainingSummary,
@@ -696,6 +697,9 @@
 					/>
 				{/if}
 			</div>
+
+			<!-- Training Intensity by RPE Zone -->
+			<RPEZoneChart logs={filteredLogs} />
 
 			<!-- Performance by Time of Day -->
 	<TimeOfDayAnalysis logs={filteredLogs} />

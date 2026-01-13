@@ -520,3 +520,167 @@ export function calculatePBProximity(
 	// Sort by date
 	return proximityData.sort((a, b) => a.date.localeCompare(b.date));
 }
+
+// ============================================================================
+// RPE Zone Analysis
+// ============================================================================
+
+/**
+ * RPE Zone definitions for polarized training analysis
+ */
+export type RPEZone = 'recovery' | 'gray' | 'highIntensity';
+
+export interface RPEZoneConfig {
+	zone: RPEZone;
+	label: string;
+	rpeRange: [number, number]; // inclusive
+	color: string;
+	bgColor: string;
+}
+
+export const RPE_ZONES: RPEZoneConfig[] = [
+	{ zone: 'recovery', label: 'Recovery (1-4)', rpeRange: [1, 4], color: '#22c55e', bgColor: 'rgba(34, 197, 94, 0.7)' },
+	{ zone: 'gray', label: 'Gray Zone (5-6)', rpeRange: [5, 6], color: '#eab308', bgColor: 'rgba(234, 179, 8, 0.7)' },
+	{ zone: 'highIntensity', label: 'High Intensity (7-10)', rpeRange: [7, 10], color: '#ef4444', bgColor: 'rgba(239, 68, 68, 0.7)' }
+];
+
+/**
+ * Get RPE zone from a numeric RPE value
+ */
+export function getRPEZone(rpe: number): RPEZone {
+	if (rpe <= 4) return 'recovery';
+	if (rpe <= 6) return 'gray';
+	return 'highIntensity';
+}
+
+export interface VolumeByRPEZoneDataPoint {
+	week: string;
+	byZone: Record<RPEZone, number>;
+	total: number;
+}
+
+/**
+ * Aggregate training volume by week and RPE zone
+ * @param logs - Array of routine logs
+ * @param metric - 'distance' (meters) or 'time' (seconds)
+ * @returns Weekly data with volume split by RPE zone
+ */
+export function aggregateVolumeByRPEZone(
+	logs: RoutineLog[],
+	metric: 'distance' | 'time'
+): VolumeByRPEZoneDataPoint[] {
+	const weeklyData: Record<string, Record<RPEZone, number>> = {};
+
+	for (const log of logs) {
+		// Skip logs without RPE data
+		if (log.rpe === undefined || log.rpe === null) continue;
+
+		// Get week start (Monday-based for consistency)
+		const logDate = log.date.toDate();
+		const dayOfWeek = logDate.getDay();
+		const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+		const weekStart = new Date(logDate);
+		weekStart.setDate(logDate.getDate() + mondayOffset);
+		const weekKey = format(weekStart, 'yyyy-MM-dd');
+
+		if (!weeklyData[weekKey]) {
+			weeklyData[weekKey] = { recovery: 0, gray: 0, highIntensity: 0 };
+		}
+
+		const zone = getRPEZone(log.rpe);
+		const value = metric === 'distance' 
+			? (log.totalDistance || 0) 
+			: (log.totalTime || 0);
+
+		weeklyData[weekKey][zone] += value;
+	}
+
+	// Convert to sorted array
+	return Object.entries(weeklyData)
+		.map(([week, byZone]) => ({
+			week,
+			byZone,
+			total: byZone.recovery + byZone.gray + byZone.highIntensity
+		}))
+		.sort((a, b) => a.week.localeCompare(b.week));
+}
+
+/**
+ * RPE zone distribution with balance analysis
+ */
+export interface RPEZoneDistribution {
+	recovery: { volume: number; percentage: number };
+	gray: { volume: number; percentage: number };
+	highIntensity: { volume: number; percentage: number };
+	isBalanced: boolean;
+	balanceMessage: string;
+	logsWithRPE: number;
+	logsWithoutRPE: number;
+}
+
+/**
+ * Calculate overall RPE zone distribution percentages
+ */
+export function calculateRPEZoneDistribution(
+	logs: RoutineLog[],
+	metric: 'distance' | 'time'
+): RPEZoneDistribution {
+	const totals: Record<RPEZone, number> = { recovery: 0, gray: 0, highIntensity: 0 };
+	let logsWithRPE = 0;
+	let logsWithoutRPE = 0;
+
+	for (const log of logs) {
+		if (log.rpe === undefined || log.rpe === null) {
+			logsWithoutRPE++;
+			continue;
+		}
+		logsWithRPE++;
+		const zone = getRPEZone(log.rpe);
+		const value = metric === 'distance' ? (log.totalDistance || 0) : (log.totalTime || 0);
+		totals[zone] += value;
+	}
+
+	const total = totals.recovery + totals.gray + totals.highIntensity;
+	
+	const distribution: RPEZoneDistribution = {
+		recovery: {
+			volume: totals.recovery,
+			percentage: total > 0 ? (totals.recovery / total) * 100 : 0
+		},
+		gray: {
+			volume: totals.gray,
+			percentage: total > 0 ? (totals.gray / total) * 100 : 0
+		},
+		highIntensity: {
+			volume: totals.highIntensity,
+			percentage: total > 0 ? (totals.highIntensity / total) * 100 : 0
+		},
+		isBalanced: false,
+		balanceMessage: '',
+		logsWithRPE,
+		logsWithoutRPE
+	};
+
+	// Determine balance status based on 80/20 principle
+	const recoveryPct = distribution.recovery.percentage;
+	const highPct = distribution.highIntensity.percentage;
+	const grayPct = distribution.gray.percentage;
+
+	if (total === 0) {
+		distribution.balanceMessage = 'No volume data available';
+	} else if (recoveryPct >= 75 && highPct <= 25) {
+		distribution.isBalanced = true;
+		distribution.balanceMessage = '✓ Great balance! Following 80/20 principle';
+	} else if (grayPct > 30) {
+		distribution.balanceMessage = '⚠️ Too much gray zone — consider more easy or hard sessions';
+	} else if (highPct > 30) {
+		distribution.balanceMessage = '⚠️ High intensity overload — increase recovery volume';
+	} else if (recoveryPct < 60) {
+		distribution.balanceMessage = '⚠️ Not enough base work — add more low-intensity sessions';
+	} else {
+		distribution.isBalanced = true;
+		distribution.balanceMessage = '✓ Reasonable balance';
+	}
+
+	return distribution;
+}
