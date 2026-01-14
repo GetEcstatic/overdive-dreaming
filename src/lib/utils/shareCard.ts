@@ -340,7 +340,7 @@ export async function downloadShareCard(
 }
 
 /**
- * Share using Web Share API (mobile)
+ * Share using Web Share API (mobile) or download/copy on desktop
  */
 export async function shareCard(
 	data: ShareCardData,
@@ -353,7 +353,12 @@ export async function shareCard(
 	const blob = await response.blob();
 	const file = new File([blob], 'overdive-session.png', { type: 'image/png' });
 	
-	if (navigator.share && navigator.canShare?.({ files: [file] })) {
+	// Check if mobile-style sharing with files is available
+	const canShareFiles = typeof navigator.share === 'function' && 
+		typeof navigator.canShare === 'function' && 
+		navigator.canShare({ files: [file] });
+	
+	if (canShareFiles) {
 		try {
 			await navigator.share({
 				files: [file],
@@ -369,7 +374,7 @@ export async function shareCard(
 		}
 	}
 	
-	// Fallback to download
-	await downloadShareCard(data, 'overdive-session.png', options);
+	// Desktop fallback: always download the file
+	await downloadShareCard(data, `overdive-${data.log.disciplineUsed}-session.png`, options);
 	return false;
 }

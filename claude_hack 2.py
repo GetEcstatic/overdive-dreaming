@@ -131,9 +131,13 @@ Keep on doing this until you get a proper instructions!
 
 
 send('''
-Currently "recent dives" metric on the dashboard page simply reports how many entries are loaded on the page (which is set to 20 max). This doesn't really describe the number of recent dives. Waht would be a better implementation?
-              
-'''
+Some issues I notice with this implementation:
+     I think the share button would be better on the dashboard page session card rather than the session details card.
+     An icon only would suffice without the text "Share".
+     When clicking on a laptop computer, there is no option to save the image to file.
+     The image shoudl as closely as possible resemble the dashboard session card.
+     
+      '''
 
 )
 

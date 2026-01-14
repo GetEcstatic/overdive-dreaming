@@ -8,6 +8,7 @@
 	import { db } from '$lib/firebase';
 	import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 	import { getPublicUserProfilesByIds } from '$lib/firestore';
+	import { shareCard } from '$lib/utils/shareCard';
 
 	let {
 		log,
@@ -162,6 +163,27 @@
 		showFlowList = false;
 	}
 
+	// Share state
+	let isGeneratingShare = $state(false);
+
+	async function handleShare(e: MouseEvent) {
+		e.preventDefault();
+		e.stopPropagation();
+		if (isGeneratingShare) return;
+
+		isGeneratingShare = true;
+		try {
+			await shareCard(
+				{ log, routine, userName: displayName },
+				{}
+			);
+		} catch (error) {
+			console.error('Failed to generate share card:', error);
+		} finally {
+			isGeneratingShare = false;
+		}
+	}
+
 </script>
 
 <a href="/session/{log.id}" class="card-link">
@@ -263,20 +285,21 @@
 
 	<!-- Like/Kudos Footer -->
 	<div class="card-footer">
-		<button
-			class="like-button"
-			class:liked={isLiked}
-			onclick={(e) => { e.preventDefault(); e.stopPropagation(); toggleLike(); }}
-			aria-label="Like this session"
-		>
-			<svg class="like-icon" viewBox="0 0 24 24" fill="currentColor">
-				<path
-					d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
-				/>
-			</svg>
-			<span class="like-text">Flow</span>
-		</button>
-		<button class="like-count" onclick={openFlowList}>
+		<div class="footer-left">
+			<button
+				class="like-button"
+				class:liked={isLiked}
+				onclick={(e) => { e.preventDefault(); e.stopPropagation(); toggleLike(); }}
+				aria-label="Like this session"
+			>
+				<svg class="like-icon" viewBox="0 0 24 24" fill="currentColor">
+					<path
+						d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+					/>
+				</svg>
+				<span class="like-text">Flow</span>
+			</button>
+			<button class="like-count" onclick={openFlowList}>
 			{likeCount} {likeCount === 1 ? 'flow' : 'flows'}
 		</button>
 		{#if showFlowList}
@@ -300,6 +323,23 @@
 				{/if}
 			</div>
 		{/if}
+		</div>
+		<button
+			class="share-button"
+			onclick={handleShare}
+			disabled={isGeneratingShare}
+			aria-label="Share this session"
+		>
+			{#if isGeneratingShare}
+				<span class="share-spinner"></span>
+			{:else}
+				<svg class="share-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+					<polyline points="16 6 12 2 8 6"></polyline>
+					<line x1="12" y1="2" x2="12" y2="15"></line>
+				</svg>
+			{/if}
+		</button>
 	</div>
 	</div>
 </a>
@@ -608,9 +648,60 @@
 		padding: 0;
 	}
 
+	.footer-left {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		position: relative;
+	}
+
+	.share-button {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: transparent;
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		border-radius: 6px;
+		padding: 0.5rem;
+		color: var(--color-text-muted);
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.share-button:hover {
+		background: rgba(148, 163, 184, 0.05);
+		border-color: var(--color-secondary);
+		color: var(--color-secondary);
+	}
+
+	.share-button:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.share-icon {
+		width: 18px;
+		height: 18px;
+	}
+
+	.share-spinner {
+		width: 16px;
+		height: 16px;
+		border: 2px solid rgba(148, 163, 184, 0.3);
+		border-top-color: var(--color-secondary);
+		border-radius: 50%;
+		animation: spin 0.8s linear infinite;
+	}
+
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+
 	.flow-popover {
 		position: absolute;
-		right: 1rem;
+		left: 0;
 		bottom: 3.1rem;
 		width: 220px;
 		background: rgba(12, 18, 28, 0.96);
