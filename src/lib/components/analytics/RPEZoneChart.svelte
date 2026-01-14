@@ -169,21 +169,43 @@
 
 	{#if distribution.logsWithRPE > 0}
 		<div class="distribution-summary">
-			<div class="zone-stat recovery">
-				<span class="zone-label">Recovery</span>
-				<span class="zone-value">{distribution.recovery.percentage.toFixed(0)}%</span>
-				<span class="zone-volume">{formatValue(distribution.recovery.volume)}</span>
+			<div class="zone-stat very-easy">
+				<span class="zone-label">Very Easy</span>
+				<span class="zone-rpe">RPE 1-2</span>
+				<span class="zone-value">{distribution.veryEasy.percentage.toFixed(0)}%</span>
+				<span class="zone-volume">{formatValue(distribution.veryEasy.volume)}</span>
 			</div>
-			<div class="zone-stat gray">
-				<span class="zone-label">Gray Zone</span>
-				<span class="zone-value">{distribution.gray.percentage.toFixed(0)}%</span>
-				<span class="zone-volume">{formatValue(distribution.gray.volume)}</span>
+			<div class="zone-stat easy">
+				<span class="zone-label">Easy</span>
+				<span class="zone-rpe">RPE 3-4</span>
+				<span class="zone-value">{distribution.easy.percentage.toFixed(0)}%</span>
+				<span class="zone-volume">{formatValue(distribution.easy.volume)}</span>
 			</div>
-			<div class="zone-stat high">
-				<span class="zone-label">High Intensity</span>
-				<span class="zone-value">{distribution.highIntensity.percentage.toFixed(0)}%</span>
-				<span class="zone-volume">{formatValue(distribution.highIntensity.volume)}</span>
+			<div class="zone-stat moderate">
+				<span class="zone-label">Moderate</span>
+				<span class="zone-rpe">RPE 5-6</span>
+				<span class="zone-value">{distribution.moderate.percentage.toFixed(0)}%</span>
+				<span class="zone-volume">{formatValue(distribution.moderate.volume)}</span>
 			</div>
+			<div class="zone-stat hard">
+				<span class="zone-label">Hard</span>
+				<span class="zone-rpe">RPE 7-8</span>
+				<span class="zone-value">{distribution.hard.percentage.toFixed(0)}%</span>
+				<span class="zone-volume">{formatValue(distribution.hard.volume)}</span>
+			</div>
+			<div class="zone-stat very-hard">
+				<span class="zone-label">Very Hard</span>
+				<span class="zone-rpe">RPE 9-10</span>
+				<span class="zone-value">{distribution.veryHard.percentage.toFixed(0)}%</span>
+				<span class="zone-volume">{formatValue(distribution.veryHard.volume)}</span>
+			</div>
+		</div>
+		
+		<!-- Freediving Zone 2 Summary -->
+		<div class="zone2-summary">
+			<span class="zone2-label">Freediving Zone 2 (RPE 3-6)</span>
+			<span class="zone2-value">{distribution.freedivingZone2.percentage.toFixed(0)}%</span>
+			<span class="zone2-target">Target: ~80%</span>
 		</div>
 	{/if}
 
@@ -283,62 +305,114 @@
 
 	.distribution-summary {
 		display: flex;
-		gap: 0.75rem;
-		margin-bottom: 1.5rem;
+		gap: 0.5rem;
+		margin-bottom: 1rem;
 		flex-wrap: wrap;
 	}
 
 	.zone-stat {
 		flex: 1;
-		min-width: 90px;
-		padding: 0.75rem;
+		min-width: 70px;
+		padding: 0.5rem;
 		border-radius: 8px;
 		text-align: center;
 	}
 
-	.zone-stat.recovery {
+	.zone-stat.very-easy {
+		background: rgba(16, 185, 129, 0.12);
+	}
+
+	.zone-stat.easy {
 		background: rgba(34, 197, 94, 0.12);
 	}
 
-	.zone-stat.gray {
+	.zone-stat.moderate {
 		background: rgba(234, 179, 8, 0.12);
 	}
 
-	.zone-stat.high {
+	.zone-stat.hard {
+		background: rgba(249, 115, 22, 0.12);
+	}
+
+	.zone-stat.very-hard {
 		background: rgba(239, 68, 68, 0.12);
 	}
 
 	.zone-label {
 		display: block;
-		font-size: 0.7rem;
+		font-size: 0.65rem;
 		color: var(--color-text-secondary);
-		margin-bottom: 0.25rem;
+		margin-bottom: 0.1rem;
 		text-transform: uppercase;
 		letter-spacing: 0.02em;
 	}
 
+	.zone-rpe {
+		display: block;
+		font-size: 0.6rem;
+		color: var(--color-text-secondary);
+		opacity: 0.7;
+		margin-bottom: 0.2rem;
+	}
+
 	.zone-value {
 		display: block;
-		font-size: 1.5rem;
+		font-size: 1.25rem;
 		font-weight: 700;
 		line-height: 1.2;
 	}
 
 	.zone-volume {
 		display: block;
-		font-size: 0.75rem;
+		font-size: 0.7rem;
 		color: var(--color-text-secondary);
-		margin-top: 0.15rem;
+		margin-top: 0.1rem;
 	}
 
-	.zone-stat.recovery .zone-value {
+	.zone-stat.very-easy .zone-value {
+		color: #10b981;
+	}
+	.zone-stat.easy .zone-value {
 		color: #22c55e;
 	}
-	.zone-stat.gray .zone-value {
+	.zone-stat.moderate .zone-value {
 		color: #eab308;
 	}
-	.zone-stat.high .zone-value {
+	.zone-stat.hard .zone-value {
+		color: #f97316;
+	}
+	.zone-stat.very-hard .zone-value {
 		color: #ef4444;
+	}
+
+	.zone2-summary {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 1rem;
+		padding: 0.75rem;
+		margin-bottom: 1.5rem;
+		background: rgba(34, 197, 94, 0.08);
+		border: 1px solid rgba(34, 197, 94, 0.2);
+		border-radius: 8px;
+	}
+
+	.zone2-label {
+		font-size: 0.8rem;
+		color: var(--color-text-secondary);
+		font-weight: 500;
+	}
+
+	.zone2-value {
+		font-size: 1.5rem;
+		font-weight: 700;
+		color: #22c55e;
+	}
+
+	.zone2-target {
+		font-size: 0.75rem;
+		color: var(--color-text-secondary);
+		opacity: 0.8;
 	}
 
 	.chart-container {
@@ -377,12 +451,42 @@
 			padding: 0.25rem 0.5rem;
 		}
 
+		.distribution-summary {
+			gap: 0.25rem;
+		}
+
 		.zone-stat {
-			min-width: 70px;
-			padding: 0.5rem;
+			min-width: 55px;
+			padding: 0.35rem;
+		}
+
+		.zone-label {
+			font-size: 0.55rem;
+		}
+
+		.zone-rpe {
+			font-size: 0.5rem;
 		}
 
 		.zone-value {
+			font-size: 1rem;
+		}
+
+		.zone-volume {
+			font-size: 0.6rem;
+		}
+
+		.zone2-summary {
+			flex-direction: column;
+			gap: 0.25rem;
+			padding: 0.5rem;
+		}
+
+		.zone2-label {
+			font-size: 0.7rem;
+		}
+
+		.zone2-value {
 			font-size: 1.25rem;
 		}
 

@@ -6,12 +6,13 @@
 		PointElement,
 		LinearScale,
 		Tooltip,
-		Legend
+		Legend,
+		type TooltipItem
 	} from 'chart.js';
 
 	Chart.register(ScatterController, PointElement, LinearScale, Tooltip, Legend);
 
-	type TooltipFormatter = (context: any) => string;
+	type TooltipFormatter = (context: TooltipItem<'scatter'>) => string;
 
 	let {
 		data,
@@ -135,7 +136,7 @@
 				borderColor: '#14b8a6',
 				borderWidth: 1,
 				callbacks: {
-					label: (context) => {
+					label: (context: TooltipItem<'scatter'>) => {
 						if (tooltipFormatter) {
 							return tooltipFormatter(context);
 						}

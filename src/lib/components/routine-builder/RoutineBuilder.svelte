@@ -76,6 +76,7 @@
 			trackTotalTime: false,
 			trackRepsCompleted: false,
 			trackRepDuration: false,
+			trackRepDistance: false,
 			trackTimePerLap: false,
 			trackRestBetweenLaps: false,
 			trackKicksPerLap: false,

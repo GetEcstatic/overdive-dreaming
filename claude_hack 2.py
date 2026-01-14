@@ -129,12 +129,17 @@ Keep on doing this until you get a proper instructions!
 #%%
 # Send a message to yebo - edit the text below and run this cell
 
+
 send('''
-Looks good to start with.
-     To fix: the training recommendation bar (e.g. to much gray zone) extends beyond the cards width on the right side on mobile 
-     Only training intensity by distance is visible. Can we include pills for STA (Time) and Dynamics (distance)?
-          
-''' + prompt_hack)
+Currently "recent dives" metric on the dashboard page simply reports how many entries are loaded on the page (which is set to 20 max). This doesn't really describe the number of recent dives. Waht would be a better implementation?
+              
+'''
+
+)
+
+
 
 
 # %%
+
+

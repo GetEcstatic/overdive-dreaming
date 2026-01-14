@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { user } from '$lib/stores/auth';
-	import { getRecentActivityPaginated, getPublicActivityPaginated, getPublicUserProfile } from '$lib/firestore';
+	import { getRecentActivityPaginated, getPublicActivityPaginated, getPublicUserProfile, getLogCountInDays } from '$lib/firestore';
 	import { doc, getDoc, collection, query, where, getDocs, type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore';
 	import { db } from '$lib/firebase';
 	import type { RoutineLog, RoutineTemplate, PersonalBests, Discipline } from '$lib/types';
@@ -20,6 +20,7 @@
 	let error = $state<string | null>(null);
 	let personalBests = $state<PersonalBests | undefined>(undefined);
 	let thisWeekCount = $state(0);
+	let last30DaysCount = $state(0);
 	let personalLastDoc: QueryDocumentSnapshot<DocumentData> | null = $state(null);
 	let communityLastDoc: QueryDocumentSnapshot<DocumentData> | null = $state(null);
 	let personalHasMore = $state(true);
@@ -76,11 +77,8 @@
 				}
 			}
 
-			// Calculate "This Week" count (last 7 days)
-			const oneWeekAgo = Date.now() / 1000 - 7 * 24 * 60 * 60; // 7 days in seconds
-			thisWeekCount = sessionsData.filter(
-				(item) => item.log.date.seconds >= oneWeekAgo
-			).length;
+			// Calculate "This Week" count using server query (accurate count)
+			thisWeekCount = await getLogCountInDays($user.uid, 7);
 
 			personalSessions = sessionsData;
 			personalLastDoc = result.lastDoc;
@@ -91,8 +89,6 @@
 				personalHasMore: result.hasMore,
 				thisWeekCount
 			});
-
-			console.log(`Displaying ${personalSessions.length} routine logs in feed (hasMore: ${personalHasMore})`);
 		} catch (err) {
 			console.error('Error fetching sessions:', err);
 			if (!options.silent) {
@@ -152,8 +148,6 @@
 				communityLastDoc: result.lastDoc,
 				communityHasMore: result.hasMore
 			});
-
-			console.log(`Displaying ${communitySessions.length} community logs (hasMore: ${communityHasMore})`);
 		} catch (err) {
 			console.error('Error fetching community sessions:', err);
 			if (!options.silent) {
@@ -214,10 +208,6 @@
 				personalLastDoc,
 				personalHasMore
 			});
-
-			console.log(
-				`Loaded ${newSessionsData.length} more sessions (total: ${personalSessions.length}, hasMore: ${personalHasMore})`
-			);
 		} catch (err) {
 			console.error('Error loading more sessions:', err);
 		} finally {
@@ -252,10 +242,6 @@
 				communityLastDoc,
 				communityHasMore
 			});
-
-			console.log(
-				`Loaded ${newSessionsData.length} more community sessions (total: ${communitySessions.length}, hasMore: ${communityHasMore})`
-			);
 		} catch (err) {
 			console.error('Error loading community sessions:', err);
 		} finally {
@@ -269,18 +255,6 @@
 			return;
 		}
 		loadMorePersonalSessions();
-	}
-
-	// Infinite scroll detection
-	function handleScroll() {
-		if (!feedContainer || !hasMore || loadingMore) return;
-
-		const { scrollTop, scrollHeight, clientHeight } = feedContainer;
-		const scrolledToBottom = scrollTop + clientHeight >= scrollHeight - 300; // Trigger 300px before bottom
-
-		if (scrolledToBottom) {
-			loadMoreSessions();
-		}
 	}
 
 	async function fetchPBs() {
@@ -342,6 +316,16 @@
 		}
 	}
 
+	async function fetch30DayCount() {
+		if (!$user) return;
+		try {
+			last30DaysCount = await getLogCountInDays($user.uid, 30);
+			updateDashboardCache($user.uid, { last30DaysCount });
+		} catch (err) {
+			console.error('Error fetching 30-day count:', err);
+		}
+	}
+
 	onMount(() => {
 		const savedMode = typeof localStorage !== 'undefined' ? localStorage.getItem('feedMode') : null;
 		if (savedMode === 'community') {
@@ -358,14 +342,20 @@
 				personalHasMore = cached.personalHasMore;
 				communityHasMore = cached.communityHasMore;
 				thisWeekCount = cached.thisWeekCount;
+				last30DaysCount = cached.last30DaysCount;
 				loading = false;
 			}
 			const isStale = !cached?.fetchedAt || Date.now() - cached.fetchedAt > dashboardCacheTtlMs;
 			if (isStale) {
 				fetchPersonalSessions({ silent: !!cached });
+				fetch30DayCount();
 				if (feedMode === 'community') {
 					fetchCommunitySessions({ silent: !!cached });
 				}
+			} else {
+				// Always refresh the 30-day count in the background even if cache isn't stale
+				// This ensures the count stays accurate
+				fetch30DayCount();
 			}
 		}
 		fetchPBs();
@@ -376,6 +366,7 @@
 			if (now - lastRefreshAt < 1500) return;
 			lastRefreshAt = now;
 			fetchPersonalSessions({ silent: true });
+			fetch30DayCount();
 			if (feedMode === 'community') {
 				fetchCommunitySessions({ silent: true });
 			}
@@ -415,14 +406,14 @@
 </script>
 
 {#if $user}
-	<div class="content-wrapper" bind:this={feedContainer} onscroll={handleScroll}>
+	<div class="content-wrapper" bind:this={feedContainer}>
 		<!-- Summary Stats Card -->
 		<div class="summary-card">
 				<h2 class="summary-title">Training Overview</h2>
 				<div class="stats-grid">
 					<div class="stat-box">
-						<div class="stat-label">Recent Dives</div>
-						<div class="stat-value primary">{personalSessions.length}</div>
+						<div class="stat-label">Last 30 Days</div>
+						<div class="stat-value primary">{last30DaysCount}</div>
 					</div>
 					<div class="stat-box">
 						<div class="stat-label">This Week</div>

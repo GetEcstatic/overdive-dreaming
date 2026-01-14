@@ -7,6 +7,7 @@ import {
 	getDoc,
 	getDocs,
 	getDocsFromServer,
+	getCountFromServer,
 	addDoc,
 	updateDoc,
 	deleteDoc,
@@ -657,6 +658,36 @@ export async function getRecentActivity(userId: string, limitCount = 20): Promis
 	});
 
 	return logs;
+}
+
+/**
+ * Get count of routine logs within a time period (e.g., last 30 days)
+ * Uses efficient aggregation query to count without downloading documents
+ */
+export async function getLogCountInDays(userId: string, days: number): Promise<number> {
+	const routineLogsRef = collection(db, 'routineLogs');
+	const cutoffDate = Timestamp.fromMillis(Date.now() - days * 24 * 60 * 60 * 1000);
+
+	const q = query(
+		routineLogsRef,
+		where('userId', '==', userId),
+		where('date', '>=', cutoffDate)
+	);
+
+	try {
+		const countSnapshot = await getCountFromServer(q);
+		return countSnapshot.data().count;
+	} catch (error) {
+		console.error('Error getting log count:', error);
+		// Fallback: manually count by fetching docs
+		try {
+			const snapshot = await getDocs(q);
+			return snapshot.size;
+		} catch (fallbackError) {
+			console.error('Fallback count also failed:', fallbackError);
+			return 0;
+		}
+	}
 }
 
 /**

@@ -526,9 +526,10 @@ export function calculatePBProximity(
 // ============================================================================
 
 /**
- * RPE Zone definitions for polarized training analysis
+ * RPE Zone definitions for freediving training analysis
+ * Philosophy: ~80% of training should be in RPE 3-6 (Easy + Moderate = "freediving zone 2")
  */
-export type RPEZone = 'recovery' | 'gray' | 'highIntensity';
+export type RPEZone = 'veryEasy' | 'easy' | 'moderate' | 'hard' | 'veryHard';
 
 export interface RPEZoneConfig {
 	zone: RPEZone;
@@ -539,18 +540,22 @@ export interface RPEZoneConfig {
 }
 
 export const RPE_ZONES: RPEZoneConfig[] = [
-	{ zone: 'recovery', label: 'Recovery (1-4)', rpeRange: [1, 4], color: '#22c55e', bgColor: 'rgba(34, 197, 94, 0.7)' },
-	{ zone: 'gray', label: 'Gray Zone (5-6)', rpeRange: [5, 6], color: '#eab308', bgColor: 'rgba(234, 179, 8, 0.7)' },
-	{ zone: 'highIntensity', label: 'High Intensity (7-10)', rpeRange: [7, 10], color: '#ef4444', bgColor: 'rgba(239, 68, 68, 0.7)' }
+	{ zone: 'veryEasy', label: 'Very Easy (RPE 1-2)', rpeRange: [1, 2], color: '#10b981', bgColor: 'rgba(16, 185, 129, 0.7)' },
+	{ zone: 'easy', label: 'Easy (RPE 3-4)', rpeRange: [3, 4], color: '#22c55e', bgColor: 'rgba(34, 197, 94, 0.7)' },
+	{ zone: 'moderate', label: 'Moderate (RPE 5-6)', rpeRange: [5, 6], color: '#eab308', bgColor: 'rgba(234, 179, 8, 0.7)' },
+	{ zone: 'hard', label: 'Hard (RPE 7-8)', rpeRange: [7, 8], color: '#f97316', bgColor: 'rgba(249, 115, 22, 0.7)' },
+	{ zone: 'veryHard', label: 'Very Hard (RPE 9-10)', rpeRange: [9, 10], color: '#ef4444', bgColor: 'rgba(239, 68, 68, 0.7)' }
 ];
 
 /**
  * Get RPE zone from a numeric RPE value
  */
 export function getRPEZone(rpe: number): RPEZone {
-	if (rpe <= 4) return 'recovery';
-	if (rpe <= 6) return 'gray';
-	return 'highIntensity';
+	if (rpe <= 2) return 'veryEasy';
+	if (rpe <= 4) return 'easy';
+	if (rpe <= 6) return 'moderate';
+	if (rpe <= 8) return 'hard';
+	return 'veryHard';
 }
 
 export interface VolumeByRPEZoneDataPoint {
@@ -584,7 +589,7 @@ export function aggregateVolumeByRPEZone(
 		const weekKey = format(weekStart, 'yyyy-MM-dd');
 
 		if (!weeklyData[weekKey]) {
-			weeklyData[weekKey] = { recovery: 0, gray: 0, highIntensity: 0 };
+			weeklyData[weekKey] = { veryEasy: 0, easy: 0, moderate: 0, hard: 0, veryHard: 0 };
 		}
 
 		const zone = getRPEZone(log.rpe);
@@ -600,7 +605,7 @@ export function aggregateVolumeByRPEZone(
 		.map(([week, byZone]) => ({
 			week,
 			byZone,
-			total: byZone.recovery + byZone.gray + byZone.highIntensity
+			total: byZone.veryEasy + byZone.easy + byZone.moderate + byZone.hard + byZone.veryHard
 		}))
 		.sort((a, b) => a.week.localeCompare(b.week));
 }
@@ -609,9 +614,13 @@ export function aggregateVolumeByRPEZone(
  * RPE zone distribution with balance analysis
  */
 export interface RPEZoneDistribution {
-	recovery: { volume: number; percentage: number };
-	gray: { volume: number; percentage: number };
-	highIntensity: { volume: number; percentage: number };
+	veryEasy: { volume: number; percentage: number };
+	easy: { volume: number; percentage: number };
+	moderate: { volume: number; percentage: number };
+	hard: { volume: number; percentage: number };
+	veryHard: { volume: number; percentage: number };
+	// Combined "freediving zone 2" (Easy + Moderate, RPE 3-6)
+	freedivingZone2: { volume: number; percentage: number };
 	isBalanced: boolean;
 	balanceMessage: string;
 	logsWithRPE: number;
@@ -625,7 +634,7 @@ export function calculateRPEZoneDistribution(
 	logs: RoutineLog[],
 	metric: 'distance' | 'time'
 ): RPEZoneDistribution {
-	const totals: Record<RPEZone, number> = { recovery: 0, gray: 0, highIntensity: 0 };
+	const totals: Record<RPEZone, number> = { veryEasy: 0, easy: 0, moderate: 0, hard: 0, veryHard: 0 };
 	let logsWithRPE = 0;
 	let logsWithoutRPE = 0;
 
@@ -640,20 +649,35 @@ export function calculateRPEZoneDistribution(
 		totals[zone] += value;
 	}
 
-	const total = totals.recovery + totals.gray + totals.highIntensity;
+	const total = totals.veryEasy + totals.easy + totals.moderate + totals.hard + totals.veryHard;
+	
+	// "Freediving zone 2" = Easy + Moderate (RPE 3-6)
+	const freediverZone2Volume = totals.easy + totals.moderate;
 	
 	const distribution: RPEZoneDistribution = {
-		recovery: {
-			volume: totals.recovery,
-			percentage: total > 0 ? (totals.recovery / total) * 100 : 0
+		veryEasy: {
+			volume: totals.veryEasy,
+			percentage: total > 0 ? (totals.veryEasy / total) * 100 : 0
 		},
-		gray: {
-			volume: totals.gray,
-			percentage: total > 0 ? (totals.gray / total) * 100 : 0
+		easy: {
+			volume: totals.easy,
+			percentage: total > 0 ? (totals.easy / total) * 100 : 0
 		},
-		highIntensity: {
-			volume: totals.highIntensity,
-			percentage: total > 0 ? (totals.highIntensity / total) * 100 : 0
+		moderate: {
+			volume: totals.moderate,
+			percentage: total > 0 ? (totals.moderate / total) * 100 : 0
+		},
+		hard: {
+			volume: totals.hard,
+			percentage: total > 0 ? (totals.hard / total) * 100 : 0
+		},
+		veryHard: {
+			volume: totals.veryHard,
+			percentage: total > 0 ? (totals.veryHard / total) * 100 : 0
+		},
+		freedivingZone2: {
+			volume: freediverZone2Volume,
+			percentage: total > 0 ? (freediverZone2Volume / total) * 100 : 0
 		},
 		isBalanced: false,
 		balanceMessage: '',
@@ -661,22 +685,22 @@ export function calculateRPEZoneDistribution(
 		logsWithoutRPE
 	};
 
-	// Determine balance status based on 80/20 principle
-	const recoveryPct = distribution.recovery.percentage;
-	const highPct = distribution.highIntensity.percentage;
-	const grayPct = distribution.gray.percentage;
+	// Determine balance status: ~80% should be in RPE 3-6 (Easy + Moderate = "Freediving Zone 2")
+	const zone2Pct = distribution.freedivingZone2.percentage;
+	const highIntensityPct = distribution.hard.percentage + distribution.veryHard.percentage;
 
 	if (total === 0) {
 		distribution.balanceMessage = 'No volume data available';
-	} else if (recoveryPct >= 75 && highPct <= 25) {
+	} else if (zone2Pct >= 75 && highIntensityPct <= 25) {
 		distribution.isBalanced = true;
-		distribution.balanceMessage = '✓ Great balance! Following 80/20 principle';
-	} else if (grayPct > 30) {
-		distribution.balanceMessage = '⚠️ Too much gray zone — consider more easy or hard sessions';
-	} else if (highPct > 30) {
-		distribution.balanceMessage = '⚠️ High intensity overload — increase recovery volume';
-	} else if (recoveryPct < 60) {
-		distribution.balanceMessage = '⚠️ Not enough base work — add more low-intensity sessions';
+		distribution.balanceMessage = '✓ Great balance! ~80% in freediving zone 2 (RPE 3-6)';
+	} else if (zone2Pct >= 70) {
+		distribution.isBalanced = true;
+		distribution.balanceMessage = '✓ Good balance — majority in optimal zone';
+	} else if (highIntensityPct > 30) {
+		distribution.balanceMessage = '⚠️ Too much high intensity — add more Easy/Moderate sessions';
+	} else if (zone2Pct < 60) {
+		distribution.balanceMessage = '⚠️ Aim for ~80% in RPE 3-6 for optimal adaptation';
 	} else {
 		distribution.isBalanced = true;
 		distribution.balanceMessage = '✓ Reasonable balance';

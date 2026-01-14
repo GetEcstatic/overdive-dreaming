@@ -23,7 +23,7 @@
 		type Timeframe
 	} from '$lib/utils/analytics';
 	import { formatTime } from '$lib/utils/time';
-	import { format, intervalToDuration } from 'date-fns';
+	import { format, intervalToDuration, type Duration } from 'date-fns';
 	import { getUserSettings, getSeasonsForUser } from '$lib/firestore';
 
 	let filterKey = $state<string>('tf:1month');
@@ -208,7 +208,7 @@
 	};
 
 	const timeToPbStats = $derived.by(() => {
-		const stats: Record<Discipline, { years: number; months: number; days: number } | null> = {
+		const stats: Record<Discipline, Duration | null> = {
 			DYN: null,
 			DNF: null,
 			DYNB: null,
@@ -248,12 +248,12 @@
 		return stats;
 	});
 
-	const formatTimeToPb = (duration: { years: number; months: number; days: number } | null) => {
+	const formatTimeToPb = (duration: Duration | null) => {
 		if (!duration) return '—';
 		const parts = [];
 		if (duration.years) parts.push(`${duration.years}y`);
 		if (duration.months) parts.push(`${duration.months}m`);
-		if (duration.days || parts.length === 0) parts.push(`${duration.days}d`);
+		if (duration.days || parts.length === 0) parts.push(`${duration.days ?? 0}d`);
 		return parts.join(' ');
 	};
 
@@ -263,7 +263,7 @@
 		labelDates: string[];
 	} => {
 		const activeDynamics = activeDynamicDisciplines();
-		const activeDisciplines =
+		const activeDisciplines: Discipline[] =
 			selectedProgressDisciplines.length > 0
 				? selectedProgressDisciplines
 				: ['DYN'];
@@ -318,7 +318,7 @@
 					pointRadius: 0,
 					fill: false,
 					tension: 0
-				});
+				} as any);
 			}
 		}
 
@@ -358,7 +358,7 @@
 					endLabel: format((season.endDate?.toDate() ?? new Date()), 'MMM d, yyyy')
 				};
 			})
-			.filter(Boolean);
+			.filter((band): band is NonNullable<typeof band> => band !== null);
 	});
 
 	async function fetchAllLogs() {

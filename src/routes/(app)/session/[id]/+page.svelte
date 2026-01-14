@@ -11,7 +11,7 @@
 	import { updateRoutineLog, deleteRoutineLog, deleteSessionByGroup } from '$lib/firestore';
 	import { recalculatePBsForDisciplines } from '$lib/utils/personalBests';
 	import { clearDashboardCache } from '$lib/utils/dashboardCache';
-	import type { RoutineLog } from '$lib/types';
+	import type { RoutineLog, Discipline } from '$lib/types';
 
 	let { data } = $props();
 	let { log, routine } = $derived(data);
@@ -107,7 +107,7 @@
 
 		try {
 			let photoUrls: string[] = [];
-			let disciplines: string[] = [];
+			let disciplines: Discipline[] = [];
 
 			if (log.sessionGroup) {
 				// Delete all routine logs in this session group
