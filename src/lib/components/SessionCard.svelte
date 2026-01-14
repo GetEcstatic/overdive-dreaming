@@ -209,8 +209,7 @@
 	<!-- Notes preview section -->
 	{#if notesPreview}
 		<div class="notes-preview">
-			<span class="notes-icon">📝</span>
-			<span class="notes-text">{notesPreview}</span>
+			<span class="notes-text">"{notesPreview}"</span>
 		</div>
 	{/if}
 
@@ -465,28 +464,17 @@
 		border-radius: 2px;
 	}
 
-	/* Notes Indicator */
+	/* Notes Preview */
 	.notes-preview {
-		display: flex;
-		align-items: flex-start;
-		gap: 0.5rem;
-		padding: 0.625rem 0.875rem;
-		background: rgba(148, 163, 184, 0.08);
-		border-radius: 8px;
-		margin: 0.75rem 1rem 0;
-		font-size: 0.8125rem;
-		line-height: 1.4;
-	}
-
-	.notes-preview .notes-icon {
-		flex-shrink: 0;
-		font-size: 0.875rem;
-		margin-top: 0.1rem;
+		padding: 0.5rem 1rem 0;
 	}
 
 	.notes-preview .notes-text {
 		color: var(--color-text-muted);
+		font-size: 0.8125rem;
 		font-style: italic;
+		line-height: 1.4;
+		opacity: 0.85;
 	}
 
 	/* Hero Section */
