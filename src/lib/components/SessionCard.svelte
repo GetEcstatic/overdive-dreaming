@@ -66,6 +66,14 @@
 	const rpeEmoji = '💪';
 	const joyEmoji = '😊';
 
+	// Notes preview for tooltip
+	const notesPreview = $derived.by(() => {
+		if (!log.notes) return null;
+		const trimmed = log.notes.trim();
+		if (trimmed.length <= 100) return trimmed;
+		return trimmed.slice(0, 100) + '…';
+	});
+
 	// Like state - initialize from Firestore (intentionally capture initial value)
 	let likeCount = $state((() => log.likes?.length ?? 0)());
 	let isLiked = $state((() => log.likes?.includes($user?.uid ?? '') ?? false)());
@@ -197,6 +205,14 @@
 		{/if}
 		<div class="gradient-line"></div>
 	</div>
+
+	<!-- Notes tooltip indicator -->
+	{#if notesPreview}
+		<div class="notes-indicator" title={notesPreview}>
+			<span class="notes-icon">📝</span>
+			<span class="notes-text">Notes</span>
+		</div>
+	{/if}
 
 	<!-- Hero Metric -->
 	<div class="hero-section">
@@ -447,6 +463,34 @@
 			transparent
 		);
 		border-radius: 2px;
+	}
+
+	/* Notes Indicator */
+	.notes-indicator {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		padding: 0.5rem 0.75rem;
+		background: rgba(148, 163, 184, 0.08);
+		border-radius: 6px;
+		margin: 0.75rem 1rem 0;
+		cursor: help;
+		font-size: 0.75rem;
+		color: var(--color-text-muted);
+		transition: background 0.2s ease;
+	}
+
+	.notes-indicator:hover {
+		background: rgba(148, 163, 184, 0.15);
+	}
+
+	.notes-icon {
+		font-size: 0.875rem;
+	}
+
+	.notes-text {
+		font-weight: 500;
+		letter-spacing: 0.02em;
 	}
 
 	/* Hero Section */
