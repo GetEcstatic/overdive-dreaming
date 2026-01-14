@@ -206,11 +206,11 @@
 		<div class="gradient-line"></div>
 	</div>
 
-	<!-- Notes tooltip indicator -->
+	<!-- Notes preview section -->
 	{#if notesPreview}
-		<div class="notes-indicator" title={notesPreview}>
+		<div class="notes-preview">
 			<span class="notes-icon">📝</span>
-			<span class="notes-text">Notes</span>
+			<span class="notes-text">{notesPreview}</span>
 		</div>
 	{/if}
 
@@ -466,31 +466,27 @@
 	}
 
 	/* Notes Indicator */
-	.notes-indicator {
+	.notes-preview {
 		display: flex;
-		align-items: center;
-		gap: 0.375rem;
-		padding: 0.5rem 0.75rem;
+		align-items: flex-start;
+		gap: 0.5rem;
+		padding: 0.625rem 0.875rem;
 		background: rgba(148, 163, 184, 0.08);
-		border-radius: 6px;
+		border-radius: 8px;
 		margin: 0.75rem 1rem 0;
-		cursor: help;
-		font-size: 0.75rem;
-		color: var(--color-text-muted);
-		transition: background 0.2s ease;
+		font-size: 0.8125rem;
+		line-height: 1.4;
 	}
 
-	.notes-indicator:hover {
-		background: rgba(148, 163, 184, 0.15);
-	}
-
-	.notes-icon {
+	.notes-preview .notes-icon {
+		flex-shrink: 0;
 		font-size: 0.875rem;
+		margin-top: 0.1rem;
 	}
 
-	.notes-text {
-		font-weight: 500;
-		letter-spacing: 0.02em;
+	.notes-preview .notes-text {
+		color: var(--color-text-muted);
+		font-style: italic;
 	}
 
 	/* Hero Section */
