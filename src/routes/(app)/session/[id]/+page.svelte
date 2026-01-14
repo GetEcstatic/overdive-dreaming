@@ -11,6 +11,7 @@
 	import { updateRoutineLog, deleteRoutineLog, deleteSessionByGroup } from '$lib/firestore';
 	import { recalculatePBsForDisciplines } from '$lib/utils/personalBests';
 	import { clearDashboardCache } from '$lib/utils/dashboardCache';
+	import { shareCard, downloadShareCard } from '$lib/utils/shareCard';
 	import type { RoutineLog, Discipline } from '$lib/types';
 
 	let { data } = $props();
@@ -24,6 +25,9 @@
 	let showDeleteConfirm = $state(false);
 	let isDeleting = $state(false);
 	let deleteError = $state<string | null>(null);
+
+	// Share state
+	let isGeneratingShare = $state(false);
 
 	// Format date/time
 	const fullDate = $derived(format(log.date.toDate(), 'EEEE, MMMM d, yyyy'));
@@ -97,6 +101,28 @@
 	function handleDeleteClick() {
 		showDeleteConfirm = true;
 		deleteError = null;
+	}
+
+	async function handleShare() {
+		if (isGeneratingShare) return;
+		
+		isGeneratingShare = true;
+		try {
+			const userName = $user?.displayName?.replace(/\s+/g, '') || undefined;
+			const shared = await shareCard(
+				{ log, routine, userName },
+				{ width: 1080, height: 1080 }
+			);
+			
+			// If Web Share API wasn't available, it downloaded instead
+			if (!shared) {
+				console.log('Share card downloaded');
+			}
+		} catch (error) {
+			console.error('Failed to generate share card:', error);
+		} finally {
+			isGeneratingShare = false;
+		}
 	}
 
 	async function handleConfirmDelete() {
@@ -487,6 +513,17 @@
 		<div class="action-bar">
 			<button class="btn btn-secondary" onclick={handleEdit}>Edit</button>
 			<button class="btn btn-primary" onclick={handleViewAnalytics}>Analytics</button>
+			<button 
+				class="btn btn-share" 
+				onclick={handleShare}
+				disabled={isGeneratingShare}
+			>
+				{#if isGeneratingShare}
+					<span class="spinner"></span> Creating...
+				{:else}
+					📤 Share
+				{/if}
+			</button>
 			<button class="btn btn-danger" onclick={handleDeleteClick}>Delete</button>
 		</div>
 	{/if}
@@ -816,6 +853,39 @@
 	.btn-danger:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
+	}
+
+	.btn-share {
+		background: rgba(59, 130, 246, 0.1);
+		color: #3b82f6;
+		border: 1px solid rgba(59, 130, 246, 0.3);
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+	}
+
+	.btn-share:hover:not(:disabled) {
+		background: rgba(59, 130, 246, 0.2);
+		border-color: rgba(59, 130, 246, 0.5);
+	}
+
+	.btn-share:disabled {
+		opacity: 0.7;
+		cursor: wait;
+	}
+
+	.spinner {
+		display: inline-block;
+		width: 1em;
+		height: 1em;
+		border: 2px solid currentColor;
+		border-right-color: transparent;
+		border-radius: 50%;
+		animation: spin 0.75s linear infinite;
+	}
+
+	@keyframes spin {
+		to { transform: rotate(360deg); }
 	}
 
 	/* Modal */

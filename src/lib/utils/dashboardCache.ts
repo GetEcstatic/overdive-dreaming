@@ -14,6 +14,7 @@ export type DashboardCacheEntry = {
 	personalHasMore: boolean;
 	communityHasMore: boolean;
 	thisWeekCount: number;
+	last30DaysCount: number;
 	fetchedAt: number;
 };
 
@@ -35,6 +36,7 @@ export function updateDashboardCache(
 		personalHasMore: true,
 		communityHasMore: true,
 		thisWeekCount: 0,
+		last30DaysCount: 0,
 		fetchedAt: 0
 	};
 
