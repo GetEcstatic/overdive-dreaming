@@ -5,7 +5,7 @@
 
 import type { RoutineLog, RoutineTemplate, Discipline } from '$lib/types';
 import { formatTime } from '$lib/utils/time';
-import { format } from 'date-fns';
+import { format as formatDate } from 'date-fns';
 
 interface ShareCardData {
 	log: RoutineLog;
@@ -18,13 +18,15 @@ interface ShareCardOptions {
 	height?: number;
 	brandColor?: string;
 	secondaryColor?: string;
+	format?: 'square' | 'story'; // 'story' = 9:16 aspect ratio for Instagram
 }
 
 const defaultOptions: Required<ShareCardOptions> = {
 	width: 1080,
-	height: 1080,
+	height: 1920, // 9:16 aspect ratio for Instagram stories
 	brandColor: '#14b8a6',
-	secondaryColor: '#38bdf8'
+	secondaryColor: '#38bdf8',
+	format: 'story'
 };
 
 /**
@@ -107,6 +109,56 @@ function roundRect(
 }
 
 /**
+ * Load an image from URL and return it as an HTMLImageElement
+ * Uses fetch to handle CORS properly for Firebase Storage URLs
+ */
+async function loadImage(url: string): Promise<HTMLImageElement> {
+	return new Promise(async (resolve, reject) => {
+		try {
+			// For Firebase Storage URLs, fetch as blob first to handle CORS
+			const response = await fetch(url, { mode: 'cors' });
+			if (!response.ok) {
+				throw new Error(`Failed to fetch image: ${response.status}`);
+			}
+			const blob = await response.blob();
+			const objectUrl = URL.createObjectURL(blob);
+			
+			const img = new Image();
+			img.onload = () => {
+				// Clean up the object URL after image loads
+				URL.revokeObjectURL(objectUrl);
+				resolve(img);
+			};
+			img.onerror = () => {
+				URL.revokeObjectURL(objectUrl);
+				reject(new Error('Failed to load image from blob'));
+			};
+			img.src = objectUrl;
+		} catch (error) {
+			// Fallback: try loading directly with crossOrigin
+			const img = new Image();
+			img.crossOrigin = 'anonymous';
+			img.onload = () => resolve(img);
+			img.onerror = () => reject(error);
+			img.src = url;
+		}
+	});
+}
+
+/**
+ * Get first line of notes (for share card)
+ */
+function getFirstLine(notes?: string): string | null {
+	if (!notes) return null;
+	const trimmed = notes.trim();
+	const firstLine = trimmed.split('\n')[0].trim();
+	if (firstLine.length > 80) {
+		return firstLine.slice(0, 77) + '...';
+	}
+	return firstLine || null;
+}
+
+/**
  * Generate share card image as data URL
  */
 export async function generateShareCard(
@@ -115,7 +167,7 @@ export async function generateShareCard(
 ): Promise<string> {
 	const opts = { ...defaultOptions, ...options };
 	const { log, routine, userName } = data;
-	const { width, height } = opts;
+	const { width, height, format } = opts;
 	
 	const canvas = document.createElement('canvas');
 	canvas.width = width;
@@ -129,159 +181,227 @@ export async function generateShareCard(
 	const disciplineColor = getDisciplineColor(log.disciplineUsed);
 	const heroValue = getHeroValue(log, routine);
 	const secondaryValue = getSecondaryValue(log, routine);
-	const dateStr = format(log.date.toDate(), 'MMMM d, yyyy');
+	const dateStr = format === 'story' 
+		? formatDate(log.date.toDate(), 'MMM d, yyyy')
+		: formatDate(log.date.toDate(), 'MMMM d, yyyy');
+	const notesFirstLine = getFirstLine(log.notes);
 	
-	// Background gradient
-	const bgGradient = ctx.createLinearGradient(0, 0, width, height);
-	bgGradient.addColorStop(0, '#0f172a');
-	bgGradient.addColorStop(0.5, '#1e293b');
-	bgGradient.addColorStop(1, '#0f172a');
-	ctx.fillStyle = bgGradient;
-	ctx.fillRect(0, 0, width, height);
-	
-	// Add subtle grid pattern
-	ctx.strokeStyle = 'rgba(148, 163, 184, 0.05)';
-	ctx.lineWidth = 1;
-	for (let i = 0; i < width; i += 40) {
-		ctx.beginPath();
-		ctx.moveTo(i, 0);
-		ctx.lineTo(i, height);
-		ctx.stroke();
-	}
-	for (let i = 0; i < height; i += 40) {
-		ctx.beginPath();
-		ctx.moveTo(0, i);
-		ctx.lineTo(width, i);
-		ctx.stroke();
+	// Try to load session photo
+	let sessionPhoto: HTMLImageElement | null = null;
+	const photoUrl = log.photoUrl || log.thumbnailImageUrl;
+	if (photoUrl) {
+		try {
+			sessionPhoto = await loadImage(photoUrl);
+		} catch (e) {
+			console.warn('Failed to load session photo for share card:', e);
+		}
 	}
 	
-	// Card background
-	const cardX = 60;
-	const cardY = 60;
-	const cardWidth = width - 120;
-	const cardHeight = height - 120;
+	// Padding for content
+	const padding = format === 'story' ? 40 : 60;
+	const contentWidth = width - padding * 2;
 	
-	ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-	roundRect(ctx, cardX, cardY, cardWidth, cardHeight, 24);
-	ctx.fill();
+	// === BACKGROUND ===
+	if (sessionPhoto && format === 'story') {
+		// Draw photo as background with gradient overlay
+		const imgAspect = sessionPhoto.width / sessionPhoto.height;
+		const canvasAspect = width / height;
+		
+		let drawWidth, drawHeight, drawX, drawY;
+		if (imgAspect > canvasAspect) {
+			// Image is wider - fit height
+			drawHeight = height;
+			drawWidth = drawHeight * imgAspect;
+			drawX = (width - drawWidth) / 2;
+			drawY = 0;
+		} else {
+			// Image is taller - fit width
+			drawWidth = width;
+			drawHeight = drawWidth / imgAspect;
+			drawX = 0;
+			drawY = (height - drawHeight) / 2;
+		}
+		
+		ctx.drawImage(sessionPhoto, drawX, drawY, drawWidth, drawHeight);
+		
+		// Simple black overlay for readability (50% opacity)
+		ctx.fillStyle = 'rgba(0, 0, 0, 0.50)';
+		ctx.fillRect(0, 0, width, height);
+	} else {
+		// Solid gradient background
+		const bgGradient = ctx.createLinearGradient(0, 0, width, height);
+		bgGradient.addColorStop(0, '#0f172a');
+		bgGradient.addColorStop(0.3, '#1e293b');
+		bgGradient.addColorStop(0.7, '#1e293b');
+		bgGradient.addColorStop(1, '#0f172a');
+		ctx.fillStyle = bgGradient;
+		ctx.fillRect(0, 0, width, height);
+		
+		// Subtle grid pattern
+		ctx.strokeStyle = 'rgba(148, 163, 184, 0.03)';
+		ctx.lineWidth = 1;
+		const gridSize = format === 'story' ? 60 : 40;
+		for (let i = 0; i < width; i += gridSize) {
+			ctx.beginPath();
+			ctx.moveTo(i, 0);
+			ctx.lineTo(i, height);
+			ctx.stroke();
+		}
+		for (let i = 0; i < height; i += gridSize) {
+			ctx.beginPath();
+			ctx.moveTo(0, i);
+			ctx.lineTo(width, i);
+			ctx.stroke();
+		}
+	}
 	
-	// Card border
-	ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
-	ctx.lineWidth = 2;
-	roundRect(ctx, cardX, cardY, cardWidth, cardHeight, 24);
-	ctx.stroke();
-	
-	// Gradient accent line at top
-	const accentGradient = ctx.createLinearGradient(cardX, 0, cardX + cardWidth, 0);
-	accentGradient.addColorStop(0, disciplineColor);
+	// Top gradient accent line
+	const accentGradient = ctx.createLinearGradient(0, 0, width, 0);
+	accentGradient.addColorStop(0, 'transparent');
+	accentGradient.addColorStop(0.2, disciplineColor);
 	accentGradient.addColorStop(0.5, '#10b981');
+	accentGradient.addColorStop(0.8, disciplineColor);
 	accentGradient.addColorStop(1, 'transparent');
 	ctx.fillStyle = accentGradient;
-	roundRect(ctx, cardX, cardY, cardWidth, 6, 3);
-	ctx.fill();
+	ctx.fillRect(0, 0, width, 6);
+	
+	// === TOP SECTION: Discipline + Routine Info ===
+	const topY = format === 'story' ? 80 : 100;
 	
 	// Discipline badge
-	const badgeX = cardX + 60;
-	const badgeY = cardY + 80;
-	const badgeWidth = 140;
-	const badgeHeight = 44;
+	const badgeWidth = format === 'story' ? 180 : 140;
+	const badgeHeight = format === 'story' ? 56 : 44;
+	const badgeX = (width - badgeWidth) / 2;
+	const badgeY = topY;
 	
-	ctx.fillStyle = disciplineColor + '20';
-	roundRect(ctx, badgeX, badgeY, badgeWidth, badgeHeight, 22);
+	ctx.fillStyle = disciplineColor + '40';
+	roundRect(ctx, badgeX, badgeY, badgeWidth, badgeHeight, badgeHeight / 2);
 	ctx.fill();
 	
-	ctx.strokeStyle = disciplineColor + '60';
+	ctx.strokeStyle = disciplineColor + '80';
 	ctx.lineWidth = 2;
-	roundRect(ctx, badgeX, badgeY, badgeWidth, badgeHeight, 22);
+	roundRect(ctx, badgeX, badgeY, badgeWidth, badgeHeight, badgeHeight / 2);
 	ctx.stroke();
 	
-	ctx.fillStyle = disciplineColor;
-	ctx.font = 'bold 24px system-ui, -apple-system, sans-serif';
+	ctx.fillStyle = '#ffffff';
+	ctx.font = `bold ${format === 'story' ? 32 : 24}px system-ui, -apple-system, sans-serif`;
 	ctx.textAlign = 'center';
-	ctx.fillText(log.disciplineUsed, badgeX + badgeWidth / 2, badgeY + 30);
+	ctx.fillText(log.disciplineUsed, width / 2, badgeY + (format === 'story' ? 38 : 30));
 	
 	// Routine name
-	ctx.fillStyle = '#f1f5f9';
-	ctx.font = '600 32px system-ui, -apple-system, sans-serif';
-	ctx.textAlign = 'left';
-	ctx.fillText(routine.name, cardX + 60, cardY + 170);
+	const routineY = badgeY + badgeHeight + (format === 'story' ? 50 : 40);
+	ctx.fillStyle = '#ffffff';
+	ctx.font = `600 ${format === 'story' ? 44 : 32}px system-ui, -apple-system, sans-serif`;
+	ctx.textAlign = 'center';
+	
+	let routineName = routine.name;
+	const maxRoutineWidth = contentWidth - 40;
+	while (ctx.measureText(routineName).width > maxRoutineWidth && routineName.length > 10) {
+		routineName = routineName.slice(0, -4) + '...';
+	}
+	ctx.fillText(routineName, width / 2, routineY);
 	
 	// Date
-	ctx.fillStyle = '#94a3b8';
-	ctx.font = '400 24px system-ui, -apple-system, sans-serif';
-	ctx.fillText(dateStr, cardX + 60, cardY + 210);
+	const dateY = routineY + (format === 'story' ? 45 : 35);
+	ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+	ctx.font = `400 ${format === 'story' ? 28 : 24}px system-ui, -apple-system, sans-serif`;
+	ctx.fillText(dateStr, width / 2, dateY);
 	
-	// Hero metric (centered, large)
+	// === HERO METRIC SECTION ===
 	const heroLabel = routine.displayConfig.heroMetricLabel || 'Result';
-	const heroY = height / 2 - 20;
+	const heroSectionY = format === 'story' ? height * 0.36 : height / 2 - 40;
 	
-	ctx.fillStyle = '#94a3b8';
-	ctx.font = '500 20px system-ui, -apple-system, sans-serif';
+	ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+	ctx.font = `500 ${format === 'story' ? 24 : 20}px system-ui, -apple-system, sans-serif`;
 	ctx.textAlign = 'center';
-	ctx.letterSpacing = '0.1em';
-	ctx.fillText(heroLabel.toUpperCase(), width / 2, heroY - 60);
+	ctx.fillText(heroLabel.toUpperCase(), width / 2, heroSectionY);
 	
 	// Hero value with gradient
-	ctx.font = 'bold 120px system-ui, -apple-system, sans-serif';
-	const heroGradient = ctx.createLinearGradient(0, heroY - 80, 0, heroY + 40);
+	const heroFontSize = format === 'story' ? 160 : 120;
+	ctx.font = `bold ${heroFontSize}px system-ui, -apple-system, sans-serif`;
+	const heroGradient = ctx.createLinearGradient(0, heroSectionY, 0, heroSectionY + heroFontSize);
 	heroGradient.addColorStop(0, disciplineColor);
 	heroGradient.addColorStop(1, '#10b981');
 	ctx.fillStyle = heroGradient;
-	ctx.fillText(heroValue, width / 2, heroY + 40);
+	ctx.fillText(heroValue, width / 2, heroSectionY + heroFontSize * 0.85);
 	
-	// Secondary metrics row
-	const metricsY = heroY + 140;
-	const metricBoxWidth = 200;
-	const metricBoxHeight = 100;
-	const metricSpacing = 40;
-	const totalMetricsWidth = metricBoxWidth * 3 + metricSpacing * 2;
-	const metricsStartX = (width - totalMetricsWidth) / 2;
+	// === SECONDARY METRICS SECTION ===
+	const metricsY = format === 'story' ? height * 0.56 : heroSectionY + heroFontSize + 60;
+	const metricBoxWidth = format === 'story' ? 300 : 200;
+	const metricBoxHeight = format === 'story' ? 120 : 100;
+	const metricSpacing = format === 'story' ? 30 : 40;
 	
-	// Secondary metric
-	drawMetricBox(
-		ctx,
-		metricsStartX,
-		metricsY,
-		metricBoxWidth,
-		metricBoxHeight,
-		routine.displayConfig.secondaryMetricLabel || 'Secondary',
-		secondaryValue
-	);
+	if (format === 'story') {
+		// Secondary metric (full width box)
+		const secondaryBoxWidth = metricBoxWidth * 1.5;
+		drawMetricBox(
+			ctx,
+			(width - secondaryBoxWidth) / 2,
+			metricsY,
+			secondaryBoxWidth,
+			metricBoxHeight,
+			routine.displayConfig.secondaryMetricLabel || 'Secondary',
+			secondaryValue,
+			true
+		);
+		
+		// RPE and Joy side by side
+		const rpeJoyY = metricsY + metricBoxHeight + metricSpacing;
+		const smallBoxWidth = (contentWidth - metricSpacing) / 2;
+		
+		drawMetricBox(ctx, padding, rpeJoyY, smallBoxWidth, metricBoxHeight,
+			'💪 RPE', log.rpe !== undefined ? String(log.rpe) : '—', true);
+		
+		drawMetricBox(ctx, padding + smallBoxWidth + metricSpacing, rpeJoyY, smallBoxWidth, metricBoxHeight,
+			'😊 Joy', log.joyScale !== undefined ? String(log.joyScale) : '—', true);
+		
+		// === NOTES SECTION (first line) ===
+		if (notesFirstLine) {
+			const notesY = rpeJoyY + metricBoxHeight + (format === 'story' ? 60 : 40);
+			ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+			ctx.font = `italic ${format === 'story' ? 26 : 20}px system-ui, -apple-system, sans-serif`;
+			ctx.textAlign = 'center';
+			ctx.fillText(`"${notesFirstLine}"`, width / 2, notesY);
+		}
+	} else {
+		// Square format: all three in a row
+		const totalMetricsWidth = metricBoxWidth * 3 + metricSpacing * 2;
+		const metricsStartX = (width - totalMetricsWidth) / 2;
+		
+		drawMetricBox(ctx, metricsStartX, metricsY, metricBoxWidth, metricBoxHeight,
+			routine.displayConfig.secondaryMetricLabel || 'Secondary', secondaryValue, false);
+		
+		drawMetricBox(ctx, metricsStartX + metricBoxWidth + metricSpacing, metricsY, metricBoxWidth, metricBoxHeight,
+			'💪 RPE', log.rpe !== undefined ? String(log.rpe) : '—', false);
+		
+		drawMetricBox(ctx, metricsStartX + (metricBoxWidth + metricSpacing) * 2, metricsY, metricBoxWidth, metricBoxHeight,
+			'😊 Joy', log.joyScale !== undefined ? String(log.joyScale) : '—', false);
+	}
 	
-	// RPE
-	drawMetricBox(
-		ctx,
-		metricsStartX + metricBoxWidth + metricSpacing,
-		metricsY,
-		metricBoxWidth,
-		metricBoxHeight,
-		'💪 RPE',
-		log.rpe !== undefined ? String(log.rpe) : '—'
-	);
+	// === BOTTOM SECTION: User name + Branding ===
+	const bottomY = height - (format === 'story' ? 160 : 120);
 	
-	// Joy
-	drawMetricBox(
-		ctx,
-		metricsStartX + (metricBoxWidth + metricSpacing) * 2,
-		metricsY,
-		metricBoxWidth,
-		metricBoxHeight,
-		'😊 Joy',
-		log.joyScale !== undefined ? String(log.joyScale) : '—'
-	);
-	
-	// User name at bottom
 	if (userName) {
-		ctx.fillStyle = '#94a3b8';
-		ctx.font = '400 24px system-ui, -apple-system, sans-serif';
+		ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+		ctx.font = `400 ${format === 'story' ? 32 : 24}px system-ui, -apple-system, sans-serif`;
 		ctx.textAlign = 'center';
-		ctx.fillText(`@${userName}`, width / 2, height - 120);
+		ctx.fillText(`@${userName}`, width / 2, bottomY);
 	}
 	
 	// Branding
-	ctx.fillStyle = '#64748b';
-	ctx.font = '500 20px system-ui, -apple-system, sans-serif';
-	ctx.fillText('overdive.app', width / 2, height - 80);
+	ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+	ctx.font = `500 ${format === 'story' ? 26 : 20}px system-ui, -apple-system, sans-serif`;
+	ctx.fillText('overdive.app', width / 2, bottomY + (format === 'story' ? 50 : 40));
+	
+	// Bottom accent line
+	const bottomAccentGradient = ctx.createLinearGradient(0, 0, width, 0);
+	bottomAccentGradient.addColorStop(0, 'transparent');
+	bottomAccentGradient.addColorStop(0.2, disciplineColor + '60');
+	bottomAccentGradient.addColorStop(0.5, '#10b981' + '60');
+	bottomAccentGradient.addColorStop(0.8, disciplineColor + '60');
+	bottomAccentGradient.addColorStop(1, 'transparent');
+	ctx.fillStyle = bottomAccentGradient;
+	ctx.fillRect(0, height - 4, width, 4);
 	
 	return canvas.toDataURL('image/png');
 }
@@ -296,29 +416,30 @@ function drawMetricBox(
 	width: number,
 	height: number,
 	label: string,
-	value: string
+	value: string,
+	large: boolean = false
 ): void {
 	// Box background
 	ctx.fillStyle = 'rgba(15, 23, 42, 0.6)';
-	roundRect(ctx, x, y, width, height, 12);
+	roundRect(ctx, x, y, width, height, large ? 16 : 12);
 	ctx.fill();
 	
 	// Box border
 	ctx.strokeStyle = 'rgba(148, 163, 184, 0.15)';
 	ctx.lineWidth = 1;
-	roundRect(ctx, x, y, width, height, 12);
+	roundRect(ctx, x, y, width, height, large ? 16 : 12);
 	ctx.stroke();
 	
 	// Label
 	ctx.fillStyle = '#94a3b8';
-	ctx.font = '500 16px system-ui, -apple-system, sans-serif';
+	ctx.font = `500 ${large ? 20 : 16}px system-ui, -apple-system, sans-serif`;
 	ctx.textAlign = 'center';
-	ctx.fillText(label.toUpperCase(), x + width / 2, y + 35);
+	ctx.fillText(label.toUpperCase(), x + width / 2, y + (large ? 40 : 35));
 	
 	// Value
 	ctx.fillStyle = '#f1f5f9';
-	ctx.font = 'bold 32px system-ui, -apple-system, sans-serif';
-	ctx.fillText(value, x + width / 2, y + 75);
+	ctx.font = `bold ${large ? 44 : 32}px system-ui, -apple-system, sans-serif`;
+	ctx.fillText(value, x + width / 2, y + (large ? 90 : 75));
 }
 
 /**

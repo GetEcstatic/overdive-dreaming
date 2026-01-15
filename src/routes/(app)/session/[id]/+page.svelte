@@ -111,7 +111,7 @@
 			const userName = $user?.displayName?.replace(/\s+/g, '') || undefined;
 			const shared = await shareCard(
 				{ log, routine, userName },
-				{ width: 1080, height: 1080 }
+				{} // Use default story format (1080x1920, 9:16)
 			);
 			
 			// If Web Share API wasn't available, it downloaded instead
