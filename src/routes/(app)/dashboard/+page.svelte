@@ -407,6 +407,9 @@
 
 {#if $user}
 	<div class="content-wrapper" bind:this={feedContainer}>
+		<!-- Page Header -->
+		<h1 class="page-heading">Your Freediving Journey</h1>
+
 		<!-- Summary Stats Card -->
 		<div class="summary-card">
 				<h2 class="summary-title">Training Overview</h2>
@@ -562,7 +565,17 @@
 		flex-direction: column;
 		gap: 0;
 	}
-
+	/* Page Heading */
+	.page-heading {
+		font-size: 1.75rem;
+		font-weight: 600;
+		background: linear-gradient(135deg, var(--color-primary), #00FFFF);
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+		background-clip: text;
+		margin-bottom: 1.5rem;
+		letter-spacing: -0.01em;
+	}
 	/* Summary Stats Card - distinct dark design */
 	.summary-card {
 		background: linear-gradient(

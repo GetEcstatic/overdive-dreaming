@@ -32,7 +32,7 @@
 		<!-- Top Navigation Menu -->
 		<nav class="top-nav">
 			<div class="nav-content">
-				<h1 class="nav-title">Overdive [Proto]</h1>
+				<h1 class="nav-title">Overdive</h1>
 
 				<!-- Hamburger Button (Mobile) -->
 				<button
