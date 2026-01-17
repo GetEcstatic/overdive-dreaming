@@ -9,6 +9,7 @@
 	import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 	import { getPublicUserProfilesByIds } from '$lib/firestore';
 	import { shareCard } from '$lib/utils/shareCard';
+	import { onMount } from 'svelte';
 
 	let {
 		log,
@@ -17,6 +18,38 @@
 		log: RoutineLog;
 		routine: RoutineTemplate;
 	} = $props();
+
+	// Mobile visibility state for intersection observer
+	let cardElement: HTMLElement | null = $state(null);
+	let isMobileFocused = $state(false);
+
+	// Set up IntersectionObserver for mobile focus effect
+	onMount(() => {
+		// Only enable on devices that don't have hover capability (true mobile/touch devices)
+		// Using 'hover: none' is the most reliable way to detect this
+		const isNoHoverDevice = window.matchMedia('(hover: none)').matches;
+		
+		if (isNoHoverDevice && cardElement) {
+			const observer = new IntersectionObserver(
+				(entries) => {
+					entries.forEach((entry) => {
+						// Card is "focused" when it's at least 60% visible in the viewport
+						isMobileFocused = entry.intersectionRatio >= 0.6;
+					});
+				},
+				{
+					threshold: [0, 0.3, 0.6, 0.9, 1.0],
+					rootMargin: '-10% 0px -10% 0px' // Shrink the effective viewport to catch center cards
+				}
+			);
+			
+			observer.observe(cardElement);
+			
+			return () => {
+				observer.disconnect();
+			};
+		}
+	});
 
 	// Get hero and secondary metrics from routine's displayConfig
 	const heroMetric = $derived(getFormattedMetric(
@@ -186,8 +219,8 @@
 
 </script>
 
-<a href="/session/{log.id}" class="card-link">
-	<div class="session-card">
+<a href="/session/{log.id}" class="card-link" bind:this={cardElement}>
+	<div class="session-card" class:mobile-focused={isMobileFocused}>
 	<!-- Header with profile info -->
 	<div class="card-header">
 		<div class="profile-section">
@@ -366,10 +399,18 @@
 		cursor: pointer;
 	}
 
+	/* Hover effect - cyan border on desktop */
 	.card-link:hover .session-card {
-		border-color: rgba(148, 163, 184, 0.2);
+		border-color: #00FFFF;
 		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 		transform: translateY(-2px);
+	}
+
+	/* Mobile focus effect - cyan border when card is prominently visible (only on devices without hover) */
+	@media (hover: none) {
+		.session-card.mobile-focused {
+			border-color: #00FFFF;
+		}
 	}
 
 	/* Header */
