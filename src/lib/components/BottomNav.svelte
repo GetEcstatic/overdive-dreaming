@@ -112,8 +112,10 @@
 		bottom: 0;
 		left: 0;
 		right: 0;
-		background: var(--color-bg-card);
-		border-top: 1px solid rgba(148, 163, 184, 0.2);
+		background: rgba(10, 15, 20, 0.9);
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
+		border-top: 1px solid var(--color-border, rgba(100, 116, 139, 0.15));
 		transform: translateY(0);
 		transition: transform 0.3s ease-in-out;
 		z-index: 50;

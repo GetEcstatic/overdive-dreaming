@@ -563,27 +563,26 @@
 		gap: 0;
 	}
 
-	/* Summary Stats Card */
+	/* Summary Stats Card - distinct dark design */
 	.summary-card {
 		background: linear-gradient(
-			135deg,
-			rgba(20, 184, 166, 0.12),
-			rgba(16, 185, 129, 0.08)
+			145deg,
+			rgba(6, 12, 18, 0.95),
+			rgba(10, 18, 26, 0.9)
 		);
-		border: 1px solid rgba(56, 189, 248, 0.35);
+		border: 1px solid rgba(20, 184, 166, 0.3);
 		border-radius: 16px;
 		padding: 1.25rem;
 		margin-bottom: 2rem;
 		box-shadow:
-			0 12px 32px rgba(15, 23, 42, 0.15),
-			0 0 0 1px rgba(56, 189, 248, 0.2),
-			0 0 20px rgba(56, 189, 248, 0.2);
+			0 8px 24px rgba(0, 0, 0, 0.4),
+			inset 0 1px 0 rgba(20, 184, 166, 0.1);
 	}
 
 	.summary-title {
 		font-size: 0.75rem;
 		font-weight: 600;
-		color: rgba(56, 189, 248, 0.9);
+		color: var(--color-primary);
 		margin-bottom: 1rem;
 		text-align: left;
 		text-transform: uppercase;
@@ -606,20 +605,20 @@
 	.stat-box {
 		text-align: center;
 		padding: 0.625rem 0.5rem;
-		background: rgba(15, 23, 42, 0.2);
+		background: rgba(0, 0, 0, 0.3);
 		border-radius: 10px;
-		border: 1px solid rgba(148, 163, 184, 0.12);
+		border: 1px solid rgba(20, 184, 166, 0.15);
 		transition: all 0.2s ease;
 	}
 
 	.stat-box:hover {
-		background: rgba(15, 23, 42, 0.5);
-		border-color: rgba(148, 163, 184, 0.2);
+		background: rgba(20, 184, 166, 0.08);
+		border-color: rgba(20, 184, 166, 0.3);
 	}
 
 	.stat-label {
 		font-size: 0.625rem;
-		color: rgba(125, 211, 252, 0.8);
+		color: var(--color-text-muted);
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 		margin-bottom: 0.25rem;

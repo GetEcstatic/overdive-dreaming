@@ -95,8 +95,10 @@
 
 	/* Top Navigation */
 	.top-nav {
-		background: var(--color-bg-card);
-		border: 1px solid rgba(148, 163, 184, 0.1);
+		background: rgba(10, 15, 20, 0.85);
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
+		border: 1px solid var(--color-border, rgba(100, 116, 139, 0.15));
 		border-radius: 12px;
 		padding: 1rem 1.5rem;
 		margin-bottom: 2rem;
@@ -191,13 +193,15 @@
 			right: 0;
 			margin-top: 1rem;
 			flex-direction: column;
-			background: var(--color-bg-card);
-			border: 1px solid rgba(148, 163, 184, 0.15);
+			background: rgba(10, 15, 20, 0.95);
+			backdrop-filter: blur(12px);
+			-webkit-backdrop-filter: blur(12px);
+			border: 1px solid var(--color-border, rgba(100, 116, 139, 0.15));
 			border-radius: 8px;
 			padding: 0.5rem;
 			gap: 0.25rem;
 			min-width: 200px;
-			box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+			box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 			opacity: 0;
 			pointer-events: none;
 			transform: translateY(-10px);

@@ -391,18 +391,20 @@
 
 	.session-card {
 		background: var(--color-bg-card);
-		border: 1px solid rgba(148, 163, 184, 0.1);
+		backdrop-filter: blur(10px);
+		-webkit-backdrop-filter: blur(10px);
+		border: 1px solid var(--color-border, rgba(100, 116, 139, 0.15));
 		border-radius: 12px;
 		overflow: hidden;
 		transition: all 0.2s ease;
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 		cursor: pointer;
 	}
 
 	/* Hover effect - cyan border on desktop */
 	.card-link:hover .session-card {
 		border-color: #00FFFF;
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+		box-shadow: 0 4px 16px rgba(0, 255, 255, 0.15);
 		transform: translateY(-2px);
 	}
 
@@ -410,6 +412,7 @@
 	@media (hover: none) {
 		.session-card.mobile-focused {
 			border-color: #00FFFF;
+			box-shadow: 0 4px 16px rgba(0, 255, 255, 0.15);
 		}
 	}
 
