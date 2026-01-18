@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { auth, googleProvider } from '$lib/firebase';
 	import { signInWithPopup } from 'firebase/auth';
@@ -10,6 +10,7 @@
 	let error = '';
 	let trainingCardRef: HTMLElement;
 	let trainingCardFocused = false;
+	let observer: IntersectionObserver | null = null;
 
 	onMount(() => {
 		const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -21,11 +22,23 @@
 			}
 		});
 
-		// Mobile: IntersectionObserver for focus effect
-		const isMobile = window.matchMedia('(hover: none)').matches;
-		let observer: IntersectionObserver | null = null;
+		return () => {
+			unsubscribe();
+			observer?.disconnect();
+		};
+	});
+
+	// Setup mobile focus observer when loading completes and user is not signed in
+	$: if (!$loading && !$user) {
+		setupMobileObserver();
+	}
+
+	async function setupMobileObserver() {
+		await tick(); // Wait for DOM to update
 		
-		if (isMobile && trainingCardRef) {
+		const isMobile = typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches;
+		
+		if (isMobile && trainingCardRef && !observer) {
 			observer = new IntersectionObserver(
 				(entries) => {
 					entries.forEach((entry) => {
@@ -36,12 +49,7 @@
 			);
 			observer.observe(trainingCardRef);
 		}
-
-		return () => {
-			unsubscribe();
-			observer?.disconnect();
-		};
-	});
+	}
 
 	async function handleGoogleSignIn() {
 		try {
