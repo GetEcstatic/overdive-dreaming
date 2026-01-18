@@ -8,6 +8,8 @@
 
 	let signingIn = false;
 	let error = '';
+	let trainingCardRef: HTMLElement;
+	let trainingCardFocused = false;
 
 	onMount(() => {
 		const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -19,7 +21,26 @@
 			}
 		});
 
-		return unsubscribe;
+		// Mobile: IntersectionObserver for focus effect
+		const isMobile = window.matchMedia('(hover: none)').matches;
+		let observer: IntersectionObserver | null = null;
+		
+		if (isMobile && trainingCardRef) {
+			observer = new IntersectionObserver(
+				(entries) => {
+					entries.forEach((entry) => {
+						trainingCardFocused = entry.isIntersecting && entry.intersectionRatio >= 0.6;
+					});
+				},
+				{ threshold: [0, 0.6, 1] }
+			);
+			observer.observe(trainingCardRef);
+		}
+
+		return () => {
+			unsubscribe();
+			observer?.disconnect();
+		};
 	});
 
 	async function handleGoogleSignIn() {
@@ -51,7 +72,11 @@
 		<div class="services-section">
 			<h2 class="services-title">Overdive Services</h2>
 			<div class="services-grid">
-				<div class="service-card service-card--training">
+				<div 
+					bind:this={trainingCardRef}
+					class="service-card service-card--training"
+					class:focused={trainingCardFocused}
+				>
 					<svg class="service-icon" viewBox="0 0 24 24" fill="none" stroke="url(#gradient)" stroke-width="2">
 						<defs>
 							<linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -293,9 +318,39 @@
 	}
 
 	.service-card--active:hover {
-		transform: translateY(-4px);
+		transform: translateY(-4px) scale(1.02);
 		border-color: #00FFFF;
-		box-shadow: 0 8px 24px rgba(0, 255, 255, 0.1);
+		box-shadow: 0 8px 24px rgba(0, 255, 255, 0.15);
+	}
+
+	/* Training card hover/focus effects */
+	.service-card--training {
+		cursor: default;
+		transition: all 0.3s ease;
+	}
+
+	/* Desktop: hover effect */
+	@media (hover: hover) {
+		.service-card--training:hover {
+			transform: translateY(-4px) scale(1.02);
+			border-color: #00FFFF;
+			box-shadow: 0 8px 24px rgba(0, 255, 255, 0.15);
+		}
+	}
+
+	/* Mobile: focus effect when scrolled into view */
+	@media (hover: none) {
+		.service-card--training.focused {
+			transform: scale(1.03);
+			border-color: #00FFFF;
+			box-shadow: 0 8px 24px rgba(0, 255, 255, 0.15);
+		}
+	}
+
+	.service-card--training .google-signin-btn {
+		margin-top: 1rem;
+		width: 100%;
+		justify-content: center;
 	}
 
 	.service-card--coming-soon {
@@ -348,17 +403,6 @@
 	.service-status--soon {
 		background: rgba(100, 116, 139, 0.2);
 		color: var(--color-text-muted);
-	}
-
-	/* Training card specific styles */
-	.service-card--training {
-		cursor: default;
-	}
-
-	.service-card--training .google-signin-btn {
-		margin-top: 1rem;
-		width: 100%;
-		justify-content: center;
 	}
 
 	.card-error {
