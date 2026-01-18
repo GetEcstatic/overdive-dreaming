@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { browser } from '$app/environment';
 	import { auth, googleProvider } from '$lib/firebase';
 	import { signInWithPopup } from 'firebase/auth';
 	import { user, loading } from '$lib/stores/auth';
@@ -9,17 +8,13 @@
 
 	let signingIn = false;
 	let error = '';
-	
-	// Check if we're on the training app subdomain
-	const isTrainingApp = browser && window.location.hostname === 'train.overdive.app';
 
 	onMount(() => {
 		const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
 			user.set(firebaseUser);
 			loading.set(false);
 
-			// Only redirect if on training app and user is signed in
-			if (firebaseUser && isTrainingApp) {
+			if (firebaseUser) {
 				goto('/dashboard');
 			}
 		});
@@ -28,12 +23,6 @@
 	});
 
 	async function handleGoogleSignIn() {
-		// If on hub (overdive.app), redirect to training app
-		if (!isTrainingApp) {
-			window.location.href = 'https://train.overdive.app';
-			return;
-		}
-		
 		try {
 			signingIn = true;
 			error = '';
