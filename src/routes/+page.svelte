@@ -44,14 +44,16 @@
 {:else if !$user}
 	<div class="landing-page">
 		<div class="hero-section">
-			<h1 class="app-title">Overdive Dreaming</h1>
-			<p class="tagline">Track your freediving journey</p>
+			<h1 class="app-title">Overdive</h1>
+			<p class="tagline">Track deeper. Adapt faster. Dive better.</p>
 
 			{#if error}
 				<div class="error-message">
 					{error}
 				</div>
 			{/if}
+
+			<p class="alpha-badge">This App is in Private Alpha</p>
 
 			<button
 				onclick={handleGoogleSignIn}
@@ -189,7 +191,22 @@
 	.tagline {
 		font-size: 1.5rem;
 		color: var(--color-text-muted);
-		margin-bottom: 2.5rem;
+		margin-bottom: 1.5rem;
+	}
+
+	.alpha-badge {
+		display: block;
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: var(--color-primary);
+		background: rgba(20, 184, 166, 0.15);
+		border: 1px solid rgba(20, 184, 166, 0.3);
+		border-radius: 20px;
+		padding: 0.5rem 1rem;
+		margin-bottom: 1.5rem;
+		width: fit-content;
+		margin-left: auto;
+		margin-right: auto;
 	}
 
 	/* Error Message */
