@@ -386,6 +386,25 @@
 	/* Training card specific styles */
 	.service-card--training {
 		cursor: default;
+		transition: all 0.3s ease;
+	}
+
+	/* Desktop: hover effect for training card */
+	@media (hover: hover) {
+		.service-card--training:hover {
+			transform: translateY(-4px) scale(1.02);
+			border-color: #00FFFF;
+			box-shadow: 0 8px 24px rgba(0, 255, 255, 0.15);
+		}
+	}
+
+	/* Mobile: focus effect when scrolled into view */
+	@media (hover: none) {
+		.service-card--training.focused {
+			transform: scale(1.03);
+			border-color: #00FFFF;
+			box-shadow: 0 8px 24px rgba(0, 255, 255, 0.15);
+		}
 	}
 
 	.service-card--training .google-signin-btn {
