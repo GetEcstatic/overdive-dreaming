@@ -130,7 +130,9 @@
 		align-items: center;
 		justify-content: center;
 		min-height: 100vh;
-		background: var(--color-bg);
+		background: transparent;
+		position: relative;
+		z-index: 1;
 	}
 
 	.loading-spinner {
@@ -156,12 +158,14 @@
 	/* Landing Page */
 	.landing-page {
 		min-height: 100vh;
-		background: var(--color-bg);
+		background: transparent;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
 		padding: 2rem;
+		position: relative;
+		z-index: 1;
 	}
 
 	/* Hero Section */
@@ -205,20 +209,23 @@
 		align-items: center;
 		gap: 0.75rem;
 		padding: 0.875rem 2rem;
-		background: white;
-		color: #1f2937;
+		background: rgba(15, 23, 30, 0.8);
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
+		color: var(--color-text);
 		font-size: 1rem;
 		font-weight: 600;
-		border: none;
+		border: 1px solid rgba(100, 116, 139, 0.3);
 		border-radius: 8px;
 		cursor: pointer;
 		transition: all 0.2s ease;
-		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 	}
 
 	.google-signin-btn:hover {
 		transform: translateY(-2px);
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+		border-color: #00FFFF;
+		box-shadow: 0 6px 20px rgba(0, 255, 255, 0.15);
 	}
 
 	.google-signin-btn:active {
