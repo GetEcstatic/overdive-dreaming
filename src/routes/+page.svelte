@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, tick } from 'svelte';
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { auth, googleProvider } from '$lib/firebase';
 	import { signInWithPopup } from 'firebase/auth';
@@ -8,9 +8,6 @@
 
 	let signingIn = false;
 	let error = '';
-	let trainingCardRef: HTMLElement;
-	let trainingCardFocused = false;
-	let observer: IntersectionObserver | null = null;
 
 	onMount(() => {
 		const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -22,34 +19,8 @@
 			}
 		});
 
-		return () => {
-			unsubscribe();
-			observer?.disconnect();
-		};
+		return unsubscribe;
 	});
-
-	// Setup mobile focus observer when loading completes and user is not signed in
-	$: if (!$loading && !$user) {
-		setupMobileObserver();
-	}
-
-	async function setupMobileObserver() {
-		await tick(); // Wait for DOM to update
-		
-		const isMobile = typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches;
-		
-		if (isMobile && trainingCardRef && !observer) {
-			observer = new IntersectionObserver(
-				(entries) => {
-					entries.forEach((entry) => {
-						trainingCardFocused = entry.isIntersecting && entry.intersectionRatio >= 0.6;
-					});
-				},
-				{ threshold: [0, 0.6, 1] }
-			);
-			observer.observe(trainingCardRef);
-		}
-	}
 
 	async function handleGoogleSignIn() {
 		try {
@@ -326,39 +297,9 @@
 	}
 
 	.service-card--active:hover {
-		transform: translateY(-4px) scale(1.02);
+		transform: translateY(-4px);
 		border-color: #00FFFF;
-		box-shadow: 0 8px 24px rgba(0, 255, 255, 0.15);
-	}
-
-	/* Training card hover/focus effects */
-	.service-card--training {
-		cursor: default;
-		transition: all 0.3s ease;
-	}
-
-	/* Desktop: hover effect */
-	@media (hover: hover) {
-		.service-card--training:hover {
-			transform: translateY(-4px) scale(1.02);
-			border-color: #00FFFF;
-			box-shadow: 0 8px 24px rgba(0, 255, 255, 0.15);
-		}
-	}
-
-	/* Mobile: focus effect when scrolled into view */
-	@media (hover: none) {
-		.service-card--training.focused {
-			transform: scale(1.03);
-			border-color: #00FFFF;
-			box-shadow: 0 8px 24px rgba(0, 255, 255, 0.15);
-		}
-	}
-
-	.service-card--training .google-signin-btn {
-		margin-top: 1rem;
-		width: 100%;
-		justify-content: center;
+		box-shadow: 0 8px 24px rgba(0, 255, 255, 0.1);
 	}
 
 	.service-card--coming-soon {
@@ -411,6 +352,17 @@
 	.service-status--soon {
 		background: rgba(100, 116, 139, 0.2);
 		color: var(--color-text-muted);
+	}
+
+	/* Training card specific styles */
+	.service-card--training {
+		cursor: default;
+	}
+
+	.service-card--training .google-signin-btn {
+		margin-top: 1rem;
+		width: 100%;
+		justify-content: center;
 	}
 
 	.card-error {
