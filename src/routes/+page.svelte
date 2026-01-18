@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { browser } from '$app/environment';
 	import { auth, googleProvider } from '$lib/firebase';
 	import { signInWithPopup } from 'firebase/auth';
 	import { user, loading } from '$lib/stores/auth';
@@ -8,13 +9,17 @@
 
 	let signingIn = false;
 	let error = '';
+	
+	// Check if we're on the training app subdomain
+	const isTrainingApp = browser && window.location.hostname === 'train.overdive.app';
 
 	onMount(() => {
 		const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
 			user.set(firebaseUser);
 			loading.set(false);
 
-			if (firebaseUser) {
+			// Only redirect if on training app and user is signed in
+			if (firebaseUser && isTrainingApp) {
 				goto('/dashboard');
 			}
 		});
@@ -23,6 +28,12 @@
 	});
 
 	async function handleGoogleSignIn() {
+		// If on hub (overdive.app), redirect to training app
+		if (!isTrainingApp) {
+			window.location.href = 'https://train.overdive.app';
+			return;
+		}
+		
 		try {
 			signingIn = true;
 			error = '';
@@ -70,11 +81,11 @@
 			</button>
 		</div>
 
-		<div class="features-section">
-			<h2 class="features-title">Features</h2>
-			<div class="features-grid">
-				<div class="feature-card">
-					<svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="url(#gradient)" stroke-width="2">
+		<div class="services-section">
+			<h2 class="services-title">Overdive Services</h2>
+			<div class="services-grid">
+				<a href="https://train.overdive.app" class="service-card service-card--active">
+					<svg class="service-icon" viewBox="0 0 24 24" fill="none" stroke="url(#gradient)" stroke-width="2">
 						<defs>
 							<linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
 								<stop offset="0%" style="stop-color:var(--color-primary);stop-opacity:1" />
@@ -83,41 +94,70 @@
 						</defs>
 						<path d="M3 3v18h18M7 16l4-4 4 4 6-6"/>
 					</svg>
-					<h3 class="feature-title">Track Progress</h3>
-					<p class="feature-description">Monitor your improvements over time with detailed analytics</p>
-				</div>
-				<div class="feature-card">
-					<svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="url(#gradient2)" stroke-width="2">
+					<h3 class="service-title">Training App</h3>
+					<p class="service-description">Track your freediving progress with detailed analytics and training logs</p>
+					<span class="service-status service-status--live">Live</span>
+				</a>
+				<a href="https://into-the-unknown.overdive.app" class="service-card service-card--active" target="_blank" rel="noopener">
+					<svg class="service-icon" viewBox="0 0 24 24" fill="none" stroke="url(#gradient2)" stroke-width="2">
 						<defs>
 							<linearGradient id="gradient2" x1="0%" y1="0%" x2="100%" y2="100%">
 								<stop offset="0%" style="stop-color:var(--color-primary);stop-opacity:1" />
 								<stop offset="100%" style="stop-color:var(--color-secondary);stop-opacity:1" />
 							</linearGradient>
 						</defs>
-						<!-- Clipboard/notepad -->
-						<rect x="7" y="4" width="10" height="16" rx="1" stroke-width="2"/>
-						<path d="M9 2h6v3H9z" fill="url(#gradient2)" stroke="none"/>
-						<!-- Checklist lines -->
-						<path d="M10 9h4M10 12h4M10 15h4" stroke-width="2" stroke-linecap="round"/>
+						<circle cx="12" cy="12" r="9"/>
+						<path d="M12 8v4l3 3"/>
 					</svg>
-					<h3 class="feature-title">Log Dives</h3>
-					<p class="feature-description">Record STA, DYN, DNF, DYNB and custom training routines</p>
-				</div>
-				<div class="feature-card">
-					<svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="url(#gradient3)" stroke-width="2">
+					<h3 class="service-title">Into The Unknown</h3>
+					<p class="service-description">Live competition results and event information</p>
+					<span class="service-status service-status--live">Live</span>
+				</a>
+				<div class="service-card service-card--coming-soon">
+					<svg class="service-icon" viewBox="0 0 24 24" fill="none" stroke="url(#gradient3)" stroke-width="2">
 						<defs>
 							<linearGradient id="gradient3" x1="0%" y1="0%" x2="100%" y2="100%">
 								<stop offset="0%" style="stop-color:var(--color-primary);stop-opacity:1" />
 								<stop offset="100%" style="stop-color:var(--color-secondary);stop-opacity:1" />
 							</linearGradient>
 						</defs>
-						<circle cx="12" cy="8" r="3"/>
-						<circle cx="6" cy="16" r="3"/>
-						<circle cx="18" cy="16" r="3"/>
-						<path d="M9.5 14.5L10.5 11M14.5 11l1 3.5"/>
+						<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+						<circle cx="9" cy="7" r="4"/>
+						<path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
 					</svg>
-					<h3 class="feature-title">Share & Compare</h3>
-					<p class="feature-description">Connect with other freedivers and share your journey</p>
+					<h3 class="service-title">Coaches Portal</h3>
+					<p class="service-description">Manage athletes, training plans, and team analytics</p>
+					<span class="service-status service-status--soon">Coming Soon</span>
+				</div>
+				<div class="service-card service-card--coming-soon">
+					<svg class="service-icon" viewBox="0 0 24 24" fill="none" stroke="url(#gradient4)" stroke-width="2">
+						<defs>
+							<linearGradient id="gradient4" x1="0%" y1="0%" x2="100%" y2="100%">
+								<stop offset="0%" style="stop-color:var(--color-primary);stop-opacity:1" />
+								<stop offset="100%" style="stop-color:var(--color-secondary);stop-opacity:1" />
+							</linearGradient>
+						</defs>
+						<rect x="3" y="4" width="18" height="14" rx="2"/>
+						<path d="M8 21h8M12 18v3"/>
+					</svg>
+					<h3 class="service-title">Comp Organisers</h3>
+					<p class="service-description">Tools for running freediving competitions</p>
+					<span class="service-status service-status--soon">Coming Soon</span>
+				</div>
+				<div class="service-card service-card--coming-soon">
+					<svg class="service-icon" viewBox="0 0 24 24" fill="none" stroke="url(#gradient5)" stroke-width="2">
+						<defs>
+							<linearGradient id="gradient5" x1="0%" y1="0%" x2="100%" y2="100%">
+								<stop offset="0%" style="stop-color:var(--color-primary);stop-opacity:1" />
+								<stop offset="100%" style="stop-color:var(--color-secondary);stop-opacity:1" />
+							</linearGradient>
+						</defs>
+						<polygon points="23 7 16 12 23 17 23 7"/>
+						<rect x="1" y="5" width="15" height="14" rx="2"/>
+					</svg>
+					<h3 class="service-title">Live Stream</h3>
+					<p class="service-description">Broadcast competitions with real-time depth and timing overlays</p>
+					<span class="service-status service-status--soon">Coming Soon</span>
 				</div>
 			</div>
 		</div>
@@ -260,13 +300,13 @@
 		height: 20px;
 	}
 
-	/* Features Section */
-	.features-section {
-		max-width: 1000px;
+	/* Services Section */
+	.services-section {
+		max-width: 1100px;
 		width: 100%;
 	}
 
-	.features-title {
+	.services-title {
 		font-size: 2rem;
 		font-weight: 700;
 		text-align: center;
@@ -274,46 +314,75 @@
 		margin-bottom: 2rem;
 	}
 
-	.features-grid {
+	.services-grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 		gap: 1.5rem;
 	}
 
-	.feature-card {
+	.service-card {
+		display: block;
 		background: var(--color-bg-card);
 		border: 1px solid rgba(148, 163, 184, 0.1);
 		border-radius: 12px;
 		padding: 2rem;
 		text-align: center;
+		text-decoration: none;
 		transition: all 0.3s ease;
+		position: relative;
 	}
 
-	.feature-card:hover {
+	.service-card--active:hover {
 		transform: translateY(-4px);
-		border-color: rgba(148, 163, 184, 0.2);
-		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+		border-color: #00FFFF;
+		box-shadow: 0 8px 24px rgba(0, 255, 255, 0.1);
 	}
 
-	.feature-icon {
-		width: 64px;
-		height: 64px;
-		margin: 0 auto 1.5rem;
+	.service-card--coming-soon {
+		opacity: 0.6;
+		cursor: default;
+	}
+
+	.service-icon {
+		width: 56px;
+		height: 56px;
+		margin: 0 auto 1.25rem;
 		stroke-linecap: round;
 		stroke-linejoin: round;
 	}
 
-	.feature-title {
+	.service-title {
 		font-size: 1.25rem;
 		font-weight: 600;
 		color: var(--color-text);
 		margin-bottom: 0.75rem;
 	}
 
-	.feature-description {
+	.service-description {
 		font-size: 0.875rem;
 		color: var(--color-text-muted);
 		line-height: 1.6;
+		margin-bottom: 1rem;
+	}
+
+	.service-status {
+		display: inline-block;
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		padding: 0.25rem 0.75rem;
+		border-radius: 12px;
+	}
+
+	.service-status--live {
+		background: rgba(20, 184, 166, 0.2);
+		color: var(--color-primary);
+	}
+
+	.service-status--soon {
+		background: rgba(100, 116, 139, 0.2);
+		color: var(--color-text-muted);
 	}
 
 	/* Mobile Responsiveness */
@@ -326,7 +395,7 @@
 			font-size: 1.125rem;
 		}
 
-		.features-grid {
+		.services-grid {
 			grid-template-columns: 1fr;
 		}
 
