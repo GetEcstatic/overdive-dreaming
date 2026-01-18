@@ -36,9 +36,11 @@
 	async function setupMobileObserver() {
 		await tick(); // Wait for DOM to update
 		
-		const isMobile = typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches;
+		// Check for touch device OR narrow viewport (for DevTools testing)
+		const isMobileOrNarrow = typeof window !== 'undefined' && 
+			(window.matchMedia('(hover: none)').matches || window.innerWidth <= 768);
 		
-		if (isMobile && trainingCardRef && !observer) {
+		if (isMobileOrNarrow && trainingCardRef && !observer) {
 			observer = new IntersectionObserver(
 				(entries) => {
 					entries.forEach((entry) => {
@@ -399,7 +401,8 @@
 	}
 
 	/* Mobile: focus effect when scrolled into view */
-	@media (hover: none) {
+	/* Using max-width as fallback for DevTools testing since hover:none doesn't work in emulation */
+	@media (hover: none), (max-width: 768px) {
 		.service-card--training.focused {
 			transform: scale(1.03);
 			border-color: #00FFFF;
