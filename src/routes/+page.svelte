@@ -8,8 +8,8 @@
 
 	let signingIn = false;
 	let error = '';
-	let trainingCardRef: HTMLElement;
-	let trainingCardFocused = false;
+	let servicesGridRef: HTMLElement;
+	let focusedCardIndex: number | null = null;
 	let observer: IntersectionObserver | null = null;
 
 	onMount(() => {
@@ -40,16 +40,43 @@
 		const isMobileOrNarrow = typeof window !== 'undefined' && 
 			(window.matchMedia('(hover: none)').matches || window.innerWidth <= 768);
 		
-		if (isMobileOrNarrow && trainingCardRef && !observer) {
+		if (isMobileOrNarrow && servicesGridRef && !observer) {
+			const cards = servicesGridRef.querySelectorAll('.service-card');
+			const cardVisibility = new Map<Element, number>();
+			
 			observer = new IntersectionObserver(
 				(entries) => {
+					// Update visibility for each observed card
 					entries.forEach((entry) => {
-						trainingCardFocused = entry.isIntersecting && entry.intersectionRatio >= 0.6;
+						cardVisibility.set(entry.target, entry.intersectionRatio);
 					});
+					
+					// Find the card closest to center (highest visibility)
+					let maxRatio = 0;
+					let centeredCard: Element | null = null;
+					
+					cardVisibility.forEach((ratio, card) => {
+						if (ratio > maxRatio) {
+							maxRatio = ratio;
+							centeredCard = card;
+						}
+					});
+					
+					// Only focus if card is at least 50% visible
+					if (maxRatio >= 0.5 && centeredCard) {
+						const cardIndex = Array.from(cards).indexOf(centeredCard);
+						focusedCardIndex = cardIndex;
+					} else {
+						focusedCardIndex = null;
+					}
 				},
-				{ threshold: [0, 0.6, 1] }
+				{ 
+					threshold: [0, 0.25, 0.5, 0.75, 1],
+					rootMargin: '-20% 0px -20% 0px' // Focus on cards near vertical center
+				}
 			);
-			observer.observe(trainingCardRef);
+			
+			cards.forEach(card => observer!.observe(card));
 		}
 	}
 
@@ -81,11 +108,10 @@
 
 		<div class="services-section">
 			<h2 class="services-title">Overdive Services</h2>
-			<div class="services-grid">
+			<div class="services-grid" bind:this={servicesGridRef}>
 				<div 
-					bind:this={trainingCardRef}
 					class="service-card service-card--training"
-					class:focused={trainingCardFocused}
+					class:focused={focusedCardIndex === 0}
 				>
 					<svg class="service-icon" viewBox="0 0 24 24" fill="none" stroke="url(#gradient)" stroke-width="2">
 						<defs>
@@ -120,7 +146,7 @@
 						{signingIn ? 'Signing in...' : 'Sign in with Google'}
 					</button>
 				</div>
-				<a href="https://into-the-unknown.overdive.app" class="service-card service-card--active" target="_blank" rel="noopener">
+				<a href="https://into-the-unknown.overdive.app" class="service-card service-card--active" class:focused={focusedCardIndex === 1} target="_blank" rel="noopener">
 					<svg class="service-icon" viewBox="0 0 24 24" fill="none" stroke="url(#gradient2)" stroke-width="2">
 						<defs>
 							<linearGradient id="gradient2" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -135,7 +161,7 @@
 					<p class="service-description">Live competition results and event information</p>
 					<span class="service-status service-status--live">Live</span>
 				</a>
-				<div class="service-card service-card--coming-soon">
+				<div class="service-card service-card--coming-soon" class:focused={focusedCardIndex === 2}>
 					<svg class="service-icon" viewBox="0 0 24 24" fill="none" stroke="url(#gradient3)" stroke-width="2">
 						<defs>
 							<linearGradient id="gradient3" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -151,7 +177,7 @@
 					<p class="service-description">Manage athletes, training plans, and team analytics</p>
 					<span class="service-status service-status--soon">Coming Soon</span>
 				</div>
-				<div class="service-card service-card--coming-soon">
+				<div class="service-card service-card--coming-soon" class:focused={focusedCardIndex === 3}>
 					<svg class="service-icon" viewBox="0 0 24 24" fill="none" stroke="url(#gradient4)" stroke-width="2">
 						<defs>
 							<linearGradient id="gradient4" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -166,7 +192,7 @@
 					<p class="service-description">Tools for running freediving competitions</p>
 					<span class="service-status service-status--soon">Coming Soon</span>
 				</div>
-				<div class="service-card service-card--coming-soon">
+				<div class="service-card service-card--coming-soon" class:focused={focusedCardIndex === 4}>
 					<svg class="service-icon" viewBox="0 0 24 24" fill="none" stroke="url(#gradient5)" stroke-width="2">
 						<defs>
 							<linearGradient id="gradient5" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -178,7 +204,7 @@
 						<rect x="1" y="5" width="15" height="14" rx="2"/>
 					</svg>
 					<h3 class="service-title">Live Stream</h3>
-					<p class="service-description">Broadcast competitions with real-time depth and timing overlays</p>
+					<p class="service-description">Broadcast competitions with real-time distance and timing overlays</p>
 					<span class="service-status service-status--soon">Coming Soon</span>
 				</div>
 			</div>
@@ -391,19 +417,20 @@
 		transition: all 0.3s ease;
 	}
 
-	/* Desktop: hover effect for training card */
+	/* Desktop: hover effect for active cards */
 	@media (hover: hover) {
-		.service-card--training:hover {
+		.service-card--training:hover,
+		.service-card--active:hover {
 			transform: translateY(-4px) scale(1.02);
 			border-color: #00FFFF;
 			box-shadow: 0 8px 24px rgba(0, 255, 255, 0.15);
 		}
 	}
 
-	/* Mobile: focus effect when scrolled into view */
+	/* Mobile: focus effect when scrolled into view - applies to ALL cards */
 	/* Using max-width as fallback for DevTools testing since hover:none doesn't work in emulation */
 	@media (hover: none), (max-width: 768px) {
-		.service-card--training.focused {
+		.service-card.focused {
 			transform: scale(1.03);
 			border-color: #00FFFF;
 			box-shadow: 0 8px 24px rgba(0, 255, 255, 0.15);
