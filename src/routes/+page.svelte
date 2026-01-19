@@ -107,7 +107,6 @@
 		</div>
 
 		<div class="services-section">
-			<h2 class="services-title">Overdive Services</h2>
 			<div class="services-grid" bind:this={servicesGridRef}>
 				<div 
 					class="service-card service-card--training"
@@ -325,14 +324,6 @@
 	.services-section {
 		max-width: 1100px;
 		width: 100%;
-	}
-
-	.services-title {
-		font-size: 2rem;
-		font-weight: 700;
-		text-align: center;
-		color: var(--color-text);
-		margin-bottom: 2rem;
 	}
 
 	.services-grid {

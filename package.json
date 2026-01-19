@@ -12,7 +12,11 @@
     "seed": "tsx scripts/seed-data.ts",
     "seed:logs": "tsx scripts/seed-historical-logs.ts",
     "backfill:profiles": "tsx scripts/backfill-public-profiles.ts",
-    "rollback:aida": "tsx scripts/rollback-aida-import.ts"
+    "rollback:aida": "tsx scripts/rollback-aida-import.ts",
+    "backup": "tsx scripts/backup-firestore.ts",
+    "audit": "tsx scripts/audit-data.ts",
+    "migrate:activity-types": "tsx scripts/migrate-activity-types.ts",
+    "migrate:activity-types:dry": "tsx scripts/migrate-activity-types.ts --dry-run"
   },
   "keywords": [
     "freediving",

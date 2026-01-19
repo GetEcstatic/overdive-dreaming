@@ -1,10 +1,10 @@
 <script lang="ts">
 	/**
 	 * BasicInfoStep - Step 1 of routine builder wizard
-	 * Collects name, description, disciplines, and tags
+	 * Collects name, description, disciplines, activity type, and tags
 	 */
 
-	import type { Discipline } from '$lib/types';
+	import type { Discipline, ActivityType } from '$lib/types';
 	import { onMount } from 'svelte';
 	import { getSuggestedTags } from '$lib/firestore';
 
@@ -12,11 +12,13 @@
 		name = $bindable(''),
 		description = $bindable(''),
 		disciplines = $bindable<Discipline[]>([]),
+		activityType = $bindable<ActivityType | undefined>(undefined),
 		tags = $bindable<string[]>([])
 	}: {
 		name: string;
 		description: string;
 		disciplines: Discipline[];
+		activityType: ActivityType | undefined;
 		tags: string[];
 	} = $props();
 
@@ -36,6 +38,40 @@
 		{ value: 'DYNB', label: 'DYNB', description: 'Dynamic bifins' }
 	];
 
+	// Activity type options with descriptions
+	const activityTypeOptions: { value: ActivityType; label: string; description: string; icon: string }[] = [
+		{ 
+			value: 'max-attempt', 
+			label: 'Max Attempt', 
+			description: 'A single all-out effort for personal best',
+			icon: '🎯'
+		},
+		{ 
+			value: 'submax-attempt', 
+			label: 'Submax Attempt', 
+			description: 'Single effort at a target below maximum',
+			icon: '📊'
+		},
+		{ 
+			value: 'structured-intervals', 
+			label: 'Structured Intervals', 
+			description: 'Defined reps with consistent timing (CO₂/O₂ tables)',
+			icon: '📋'
+		},
+		{ 
+			value: 'freeform-intervals', 
+			label: 'Freeform Intervals', 
+			description: 'Multiple reps with flexible timing',
+			icon: '🔄'
+		},
+		{ 
+			value: 'free-training', 
+			label: 'Free Training', 
+			description: 'Unstructured session, log what you want',
+			icon: '🌊'
+		}
+	];
+
 	// Toggle discipline selection
 	function toggleDiscipline(discipline: Discipline) {
 		if (disciplines.includes(discipline)) {
@@ -43,6 +79,11 @@
 		} else {
 			disciplines = [...disciplines, discipline];
 		}
+	}
+
+	// Select activity type (single selection)
+	function selectActivityType(type: ActivityType) {
+		activityType = type;
 	}
 
 	// Toggle tag selection
@@ -120,6 +161,29 @@
 						<div class="checkbox-description">{disc.description}</div>
 					</div>
 				</label>
+			{/each}
+		</div>
+	</div>
+
+	<div class="form-section">
+		<div class="form-label">
+			Activity Type <span class="required">*</span>
+		</div>
+		<p class="field-hint">What kind of training is this? This helps determine what data to track.</p>
+		<div class="activity-type-grid">
+			{#each activityTypeOptions as option}
+				<button
+					type="button"
+					class="activity-type-card"
+					class:selected={activityType === option.value}
+					onclick={() => selectActivityType(option.value)}
+				>
+					<div class="activity-type-icon">{option.icon}</div>
+					<div class="activity-type-content">
+						<div class="activity-type-label">{option.label}</div>
+						<div class="activity-type-description">{option.description}</div>
+					</div>
+				</button>
 			{/each}
 		</div>
 	</div>
@@ -311,6 +375,61 @@
 
 	.checkbox-content {
 		flex: 1;
+	}
+
+	/* Activity Type Selection */
+	.activity-type-grid {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+
+	.activity-type-card {
+		display: flex;
+		align-items: flex-start;
+		gap: 1rem;
+		padding: 1rem;
+		background: rgba(15, 23, 42, 0.5);
+		border: 2px solid rgba(148, 163, 184, 0.2);
+		border-radius: 8px;
+		cursor: pointer;
+		transition: all 0.2s ease;
+		text-align: left;
+		width: 100%;
+	}
+
+	.activity-type-card:hover {
+		border-color: rgba(148, 163, 184, 0.4);
+		background: rgba(15, 23, 42, 0.7);
+	}
+
+	.activity-type-card.selected {
+		border-color: var(--color-primary);
+		background: rgba(20, 184, 166, 0.1);
+	}
+
+	.activity-type-icon {
+		font-size: 1.5rem;
+		flex-shrink: 0;
+		width: 2rem;
+		text-align: center;
+	}
+
+	.activity-type-content {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.activity-type-label {
+		font-weight: 600;
+		color: var(--color-text);
+		margin-bottom: 0.25rem;
+	}
+
+	.activity-type-description {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+		line-height: 1.4;
 	}
 
 	.checkbox-label {

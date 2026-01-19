@@ -238,7 +238,12 @@
 	async function handleSignOut() {
 		try {
 			await signOut(auth);
-			goto('/');
+			// Use window.location to ensure we stay on the same origin
+			if (typeof window !== 'undefined') {
+				window.location.href = window.location.origin;
+			} else {
+				goto('/');
+			}
 		} catch (error) {
 			console.error('Error signing out:', error);
 		}

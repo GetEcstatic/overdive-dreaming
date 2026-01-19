@@ -12,7 +12,8 @@
 		DisplayConfig,
 		RoutineTable,
 		RoutineTemplateFormData,
-		RoutineTemplate
+		RoutineTemplate,
+		ActivityType
 	} from '$lib/types';
 
 	// Step components
@@ -50,6 +51,7 @@
 	let description = $state(initialData?.description || '');
 	let disciplines = $state<Discipline[]>(initialData?.disciplines || []);
 	let tags = $state<string[]>(initialData?.tags || []);
+	let activityType = $state<ActivityType | undefined>(initialData?.activityType);
 
 	// Form data (Step 2 - Protocol Setup)
 	// Determine protocol type from initial data
@@ -122,7 +124,7 @@
 	let canProceed = $derived.by(() => {
 		switch (currentStep) {
 			case 1: // Basic Info
-				return name.trim().length > 0 && description.trim().length > 0 && disciplines.length > 0;
+				return name.trim().length > 0 && description.trim().length > 0 && disciplines.length > 0 && activityType !== undefined;
 			case 2: // Protocol Setup
 				// Protocol setup is always valid (all fields optional)
 				return true;
@@ -176,6 +178,7 @@
 				description,
 				disciplines,
 				tags,
+				activityType,
 				trackingConfig,
 				displayConfig,
 				// Protocol structure (conditional based on type)
@@ -223,7 +226,7 @@
 	<!-- Step Content -->
 	<div class="step-content">
 		{#if currentStep === 1}
-			<BasicInfoStep bind:name bind:description bind:disciplines bind:tags />
+			<BasicInfoStep bind:name bind:description bind:disciplines bind:activityType bind:tags />
 		{:else if currentStep === 2}
 			<ProtocolSetupStep
 				{disciplines}
@@ -234,7 +237,7 @@
 				bind:table
 			/>
 		{:else if currentStep === 3}
-			<TrackingSelectionStep bind:trackingConfig />
+			<TrackingSelectionStep bind:trackingConfig {activityType} />
 		{:else if currentStep === 4}
 			<DisplayConfigStep bind:displayConfig />
 		{:else if currentStep === 5}

@@ -240,7 +240,7 @@
 	</section>
 
 	<!-- Performance Metrics -->
-	{#if log.totalDistance || log.totalTime || log.summary?.repsCompleted || log.repDuration}
+	{#if log.totalDistance || log.totalTime || log.summary?.repsCompleted || log.repDuration || log.avgSpeed}
 		<section class="metrics-section">
 			<h2>Performance Metrics</h2>
 			<div class="metrics-grid">
@@ -254,6 +254,12 @@
 					<div class="metric-item">
 						<span class="label">Total Time</span>
 						<span class="value">{formatTime(log.totalTime)}</span>
+					</div>
+				{/if}
+				{#if log.avgSpeed}
+					<div class="metric-item">
+						<span class="label">Avg Speed</span>
+						<span class="value">{log.avgSpeed.toFixed(2)} m/s</span>
 					</div>
 				{/if}
 				{#if log.summary?.repsCompleted}
@@ -272,6 +278,24 @@
 					<div class="metric-item">
 						<span class="label">Avg Time Per Rep</span>
 						<span class="value">{formatTime(log.summary.averageTimePerRep)}</span>
+					</div>
+				{/if}
+				{#if log.maxRepSpeed}
+					<div class="metric-item">
+						<span class="label">Max Rep Speed</span>
+						<span class="value">{log.maxRepSpeed.toFixed(2)} m/s</span>
+					</div>
+				{/if}
+				{#if log.minRepSpeed}
+					<div class="metric-item">
+						<span class="label">Min Rep Speed</span>
+						<span class="value">{log.minRepSpeed.toFixed(2)} m/s</span>
+					</div>
+				{/if}
+				{#if log.cumulativeHoldTime}
+					<div class="metric-item">
+						<span class="label">Cumulative Hold Time</span>
+						<span class="value">{formatTime(log.cumulativeHoldTime)}</span>
 					</div>
 				{/if}
 			</div>

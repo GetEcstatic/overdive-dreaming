@@ -74,3 +74,29 @@ export function isValidTime(minutes: number | undefined, seconds: number | undef
 	if (isNaN(minutes) || isNaN(seconds)) return false;
 	return true;
 }
+
+/**
+ * Parse flexible time input to seconds
+ * Handles multiple formats:
+ * - "90" -> 90 seconds
+ * - "1:30" -> 90 seconds
+ * - "01:30" -> 90 seconds
+ * - "" -> null
+ * @param input - User input string
+ * @returns Total seconds, or null if invalid/empty
+ */
+export function parseTimeInput(input: string): number | null {
+	if (!input || input.trim() === '') return null;
+	
+	const trimmed = input.trim();
+	
+	// Check if it contains a colon (mm:ss format)
+	if (trimmed.includes(':')) {
+		return parseTime(trimmed);
+	}
+	
+	// Otherwise treat as plain seconds
+	const seconds = parseInt(trimmed, 10);
+	if (isNaN(seconds) || seconds < 0) return null;
+	return seconds;
+}

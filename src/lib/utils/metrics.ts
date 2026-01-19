@@ -110,6 +110,7 @@ export function calculateTotalRepDistance(log: RoutineLog): number {
 /**
  * Get a metric value from a routine log
  * Handles both direct fields and calculated metrics
+ * Supports new metric aliases for clearer naming
  */
 export function getMetricValue(
 	metricType: MetricType,
@@ -117,11 +118,15 @@ export function getMetricValue(
 	routine: RoutineTemplate
 ): number {
 	switch (metricType) {
+		// Distance metrics
 		case 'totalDistance':
-			return log.totalDistance || 0;
+		case 'diveDistance': // New alias
+			return log.totalDistance || log.diveDistance || 0;
 
+		// Time metrics
 		case 'totalTime':
-			return log.totalTime || 0;
+		case 'diveDuration': // New alias
+			return log.totalTime || log.diveDuration || 0;
 
 		case 'repsCompleted':
 			return log.repsCompleted || log.summary?.repsCompleted || 0;
@@ -140,7 +145,8 @@ export function getMetricValue(
 			return calculateAvgRestBetweenLaps(log);
 
 		case 'totalBreathHoldTime':
-			return calculateTotalBreathHoldTime(log, routine);
+		case 'cumulativeHoldTime': // New alias
+			return log.cumulativeHoldTime || calculateTotalBreathHoldTime(log, routine);
 
 		case 'totalBreathingTime':
 			return calculateTotalBreathingTime(log);
@@ -166,9 +172,33 @@ export function getMetricValue(
 		case 'hrv':
 			return log.hrv || 0;
 
+		// Speed metrics (new)
+		case 'avgSpeed':
+			return log.avgSpeed || calculateAvgSpeed(log);
+
+		case 'maxRepSpeed':
+			return log.maxRepSpeed || 0;
+
+		case 'minRepSpeed':
+			return log.minRepSpeed || 0;
+
 		default:
 			return 0;
 	}
+}
+
+/**
+ * Calculate average speed for dynamic disciplines
+ * Returns meters per second
+ */
+function calculateAvgSpeed(log: RoutineLog): number {
+	const distance = log.totalDistance || log.diveDistance || 0;
+	const time = log.totalTime || log.diveDuration || 0;
+	
+	if (distance > 0 && time > 0) {
+		return distance / time;
+	}
+	return 0;
 }
 
 /**
@@ -177,32 +207,47 @@ export function getMetricValue(
  */
 export function formatMetricValue(metricType: MetricType, value: number): string {
 	switch (metricType) {
+		// Distance metrics
 		case 'totalDistance':
+		case 'diveDistance':
 		case 'totalRepDistance':
 		case 'poolLength':
 			return `${value}m`;
 
+		// Time metrics
 		case 'totalTime':
+		case 'diveDuration':
 		case 'repDuration':
 		case 'avgTimePerLap':
 		case 'avgTimePerRep':
 		case 'avgRestBetweenLaps':
 		case 'totalBreathHoldTime':
+		case 'cumulativeHoldTime':
 		case 'totalBreathingTime':
 		case 'initialBreatheUpTime':
 		case 'contractionsOnsetTime':
 			return formatTime(value);
 
+		// Count metrics
 		case 'repsCompleted':
 		case 'totalBreaths':
 			return value.toString();
 
+		// Speed metrics (m/s)
+		case 'avgSpeed':
+		case 'maxRepSpeed':
+		case 'minRepSpeed':
+			return `${value.toFixed(2)} m/s`;
+
+		// Temperature
 		case 'waterTemperature':
 			return `${value}°C`;
 
+		// Heart rate
 		case 'restingHeartRate':
 			return `${value} bpm`;
 
+		// HRV
 		case 'hrv':
 			return `${value}ms`;
 

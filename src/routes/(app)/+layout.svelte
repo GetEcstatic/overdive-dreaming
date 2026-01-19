@@ -15,7 +15,12 @@
 			loading.set(false);
 
 			if (!firebaseUser) {
-				goto('/');
+				// Use window.location to ensure we stay on the same origin
+				if (typeof window !== 'undefined') {
+					window.location.href = window.location.origin;
+				} else {
+					goto('/');
+				}
 			}
 		});
 

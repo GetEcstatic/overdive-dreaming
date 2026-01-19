@@ -43,6 +43,12 @@ import type {
 	UserSettings,
 	PublicUserProfile
 } from '$lib/types';
+import {
+	normalizeRoutineLog,
+	normalizeRoutineTemplate,
+	prepareLogForWrite,
+	prepareRoutineForWrite
+} from '$lib/utils/migration';
 
 // ============================================================================
 // ROUTINE TEMPLATES
@@ -51,6 +57,7 @@ import type {
 /**
  * Get all routines visible to the current user
  * Includes: system defaults + user's custom routines
+ * Applies normalization to infer activityType for backward compatibility
  */
 export async function getRoutinesForUser(userId: string): Promise<RoutineTemplate[]> {
 	const routinesRef = collection(db, 'routines');
@@ -66,11 +73,13 @@ export async function getRoutinesForUser(userId: string): Promise<RoutineTemplat
 	const routines: RoutineTemplate[] = [];
 
 	systemSnapshot.forEach((doc) => {
-		routines.push({ id: doc.id, ...doc.data() } as RoutineTemplate);
+		const routine = { id: doc.id, ...doc.data() } as RoutineTemplate;
+		routines.push(normalizeRoutineTemplate(routine));
 	});
 
 	userSnapshot.forEach((doc) => {
-		routines.push({ id: doc.id, ...doc.data() } as RoutineTemplate);
+		const routine = { id: doc.id, ...doc.data() } as RoutineTemplate;
+		routines.push(normalizeRoutineTemplate(routine));
 	});
 
 	return routines;
@@ -78,6 +87,7 @@ export async function getRoutinesForUser(userId: string): Promise<RoutineTemplat
 
 /**
  * Get a single routine by ID
+ * Applies normalization to infer activityType for backward compatibility
  */
 export async function getRoutine(routineId: string): Promise<RoutineTemplate | null> {
 	const docRef = doc(db, 'routines', routineId);
@@ -85,7 +95,8 @@ export async function getRoutine(routineId: string): Promise<RoutineTemplate | n
 
 	if (!docSnap.exists()) return null;
 
-	return { id: docSnap.id, ...docSnap.data() } as RoutineTemplate;
+	const routine = { id: docSnap.id, ...docSnap.data() } as RoutineTemplate;
+	return normalizeRoutineTemplate(routine);
 }
 
 /**
@@ -97,8 +108,13 @@ export async function createRoutine(
 ): Promise<string> {
 	const routinesRef = collection(db, 'routines');
 
+	// Remove undefined values - Firestore doesn't accept undefined
+	const cleanedData = Object.fromEntries(
+		Object.entries(routineData).filter(([_, v]) => v !== undefined)
+	);
+
 	const newRoutine = {
-		...routineData,
+		...cleanedData,
 		createdBy: userId,
 		isPublic: false, // Default to private
 		tier: 'free' as const,
@@ -119,8 +135,13 @@ export async function updateRoutine(
 ): Promise<void> {
 	const docRef = doc(db, 'routines', routineId);
 
+	// Remove undefined values - Firestore doesn't accept undefined
+	const cleanedUpdates = Object.fromEntries(
+		Object.entries(updates).filter(([_, v]) => v !== undefined)
+	);
+
 	await updateDoc(docRef, {
-		...updates,
+		...cleanedUpdates,
 		updatedAt: serverTimestamp()
 	});
 }
@@ -241,6 +262,7 @@ export async function deleteSession(sessionId: string): Promise<void> {
 
 /**
  * Get all routine logs for a session group
+ * Applies normalization to populate new field names and calculated metrics
  */
 export async function getRoutineLogsBySessionGroup(
 	userId: string,
@@ -258,7 +280,8 @@ export async function getRoutineLogsBySessionGroup(
 	const logs: RoutineLog[] = [];
 
 	snapshot.forEach((doc) => {
-		logs.push({ id: doc.id, ...doc.data() } as RoutineLog);
+		const log = { id: doc.id, ...doc.data() } as RoutineLog;
+		logs.push(normalizeRoutineLog(log));
 	});
 
 	return logs;
@@ -266,6 +289,7 @@ export async function getRoutineLogsBySessionGroup(
 
 /**
  * Get a single routine log by ID
+ * Applies normalization to populate new field names and calculated metrics
  */
 export async function getRoutineLog(routineLogId: string): Promise<RoutineLog | null> {
 	const docRef = doc(db, 'routineLogs', routineLogId);
@@ -273,17 +297,22 @@ export async function getRoutineLog(routineLogId: string): Promise<RoutineLog | 
 
 	if (!docSnap.exists()) return null;
 
-	return { id: docSnap.id, ...docSnap.data() } as RoutineLog;
+	const log = { id: docSnap.id, ...docSnap.data() } as RoutineLog;
+	return normalizeRoutineLog(log);
 }
 
 /**
  * Create a new routine log
+ * Applies prepareLogForWrite to ensure both old and new field names are stored
  */
 export async function createRoutineLog(logData: RoutineLogFormData): Promise<string> {
 	const routineLogsRef = collection(db, 'routineLogs');
 
+	// Prepare log data with both old and new field names
+	const preparedData = prepareLogForWrite(logData);
+
 	const newLog = {
-		...logData,
+		...preparedData,
 		createdAt: serverTimestamp(),
 		updatedAt: serverTimestamp()
 	};
@@ -294,6 +323,7 @@ export async function createRoutineLog(logData: RoutineLogFormData): Promise<str
 
 /**
  * Update a routine log (e.g., add detailed data from video review)
+ * Applies prepareLogForWrite to ensure both old and new field names are stored
  */
 export async function updateRoutineLog(
 	routineLogId: string,
@@ -301,8 +331,11 @@ export async function updateRoutineLog(
 ): Promise<void> {
 	const docRef = doc(db, 'routineLogs', routineLogId);
 
+	// Prepare updates with both old and new field names
+	const preparedUpdates = prepareLogForWrite(updates);
+
 	await updateDoc(docRef, {
-		...updates,
+		...preparedUpdates,
 		updatedAt: serverTimestamp()
 	});
 }
@@ -626,7 +659,8 @@ export async function getRoutineLogsByRoutine(
 	const logs: RoutineLog[] = [];
 
 	snapshot.forEach((doc) => {
-		logs.push({ id: doc.id, ...doc.data() } as RoutineLog);
+		const log = { id: doc.id, ...doc.data() } as RoutineLog;
+		logs.push(normalizeRoutineLog(log));
 	});
 
 	return logs;
@@ -634,6 +668,7 @@ export async function getRoutineLogsByRoutine(
 
 /**
  * Get recent routine logs for a user (for dashboard/feed display)
+ * Applies normalization to populate new field names and calculated metrics
  */
 export async function getRecentActivity(userId: string, limitCount = 20): Promise<RoutineLog[]> {
 	const routineLogsRef = collection(db, 'routineLogs');
@@ -654,7 +689,8 @@ export async function getRecentActivity(userId: string, limitCount = 20): Promis
 	const logs: RoutineLog[] = [];
 
 	snapshot.forEach((doc) => {
-		logs.push({ id: doc.id, ...doc.data() } as RoutineLog);
+		const log = { id: doc.id, ...doc.data() } as RoutineLog;
+		logs.push(normalizeRoutineLog(log));
 	});
 
 	return logs;
@@ -727,7 +763,8 @@ export async function getRecentActivityPaginated(
 
 	const logs: RoutineLog[] = [];
 	snapshot.forEach((doc) => {
-		logs.push({ id: doc.id, ...doc.data() } as RoutineLog);
+		const log = { id: doc.id, ...doc.data() } as RoutineLog;
+		logs.push(normalizeRoutineLog(log));
 	});
 
 	// Get the last document for next pagination
@@ -777,7 +814,8 @@ export async function getPublicActivityPaginated(
 
 	const logs: RoutineLog[] = [];
 	snapshot.forEach((doc) => {
-		logs.push({ id: doc.id, ...doc.data() } as RoutineLog);
+		const log = { id: doc.id, ...doc.data() } as RoutineLog;
+		logs.push(normalizeRoutineLog(log));
 	});
 
 	const lastVisible = snapshot.docs[snapshot.docs.length - 1] || null;

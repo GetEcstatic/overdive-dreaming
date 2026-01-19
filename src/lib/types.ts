@@ -16,6 +16,27 @@ export type UserTier = 'free' | 'premium';
 export type PoolType = 'indoor' | 'outdoor';
 
 // ============================================================================
+// ACTIVITY TYPES (NEW - for simplified routine model)
+// ============================================================================
+
+/**
+ * Activity types define the fundamental structure of a training routine.
+ * This replaces the old protocolType system with clearer semantics.
+ * 
+ * - max-attempt: Single maximum effort dive (PB attempts, competition)
+ * - submax-attempt: Single dive below max capacity (warmups, technique focus)
+ * - structured-intervals: Multiple reps with defined work/rest ratios
+ * - freeform-intervals: Multiple reps with no strict structure
+ * - free-training: Unstructured session, flexible logging
+ */
+export type ActivityType = 
+  | 'max-attempt'
+  | 'submax-attempt'
+  | 'structured-intervals'
+  | 'freeform-intervals'
+  | 'free-training';
+
+// ============================================================================
 // USER
 // ============================================================================
 
@@ -137,7 +158,19 @@ export type MetricType =
 	| 'waterTemperature'
 	| 'contractionsOnsetTime'
 	| 'restingHeartRate'
-	| 'hrv';
+	| 'hrv'
+	// NEW: Clearer metric names (aliases)
+	| 'diveDuration'      // = totalTime (clearer for single dive)
+	| 'diveDistance'      // = totalDistance (clearer for single dive)
+	| 'holdDuration'      // Per-rep hold time (STA intervals)
+	| 'lapDistance'       // Per-rep distance (Dynamic intervals)
+	| 'cumulativeHoldTime' // Sum of all holds in session
+	| 'cumulativeDistance' // Sum of all distances in session
+	| 'sessionDuration'   // Total elapsed time of session
+	// NEW: Speed metrics (calculated)
+	| 'avgSpeed'          // Average m/s across session
+	| 'maxRepSpeed'       // Fastest rep speed
+	| 'minRepSpeed';      // Slowest rep speed
 
 export interface DisplayConfig {
 	heroMetric: MetricType;
@@ -150,6 +183,19 @@ export interface RoutineTemplate {
 	id: string;
 	name: string;
 	description: string;
+
+	// NEW: Activity type (optional for backward compatibility with existing routines)
+	// If not set, will be inferred from protocolType/tags
+	activityType?: ActivityType;
+
+	/**
+	 * @deprecated Use activityType instead. This field is kept for backward compatibility.
+	 * New routines should use activityType which has clearer semantics:
+	 * - 'none' → 'max-attempt' or 'submax-attempt'
+	 * - 'uniform' → 'structured-intervals'
+	 * - 'table' → 'structured-intervals'
+	 */
+	protocolType?: 'none' | 'uniform' | 'table';
 
 	// Multi-discipline support
 	disciplines: Discipline[];
@@ -227,9 +273,28 @@ export interface Season {
 export interface LapData {
 	lapNumber: number;
 	timeSeconds?: number;
+	distanceMeters?: number; // NEW: Per-rep distance (for dynamic)
 	restAfterSeconds?: number;
 	kicks?: number;
 	armPulls?: number;
+	// NEW: Per-lap speed (calculated)
+	speedMs?: number; // meters per second for this lap
+	// NEW: Rep status for editable logging
+	completed?: boolean; // false = skipped, default true
+	notes?: string; // Per-rep notes
+}
+
+// For use in the rep editor UI
+export interface RepEditorData {
+	repNumber: number;
+	plannedDuration?: number; // From routine template
+	plannedDistance?: number; // From routine template
+	plannedRest?: number; // From routine template
+	actualDuration?: number; // User-entered
+	actualDistance?: number; // User-entered
+	actualRest?: number; // User-entered
+	completed: boolean;
+	notes?: string;
 }
 
 export interface RoutineLogSummary {
@@ -259,9 +324,30 @@ export interface RoutineLog {
 	poolLength?: number; // meters - pool size for this routine
 	initialBreatheUpTime?: number; // seconds - actual breathe-up before dive
 
-	// Performance data - max attempt metrics
+	/**
+	 * @deprecated Use diveDistance instead for single dive distance.
+	 * Kept for backward compatibility - normalization layer syncs both fields.
+	 */
 	totalDistance?: number; // meters - total distance covered (for max attempts)
+	
+	/**
+	 * @deprecated Use diveDuration instead for single dive time.
+	 * Kept for backward compatibility - normalization layer syncs both fields.
+	 */
 	totalTime?: number; // seconds - total dive duration
+
+	// Performance data - NEW clearer field names (aliases)
+	// These are populated by normalization layer and written alongside old names
+	diveDuration?: number;      // = totalTime (single dive duration)
+	diveDistance?: number;      // = totalDistance (single dive distance)
+	cumulativeHoldTime?: number; // Sum of all hold durations (intervals)
+	cumulativeDistance?: number; // Sum of all distances (intervals)
+	sessionDuration?: number;   // Total elapsed time of session
+
+	// Performance data - speed metrics (calculated for dynamic intervals)
+	avgSpeed?: number;          // Average m/s across session
+	maxRepSpeed?: number;       // Fastest rep speed (m/s)
+	minRepSpeed?: number;       // Slowest rep speed (m/s)
 
 	// Performance data - interval training metrics
 	repDuration?: number; // seconds - duration per rep (for interval training)

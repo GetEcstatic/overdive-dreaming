@@ -2,9 +2,10 @@
 	/**
 	 * TrackingSelectionStep - Step 3 of routine builder wizard
 	 * Select which metrics to track for this routine
+	 * Smart defaults based on activity type
 	 */
 
-	import type { TrackingConfig } from '$lib/types';
+	import type { TrackingConfig, ActivityType } from '$lib/types';
 
 	let {
 		trackingConfig = $bindable<TrackingConfig>({
@@ -44,10 +45,102 @@
 			trackMinimumSpO2: false,
 			trackMinimumHR: false,
 			trackBodyWeight: false
-		})
+		}),
+		activityType = undefined as ActivityType | undefined
 	}: {
 		trackingConfig: TrackingConfig;
+		activityType?: ActivityType;
 	} = $props();
+
+	// Activity-type specific presets
+	function getRecommendedConfig(type: ActivityType | undefined): Partial<TrackingConfig> {
+		switch (type) {
+			case 'max-attempt':
+			case 'submax-attempt':
+				// Single effort - focus on the dive itself
+				return {
+					trackPoolLength: true,
+					trackInitialBreatheUpTime: true,
+					trackTotalDistance: true,
+					trackTotalTime: true,
+					trackContractionsOnsetTime: true,
+					trackBreathingTechnique: true,
+					trackRPE: true,
+					trackNotes: true,
+					trackSambaBO: true
+				};
+			case 'structured-intervals':
+				// CO2/O2 tables - focus on rep tracking
+				return {
+					trackPoolLength: true,
+					trackInitialBreatheUpTime: true,
+					trackTotalTime: true,
+					trackRepsCompleted: true,
+					trackRepDuration: true,
+					trackRestBetweenLaps: true,
+					trackBreathingTechnique: true,
+					trackRPE: true,
+					trackNotes: true
+				};
+			case 'freeform-intervals':
+				// Flexible intervals - general rep tracking
+				return {
+					trackPoolLength: true,
+					trackTotalDistance: true,
+					trackTotalTime: true,
+					trackRepsCompleted: true,
+					trackRepDistance: true,
+					trackRestBetweenLaps: true,
+					trackRPE: true,
+					trackNotes: true
+				};
+			case 'free-training':
+				// Unstructured - minimal defaults
+				return {
+					trackTotalDistance: true,
+					trackTotalTime: true,
+					trackRPE: true,
+					trackJoyScale: true,
+					trackNotes: true
+				};
+			default:
+				// Standard preset if no type specified
+				return {
+					trackPoolLength: true,
+					trackTotalDistance: true,
+					trackTotalTime: true,
+					trackRepsCompleted: true,
+					trackNotes: true
+				};
+		}
+	}
+
+	// Apply recommended config for activity type
+	function applyRecommended() {
+		const recommended = getRecommendedConfig(activityType);
+		// Reset all to false first
+		trackingConfig = Object.keys(trackingConfig).reduce(
+			(acc, key) => {
+				acc[key as keyof TrackingConfig] = false;
+				return acc;
+			},
+			{} as TrackingConfig
+		);
+		// Apply recommended
+		trackingConfig = { ...trackingConfig, ...recommended };
+	}
+
+	// Get label for activity type
+	function getActivityLabel(type: ActivityType | undefined): string {
+		switch (type) {
+			case 'max-attempt': return 'Max Attempt';
+			case 'submax-attempt': return 'Submax Attempt';
+			case 'structured-intervals': return 'Structured Intervals';
+			case 'freeform-intervals': return 'Freeform Intervals';
+			case 'free-training': return 'Free Training';
+			default: return 'this routine';
+		}
+	}
 
 	// Preset configurations
 	function applyMinimal() {
@@ -145,11 +238,21 @@
 
 	<!-- Preset Buttons -->
 	<div class="preset-section">
-		<div class="preset-label">Quick Presets:</div>
-		<div class="preset-buttons">
-			<button type="button" class="preset-btn" onclick={applyMinimal}>Minimal</button>
-			<button type="button" class="preset-btn" onclick={applyStandard}>Standard</button>
-			<button type="button" class="preset-btn" onclick={applyComplete}>Complete</button>
+		{#if activityType}
+			<div class="recommended-preset">
+				<span class="recommended-label">✨ Recommended for {getActivityLabel(activityType)}:</span>
+				<button type="button" class="preset-btn primary" onclick={applyRecommended}>
+					Apply Recommended
+				</button>
+			</div>
+		{/if}
+		<div class="preset-row">
+			<div class="preset-label">Quick Presets:</div>
+			<div class="preset-buttons">
+				<button type="button" class="preset-btn" onclick={applyMinimal}>Minimal</button>
+				<button type="button" class="preset-btn" onclick={applyStandard}>Standard</button>
+				<button type="button" class="preset-btn" onclick={applyComplete}>Complete</button>
+			</div>
 		</div>
 	</div>
 
@@ -509,13 +612,33 @@
 
 	.preset-section {
 		display: flex;
-		align-items: center;
+		flex-direction: column;
 		gap: 1rem;
 		margin-bottom: 2rem;
 		padding: 1rem;
 		background: rgba(20, 184, 166, 0.05);
 		border: 1px solid rgba(20, 184, 166, 0.2);
 		border-radius: 8px;
+	}
+
+	.recommended-preset {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		padding-bottom: 0.75rem;
+		border-bottom: 1px solid rgba(20, 184, 166, 0.15);
+	}
+
+	.recommended-label {
+		font-weight: 600;
+		color: var(--color-primary);
+		font-size: 0.9375rem;
+	}
+
+	.preset-row {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
 	}
 
 	.preset-label {
@@ -544,6 +667,16 @@
 	.preset-btn:hover {
 		background: rgba(20, 184, 166, 0.2);
 		border-color: var(--color-primary);
+	}
+
+	.preset-btn.primary {
+		background: var(--color-primary);
+		color: white;
+		border-color: var(--color-primary);
+	}
+
+	.preset-btn.primary:hover {
+		background: rgba(20, 184, 166, 0.9);
 	}
 
 	.tracking-group {
