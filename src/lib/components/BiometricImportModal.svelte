@@ -6,6 +6,7 @@
 	 * - Upload CSV files from pulse oximeter apps
 	 * - Preview parsed biometric data before importing
 	 * - See per-rep SpO2/HR statistics
+	 * - Interactive SpO2/HR chart over time
 	 * - Import data into routine log
 	 * 
 	 * Also stores the raw CSV for future reprocessing.
@@ -19,8 +20,10 @@
 		formatDuration,
 		getSpO2ColorClass,
 		getSpO2Severity,
-		calculateSessionBiometricSummary
+		calculateSessionBiometricSummary,
+		getInitialBreatheUpFromReadings
 	} from '$lib/utils/biometricCsvParser';
+	import BiometricTimeChart from './BiometricTimeChart.svelte';
 
 	let {
 		isOpen = $bindable(false),
@@ -98,8 +101,10 @@
 			// Process per-rep statistics
 			processedReps = processRepBiometrics(parsedSession);
 			
-			// Calculate session summary
-			sessionSummary = calculateSessionBiometricSummary(processedReps);
+			// Calculate session summary - include initial breathe-up time from biometric readings
+			// This is more reliable than ROUND summaries for single-hold sessions
+			const initialBreatheUpTime = getInitialBreatheUpFromReadings(parsedSession.readings);
+			sessionSummary = calculateSessionBiometricSummary(processedReps, initialBreatheUpTime);
 		} catch (e) {
 			error = `Failed to parse CSV: ${e instanceof Error ? e.message : 'Unknown error'}`;
 		}
@@ -254,13 +259,21 @@
 							</div>
 						{/if}
 
+						<!-- Biometric Time Chart -->
+						{#if parsedSession.readings.length > 0}
+							<div class="chart-section">
+								<h4>SpO2 & Heart Rate Over Time</h4>
+								<BiometricTimeChart readings={parsedSession.readings} height={240} />
+							</div>
+						{/if}
+
 						<div class="reps-preview">
 							<h4>Per-Rep Data</h4>
 							<div class="reps-table">
 								<div class="table-header">
 									<div class="col">#</div>
 									<div class="col">Hold</div>
-									<div class="col">Rest</div>
+									<div class="col">Breathe-Up</div>
 									<div class="col">SpO2 Min</div>
 									<div class="col">HR Min/Max</div>
 								</div>
@@ -494,6 +507,19 @@
 		border: 1px solid rgba(127, 29, 29, 0.5);
 		color: #991b1b;
 		font-weight: 600;
+	}
+
+	.chart-section {
+		background: rgba(148, 163, 184, 0.05);
+		border-radius: 12px;
+		padding: 1rem;
+	}
+
+	.chart-section h4 {
+		margin: 0 0 0.75rem;
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--color-text);
 	}
 
 	.reps-preview {

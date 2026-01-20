@@ -43,6 +43,7 @@
   },
   "dependencies": {
     "chart.js": "^4.5.1",
+    "chartjs-plugin-zoom": "^2.2.0",
     "date-fns": "^4.1.0",
     "firebase": "^12.7.0",
     "firebase-admin": "^13.6.0",

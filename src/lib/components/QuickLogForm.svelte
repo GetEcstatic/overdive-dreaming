@@ -114,6 +114,12 @@
 	let cardTag = $state<CardTag | undefined>(undefined);
 	let recordTag = $state<RecordTag | undefined>(undefined);
 	let visibility = $state<SessionVisibility>(defaultVisibility);
+	
+	// Wet/Dry toggle - defaults to routine's isDryTraining setting for STA disciplines
+	// Only show for STA routines that support biometric tracking
+	const isSTARoutine = routine.disciplines.includes('STA');
+	const supportsBiometrics = routine.trackingConfig.trackPerRepSpO2 || routine.trackingConfig.trackPerRepHR || routine.trackingConfig.isDryTraining;
+	let isDrySession = $state<boolean>(routine.trackingConfig.isDryTraining ?? false);
 
 	// Smart defaults from routine table
 	const defaultRepsCompleted = routine.table?.rows.length;
@@ -193,6 +199,19 @@
 		if (summary) {
 			minimumSpO2 = summary.lowestSpO2;
 			minimumHR = summary.sessionMinHR;
+			
+			// For single max attempt routines (trackTotalTime but not reps-based), 
+			// set totalTime from the longest hold
+			if (config.trackTotalTime && !config.trackRepsCompleted) {
+				totalTimeMinutes = Math.floor(summary.longestHold / 60);
+				totalTimeSeconds = summary.longestHold % 60;
+			}
+			
+			// Set initial breathe-up time from CSV if available and tracked
+			if (summary.initialBreatheUpTime !== undefined && config.trackInitialBreatheUpTime) {
+				breatheUpMinutes = Math.floor(summary.initialBreatheUpTime / 60);
+				breatheUpSeconds = summary.initialBreatheUpTime % 60;
+			}
 		}
 	}
 
@@ -472,9 +491,9 @@
 			config.trackNotes
 	);
 	
-	// Check if biometric tracking is enabled for this routine
+	// Check if biometric tracking is enabled - show if routine supports it AND user selected "Dry"
 	const hasBiometricTracking = $derived(
-		config.trackPerRepSpO2 || config.trackPerRepHR || config.isDryTraining
+		supportsBiometrics && isDrySession
 	);
 </script>
 
@@ -484,6 +503,35 @@
 		<h3 class="routine-name">{routine.name}</h3>
 		<p class="routine-subtitle">Quick Log</p>
 	</div>
+
+	<!-- Wet/Dry Toggle - Only show for STA routines that support biometrics -->
+	{#if isSTARoutine && supportsBiometrics}
+		<div class="form-section environment-toggle">
+			<div class="pill-switch">
+				<button
+					type="button"
+					class="pill-option"
+					class:active={!isDrySession}
+					onclick={() => isDrySession = false}
+				>
+					💧 Wet
+				</button>
+				<button
+					type="button"
+					class="pill-option"
+					class:active={isDrySession}
+					onclick={() => isDrySession = true}
+				>
+					🏠 Dry
+				</button>
+			</div>
+			<p class="field-hint">
+				{isDrySession 
+					? 'Dry training enables pulse oximeter CSV import' 
+					: 'Wet training (in water) - no oximeter tracking'}
+			</p>
+		</div>
+	{/if}
 
 	<!-- Session Date -->
 	<div class="form-section">
@@ -1861,5 +1909,47 @@
 		color: var(--color-text-muted);
 		margin-top: 0.75rem;
 		text-align: center;
+	}
+
+	/* Wet/Dry Pill Switch */
+	.environment-toggle {
+		padding: 0.75rem 1rem;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+	}
+
+	.pill-switch {
+		display: flex;
+		background: rgba(15, 23, 42, 0.6);
+		border-radius: 9999px;
+		padding: 4px;
+		gap: 4px;
+	}
+
+	.pill-option {
+		flex: 1;
+		padding: 0.625rem 1rem;
+		border: none;
+		border-radius: 9999px;
+		background: transparent;
+		color: var(--color-text-muted);
+		font-size: 0.875rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.pill-option:hover:not(.active) {
+		background: rgba(255, 255, 255, 0.05);
+		color: var(--color-text);
+	}
+
+	.pill-option.active {
+		background: var(--color-primary);
+		color: var(--color-bg);
+		font-weight: 600;
+	}
+
+	.environment-toggle .field-hint {
+		margin-top: 0.5rem;
 	}
 </style>

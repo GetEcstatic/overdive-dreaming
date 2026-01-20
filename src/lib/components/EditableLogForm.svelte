@@ -126,7 +126,8 @@
 			totalTimeBelow70: formData.totalTimeBelow70 || 0,
 			totalTimeBelow60: formData.totalTimeBelow60 || 0,
 			totalTimeBelow50: formData.totalTimeBelow50 || 0,
-			totalTimeBelow40: formData.totalTimeBelow40 || 0
+			totalTimeBelow40: formData.totalTimeBelow40 || 0,
+			initialBreatheUpTime: formData.initialBreatheUpTime
 		} : null
 	);
 	let rawBiometricCsv = $state<string | undefined>(undefined);

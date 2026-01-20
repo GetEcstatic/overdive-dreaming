@@ -4,6 +4,7 @@
 	import { user } from '$lib/stores/auth';
 	import MiniAnalytics from '$lib/components/MiniAnalytics.svelte';
 	import EditRoutineLogModal from '$lib/components/EditRoutineLogModal.svelte';
+	import BiometricTimeChart from '$lib/components/BiometricTimeChart.svelte';
 	import { getFormattedMetric } from '$lib/utils/metrics';
 	import { formatTime } from '$lib/utils/time';
 	import { getYouTubeEmbedUrl, deleteSessionPhoto, deleteBiometricCsv } from '$lib/storage';
@@ -12,7 +13,8 @@
 	import { recalculatePBsForDisciplines } from '$lib/utils/personalBests';
 	import { clearDashboardCache } from '$lib/utils/dashboardCache';
 	import { shareCard, downloadShareCard } from '$lib/utils/shareCard';
-	import type { RoutineLog, Discipline } from '$lib/types';
+	import { parseBiometricCsv } from '$lib/utils/biometricCsvParser';
+	import type { RoutineLog, Discipline, BiometricReading } from '$lib/types';
 
 	let { data } = $props();
 	let { log, routine } = $derived(data);
@@ -28,6 +30,31 @@
 
 	// Share state
 	let isGeneratingShare = $state(false);
+
+	// Biometric chart state
+	let biometricReadings = $state<BiometricReading[]>([]);
+	let loadingBiometrics = $state(false);
+
+	// Load biometric readings from CSV if available
+	$effect(() => {
+		const csvUrl = log.biometricCsvUrl;
+		
+		if (csvUrl && biometricReadings.length === 0 && !loadingBiometrics) {
+			loadingBiometrics = true;
+			fetch(csvUrl)
+				.then(res => res.text())
+				.then(csvContent => {
+					const parsed = parseBiometricCsv(csvContent);
+					biometricReadings = parsed.readings;
+				})
+				.catch(err => {
+					console.error('Failed to load biometric CSV:', err);
+				})
+				.finally(() => {
+					loadingBiometrics = false;
+				});
+		}
+	});
 
 	// Format date/time
 	const fullDate = $derived(format(log.date.toDate(), 'EEEE, MMMM d, yyyy'));
@@ -495,104 +522,120 @@
 	{/if}
 
 	<!-- Biometric Tracking (from pulse oximeter CSV) -->
-	{#if log.hasBiometricData}
+	{#if log.hasBiometricData || log.biometricCsvUrl}
 		<section class="metrics-section biometric-section">
 			<h2>📊 Biometric Tracking</h2>
-			<div class="metrics-grid">
-				{#if log.longestHold}
-					<div class="metric-item">
-						<span class="label">Longest Hold</span>
-						<span class="value">{formatTime(log.longestHold)}</span>
-					</div>
-				{/if}
-				{#if log.cumulativeHoldTime}
-					<div class="metric-item">
-						<span class="label">Total Hold Time</span>
-						<span class="value">{formatTime(log.cumulativeHoldTime)}</span>
-					</div>
-				{/if}
-				{#if log.lowestSpO2}
-					<div class="metric-item">
-						<span class="label">Lowest SpO2</span>
-						<span class="value spo2-value" class:warning={log.lowestSpO2 < 80} class:danger={log.lowestSpO2 < 70} class:critical={log.lowestSpO2 < 60} class:extreme={log.lowestSpO2 < 50}>{log.lowestSpO2}%</span>
-					</div>
-				{/if}
-				{#if log.sessionAvgSpO2}
-					<div class="metric-item">
-						<span class="label">Session Avg SpO2</span>
-						<span class="value">{log.sessionAvgSpO2}%</span>
-					</div>
-				{/if}
-				{#if log.sessionMinHR}
-					<div class="metric-item">
-						<span class="label">Min Heart Rate</span>
-						<span class="value">{log.sessionMinHR} bpm</span>
-					</div>
-				{/if}
-				{#if log.sessionMaxHR}
-					<div class="metric-item">
-						<span class="label">Max Heart Rate</span>
-						<span class="value">{log.sessionMaxHR} bpm</span>
-					</div>
-				{/if}
-			</div>
-
-			<!-- Time Below Thresholds -->
-			{#if log.totalTimeBelow70 || log.totalTimeBelow60 || log.totalTimeBelow50 || log.totalTimeBelow40}
-				<div class="threshold-section">
-					<h3>Time Below SpO2 Thresholds</h3>
-					<div class="threshold-grid">
-						{#if log.totalTimeBelow70}
-							<div class="threshold-item warning">
-								<span class="threshold-label">Below 70%</span>
-								<span class="threshold-value">{formatTime(log.totalTimeBelow70)}</span>
-							</div>
-						{/if}
-						{#if log.totalTimeBelow60}
-							<div class="threshold-item danger">
-								<span class="threshold-label">Below 60%</span>
-								<span class="threshold-value">{formatTime(log.totalTimeBelow60)}</span>
-							</div>
-						{/if}
-						{#if log.totalTimeBelow50}
-							<div class="threshold-item critical">
-								<span class="threshold-label">Below 50%</span>
-								<span class="threshold-value">{formatTime(log.totalTimeBelow50)}</span>
-							</div>
-						{/if}
-						{#if log.totalTimeBelow40}
-							<div class="threshold-item extreme">
-								<span class="threshold-label">Below 40%</span>
-								<span class="threshold-value">{formatTime(log.totalTimeBelow40)}</span>
-							</div>
-						{/if}
-					</div>
+			
+			<!-- SpO2 & HR Time Chart (loads from CSV) -->
+			{#if biometricReadings.length > 0}
+				<div class="chart-section chart-first">
+					<h3>SpO2 & Heart Rate Over Time</h3>
+					<BiometricTimeChart readings={biometricReadings} height={220} />
+				</div>
+			{:else if loadingBiometrics}
+				<div class="chart-section chart-first">
+					<h3>SpO2 & Heart Rate Over Time</h3>
+					<div class="chart-loading">Loading chart data...</div>
 				</div>
 			{/if}
-
-			<!-- Per-Rep Biometrics -->
-			{#if log.laps && log.laps.length > 0 && log.laps[0].spo2Min}
-				<div class="per-rep-section">
-					<h3>Per-Rep Biometrics</h3>
-					<div class="rep-table">
-						<div class="rep-header">
-							<span class="rep-col">Rep</span>
-							<span class="rep-col">Duration</span>
-							<span class="rep-col">SpO2 Min</span>
-							<span class="rep-col">SpO2 Avg</span>
-							<span class="rep-col">HR Range</span>
+			
+			{#if log.hasBiometricData}
+				<div class="metrics-grid">
+					{#if log.longestHold}
+						<div class="metric-item">
+							<span class="label">Longest Hold</span>
+							<span class="value">{formatTime(log.longestHold)}</span>
 						</div>
-						{#each log.laps as lap, i}
-							<div class="rep-row">
-								<span class="rep-col">{i + 1}</span>
-								<span class="rep-col">{formatTime(lap.timeSeconds || 0)}</span>
-								<span class="rep-col spo2-value" class:warning={(lap.spo2Min || 100) < 80} class:danger={(lap.spo2Min || 100) < 70}>{lap.spo2Min || '-'}%</span>
-								<span class="rep-col">{lap.spo2Avg || '-'}%</span>
-								<span class="rep-col">{lap.hrMin || '-'}-{lap.hrMax || '-'}</span>
-							</div>
-						{/each}
-					</div>
+					{/if}
+					{#if log.cumulativeHoldTime}
+						<div class="metric-item">
+							<span class="label">Total Hold Time</span>
+							<span class="value">{formatTime(log.cumulativeHoldTime)}</span>
+						</div>
+					{/if}
+					{#if log.lowestSpO2}
+						<div class="metric-item">
+							<span class="label">Lowest SpO2</span>
+							<span class="value spo2-value" class:warning={log.lowestSpO2 < 80} class:danger={log.lowestSpO2 < 70} class:critical={log.lowestSpO2 < 60} class:extreme={log.lowestSpO2 < 50}>{log.lowestSpO2}%</span>
+						</div>
+					{/if}
+					{#if log.sessionAvgSpO2}
+						<div class="metric-item">
+							<span class="label">Session Avg SpO2</span>
+							<span class="value">{log.sessionAvgSpO2}%</span>
+						</div>
+					{/if}
+					{#if log.sessionMinHR}
+						<div class="metric-item">
+							<span class="label">Min Heart Rate</span>
+							<span class="value">{log.sessionMinHR} bpm</span>
+						</div>
+					{/if}
+					{#if log.sessionMaxHR}
+						<div class="metric-item">
+							<span class="label">Max Heart Rate</span>
+							<span class="value">{log.sessionMaxHR} bpm</span>
+						</div>
+					{/if}
 				</div>
+
+				<!-- Time Below Thresholds -->
+				{#if log.totalTimeBelow70 || log.totalTimeBelow60 || log.totalTimeBelow50 || log.totalTimeBelow40}
+					<div class="threshold-section">
+						<h3>Time Below SpO2 Thresholds</h3>
+						<div class="threshold-grid">
+							{#if log.totalTimeBelow70}
+								<div class="threshold-item warning">
+									<span class="threshold-label">Below 70%</span>
+									<span class="threshold-value">{formatTime(log.totalTimeBelow70)}</span>
+								</div>
+							{/if}
+							{#if log.totalTimeBelow60}
+								<div class="threshold-item danger">
+									<span class="threshold-label">Below 60%</span>
+									<span class="threshold-value">{formatTime(log.totalTimeBelow60)}</span>
+								</div>
+							{/if}
+							{#if log.totalTimeBelow50}
+								<div class="threshold-item critical">
+									<span class="threshold-label">Below 50%</span>
+									<span class="threshold-value">{formatTime(log.totalTimeBelow50)}</span>
+								</div>
+							{/if}
+							{#if log.totalTimeBelow40}
+								<div class="threshold-item extreme">
+									<span class="threshold-label">Below 40%</span>
+									<span class="threshold-value">{formatTime(log.totalTimeBelow40)}</span>
+								</div>
+							{/if}
+						</div>
+					</div>
+				{/if}
+
+				<!-- Per-Rep Biometrics -->
+				{#if log.laps && log.laps.length > 0 && log.laps[0].spo2Min}
+					<div class="per-rep-section">
+						<h3>Per-Rep Biometrics</h3>
+						<div class="rep-table">
+							<div class="rep-header">
+								<span class="rep-col">Rep</span>
+								<span class="rep-col">Duration</span>
+								<span class="rep-col">SpO2 Min</span>
+								<span class="rep-col">SpO2 Avg</span>
+								<span class="rep-col">HR Range</span>
+							</div>
+							{#each log.laps as lap, i}
+								<div class="rep-row">
+									<span class="rep-col">{i + 1}</span>
+									<span class="rep-col">{formatTime(lap.timeSeconds || 0)}</span>
+									<span class="rep-col spo2-value" class:warning={(lap.spo2Min || 100) < 80} class:danger={(lap.spo2Min || 100) < 70}>{lap.spo2Min || '-'}%</span>
+									<span class="rep-col">{lap.spo2Avg || '-'}%</span>
+									<span class="rep-col">{lap.hrMin || '-'}-{lap.hrMax || '-'}</span>
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/if}
 			{/if}
 		</section>
 	{/if}
@@ -1207,6 +1250,37 @@
 
 	.spo2-value.extreme {
 		color: #d946ef;
+	}
+
+	/* Biometric Time Chart */
+	.chart-section {
+		margin-top: 1.5rem;
+		padding-top: 1rem;
+		border-top: 1px solid rgba(148, 163, 184, 0.1);
+	}
+
+	.chart-section.chart-first {
+		margin-top: 0;
+		padding-top: 0;
+		border-top: none;
+	}
+
+	.chart-section h3 {
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		margin: 0 0 0.75rem;
+	}
+
+	.chart-loading {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		height: 220px;
+		background: rgba(148, 163, 184, 0.05);
+		border-radius: 12px;
+		color: var(--color-text-muted);
+		font-size: 0.875rem;
 	}
 
 	/* Per-Rep Table */

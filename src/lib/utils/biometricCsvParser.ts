@@ -93,8 +93,8 @@ function parseBiometricReadings(lines: string[]): BiometricReading[] {
 		
 		const [time, intervalTime, intervalType, hrStr, spo2Str] = parts;
 		
-		// Skip header or empty rows
-		if (intervalType !== 'Rest' && intervalType !== 'Apnea') continue;
+		// Skip header or empty rows - include Rest, Apnea, and Cooldown
+		if (intervalType !== 'Rest' && intervalType !== 'Apnea' && intervalType !== 'Cooldown') continue;
 		
 		const hr = parseInt(hrStr, 10);
 		const spo2 = parseInt(spo2Str, 10);
@@ -102,10 +102,13 @@ function parseBiometricReadings(lines: string[]): BiometricReading[] {
 		// Skip invalid readings
 		if (isNaN(hr) || isNaN(spo2)) continue;
 		
+		// Map CSV values to our type: 'Rest'/'Cooldown' -> 'recovery', 'Apnea' -> 'apnea'
+		const mappedIntervalType: 'apnea' | 'recovery' = intervalType === 'Apnea' ? 'apnea' : 'recovery';
+		
 		readings.push({
 			time,
 			intervalTime: parseTimeToSeconds(intervalTime),
-			intervalType: intervalType.toLowerCase() as 'apnea' | 'recovery',
+			intervalType: mappedIntervalType,
 			hr,
 			spo2
 		});
@@ -144,6 +147,26 @@ export function parseBiometricCsv(csvContent: string): ParsedBiometricSession {
 		totalApneaTime,
 		totalRecoveryTime
 	};
+}
+
+/**
+ * Calculate the initial breathe-up time from biometric readings.
+ * This is the duration of 'Rest' readings before the first 'Apnea' reading.
+ * More reliable than using ROUND summaries for single-hold sessions.
+ */
+export function getInitialBreatheUpFromReadings(readings: BiometricReading[]): number {
+	if (readings.length === 0) return 0;
+	
+	// Find the first Apnea reading
+	const firstApneaIndex = readings.findIndex(r => r.intervalType === 'apnea');
+	
+	// If no apnea found, all readings are rest (shouldn't happen normally)
+	if (firstApneaIndex === -1) return 0;
+	if (firstApneaIndex === 0) return 0; // No initial rest
+	
+	// Count the number of Rest readings before first Apnea
+	// Each reading represents approximately 1 second
+	return firstApneaIndex;
 }
 
 /**
@@ -188,7 +211,7 @@ export function processRepBiometrics(session: ParsedBiometricSession): Processed
 		intervals.push({ type: currentType, readings: currentReadings });
 	}
 	
-	// Second pass: process apnea intervals with their following recovery
+	// Second pass: process apnea intervals with their preceding and following recovery
 	let roundNumber = 0;
 	for (let i = 0; i < intervals.length; i++) {
 		const interval = intervals[i];
@@ -197,18 +220,23 @@ export function processRepBiometrics(session: ParsedBiometricSession): Processed
 			roundNumber++;
 			const apneaReadings = interval.readings;
 			
-			// Get the following recovery interval (if any)
-			const nextInterval = intervals[i + 1];
-			const recoveryReadings = nextInterval?.type === 'recovery' ? nextInterval.readings : [];
+			// Get the PRECEDING recovery interval (breathe-up/rest before this apnea)
+			const prevInterval = intervals[i - 1];
+			const precedingRecoveryReadings = prevInterval?.type === 'recovery' ? prevInterval.readings : [];
 			
-			// Get round summary from CSV header
+			// Get the FOLLOWING recovery interval (for SpO2 lag correction)
+			const nextInterval = intervals[i + 1];
+			const followingRecoveryReadings = nextInterval?.type === 'recovery' ? nextInterval.readings : [];
+			
+			// Get round summary from CSV header (if available)
 			const roundSummary = session.rounds[roundNumber - 1];
 			
 			if (apneaReadings.length > 0) {
 				const repData = calculateRepBiometrics(
 					roundNumber,
 					apneaReadings,
-					recoveryReadings,
+					precedingRecoveryReadings,
+					followingRecoveryReadings,
 					roundSummary,
 					SPO2_LAG_WINDOW
 				);
@@ -230,12 +258,13 @@ export function processRepBiometrics(session: ParsedBiometricSession): Processed
 function calculateRepBiometrics(
 	repNumber: number,
 	apneaReadings: BiometricReading[],
-	recoveryReadings: BiometricReading[],
+	precedingRecoveryReadings: BiometricReading[],
+	followingRecoveryReadings: BiometricReading[],
 	roundSummary: BiometricRoundSummary | undefined,
 	lagWindow: number
 ): ProcessedRepBiometrics {
-	// For SpO2 stats, include apnea + early recovery readings (within lag window)
-	const laggedRecoveryReadings = recoveryReadings.slice(0, lagWindow);
+	// For SpO2 stats, include apnea + early FOLLOWING recovery readings (within lag window)
+	const laggedRecoveryReadings = followingRecoveryReadings.slice(0, lagWindow);
 	const spo2Readings = [...apneaReadings, ...laggedRecoveryReadings];
 	
 	// Calculate SpO2 stats from combined readings
@@ -256,9 +285,13 @@ function calculateRepBiometrics(
 	const timeBelow50 = spo2Readings.filter(r => r.spo2 < 50).length;
 	const timeBelow40 = spo2Readings.filter(r => r.spo2 < 40).length;
 	
-	// Get durations from round summary or calculate from readings
+	// Get apnea duration from round summary or count of readings
 	const apneaDuration = roundSummary?.apneaTime ?? apneaReadings.length;
-	const recoveryDuration = roundSummary?.recoveryTime ?? recoveryReadings.length;
+	
+	// Recovery duration (breathe-up/rest BEFORE this rep):
+	// - Prefer round summary if available (more accurate)
+	// - Fallback to counting preceding recovery readings (each reading ~1 second)
+	const recoveryDuration = roundSummary?.recoveryTime ?? precedingRecoveryReadings.length;
 	
 	return {
 		repNumber,
@@ -300,8 +333,10 @@ export function biometricsToLapData(processedReps: ProcessedRepBiometrics[]): La
 
 /**
  * Calculate session-level biometric summary
+ * @param processedReps - Processed per-rep biometrics
+ * @param initialBreatheUpTime - Optional initial breathe-up time in seconds (from first round's recovery time)
  */
-export function calculateSessionBiometricSummary(processedReps: ProcessedRepBiometrics[]) {
+export function calculateSessionBiometricSummary(processedReps: ProcessedRepBiometrics[], initialBreatheUpTime?: number) {
 	if (processedReps.length === 0) {
 		return null;
 	}
@@ -331,7 +366,8 @@ export function calculateSessionBiometricSummary(processedReps: ProcessedRepBiom
 		totalTimeBelow70,
 		totalTimeBelow60,
 		totalTimeBelow50,
-		totalTimeBelow40
+		totalTimeBelow40,
+		initialBreatheUpTime
 	};
 }
 
