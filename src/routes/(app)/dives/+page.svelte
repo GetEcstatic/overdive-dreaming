@@ -3,7 +3,7 @@
 	import { Timestamp } from 'firebase/firestore';
 	import { user } from '$lib/stores/auth';
 	import { getRoutinesForUser, createRoutineLog, updateRoutineLog, getUserSettings, upsertPublicUserProfile } from '$lib/firestore';
-	import { uploadSessionPhoto } from '$lib/storage';
+	import { uploadSessionPhoto, uploadBiometricCsv } from '$lib/storage';
 	import { getUserPBs, checkIsPB, updateUserPB } from '$lib/utils/personalBests';
 	import { getTimeOfDay } from '$lib/utils/sessions';
 	import { clearDashboardCache } from '$lib/utils/dashboardCache';
@@ -178,10 +178,24 @@
 			if (logData.bodyWeight !== undefined) routineLogData.bodyWeight = logData.bodyWeight;
 			if (logData.breathingTechniqueLevel !== undefined) routineLogData.breathingTechniqueLevel = logData.breathingTechniqueLevel;
 
+			// BIOMETRIC TRACKING - Per-rep SpO2/HR data
+			if (logData.laps && logData.laps.length > 0) routineLogData.laps = logData.laps;
+			if (logData.hasBiometricData) routineLogData.hasBiometricData = logData.hasBiometricData;
+			if (logData.longestHold !== undefined) routineLogData.longestHold = logData.longestHold;
+			if (logData.cumulativeHoldTime !== undefined) routineLogData.cumulativeHoldTime = logData.cumulativeHoldTime;
+			if (logData.lowestSpO2 !== undefined) routineLogData.lowestSpO2 = logData.lowestSpO2;
+			if (logData.sessionAvgSpO2 !== undefined) routineLogData.sessionAvgSpO2 = logData.sessionAvgSpO2;
+			if (logData.sessionMinHR !== undefined) routineLogData.sessionMinHR = logData.sessionMinHR;
+			if (logData.sessionMaxHR !== undefined) routineLogData.sessionMaxHR = logData.sessionMaxHR;
+			if (logData.totalTimeBelow70 !== undefined) routineLogData.totalTimeBelow70 = logData.totalTimeBelow70;
+			if (logData.totalTimeBelow60 !== undefined) routineLogData.totalTimeBelow60 = logData.totalTimeBelow60;
+			if (logData.totalTimeBelow50 !== undefined) routineLogData.totalTimeBelow50 = logData.totalTimeBelow50;
+			if (logData.totalTimeBelow40 !== undefined) routineLogData.totalTimeBelow40 = logData.totalTimeBelow40;
+
 			// Media - add YouTube URL if provided
 			if (logData.youtubeUrl) routineLogData.youtubeUrl = logData.youtubeUrl;
 
-			// 4. Create routine log (get the ID for photo upload)
+			// 4. Create routine log (get the ID for photo and CSV upload)
 			const routineLogId = await createRoutineLog(routineLogData);
 
 			// 5. Upload photo if provided and update routine log
@@ -201,6 +215,23 @@
 				} catch (uploadError) {
 					console.error('Photo upload failed:', uploadError);
 					error = 'Failed to upload photo. Routine saved without photo.';
+				}
+			}
+
+			// 6. Upload raw biometric CSV if provided
+			if (logData.rawBiometricCsv) {
+				try {
+					const biometricCsvUrl = await uploadBiometricCsv(
+						$user.uid,
+						routineLogId,
+						logData.rawBiometricCsv
+					);
+
+					// Update routine log with CSV URL
+					await updateRoutineLog(routineLogId, { biometricCsvUrl });
+				} catch (uploadError) {
+					console.error('Biometric CSV upload failed:', uploadError);
+					// Don't show error - parsed data is already saved
 				}
 			}
 

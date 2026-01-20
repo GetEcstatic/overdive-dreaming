@@ -6,7 +6,7 @@
 	import EditRoutineLogModal from '$lib/components/EditRoutineLogModal.svelte';
 	import { getFormattedMetric } from '$lib/utils/metrics';
 	import { formatTime } from '$lib/utils/time';
-	import { getYouTubeEmbedUrl, deleteSessionPhoto } from '$lib/storage';
+	import { getYouTubeEmbedUrl, deleteSessionPhoto, deleteBiometricCsv } from '$lib/storage';
 	import { format } from 'date-fns';
 	import { updateRoutineLog, deleteRoutineLog, deleteSessionByGroup } from '$lib/firestore';
 	import { recalculatePBsForDisciplines } from '$lib/utils/personalBests';
@@ -156,6 +156,16 @@
 				} catch (photoError) {
 					console.error('Failed to delete photo:', photoError);
 					// Continue even if photo deletion fails
+				}
+			}
+
+			// Clean up biometric CSV from storage if present
+			if (log.biometricCsvUrl) {
+				try {
+					await deleteBiometricCsv(log.biometricCsvUrl);
+				} catch (csvError) {
+					console.error('Failed to delete biometric CSV:', csvError);
+					// Continue even if CSV deletion fails
 				}
 			}
 
@@ -481,6 +491,109 @@
 					</div>
 				{/if}
 			</div>
+		</section>
+	{/if}
+
+	<!-- Biometric Tracking (from pulse oximeter CSV) -->
+	{#if log.hasBiometricData}
+		<section class="metrics-section biometric-section">
+			<h2>📊 Biometric Tracking</h2>
+			<div class="metrics-grid">
+				{#if log.longestHold}
+					<div class="metric-item">
+						<span class="label">Longest Hold</span>
+						<span class="value">{formatTime(log.longestHold)}</span>
+					</div>
+				{/if}
+				{#if log.cumulativeHoldTime}
+					<div class="metric-item">
+						<span class="label">Total Hold Time</span>
+						<span class="value">{formatTime(log.cumulativeHoldTime)}</span>
+					</div>
+				{/if}
+				{#if log.lowestSpO2}
+					<div class="metric-item">
+						<span class="label">Lowest SpO2</span>
+						<span class="value spo2-value" class:warning={log.lowestSpO2 < 80} class:danger={log.lowestSpO2 < 70} class:critical={log.lowestSpO2 < 60} class:extreme={log.lowestSpO2 < 50}>{log.lowestSpO2}%</span>
+					</div>
+				{/if}
+				{#if log.sessionAvgSpO2}
+					<div class="metric-item">
+						<span class="label">Session Avg SpO2</span>
+						<span class="value">{log.sessionAvgSpO2}%</span>
+					</div>
+				{/if}
+				{#if log.sessionMinHR}
+					<div class="metric-item">
+						<span class="label">Min Heart Rate</span>
+						<span class="value">{log.sessionMinHR} bpm</span>
+					</div>
+				{/if}
+				{#if log.sessionMaxHR}
+					<div class="metric-item">
+						<span class="label">Max Heart Rate</span>
+						<span class="value">{log.sessionMaxHR} bpm</span>
+					</div>
+				{/if}
+			</div>
+
+			<!-- Time Below Thresholds -->
+			{#if log.totalTimeBelow70 || log.totalTimeBelow60 || log.totalTimeBelow50 || log.totalTimeBelow40}
+				<div class="threshold-section">
+					<h3>Time Below SpO2 Thresholds</h3>
+					<div class="threshold-grid">
+						{#if log.totalTimeBelow70}
+							<div class="threshold-item warning">
+								<span class="threshold-label">Below 70%</span>
+								<span class="threshold-value">{formatTime(log.totalTimeBelow70)}</span>
+							</div>
+						{/if}
+						{#if log.totalTimeBelow60}
+							<div class="threshold-item danger">
+								<span class="threshold-label">Below 60%</span>
+								<span class="threshold-value">{formatTime(log.totalTimeBelow60)}</span>
+							</div>
+						{/if}
+						{#if log.totalTimeBelow50}
+							<div class="threshold-item critical">
+								<span class="threshold-label">Below 50%</span>
+								<span class="threshold-value">{formatTime(log.totalTimeBelow50)}</span>
+							</div>
+						{/if}
+						{#if log.totalTimeBelow40}
+							<div class="threshold-item extreme">
+								<span class="threshold-label">Below 40%</span>
+								<span class="threshold-value">{formatTime(log.totalTimeBelow40)}</span>
+							</div>
+						{/if}
+					</div>
+				</div>
+			{/if}
+
+			<!-- Per-Rep Biometrics -->
+			{#if log.laps && log.laps.length > 0 && log.laps[0].spo2Min}
+				<div class="per-rep-section">
+					<h3>Per-Rep Biometrics</h3>
+					<div class="rep-table">
+						<div class="rep-header">
+							<span class="rep-col">Rep</span>
+							<span class="rep-col">Duration</span>
+							<span class="rep-col">SpO2 Min</span>
+							<span class="rep-col">SpO2 Avg</span>
+							<span class="rep-col">HR Range</span>
+						</div>
+						{#each log.laps as lap, i}
+							<div class="rep-row">
+								<span class="rep-col">{i + 1}</span>
+								<span class="rep-col">{formatTime(lap.timeSeconds || 0)}</span>
+								<span class="rep-col spo2-value" class:warning={(lap.spo2Min || 100) < 80} class:danger={(lap.spo2Min || 100) < 70}>{lap.spo2Min || '-'}%</span>
+								<span class="rep-col">{lap.spo2Avg || '-'}%</span>
+								<span class="rep-col">{lap.hrMin || '-'}-{lap.hrMax || '-'}</span>
+							</div>
+						{/each}
+					</div>
+				</div>
+			{/if}
 		</section>
 	{/if}
 
@@ -988,5 +1101,160 @@
 			font-size: 0.875rem;
 			padding: 0.625rem 1rem;
 		}
+
+		.threshold-grid {
+			grid-template-columns: repeat(4, 1fr);
+		}
+
+		.rep-table {
+			font-size: 0.875rem;
+		}
+	}
+
+	/* Biometric Tracking Section Styles */
+	.biometric-section h2 {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.threshold-section {
+		margin-top: 1.5rem;
+		padding-top: 1rem;
+		border-top: 1px solid rgba(148, 163, 184, 0.1);
+	}
+
+	.threshold-section h3 {
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		margin: 0 0 0.75rem;
+	}
+
+	.threshold-grid {
+		display: grid;
+		grid-template-columns: repeat(2, 1fr);
+		gap: 0.75rem;
+	}
+
+	.threshold-item {
+		display: flex;
+		flex-direction: column;
+		padding: 0.75rem;
+		border-radius: 8px;
+		background: rgba(148, 163, 184, 0.05);
+	}
+
+	.threshold-item.warning {
+		background: rgba(245, 158, 11, 0.1);
+		border: 1px solid rgba(245, 158, 11, 0.3);
+	}
+
+	.threshold-item.danger {
+		background: rgba(249, 115, 22, 0.1);
+		border: 1px solid rgba(249, 115, 22, 0.3);
+	}
+
+	.threshold-item.critical {
+		background: rgba(239, 68, 68, 0.15);
+		border: 1px solid rgba(239, 68, 68, 0.5);
+	}
+
+	.threshold-item.extreme {
+		background: rgba(217, 70, 239, 0.15);
+		border: 1px solid rgba(217, 70, 239, 0.5);
+	}
+
+	.threshold-label {
+		font-size: 0.75rem;
+		color: var(--color-text-muted);
+	}
+
+	.threshold-value {
+		font-size: 1.125rem;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.threshold-item.warning .threshold-value {
+		color: #f59e0b;
+	}
+
+	.threshold-item.danger .threshold-value {
+		color: #f97316;
+	}
+
+	.threshold-item.critical .threshold-value {
+		color: #ef4444;
+	}
+
+	.threshold-item.extreme .threshold-value {
+		color: #d946ef;
+	}
+
+	/* SpO2 value colors */
+	.spo2-value.warning {
+		color: #f59e0b;
+	}
+
+	.spo2-value.danger {
+		color: #f97316;
+	}
+
+	.spo2-value.critical {
+		color: #ef4444;
+	}
+
+	.spo2-value.extreme {
+		color: #d946ef;
+	}
+
+	/* Per-Rep Table */
+	.per-rep-section {
+		margin-top: 1.5rem;
+		padding-top: 1rem;
+		border-top: 1px solid rgba(148, 163, 184, 0.1);
+	}
+
+	.per-rep-section h3 {
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		margin: 0 0 0.75rem;
+	}
+
+	.rep-table {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		font-size: 0.8125rem;
+	}
+
+	.rep-header {
+		display: grid;
+		grid-template-columns: 2.5rem 4rem 4.5rem 4.5rem 1fr;
+		gap: 0.5rem;
+		padding: 0.5rem 0.75rem;
+		background: rgba(148, 163, 184, 0.1);
+		border-radius: 6px;
+		font-weight: 600;
+		color: var(--color-text-muted);
+	}
+
+	.rep-row {
+		display: grid;
+		grid-template-columns: 2.5rem 4rem 4.5rem 4.5rem 1fr;
+		gap: 0.5rem;
+		padding: 0.5rem 0.75rem;
+		border-radius: 6px;
+		background: rgba(148, 163, 184, 0.05);
+	}
+
+	.rep-row:hover {
+		background: rgba(148, 163, 184, 0.1);
+	}
+
+	.rep-col {
+		font-variant-numeric: tabular-nums;
 	}
 </style>

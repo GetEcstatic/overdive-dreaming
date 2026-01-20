@@ -7,10 +7,12 @@
 	 * - Edit actual values for each rep (duration, distance, rest)
 	 * - Mark reps as skipped/not completed
 	 * - Add extra reps beyond the planned count
+	 * - Track per-rep SpO2/HR for dry static breath hold training
 	 */
 
 	import type { RepEditorData, Discipline, RoutineTable } from '$lib/types';
 	import { formatTime, parseTimeInput } from '$lib/utils/time';
+	import { getSpO2ColorClass } from '$lib/utils/biometricCsvParser';
 
 	let {
 		discipline,
@@ -18,7 +20,11 @@
 		routineTable = undefined as RoutineTable | undefined,
 		defaultRestSeconds = 0,
 		defaultDistanceMeters = 0,
-		reps = $bindable<RepEditorData[]>([])
+		reps = $bindable<RepEditorData[]>([]),
+		// Biometric tracking options
+		trackSpO2 = false,
+		trackHR = false,
+		isDryTraining = false
 	}: {
 		discipline: Discipline;
 		plannedReps?: number;
@@ -26,6 +32,9 @@
 		defaultRestSeconds?: number;
 		defaultDistanceMeters?: number;
 		reps: RepEditorData[];
+		trackSpO2?: boolean;
+		trackHR?: boolean;
+		isDryTraining?: boolean;
 	} = $props();
 
 	// Is this a static discipline (STA)?
@@ -103,6 +112,26 @@
 		}
 	}
 
+	// Handle SpO2 input change
+	function handleSpO2Change(index: number, field: 'spo2Min' | 'spo2Avg', event: Event) {
+		const input = event.target as HTMLInputElement;
+		const value = parseInt(input.value, 10);
+		if (!isNaN(value) && value >= 0 && value <= 100) {
+			reps[index][field] = value;
+			reps = [...reps];
+		}
+	}
+
+	// Handle HR input change
+	function handleHRChange(index: number, field: 'hrMin' | 'hrMax' | 'hrAvg', event: Event) {
+		const input = event.target as HTMLInputElement;
+		const value = parseInt(input.value, 10);
+		if (!isNaN(value) && value >= 0 && value <= 300) {
+			reps[index][field] = value;
+			reps = [...reps];
+		}
+	}
+
 	// Format time for input display
 	function formatTimeForInput(seconds: number | undefined): string {
 		if (seconds === undefined || seconds === 0) return '';
@@ -131,7 +160,7 @@
 		Tap a row to mark it skipped. Edit times/distances as needed.
 	</div>
 
-	<div class="reps-table">
+	<div class="reps-table" class:has-biometrics={trackSpO2 || trackHR}>
 		<div class="table-header">
 			<div class="col-rep">#</div>
 			{#if isStatic}
@@ -141,6 +170,12 @@
 				<div class="col-duration">Time</div>
 			{/if}
 			<div class="col-rest">Rest</div>
+			{#if trackSpO2}
+				<div class="col-spo2">SpO2</div>
+			{/if}
+			{#if trackHR}
+				<div class="col-hr">HR</div>
+			{/if}
 			<div class="col-status">✓</div>
 		</div>
 
@@ -204,6 +239,36 @@
 						disabled={!rep.completed}
 					/>
 				</div>
+
+				{#if trackSpO2}
+					<div class="col-spo2">
+						<input 
+							type="number" 
+							class="spo2-input {rep.spo2Min ? getSpO2ColorClass(rep.spo2Min) : ''}"
+							value={rep.spo2Min ?? ''}
+							placeholder="Min"
+							oninput={(e) => handleSpO2Change(i, 'spo2Min', e)}
+							disabled={!rep.completed}
+							min="0"
+							max="100"
+						/>
+					</div>
+				{/if}
+
+				{#if trackHR}
+					<div class="col-hr">
+						<input 
+							type="number" 
+							class="hr-input"
+							value={rep.hrMin ?? ''}
+							placeholder="Min"
+							oninput={(e) => handleHRChange(i, 'hrMin', e)}
+							disabled={!rep.completed}
+							min="0"
+							max="300"
+						/>
+					</div>
+				{/if}
 
 				<div class="col-status">
 					<button 
@@ -334,6 +399,15 @@
 		gap: 0.25rem;
 	}
 
+	/* Biometric columns */
+	.col-spo2,
+	.col-hr {
+		flex: 0.8;
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+	}
+
 	.col-status {
 		width: 36px;
 		display: flex;
@@ -350,6 +424,69 @@
 		color: var(--color-text);
 		font-size: 0.875rem;
 		text-align: center;
+	}
+
+	/* Biometric inputs */
+	.spo2-input,
+	.hr-input {
+		width: 100%;
+		padding: 0.375rem 0.5rem;
+		background: rgba(15, 23, 42, 0.7);
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		border-radius: 6px;
+		color: var(--color-text);
+		font-size: 0.875rem;
+		text-align: center;
+		/* Hide number spinner */
+		appearance: textfield;
+		-moz-appearance: textfield;
+	}
+
+	.spo2-input::-webkit-outer-spin-button,
+	.spo2-input::-webkit-inner-spin-button,
+	.hr-input::-webkit-outer-spin-button,
+	.hr-input::-webkit-inner-spin-button {
+		-webkit-appearance: none;
+		margin: 0;
+	}
+
+	.spo2-input:focus,
+	.hr-input:focus {
+		outline: none;
+		border-color: var(--color-primary);
+	}
+
+	.spo2-input:disabled,
+	.hr-input:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	/* SpO2 severity colors (global utility classes) */
+	.spo2-input.text-green-500 {
+		color: #22c55e;
+		border-color: rgba(34, 197, 94, 0.3);
+	}
+
+	.spo2-input.text-yellow-500 {
+		color: #eab308;
+		border-color: rgba(234, 179, 8, 0.3);
+	}
+
+	.spo2-input.text-orange-500 {
+		color: #f97316;
+		border-color: rgba(249, 115, 22, 0.3);
+	}
+
+	.spo2-input.text-red-500 {
+		color: #ef4444;
+		border-color: rgba(239, 68, 68, 0.3);
+	}
+
+	.spo2-input.text-red-700 {
+		color: #b91c1c;
+		border-color: rgba(185, 28, 28, 0.5);
+		background: rgba(185, 28, 28, 0.1);
 	}
 
 	.time-input:focus,
@@ -446,9 +583,27 @@
 		}
 
 		.time-input,
-		.distance-input {
+		.distance-input,
+		.spo2-input,
+		.hr-input {
 			padding: 0.25rem 0.375rem;
 			font-size: 0.8125rem;
 		}
+
+		/* Biometric columns slightly smaller on mobile */
+		.col-spo2,
+		.col-hr {
+			flex: 0.7;
+		}
+	}
+
+	/* When biometrics enabled, adjust table layout */
+	.reps-table.has-biometrics .table-header,
+	.reps-table.has-biometrics .table-row {
+		gap: 0.375rem;
+	}
+
+	.reps-table.has-biometrics .col-rep {
+		width: 32px;
 	}
 </style>

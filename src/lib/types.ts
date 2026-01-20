@@ -139,6 +139,15 @@ export interface TrackingConfig {
 	trackMinimumSpO2: boolean; // Minimum oxygen saturation percentage
 	trackMinimumHR: boolean; // Minimum heart rate during routine
 	trackBodyWeight: boolean; // Body weight that day (kg)
+
+	// ============================================================================
+	// BIOMETRIC TRACKING (SpO2/HR for dry static breath hold training)
+	// ============================================================================
+	// For routines like RV Breath Hold Series, FRC tables, dry STA training
+	trackPerRepSpO2: boolean; // Per-rep SpO2 (min, avg) from pulse oximeter
+	trackPerRepHR: boolean; // Per-rep HR (min, max, avg) from pulse oximeter
+	trackSpO2Thresholds: boolean; // Time below critical SpO2 levels (70%, 60%, 50%, 40%)
+	isDryTraining: boolean; // Flag for dry/land-based training (affects UI/safety)
 }
 
 export type MetricType =
@@ -167,6 +176,7 @@ export type MetricType =
 	| 'cumulativeHoldTime' // Sum of all holds in session
 	| 'cumulativeDistance' // Sum of all distances in session
 	| 'sessionDuration'   // Total elapsed time of session
+	| 'longestHold'       // Longest single breath hold (from biometrics)
 	// NEW: Speed metrics (calculated)
 	| 'avgSpeed'          // Average m/s across session
 	| 'maxRepSpeed'       // Fastest rep speed
@@ -282,6 +292,21 @@ export interface LapData {
 	// NEW: Rep status for editable logging
 	completed?: boolean; // false = skipped, default true
 	notes?: string; // Per-rep notes
+
+	// ============================================================================
+	// BIOMETRIC DATA (SpO2/HR for dry static breath hold training)
+	// ============================================================================
+	// From pulse oximeter (manual entry or CSV import)
+	spo2Min?: number; // Minimum SpO2 during this rep (0-100%)
+	spo2Avg?: number; // Average SpO2 during this rep (0-100%)
+	hrMin?: number; // Minimum heart rate during this rep (bpm)
+	hrMax?: number; // Maximum heart rate during this rep (bpm)
+	hrAvg?: number; // Average heart rate during this rep (bpm)
+	// Time spent below critical SpO2 thresholds (seconds)
+	timeBelow70?: number; // Seconds SpO2 was below 70%
+	timeBelow60?: number; // Seconds SpO2 was below 60%
+	timeBelow50?: number; // Seconds SpO2 was below 50%
+	timeBelow40?: number; // Seconds SpO2 was below 40%
 }
 
 // For use in the rep editor UI
@@ -295,6 +320,21 @@ export interface RepEditorData {
 	actualRest?: number; // User-entered
 	completed: boolean;
 	notes?: string;
+
+	// ============================================================================
+	// BIOMETRIC DATA (SpO2/HR for dry static breath hold training)
+	// ============================================================================
+	// From pulse oximeter (manual entry or CSV import)
+	spo2Min?: number; // Minimum SpO2 during this rep (0-100%)
+	spo2Avg?: number; // Average SpO2 during this rep (0-100%)
+	hrMin?: number; // Minimum heart rate during this rep (bpm)
+	hrMax?: number; // Maximum heart rate during this rep (bpm)
+	hrAvg?: number; // Average heart rate during this rep (bpm)
+	// Time spent below critical SpO2 thresholds (seconds)
+	timeBelow70?: number; // Seconds SpO2 was below 70%
+	timeBelow60?: number; // Seconds SpO2 was below 60%
+	timeBelow50?: number; // Seconds SpO2 was below 50%
+	timeBelow40?: number; // Seconds SpO2 was below 40%
 }
 
 export interface RoutineLogSummary {
@@ -387,6 +427,24 @@ export interface RoutineLog {
 	minimumHR?: number; // bpm, minimum heart rate during routine
 	bodyWeight?: number; // kg, body weight that day
 	breathingTechniqueLevel?: number; // -3 to +3 (NEW field, coexists with old breathingTechnique)
+
+	// ============================================================================
+	// BIOMETRIC SESSION SUMMARY (Aggregated from per-rep data)
+	// ============================================================================
+	// For dry static breath hold training with pulse oximeter data
+	hasBiometricData?: boolean; // True if session includes SpO2/HR tracking
+	longestHold?: number; // Longest breath hold in session (seconds)
+	lowestSpO2?: number; // Lowest SpO2 reading across all reps (0-100%)
+	sessionAvgSpO2?: number; // Average SpO2 across all holds
+	sessionMinHR?: number; // Lowest HR reading across all reps (bpm)
+	sessionMaxHR?: number; // Highest HR reading across all reps (bpm)
+	// Total time spent below critical SpO2 thresholds across all reps (seconds)
+	totalTimeBelow70?: number;
+	totalTimeBelow60?: number;
+	totalTimeBelow50?: number;
+	totalTimeBelow40?: number;
+	// Raw biometric CSV storage (Firebase Storage URL for reprocessing)
+	biometricCsvUrl?: string; // URL to raw CSV file in Firebase Storage
 
 	// Media support
 	thumbnailImageUrl?: string; // Photo from session (for social feed)
@@ -491,4 +549,54 @@ export interface SessionStats {
 	totalRoutines: number;
 	totalDives: number;
 	tagBreakdown: Record<string, number>; // e.g., { "co2": 12, "mental": 8 }
+}
+
+// ============================================================================
+// BIOMETRIC CSV IMPORT TYPES
+// ============================================================================
+// For parsing pulse oximeter CSV exports (e.g., from Oximeter app)
+
+// Raw second-by-second biometric reading
+export interface BiometricReading {
+	time: string; // HH:MM:SS format
+	intervalTime: number; // Seconds since interval start
+	intervalType: 'apnea' | 'recovery';
+	hr: number; // Heart rate in bpm
+	spo2: number; // SpO2 percentage (0-100)
+}
+
+// Round summary from CSV header section
+export interface BiometricRoundSummary {
+	roundNumber: number;
+	recoveryTime: number; // Seconds
+	apneaTime: number; // Seconds
+}
+
+// Complete parsed biometric session
+export interface ParsedBiometricSession {
+	routineName: string; // From CSV header (e.g., "RV Breath Hold Series")
+	timestamp: Date; // When the session was recorded
+	rounds: BiometricRoundSummary[]; // Summary of each round
+	readings: BiometricReading[]; // All second-by-second data
+	totalRounds: number;
+	totalApneaTime: number; // Sum of all apnea times
+	totalRecoveryTime: number; // Sum of all recovery times
+}
+
+// Processed per-rep biometric data (calculated from readings)
+export interface ProcessedRepBiometrics {
+	repNumber: number;
+	apneaDuration: number; // Seconds
+	recoveryDuration: number; // Seconds before this rep
+	spo2Min: number;
+	spo2Avg: number;
+	hrMin: number;
+	hrMax: number;
+	hrAvg: number;
+	timeBelow70: number;
+	timeBelow60: number;
+	timeBelow50: number;
+	timeBelow40: number;
+	// Raw readings for this rep (for detailed charts)
+	readings: BiometricReading[];
 }

@@ -61,6 +61,20 @@ export function routineLogToFormData(log: RoutineLog): LogFormData {
 		minimumHR: log.minimumHR,
 		bodyWeight: log.bodyWeight,
 
+		// Biometric tracking data (from CSV import)
+		laps: log.laps,
+		hasBiometricData: log.hasBiometricData,
+		longestHold: log.longestHold,
+		cumulativeHoldTime: log.cumulativeHoldTime,
+		lowestSpO2: log.lowestSpO2,
+		sessionAvgSpO2: log.sessionAvgSpO2,
+		sessionMinHR: log.sessionMinHR,
+		sessionMaxHR: log.sessionMaxHR,
+		totalTimeBelow70: log.totalTimeBelow70,
+		totalTimeBelow60: log.totalTimeBelow60,
+		totalTimeBelow50: log.totalTimeBelow50,
+		totalTimeBelow40: log.totalTimeBelow40,
+
 		// Media - don't include in form data, handled separately
 		photoFile: undefined,
 		youtubeUrl: log.youtubeUrl

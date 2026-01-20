@@ -7,10 +7,15 @@
 		RecordTag,
 		CardTag,
 		SessionVisibility,
-		TimeOfDay
+		TimeOfDay,
+		RepEditorData,
+		LapData
 	} from '$lib/types';
 	import PhotoCropper from '$lib/components/PhotoCropper.svelte';
+	import RepEditor from '$lib/components/RepEditor.svelte';
+	import BiometricImportModal from '$lib/components/BiometricImportModal.svelte';
 	import { isValidYouTubeUrl } from '$lib/storage';
+	import { biometricsToLapData, calculateSessionBiometricSummary } from '$lib/utils/biometricCsvParser';
 
 	interface Props {
 		routine: RoutineTemplate;
@@ -61,6 +66,22 @@
 		minimumHR?: number;
 		bodyWeight?: number;
 		breathingTechniqueLevel?: number;
+		// Per-rep data (for detailed logging)
+		laps?: LapData[];
+		// Biometric session summary (aggregated from per-rep data)
+		hasBiometricData?: boolean;
+		longestHold?: number;
+		cumulativeHoldTime?: number;
+		lowestSpO2?: number;
+		sessionAvgSpO2?: number;
+		sessionMinHR?: number;
+		sessionMaxHR?: number;
+		totalTimeBelow70?: number;
+		totalTimeBelow60?: number;
+		totalTimeBelow50?: number;
+		totalTimeBelow40?: number;
+		// Raw biometric CSV for storage (will be uploaded to Firebase Storage)
+		rawBiometricCsv?: string;
 		// Media
 		photoFile?: File;
 		youtubeUrl?: string;
@@ -150,6 +171,30 @@
 	let minimumHR = $state<number | undefined>(undefined);
 	let bodyWeight = $state<number | undefined>(undefined);
 	let breathingTechniqueLevel = $state<number | undefined>(0); // Default to tidal (0)
+
+	// BIOMETRIC TRACKING - Per-rep SpO2/HR for dry static training
+	let repEditorData = $state<RepEditorData[]>([]);
+	let showBiometricImportModal = $state(false);
+	let biometricSummary = $state<ReturnType<typeof calculateSessionBiometricSummary>>(null);
+	let rawBiometricCsv = $state<string>(''); // Raw CSV for storage
+
+	// Handle biometric import from CSV
+	function handleBiometricImport(
+		reps: RepEditorData[],
+		summary: ReturnType<typeof calculateSessionBiometricSummary>,
+		rawCsv: string
+	) {
+		repEditorData = reps;
+		biometricSummary = summary;
+		rawBiometricCsv = rawCsv;
+		// Update reps completed from imported data
+		repsCompleted = reps.length;
+		// Update session-level SpO2/HR from summary
+		if (summary) {
+			minimumSpO2 = summary.lowestSpO2;
+			minimumHR = summary.sessionMinHR;
+		}
+	}
 
 	// Auto-calculate total time from variable table based on reps completed
 	$effect(() => {
@@ -370,6 +415,36 @@
 			minimumHR,
 			bodyWeight,
 			breathingTechniqueLevel,
+			// Per-rep data (biometric tracking)
+			laps: repEditorData.length > 0 ? biometricsToLapData(repEditorData.map(r => ({
+				repNumber: r.repNumber,
+				apneaDuration: r.actualDuration || 0,
+				recoveryDuration: r.actualRest || 0,
+				spo2Min: r.spo2Min || 0,
+				spo2Avg: r.spo2Avg || 0,
+				hrMin: r.hrMin || 0,
+				hrMax: r.hrMax || 0,
+				hrAvg: r.hrAvg || 0,
+				timeBelow70: r.timeBelow70 || 0,
+				timeBelow60: r.timeBelow60 || 0,
+				timeBelow50: r.timeBelow50 || 0,
+				timeBelow40: r.timeBelow40 || 0,
+				readings: []
+			}))) : undefined,
+			// Biometric session summary
+			hasBiometricData: biometricSummary?.hasBiometricData,
+			longestHold: biometricSummary?.longestHold,
+			cumulativeHoldTime: biometricSummary?.cumulativeHoldTime,
+			lowestSpO2: biometricSummary?.lowestSpO2,
+			sessionAvgSpO2: biometricSummary?.sessionAvgSpO2,
+			sessionMinHR: biometricSummary?.sessionMinHR,
+			sessionMaxHR: biometricSummary?.sessionMaxHR,
+			totalTimeBelow70: biometricSummary?.totalTimeBelow70,
+			totalTimeBelow60: biometricSummary?.totalTimeBelow60,
+			totalTimeBelow50: biometricSummary?.totalTimeBelow50,
+			totalTimeBelow40: biometricSummary?.totalTimeBelow40,
+			// Raw biometric CSV for storage
+			rawBiometricCsv: rawBiometricCsv || undefined,
 			// Media
 			photoFile,
 			youtubeUrl: youtubeUrl.trim() || undefined
@@ -395,6 +470,11 @@
 			config.trackJoyScale ||
 			config.trackHoursSinceLastMeal ||
 			config.trackNotes
+	);
+	
+	// Check if biometric tracking is enabled for this routine
+	const hasBiometricTracking = $derived(
+		config.trackPerRepSpO2 || config.trackPerRepHR || config.isDryTraining
 	);
 </script>
 
@@ -685,6 +765,88 @@
 					/>
 				</div>
 			{/if}
+		</div>
+	{/if}
+
+	<!-- Biometric Tracking Section (for dry static training) -->
+	{#if hasBiometricTracking}
+		<div class="form-section biometric-section">
+			<div class="section-header">
+				<h4 class="section-title">
+					{#if config.isDryTraining}
+						🫁 Dry Static Biometrics
+					{:else}
+						📊 SpO2/HR Tracking
+					{/if}
+				</h4>
+				<button 
+					type="button" 
+					class="import-btn"
+					onclick={() => showBiometricImportModal = true}
+				>
+					📊 Import CSV
+				</button>
+			</div>
+
+			{#if biometricSummary}
+				<!-- Show summary from imported data -->
+				<div class="biometric-summary">
+					<div class="summary-row">
+						<span class="summary-label">Longest Hold</span>
+						<span class="summary-value">{Math.floor((biometricSummary.longestHold || 0) / 60)}:{((biometricSummary.longestHold || 0) % 60).toString().padStart(2, '0')}</span>
+					</div>
+					<div class="summary-row">
+						<span class="summary-label">Lowest SpO2</span>
+						<span class="summary-value spo2-value" class:warning={(biometricSummary.lowestSpO2 || 100) < 80} class:danger={(biometricSummary.lowestSpO2 || 100) < 70}>
+							{biometricSummary.lowestSpO2}%
+						</span>
+					</div>
+					<div class="summary-row">
+						<span class="summary-label">Min/Max HR</span>
+						<span class="summary-value">{biometricSummary.sessionMinHR}/{biometricSummary.sessionMaxHR} bpm</span>
+					</div>
+					{#if (biometricSummary.totalTimeBelow70 || 0) > 0}
+						<div class="threshold-alert warning">
+							⚠️ {biometricSummary.totalTimeBelow70}s below 70% SpO2
+						</div>
+					{/if}
+					{#if (biometricSummary.totalTimeBelow60 || 0) > 0}
+						<div class="threshold-alert danger">
+							🚨 {biometricSummary.totalTimeBelow60}s below 60% SpO2
+						</div>
+					{/if}
+					{#if (biometricSummary.totalTimeBelow50 || 0) > 0}
+						<div class="threshold-alert critical">
+							💀 {biometricSummary.totalTimeBelow50}s below 50% SpO2
+						</div>
+					{/if}
+					{#if (biometricSummary.totalTimeBelow40 || 0) > 0}
+						<div class="threshold-alert extreme">
+							☠️ {biometricSummary.totalTimeBelow40}s below 40% SpO2
+						</div>
+					{/if}
+				</div>
+			{/if}
+
+			<!-- Per-rep editor -->
+			<RepEditor
+				discipline={disciplineUsed}
+				plannedReps={routine.numberOfReps || routine.table?.rows.length || 8}
+				routineTable={routine.table}
+				defaultRestSeconds={routine.restBetweenReps || 180}
+				bind:reps={repEditorData}
+				trackSpO2={config.trackPerRepSpO2 ?? true}
+				trackHR={config.trackPerRepHR ?? true}
+				isDryTraining={config.isDryTraining ?? true}
+			/>
+
+			<p class="biometric-hint">
+				{#if !biometricSummary}
+					💡 Tip: Import CSV data from your pulse oximeter app for detailed tracking
+				{:else}
+					✅ Biometric data imported. Edit values below if needed.
+				{/if}
+			</p>
 		</div>
 	{/if}
 
@@ -1091,6 +1253,12 @@
 		<button type="submit" class="btn-submit"> Save Log </button>
 	</div>
 </form>
+
+<!-- Biometric Import Modal -->
+<BiometricImportModal 
+	bind:isOpen={showBiometricImportModal}
+	onImport={handleBiometricImport}
+/>
 
 <style>
 	.log-form {
@@ -1577,5 +1745,121 @@
 		.date-time-row {
 			grid-template-columns: minmax(0, 1fr);
 		}
+	}
+
+	/* Biometric Section Styles */
+	.biometric-section {
+		border: 1px solid rgba(20, 184, 166, 0.2);
+		border-radius: 12px;
+		background: rgba(20, 184, 166, 0.03);
+	}
+
+	.biometric-section .section-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 1rem;
+	}
+
+	.biometric-section .section-title {
+		margin: 0;
+	}
+
+	.import-btn {
+		padding: 0.5rem 0.75rem;
+		background: rgba(20, 184, 166, 0.1);
+		border: 1px solid rgba(20, 184, 166, 0.3);
+		border-radius: 8px;
+		color: var(--color-primary);
+		font-size: 0.8125rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.import-btn:hover {
+		background: rgba(20, 184, 166, 0.2);
+	}
+
+	.biometric-summary {
+		background: rgba(15, 23, 42, 0.5);
+		border-radius: 8px;
+		padding: 0.75rem;
+		margin-bottom: 1rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.summary-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+	}
+
+	.summary-label {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+	}
+
+	.summary-value {
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--color-text);
+	}
+
+	.spo2-value.warning {
+		color: #f59e0b;
+	}
+
+	.spo2-value.danger {
+		color: #f97316;
+	}
+
+	.spo2-value.critical {
+		color: #ef4444;
+	}
+
+	.spo2-value.extreme {
+		color: #d946ef;
+	}
+
+	.threshold-alert {
+		margin-top: 0.5rem;
+		padding: 0.5rem 0.75rem;
+		border-radius: 6px;
+		font-size: 0.8125rem;
+	}
+
+	.threshold-alert.warning {
+		background: rgba(245, 158, 11, 0.1);
+		border: 1px solid rgba(245, 158, 11, 0.3);
+		color: #f59e0b;
+	}
+
+	.threshold-alert.danger {
+		background: rgba(249, 115, 22, 0.1);
+		border: 1px solid rgba(249, 115, 22, 0.3);
+		color: #f97316;
+	}
+
+	.threshold-alert.critical {
+		background: rgba(239, 68, 68, 0.15);
+		border: 1px solid rgba(239, 68, 68, 0.4);
+		color: #ef4444;
+	}
+
+	.threshold-alert.extreme {
+		background: rgba(217, 70, 239, 0.15);
+		border: 1px solid rgba(217, 70, 239, 0.4);
+		color: #d946ef;
+		font-weight: 600;
+	}
+
+	.biometric-hint {
+		font-size: 0.75rem;
+		color: var(--color-text-muted);
+		margin-top: 0.75rem;
+		text-align: center;
 	}
 </style>

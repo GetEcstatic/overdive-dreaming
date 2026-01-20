@@ -83,7 +83,17 @@
 			label: 'Resting HR',
 			description: 'Resting heart rate'
 		},
-		{ value: 'hrv', label: 'HRV', description: 'Heart rate variability' }
+		{ value: 'hrv', label: 'HRV', description: 'Heart rate variability' },
+		{
+			value: 'longestHold',
+			label: 'Longest Hold',
+			description: 'Longest single breath hold duration (from biometrics)'
+		},
+		{
+			value: 'cumulativeHoldTime',
+			label: 'Cumulative Hold Time',
+			description: 'Sum of all breath hold durations (from biometrics)'
+		}
 	];
 
 	// Auto-update labels when metric changes

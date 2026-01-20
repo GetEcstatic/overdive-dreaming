@@ -67,7 +67,12 @@ const dynamicMaxTracking: TrackingConfig = {
 	trackBasalMood: false,
 	trackMinimumSpO2: false,
 	trackMinimumHR: false,
-	trackBodyWeight: false
+	trackBodyWeight: false,
+	// BIOMETRIC TRACKING
+	trackPerRepSpO2: false,
+	trackPerRepHR: false,
+	trackSpO2Thresholds: false,
+	isDryTraining: false
 };
 
 // Tracking for static max attempts
@@ -107,7 +112,12 @@ const staticMaxTracking: TrackingConfig = {
 	trackBasalMood: false,
 	trackMinimumSpO2: false,
 	trackMinimumHR: false,
-	trackBodyWeight: false
+	trackBodyWeight: false,
+	// BIOMETRIC TRACKING
+	trackPerRepSpO2: false,
+	trackPerRepHR: false,
+	trackSpO2Thresholds: false,
+	isDryTraining: false
 };
 
 // Tracking for interval routines (Sweet 16, etc.)
@@ -147,7 +157,12 @@ const intervalTracking: TrackingConfig = {
 	trackBasalMood: false,
 	trackMinimumSpO2: false,
 	trackMinimumHR: false,
-	trackBodyWeight: false
+	trackBodyWeight: false,
+	// BIOMETRIC TRACKING
+	trackPerRepSpO2: false,
+	trackPerRepHR: false,
+	trackSpO2Thresholds: false,
+	isDryTraining: false
 };
 
 // Tracking for static interval routines (Gentle 2-Breath, etc.)
@@ -187,7 +202,57 @@ const staticIntervalTracking: TrackingConfig = {
 	trackBasalMood: false,
 	trackMinimumSpO2: false,
 	trackMinimumHR: false,
-	trackBodyWeight: false
+	trackBodyWeight: false,
+	// BIOMETRIC TRACKING
+	trackPerRepSpO2: false,
+	trackPerRepHR: false,
+	trackSpO2Thresholds: false,
+	isDryTraining: false
+};
+
+// Tracking for dry static breath hold training with biometrics (RV Breath Hold Series, etc.)
+const dryStaticBiometricTracking: TrackingConfig = {
+	// Session context
+	trackPoolLength: false,
+	trackInitialBreatheUpTime: true,
+	// Performance metrics
+	trackTotalDistance: false,
+	trackTotalTime: false,
+	trackRepsCompleted: true,
+	trackRepDuration: true,
+	trackRepDistance: false,
+	trackTimePerLap: false,
+	trackRestBetweenLaps: true,
+	trackKicksPerLap: false,
+	trackArmPullsPerLap: false,
+	// Training context
+	trackBreathingTechnique: false,
+	trackRPE: true,
+	trackJoyScale: true,
+	trackHoursSinceLastMeal: true,
+	trackNotes: true,
+	// NEW METRICS (Custom routine builder)
+	trackWaterTemperature: false,
+	trackContractionsOnsetTime: true,
+	trackEquipmentUsed: false,
+	trackBuddyName: false,
+	trackRestingHeartRate: true,
+	trackHRV: true,
+	trackPoolType: false,
+	trackSambaBO: true,
+	trackBreathsBetweenReps: false,
+	// NEW METRICS - Phase 1 (Additional from testing)
+	trackMenstrualCycleDay: false,
+	trackFacialGear: false,
+	trackBasalMood: true,
+	trackMinimumSpO2: true,
+	trackMinimumHR: true,
+	trackBodyWeight: false,
+	// BIOMETRIC TRACKING - Enabled for dry static
+	trackPerRepSpO2: true,
+	trackPerRepHR: true,
+	trackSpO2Thresholds: true,
+	isDryTraining: true
 };
 
 // ============================================================================
@@ -269,6 +334,28 @@ const defaultRoutines: Omit<RoutineTemplate, 'createdAt' | 'updatedAt'>[] = [
 			heroMetricLabel: 'Total Hold',
 			secondaryMetric: 'totalBreaths',
 			secondaryMetricLabel: 'Total Breaths'
+		},
+		createdBy: 'system',
+		isPublic: true
+	},
+
+	// 5. RV Breath Hold Series (Dry Static with Biometric Tracking)
+	{
+		id: 'system-rv-breath-hold',
+		name: 'RV Breath Hold Series',
+		description:
+			'Dry static breath hold training with residual volume (RV) exhales. Track SpO2 and heart rate per rep using a pulse oximeter. Designed for progressive desaturation training and monitoring hypoxic tolerance.',
+		activityType: 'structured-intervals',
+		disciplines: ['STA'],
+		tags: ['dry', 'o2', 'advanced', 'biometric'],
+		numberOfReps: 11,
+		restBetweenReps: 180, // 3 minutes default rest
+		trackingConfig: dryStaticBiometricTracking,
+		displayConfig: {
+			heroMetric: 'longestHold',
+			heroMetricLabel: 'Longest Hold',
+			secondaryMetric: 'repsCompleted',
+			secondaryMetricLabel: 'Rounds'
 		},
 		createdBy: 'system',
 		isPublic: true

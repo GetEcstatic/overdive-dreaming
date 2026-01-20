@@ -7,7 +7,9 @@
 		PoolType,
 		RecordTag,
 		CardTag,
-		SessionVisibility
+		SessionVisibility,
+		LapData,
+		RepEditorData
 	} from '$lib/types';
 	import type { LogFormData } from '$lib/components/QuickLogForm.svelte';
 	import {
@@ -16,6 +18,9 @@
 		convertTimeFieldsToSeconds
 	} from '$lib/utils/formData';
 	import MediaManager from '$lib/components/MediaManager.svelte';
+	import BiometricImportModal from '$lib/components/BiometricImportModal.svelte';
+	import { calculateSessionBiometricSummary } from '$lib/utils/biometricCsvParser';
+	import { formatTime } from '$lib/utils/time';
 
 	interface Props {
 		routine: RoutineTemplate;
@@ -106,12 +111,52 @@
 	let bodyWeight = $state<number | undefined>(formData.bodyWeight);
 	let breathingTechniqueLevel = $state<number | undefined>(formData.breathingTechniqueLevel ?? 0);
 
+	// Biometric tracking state (from CSV import)
+	let showBiometricModal = $state(false);
+	let repEditorData = $state<RepEditorData[]>([]);
+	let biometricSummary = $state<ReturnType<typeof calculateSessionBiometricSummary>>(
+		formData.hasBiometricData ? {
+			hasBiometricData: true,
+			longestHold: formData.longestHold || 0,
+			cumulativeHoldTime: formData.cumulativeHoldTime || 0,
+			lowestSpO2: formData.lowestSpO2 || 0,
+			sessionAvgSpO2: formData.sessionAvgSpO2 || 0,
+			sessionMinHR: formData.sessionMinHR || 0,
+			sessionMaxHR: formData.sessionMaxHR || 0,
+			totalTimeBelow70: formData.totalTimeBelow70 || 0,
+			totalTimeBelow60: formData.totalTimeBelow60 || 0,
+			totalTimeBelow50: formData.totalTimeBelow50 || 0,
+			totalTimeBelow40: formData.totalTimeBelow40 || 0
+		} : null
+	);
+	let rawBiometricCsv = $state<string | undefined>(undefined);
+	let existingLaps = $state<LapData[] | undefined>(formData.laps);
+
 	// Media state
 	let photoFile = $state<File | undefined>(undefined);
 	let photoAction = $state<'keep' | 'remove' | 'replace' | 'add'>('keep');
 	let youtubeUrl = $state<string>(formData.youtubeUrl || '');
 	let youtubeAction = $state<'keep' | 'remove' | 'update' | 'add'>('keep');
 	let triggerMediaCrop = $state<(() => void) | undefined>(undefined);
+
+	// Handle biometric import from CSV
+	function handleBiometricImport(
+		reps: RepEditorData[],
+		summary: ReturnType<typeof calculateSessionBiometricSummary>,
+		rawCsv: string
+	) {
+		repEditorData = reps;
+		biometricSummary = summary;
+		rawBiometricCsv = rawCsv;
+		// Update reps completed from imported data
+		repsCompleted = reps.length;
+		// Update session-level SpO2/HR from summary
+		if (summary) {
+			minimumSpO2 = summary.lowestSpO2;
+			minimumHR = summary.sessionMinHR;
+		}
+		showBiometricModal = false;
+	}
 
 	// Reactive heart color based on joy scale (same as QuickLogForm)
 	const joyHeartColor = $derived(() => {
@@ -209,6 +254,26 @@
 		if (facialGearGoggles) facialGear.push('goggles');
 		if (facialGearNothing) facialGear.push('nothing');
 
+		// Prepare per-rep biometric lap data (convert RepEditorData to LapData)
+		const lapsData: LapData[] | undefined = repEditorData.length > 0 
+			? repEditorData.map((r): LapData => ({
+				lapNumber: r.repNumber,
+				timeSeconds: r.actualDuration || 0,
+				restAfterSeconds: r.actualRest || 0,
+				completed: r.completed,
+				notes: r.notes,
+				spo2Min: r.spo2Min,
+				spo2Avg: r.spo2Avg,
+				hrMin: r.hrMin,
+				hrMax: r.hrMax,
+				hrAvg: r.hrAvg,
+				timeBelow70: r.timeBelow70 || 0,
+				timeBelow60: r.timeBelow60 || 0,
+				timeBelow50: r.timeBelow50 || 0,
+				timeBelow40: r.timeBelow40 || 0
+			}))
+			: existingLaps; // Keep existing laps if no new import
+
 		const data: LogFormData = {
 			disciplineUsed,
 			sessionDate,
@@ -250,6 +315,20 @@
 			minimumHR: normalizeNumber(minimumHR),
 			bodyWeight: normalizeNumber(bodyWeight),
 			breathingTechniqueLevel: normalizeNumber(breathingTechniqueLevel),
+			// Biometric tracking data
+			laps: lapsData,
+			hasBiometricData: biometricSummary?.hasBiometricData,
+			longestHold: biometricSummary?.longestHold,
+			cumulativeHoldTime: biometricSummary?.cumulativeHoldTime,
+			lowestSpO2: biometricSummary?.lowestSpO2,
+			sessionAvgSpO2: biometricSummary?.sessionAvgSpO2,
+			sessionMinHR: biometricSummary?.sessionMinHR,
+			sessionMaxHR: biometricSummary?.sessionMaxHR,
+			totalTimeBelow70: biometricSummary?.totalTimeBelow70,
+			totalTimeBelow60: biometricSummary?.totalTimeBelow60,
+			totalTimeBelow50: biometricSummary?.totalTimeBelow50,
+			totalTimeBelow40: biometricSummary?.totalTimeBelow40,
+			rawBiometricCsv: rawBiometricCsv || undefined,
 			// Media
 			photoFile,
 			youtubeUrl: youtubeUrl.trim() || undefined
@@ -291,6 +370,17 @@
 			config.trackMinimumHR ||
 			config.trackBodyWeight
 	);
+
+	// Check if routine supports biometric tracking
+	const hasBiometricTracking = $derived(
+		config.trackPerRepSpO2 || 
+		config.trackPerRepHR || 
+		config.trackSpO2Thresholds ||
+		config.isDryTraining
+	);
+
+	// Check if there's existing biometric data (either from formData or from new import)
+	const hasBiometricData = $derived(biometricSummary?.hasBiometricData || false);
 </script>
 
 <form onsubmit={handleSubmit} class="log-form">
@@ -933,6 +1023,86 @@
 		</div>
 	{/if}
 
+	<!-- Biometric Tracking Section -->
+	{#if hasBiometricTracking || hasBiometricData}
+		<div class="form-section biometric-section">
+			<h4 class="section-title">📊 Biometric Tracking</h4>
+			
+			{#if hasBiometricData && biometricSummary}
+				<!-- Display existing biometric summary -->
+				<div class="biometric-summary">
+					<div class="summary-grid">
+						<div class="summary-item">
+							<span class="summary-label">Longest Hold</span>
+							<span class="summary-value">{formatTime(biometricSummary.longestHold || 0)}</span>
+						</div>
+						{#if biometricSummary.cumulativeHoldTime}
+							<div class="summary-item">
+								<span class="summary-label">Total Hold Time</span>
+								<span class="summary-value">{formatTime(biometricSummary.cumulativeHoldTime)}</span>
+							</div>
+						{/if}
+						<div class="summary-item">
+							<span class="summary-label">Lowest SpO2</span>
+							<span class="summary-value spo2-value" class:warning={(biometricSummary.lowestSpO2 || 100) < 80} class:danger={(biometricSummary.lowestSpO2 || 100) < 70}>
+								{biometricSummary.lowestSpO2}%
+							</span>
+						</div>
+						<div class="summary-item">
+							<span class="summary-label">HR Range</span>
+							<span class="summary-value">{biometricSummary.sessionMinHR}-{biometricSummary.sessionMaxHR} bpm</span>
+						</div>
+					</div>
+					
+					<!-- Time Below Thresholds -->
+					{#if biometricSummary.totalTimeBelow70 || biometricSummary.totalTimeBelow60 || biometricSummary.totalTimeBelow50 || biometricSummary.totalTimeBelow40}
+						<div class="threshold-alerts">
+							{#if biometricSummary.totalTimeBelow70}
+								<div class="threshold-alert warning">
+									⚠️ {formatTime(biometricSummary.totalTimeBelow70)} below 70%
+								</div>
+							{/if}
+							{#if biometricSummary.totalTimeBelow60}
+								<div class="threshold-alert danger">
+									🔴 {formatTime(biometricSummary.totalTimeBelow60)} below 60%
+								</div>
+							{/if}
+							{#if biometricSummary.totalTimeBelow50}
+								<div class="threshold-alert critical">
+									⛔ {formatTime(biometricSummary.totalTimeBelow50)} below 50%
+								</div>
+							{/if}
+							{#if biometricSummary.totalTimeBelow40}
+								<div class="threshold-alert extreme">
+									☠️ {formatTime(biometricSummary.totalTimeBelow40)} below 40%
+								</div>
+							{/if}
+						</div>
+					{/if}
+				</div>
+			{/if}
+
+			<!-- Import/Re-import button -->
+			<button 
+				type="button" 
+				class="import-csv-btn" 
+				onclick={() => showBiometricModal = true}
+			>
+				{hasBiometricData ? '📥 Re-import CSV Data' : '📥 Import Pulse Oximeter CSV'}
+			</button>
+			
+			{#if !hasBiometricData}
+				<p class="helper-text">Import data from your pulse oximeter to track per-rep SpO2 and heart rate.</p>
+			{/if}
+		</div>
+	{/if}
+
+	<!-- Biometric Import Modal -->
+	<BiometricImportModal
+		bind:isOpen={showBiometricModal}
+		onImport={handleBiometricImport}
+	/>
+
 	<!-- Media Section -->
 	<div class="form-section">
 		<h4 class="section-title">Media (Optional)</h4>
@@ -1412,5 +1582,114 @@
 		.technique-btn {
 			min-width: 100px;
 		}
+	}
+
+	/* Biometric Section Styles */
+	.biometric-section {
+		border: 1px solid rgba(20, 184, 166, 0.3);
+		border-radius: 12px;
+		padding: 1rem;
+		background: rgba(20, 184, 166, 0.05);
+	}
+
+	.biometric-summary {
+		margin-bottom: 1rem;
+	}
+
+	.summary-grid {
+		display: grid;
+		grid-template-columns: repeat(2, 1fr);
+		gap: 0.75rem;
+		margin-bottom: 0.75rem;
+	}
+
+	.summary-item {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.summary-label {
+		font-size: 0.75rem;
+		color: var(--color-text-muted);
+	}
+
+	.summary-value {
+		font-size: 1rem;
+		font-weight: 600;
+		color: var(--color-text);
+		font-variant-numeric: tabular-nums;
+	}
+
+	.summary-value.spo2-value.warning {
+		color: #f59e0b;
+	}
+
+	.summary-value.spo2-value.danger {
+		color: #f97316;
+	}
+
+	.summary-value.spo2-value.critical {
+		color: #ef4444;
+	}
+
+	.summary-value.spo2-value.extreme {
+		color: #d946ef;
+	}
+
+	.threshold-alerts {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-bottom: 0.75rem;
+	}
+
+	.threshold-alert {
+		padding: 0.375rem 0.75rem;
+		border-radius: 6px;
+		font-size: 0.75rem;
+		font-weight: 500;
+	}
+
+	.threshold-alert.warning {
+		background: rgba(245, 158, 11, 0.15);
+		color: #f59e0b;
+		border: 1px solid rgba(245, 158, 11, 0.3);
+	}
+
+	.threshold-alert.danger {
+		background: rgba(249, 115, 22, 0.15);
+		color: #f97316;
+		border: 1px solid rgba(249, 115, 22, 0.3);
+	}
+
+	.threshold-alert.critical {
+		background: rgba(239, 68, 68, 0.2);
+		color: #ef4444;
+		border: 1px solid rgba(239, 68, 68, 0.5);
+	}
+
+	.threshold-alert.extreme {
+		background: rgba(217, 70, 239, 0.2);
+		color: #d946ef;
+		border: 1px solid rgba(217, 70, 239, 0.5);
+	}
+
+	.import-csv-btn {
+		width: 100%;
+		padding: 0.75rem 1rem;
+		background: rgba(20, 184, 166, 0.1);
+		border: 1px dashed rgba(20, 184, 166, 0.5);
+		border-radius: 8px;
+		color: var(--color-primary);
+		font-size: 0.875rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.import-csv-btn:hover {
+		background: rgba(20, 184, 166, 0.15);
+		border-style: solid;
 	}
 </style>

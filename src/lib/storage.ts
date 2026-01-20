@@ -62,6 +62,55 @@ export async function deleteSessionPhoto(photoUrl: string): Promise<void> {
 }
 
 /**
+ * Delete a biometric CSV from Firebase Storage
+ * @param csvUrl - Full Firebase Storage download URL
+ */
+export async function deleteBiometricCsv(csvUrl: string): Promise<void> {
+	const csvRef = ref(storage, csvUrl);
+	await deleteObject(csvRef);
+}
+
+/**
+ * Upload a biometric CSV file to Firebase Storage for a session
+ * Stores the raw CSV for future reprocessing if algorithms change.
+ * @param userId - User ID owning the session
+ * @param sessionId - Session ID to attach CSV to
+ * @param csvContent - Raw CSV content string
+ * @returns Download URL of uploaded CSV
+ */
+export async function uploadBiometricCsv(
+	userId: string,
+	sessionId: string,
+	csvContent: string
+): Promise<string> {
+	// Create storage reference
+	const filename = `${Date.now()}_biometric.csv`;
+	const storageRef = ref(storage, `biometric-csvs/${userId}/${sessionId}/${filename}`);
+
+	// Convert string to Blob
+	const csvBlob = new Blob([csvContent], { type: 'text/csv' });
+
+	// Upload
+	return new Promise((resolve, reject) => {
+		const uploadTask = uploadBytesResumable(storageRef, csvBlob);
+
+		uploadTask.on(
+			'state_changed',
+			() => {}, // No progress tracking needed for small text files
+			(error) => reject(error),
+			async () => {
+				try {
+					const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+					resolve(downloadURL);
+				} catch (error) {
+					reject(error);
+				}
+			}
+		);
+	});
+}
+
+/**
  * Extract YouTube video ID from various URL formats
  * @param url - YouTube URL or video ID
  * @returns Video ID or null if invalid

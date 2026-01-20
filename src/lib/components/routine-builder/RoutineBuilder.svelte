@@ -102,7 +102,12 @@
 			trackBasalMood: false,
 			trackMinimumSpO2: false,
 			trackMinimumHR: false,
-			trackBodyWeight: false
+			trackBodyWeight: false,
+			// Biometric tracking (per-rep SpO2/HR)
+			trackPerRepSpO2: false,
+			trackPerRepHR: false,
+			trackSpO2Thresholds: false,
+			isDryTraining: false
 		}
 	);
 

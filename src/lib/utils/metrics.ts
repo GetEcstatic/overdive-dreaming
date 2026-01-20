@@ -146,7 +146,20 @@ export function getMetricValue(
 
 		case 'totalBreathHoldTime':
 		case 'cumulativeHoldTime': // New alias
-			return log.cumulativeHoldTime || calculateTotalBreathHoldTime(log, routine);
+			// Try direct field first, then calculate from laps, then from routine template
+			if (log.cumulativeHoldTime) return log.cumulativeHoldTime;
+			if (log.laps && log.laps.length > 0) {
+				return log.laps.reduce((sum, lap) => sum + (lap.timeSeconds || 0), 0);
+			}
+			return calculateTotalBreathHoldTime(log, routine);
+
+		case 'longestHold':
+			// Try direct field first, then calculate from laps
+			if (log.longestHold) return log.longestHold;
+			if (log.laps && log.laps.length > 0) {
+				return Math.max(...log.laps.map(lap => lap.timeSeconds || 0));
+			}
+			return 0;
 
 		case 'totalBreathingTime':
 			return calculateTotalBreathingTime(log);
@@ -223,6 +236,7 @@ export function formatMetricValue(metricType: MetricType, value: number): string
 		case 'avgRestBetweenLaps':
 		case 'totalBreathHoldTime':
 		case 'cumulativeHoldTime':
+		case 'longestHold':
 		case 'totalBreathingTime':
 		case 'initialBreatheUpTime':
 		case 'contractionsOnsetTime':

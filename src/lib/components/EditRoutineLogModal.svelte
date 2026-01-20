@@ -141,6 +141,27 @@
 			if (formData.recordTag !== log.recordTag) updates.recordTag = formData.recordTag ?? null;
 			if (formData.visibility !== log.visibility) updates.visibility = formData.visibility;
 
+			// Biometric tracking data updates
+			if (formData.hasBiometricData !== log.hasBiometricData) 
+				updates.hasBiometricData = formData.hasBiometricData;
+			if (formData.laps !== log.laps) updates.laps = formData.laps;
+			if (formData.longestHold !== log.longestHold) updates.longestHold = formData.longestHold;
+			if (formData.cumulativeHoldTime !== log.cumulativeHoldTime) 
+				updates.cumulativeHoldTime = formData.cumulativeHoldTime;
+			if (formData.lowestSpO2 !== log.lowestSpO2) updates.lowestSpO2 = formData.lowestSpO2;
+			if (formData.sessionAvgSpO2 !== log.sessionAvgSpO2) 
+				updates.sessionAvgSpO2 = formData.sessionAvgSpO2;
+			if (formData.sessionMinHR !== log.sessionMinHR) updates.sessionMinHR = formData.sessionMinHR;
+			if (formData.sessionMaxHR !== log.sessionMaxHR) updates.sessionMaxHR = formData.sessionMaxHR;
+			if (formData.totalTimeBelow70 !== log.totalTimeBelow70) 
+				updates.totalTimeBelow70 = formData.totalTimeBelow70;
+			if (formData.totalTimeBelow60 !== log.totalTimeBelow60) 
+				updates.totalTimeBelow60 = formData.totalTimeBelow60;
+			if (formData.totalTimeBelow50 !== log.totalTimeBelow50) 
+				updates.totalTimeBelow50 = formData.totalTimeBelow50;
+			if (formData.totalTimeBelow40 !== log.totalTimeBelow40) 
+				updates.totalTimeBelow40 = formData.totalTimeBelow40;
+
 			// Only save if there are actual updates
 			if (Object.keys(updates).length > 0) {
 				await onSave(updates);
