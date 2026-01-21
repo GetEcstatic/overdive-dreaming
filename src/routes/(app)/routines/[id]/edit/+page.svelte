@@ -8,7 +8,7 @@
 	import { goto } from '$app/navigation';
 	import { getRoutine } from '$lib/firestore';
 	import type { RoutineTemplate } from '$lib/types';
-	import RoutineBuilder from '$lib/components/routine-builder/RoutineBuilder.svelte';
+	import SimplifiedRoutineBuilder from '$lib/components/routine-builder/SimplifiedRoutineBuilder.svelte';
 
 	let routineId = $page.params.id ?? '';
 	let routine = $state<RoutineTemplate | null>(null);
@@ -72,7 +72,7 @@
 			</button>
 		</div>
 	{:else}
-		<RoutineBuilder
+		<SimplifiedRoutineBuilder
 			initialData={routine}
 			routineId={routineId}
 			onSuccess={handleSuccess}
