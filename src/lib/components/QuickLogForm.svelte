@@ -34,6 +34,7 @@
 		cardTag?: CardTag;
 		recordTag?: RecordTag;
 		// Session context
+		isDrySession?: boolean; // True if dry training (out of water)
 		poolLength?: number;
 		initialBreatheUpTime?: number;
 		// Performance metrics
@@ -408,6 +409,7 @@
 			recordTag,
 			visibility,
 			// Session context
+			isDrySession: isSTARoutine ? isDrySession : undefined,
 			poolLength,
 			initialBreatheUpTime: initialBreatheUp,
 			// Performance metrics
@@ -497,9 +499,9 @@
 			config.trackNotes
 	);
 	
-	// Check if biometric tracking is enabled - show if routine supports it AND user selected "Dry"
+	// Check if biometric tracking is enabled - show CSV import for STA routines when user selects "Dry"
 	const hasBiometricTracking = $derived(
-		supportsBiometrics && isDrySession
+		isSTARoutine && isDrySession
 	);
 </script>
 
@@ -510,8 +512,8 @@
 		<p class="routine-subtitle">Quick Log</p>
 	</div>
 
-	<!-- Wet/Dry Toggle - Only show for STA routines that support biometrics -->
-	{#if isSTARoutine && supportsBiometrics}
+	<!-- Wet/Dry Toggle - Show for ALL STA routines so users can choose at session level -->
+	{#if isSTARoutine}
 		<div class="form-section environment-toggle">
 			<div class="pill-switch">
 				<button

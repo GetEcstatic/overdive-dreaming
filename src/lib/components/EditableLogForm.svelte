@@ -64,6 +64,11 @@
 	let recordTag = $state<RecordTag | undefined>(formData.recordTag);
 	let visibility = $state<SessionVisibility>(formData.visibility ?? 'private');
 
+	// Check if this is an STA routine - show wet/dry toggle for all STA routines
+	const isSTARoutine = routine.disciplines.includes('STA');
+	// Initialize from existing log data or routine default
+	let isDrySession = $state<boolean>(initialData.isDrySession ?? routine.trackingConfig.isDryTraining ?? false);
+
 	// Session context
 	let poolLength = $state<number | undefined>(formData.poolLength);
 	const breatheUpTime = convertSecondsToTimeFields(formData.initialBreatheUpTime);
@@ -285,6 +290,7 @@
 			recordTag,
 			visibility,
 			// Session context
+			isDrySession: isSTARoutine ? isDrySession : undefined,
 			poolLength: normalizeNumber(poolLength),
 			initialBreatheUpTime: initialBreatheUp,
 			// Performance metrics
@@ -372,12 +378,9 @@
 			config.trackBodyWeight
 	);
 
-	// Check if routine supports biometric tracking
+	// Check if biometric CSV import should be shown - for STA routines when user selects "Dry"
 	const hasBiometricTracking = $derived(
-		config.trackPerRepSpO2 || 
-		config.trackPerRepHR || 
-		config.trackSpO2Thresholds ||
-		config.isDryTraining
+		isSTARoutine && isDrySession
 	);
 
 	// Check if there's existing biometric data (either from formData or from new import)
@@ -390,6 +393,35 @@
 		<h3 class="routine-name">{routine.name}</h3>
 		<p class="routine-subtitle">{mode === 'edit' ? 'Edit Log' : 'Quick Log'}</p>
 	</div>
+
+	<!-- Wet/Dry Toggle - Show for ALL STA routines so users can choose at session level -->
+	{#if isSTARoutine}
+		<div class="form-section environment-toggle">
+			<div class="pill-switch">
+				<button
+					type="button"
+					class="pill-option"
+					class:active={!isDrySession}
+					onclick={() => isDrySession = false}
+				>
+					💧 Wet
+				</button>
+				<button
+					type="button"
+					class="pill-option"
+					class:active={isDrySession}
+					onclick={() => isDrySession = true}
+				>
+					🏠 Dry
+				</button>
+			</div>
+			<p class="field-hint">
+				{isDrySession 
+					? 'Dry training enables pulse oximeter CSV import' 
+					: 'Wet training (in water) - no oximeter tracking'}
+			</p>
+		</div>
+	{/if}
 
 	<!-- Session Date -->
 	<div class="form-section">
@@ -1692,5 +1724,47 @@
 	.import-csv-btn:hover {
 		background: rgba(20, 184, 166, 0.15);
 		border-style: solid;
+	}
+
+	/* Wet/Dry Pill Switch */
+	.environment-toggle {
+		padding: 0.75rem 1rem;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+	}
+
+	.pill-switch {
+		display: flex;
+		background: rgba(15, 23, 42, 0.6);
+		border-radius: 9999px;
+		padding: 4px;
+		gap: 4px;
+	}
+
+	.pill-option {
+		flex: 1;
+		padding: 0.625rem 1rem;
+		border: none;
+		border-radius: 9999px;
+		background: transparent;
+		color: var(--color-text-muted);
+		font-size: 0.875rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.pill-option:hover:not(.active) {
+		background: rgba(255, 255, 255, 0.05);
+		color: var(--color-text);
+	}
+
+	.pill-option.active {
+		background: var(--color-primary);
+		color: var(--color-bg);
+		font-weight: 600;
+	}
+
+	.environment-toggle .field-hint {
+		margin-top: 0.5rem;
 	}
 </style>

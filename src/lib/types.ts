@@ -470,6 +470,7 @@ export interface RoutineLog {
 	// BIOMETRIC SESSION SUMMARY (Aggregated from per-rep data)
 	// ============================================================================
 	// For dry static breath hold training with pulse oximeter data
+	isDrySession?: boolean; // True if this was a dry (out of water) training session
 	hasBiometricData?: boolean; // True if session includes SpO2/HR tracking
 	longestHold?: number; // Longest breath hold in session (seconds)
 	lowestSpO2?: number; // Lowest SpO2 reading across all reps (0-100%)

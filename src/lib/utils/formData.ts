@@ -27,6 +27,7 @@ export function routineLogToFormData(log: RoutineLog): LogFormData {
 		visibility: log.visibility ?? 'private',
 
 		// Session context
+		isDrySession: log.isDrySession,
 		poolLength: log.poolLength,
 		initialBreatheUpTime: log.initialBreatheUpTime,
 
