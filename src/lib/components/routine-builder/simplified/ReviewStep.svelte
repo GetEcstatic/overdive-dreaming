@@ -11,7 +11,8 @@
 		TrackingConfig,
 		IntervalStructure,
 		DisplayConfig,
-		RoutineTable
+		RoutineTable,
+		TrainingEnvironment
 	} from '$lib/types';
 
 	let {
@@ -19,8 +20,8 @@
 		description,
 		selectedType,
 		disciplines,
-		effortLevel,
-		isDry,
+		routineTags,
+		trainingEnvironment,
 		intervalStructure,
 		numberOfReps,
 		restBetweenReps,
@@ -37,8 +38,8 @@
 		description: string;
 		selectedType: SimplifiedRoutineType | null;
 		disciplines: Discipline[];
-		effortLevel: EffortLevel;
-		isDry: boolean;
+		routineTags: string[];
+		trainingEnvironment: TrainingEnvironment;
 		intervalStructure: IntervalStructure;
 		numberOfReps: number;
 		restBetweenReps: number;
@@ -98,7 +99,9 @@
 	// Calculate routine structure summary
 	let structureSummary = $derived(() => {
 		if (selectedType === 'max-attempt') {
-			return `Single ${effortLevel === 'max' ? 'maximum' : 'submaximal'} ${isDry ? 'dry' : 'wet'} attempt`;
+			const isMax = routineTags.includes('max');
+			const envLabel = trainingEnvironment === 'both' ? '' : trainingEnvironment === 'dry' ? 'dry ' : 'wet ';
+			return `Single ${isMax ? 'maximum' : 'submaximal'} ${envLabel}attempt`;
 		}
 		
 		if (selectedType === 'interval-series') {
@@ -160,11 +163,13 @@
 				</span>
 			</div>
 
-			{#if selectedType === 'max-attempt' || selectedType === 'hybrid'}
+			{#if selectedType === 'max-attempt' && routineTags.length > 0}
 				<div class="detail-row">
-					<span class="detail-label">Effort Level</span>
-					<span class="detail-value">
-						{effortLevel === 'max' ? '🔥 Maximum' : '😌 Submax'}
+					<span class="detail-label">Tags</span>
+					<span class="detail-value tags-list">
+						{#each routineTags as tag}
+							<span class="tag-chip">{tag}</span>
+						{/each}
 					</span>
 				</div>
 			{/if}
@@ -173,7 +178,13 @@
 				<div class="detail-row">
 					<span class="detail-label">Environment</span>
 					<span class="detail-value">
-						{isDry ? '🏠 Dry (land)' : '🏊 Wet (water)'}
+						{#if trainingEnvironment === 'both'}
+							🔄 Both (choose at log time)
+						{:else if trainingEnvironment === 'dry'}
+							🏠 Dry (land)
+						{:else}
+							🏊 Wet (water)
+						{/if}
 					</span>
 				</div>
 			{/if}
@@ -386,6 +397,21 @@
 		font-size: 0.85rem;
 		font-weight: 600;
 		color: var(--color-text);
+	}
+
+	.detail-value.tags-list {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem;
+	}
+
+	.tag-chip {
+		font-size: 0.7rem;
+		font-weight: 500;
+		padding: 0.2rem 0.5rem;
+		background: rgba(20, 184, 166, 0.15);
+		border-radius: 4px;
+		color: var(--color-primary);
 	}
 
 	/* Structure Preview */

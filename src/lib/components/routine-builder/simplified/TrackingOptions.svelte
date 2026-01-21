@@ -7,19 +7,20 @@
 	import type { 
 		TrackingConfig, 
 		SimplifiedRoutineType,
-		Discipline 
+		Discipline,
+		TrainingEnvironment
 	} from '$lib/types';
 
 	let {
 		trackingConfig = $bindable(),
 		selectedType,
 		disciplines,
-		isDry
+		trainingEnvironment
 	}: {
 		trackingConfig: TrackingConfig;
 		selectedType: SimplifiedRoutineType | null;
 		disciplines: Discipline[];
-		isDry: boolean;
+		trainingEnvironment: TrainingEnvironment;
 	} = $props();
 
 	// Track which sections are expanded
@@ -143,8 +144,8 @@
 		Object.values(trackingConfig).filter(v => v === true).length
 	);
 
-	// Show biometrics section for dry STA
-	let showBiometrics = $derived(isDry || disciplines.includes('STA'));
+	// Show biometrics section for dry or both STA
+	let showBiometrics = $derived(trainingEnvironment !== 'wet' || disciplines.includes('STA'));
 </script>
 
 <div class="tracking-options">

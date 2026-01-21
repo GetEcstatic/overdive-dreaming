@@ -21,7 +21,8 @@
 		MaxDivePosition,
 		IntervalStructure,
 		TrackingPreset,
-		ActivityType
+		ActivityType,
+		TrainingEnvironment
 	} from '$lib/types';
 
 	// Step components
@@ -78,8 +79,8 @@
 	// FORM STATE - Max Attempt Specific
 	// ============================================================================
 	
-	let effortLevel = $state<EffortLevel>('max');
-	let isDry = $state(_sourceData?.trackingConfig?.isDryTraining || false);
+	let trainingEnvironment = $state<TrainingEnvironment>(_sourceData?.trainingEnvironment || 'both');
+	let routineTags = $state<string[]>(_sourceData?.routineTags || ['training']);
 
 	// ============================================================================
 	// FORM STATE - Interval Specific
@@ -237,7 +238,8 @@
 
 	function mapToActivityType(): ActivityType {
 		if (selectedType === 'max-attempt') {
-			return effortLevel === 'max' ? 'max-attempt' : 'submax-attempt';
+			// If 'max' tag is present, it's a max-attempt, otherwise submax
+			return routineTags.includes('max') ? 'max-attempt' : 'submax-attempt';
 		}
 		return 'structured-intervals';
 	}
@@ -327,9 +329,11 @@
 				disciplines,
 				tags: buildTags(),
 				activityType: mapToActivityType(),
+				trainingEnvironment,
+				routineTags,
 				trackingConfig: {
 					...trackingConfig,
-					isDryTraining: isDry
+					isDryTraining: trainingEnvironment === 'dry'
 				},
 				displayConfig
 			};
@@ -372,10 +376,12 @@
 	function buildTags(): string[] {
 		const result = [...tags];
 		
-		// Add type-based tags
+		// Add routine-specific tags from the max-attempt config
 		if (selectedType === 'max-attempt') {
-			result.push(effortLevel);
-			if (isDry) result.push('dry');
+			result.push(...routineTags);
+			// Add dry tag if training environment is dry-only
+			if (trainingEnvironment === 'dry') result.push('dry');
+			if (trainingEnvironment === 'wet') result.push('wet');
 		}
 		
 		if (selectedType === 'hybrid') {
@@ -433,8 +439,8 @@
 					bind:name
 					bind:description
 					bind:disciplines
-					bind:effortLevel
-					bind:isDry
+					bind:trainingEnvironment
+					bind:routineTags
 					bind:displayConfig
 				/>
 			{:else if selectedType === 'interval-series'}
@@ -471,7 +477,7 @@
 				bind:trackingConfig
 				{selectedType}
 				{disciplines}
-				{isDry}
+				{trainingEnvironment}
 			/>
 		{:else if currentStep === 'review'}
 			<ReviewStep
@@ -479,8 +485,8 @@
 				{description}
 				{disciplines}
 				{selectedType}
-				{effortLevel}
-				{isDry}
+				{routineTags}
+				{trainingEnvironment}
 				{intervalStructure}
 				{numberOfReps}
 				{restBetweenReps}

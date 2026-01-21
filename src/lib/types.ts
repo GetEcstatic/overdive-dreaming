@@ -52,8 +52,18 @@ export type SimplifiedRoutineType = 'max-attempt' | 'interval-series' | 'hybrid'
 
 /**
  * Effort level for max attempt routines (affects analytics filtering)
+ /**
+ * Effort level for max attempts
  */
 export type EffortLevel = 'max' | 'submax';
+
+/**
+ * Training environment for STA routines
+ * - 'wet': Pool/water training only
+ * - 'dry': Dry/land-based training only  
+ * - 'both': Can be used for either (user selects at session level)
+ */
+export type TrainingEnvironment = 'wet' | 'dry' | 'both';
 
 /**
  * Position of max dive in hybrid routines
@@ -259,6 +269,12 @@ export interface RoutineTemplate {
 	// Hybrid routine fields (for hybrid activity type)
 	maxDivePosition?: MaxDivePosition; // 'start' | 'middle' | 'end' - general position
 	maxDiveRepNumber?: number; // Exact rep number for max dive (1-based, within total reps)
+
+	// Training environment (wet/dry/both)
+	trainingEnvironment?: TrainingEnvironment;
+	
+	// Routine-specific tags for filtering (max, submax, competition, training, warmup, pb-attempt)
+	routineTags?: string[];
 
 	// Configurable tracking
 	trackingConfig: TrackingConfig;
