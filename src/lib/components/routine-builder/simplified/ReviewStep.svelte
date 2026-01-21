@@ -8,7 +8,6 @@
 		EffortLevel, 
 		Discipline,
 		MaxDivePosition,
-		TrackingPreset,
 		TrackingConfig,
 		IntervalStructure,
 		DisplayConfig,
@@ -29,7 +28,6 @@
 		table,
 		maxDivePosition,
 		hybridMaxEffort,
-		trackingPreset,
 		trackingConfig,
 		displayConfig,
 		tags
@@ -47,7 +45,6 @@
 		table?: RoutineTable;
 		maxDivePosition: MaxDivePosition;
 		hybridMaxEffort: EffortLevel;
-		trackingPreset: TrackingPreset;
 		trackingConfig: TrackingConfig;
 		displayConfig: DisplayConfig;
 		tags: string[];
@@ -257,13 +254,7 @@
 		<h3>📊 Tracking</h3>
 		
 		<div class="tracking-summary">
-			<div class="preset-badge">
-				{trackingPreset === 'minimal' && '📝 Minimal'}
-				{trackingPreset === 'standard' && '📊 Standard'}
-				{trackingPreset === 'full' && '🔬 Full'}
-				{trackingPreset === 'custom' && '⚙️ Custom'}
-			</div>
-			<span class="field-count">{enabledTrackingFields.length} fields</span>
+			<span class="field-count">{enabledTrackingFields.length} metrics enabled</span>
 		</div>
 
 		{#if enabledTrackingFields.length > 0}

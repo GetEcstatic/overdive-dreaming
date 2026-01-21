@@ -460,7 +460,6 @@
 			{/if}
 		{:else if currentStep === 'tracking'}
 			<TrackingOptions
-				bind:trackingPreset
 				bind:trackingConfig
 				{selectedType}
 				{disciplines}
@@ -481,7 +480,6 @@
 				{table}
 				{maxDivePosition}
 				{hybridMaxEffort}
-				{trackingPreset}
 				{trackingConfig}
 				{displayConfig}
 				{tags}
