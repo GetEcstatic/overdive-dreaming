@@ -37,6 +37,40 @@ export type ActivityType =
   | 'free-training';
 
 // ============================================================================
+// SIMPLIFIED ROUTINE TYPES (New Routine Builder)
+// ============================================================================
+
+/**
+ * Simplified routine types for the new routine builder.
+ * Maps to underlying ActivityType for storage.
+ * 
+ * - max-attempt: Single max or sub-max dive (Type 1)
+ * - interval-series: Multiple reps with uniform or variable structure (Type 2)
+ * - hybrid: Interval series with a max dive component (Type 3)
+ */
+export type SimplifiedRoutineType = 'max-attempt' | 'interval-series' | 'hybrid';
+
+/**
+ * Effort level for max attempt routines (affects analytics filtering)
+ */
+export type EffortLevel = 'max' | 'submax';
+
+/**
+ * Position of max dive in hybrid routines
+ */
+export type MaxDivePosition = 'start' | 'middle' | 'end';
+
+/**
+ * Interval structure type
+ */
+export type IntervalStructure = 'uniform' | 'variable';
+
+/**
+ * Tracking preset levels for simplified builder
+ */
+export type TrackingPreset = 'minimal' | 'standard' | 'full' | 'custom';
+
+// ============================================================================
 // USER
 // ============================================================================
 

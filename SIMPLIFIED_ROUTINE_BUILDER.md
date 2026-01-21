@@ -210,7 +210,7 @@ Type → Discipline → Save        Type → Discipline → Advanced →
 - `effortLevel?: 'max' | 'submax'` - For filtering analytics
 - `isDry?: boolean` - For STA routines
 - `isHybrid?: boolean` - Type 3 identifier  
-- `maxPosition?: 'start' | 'middle' | 'end'` - Where max dive occurs in hybrid
+- `maxPosition?: 'start' | 'middle' | 'end'` - Where max dive occurs in hybrid - NOTE: this isn't required. The max dive could be any one of the reps. It should be easy to parse from the results data: the biggest dive (longest duration/distance) but the user may want to indicate which rep is expected for max in the routine.
 
 ### Stamina CSV Import
 - Already have CSV parsing infrastructure
@@ -221,18 +221,19 @@ Type → Discipline → Save        Type → Discipline → Advanced →
 
 ## Questions for Clarification
 
-1. **Hybrid max position:** Should users be able to place the max attempt at ANY position (between any two intervals), or just start/middle/end?
+1. **Hybrid max position:** Should users be able to place the max attempt at ANY position (between any two intervals), or just start/middle/end? *Yes, the could be at any point, and this might not always be predictable. It might be the max attempt can only be identified after the dives have been completed, so their needs to be provision for amending this in the quik-log form/editor*
 
-2. **Duplicate & Modify:** When duplicating, should the new routine start with the same name + "(Copy)" or force user to rename immediately?
+2. **Duplicate & Modify:** When duplicating, should the new routine start with the same name + "(Copy)" or force user to rename immediately? Same name + (copy), but allow user to rename immediately if they wish
 
-3. **Draft system:** Should we support saving incomplete routines as drafts, or require complete configuration before save?
+3. **Draft system:** Should we support saving incomplete routines as drafts, or require complete configuration before save? Even if complete config is saved, the routine should be editable later. So draft saving isn't really required.
 
 4. **Default tracking presets:** Should we offer preset tracking profiles?
    - "Minimal" - Just basics (distance/time, date)
    - "Standard" - + RPE, notes, pool length
    - "Full" - All metrics enabled
+No. I would prefer all metrics to be offered, but organised carefully under user friendly section headings that can be expanded/closed to avoid cluttering the UI.
 
-5. **Competition tagging:** Should Max Attempt routines have a "Competition" toggle separate from the Max/Sub-Max distinction?
+4. **Competition tagging:** Should Max Attempt routines have a "Competition" toggle separate from the Max/Sub-Max distinction? Comp toggle should be selectable for all max attempt routines from the quick-log page/editor.
 
 ---
 
