@@ -75,7 +75,7 @@ const dynamicMaxTracking: TrackingConfig = {
 	isDryTraining: false
 };
 
-// Tracking for static max attempts
+// Tracking for static max attempts (dry training with biometric CSV import support)
 const staticMaxTracking: TrackingConfig = {
 	// Session context
 	trackPoolLength: false,
@@ -98,26 +98,26 @@ const staticMaxTracking: TrackingConfig = {
 	trackNotes: true,
 	// NEW METRICS (Custom routine builder)
 	trackWaterTemperature: false,
-	trackContractionsOnsetTime: false,
+	trackContractionsOnsetTime: true,
 	trackEquipmentUsed: false,
 	trackBuddyName: false,
-	trackRestingHeartRate: false,
-	trackHRV: false,
+	trackRestingHeartRate: true,
+	trackHRV: true,
 	trackPoolType: false,
-	trackSambaBO: false,
+	trackSambaBO: true,
 	trackBreathsBetweenReps: false,
 	// NEW METRICS - Phase 1 (Additional from testing)
 	trackMenstrualCycleDay: false,
 	trackFacialGear: false,
-	trackBasalMood: false,
-	trackMinimumSpO2: false,
-	trackMinimumHR: false,
+	trackBasalMood: true,
+	trackMinimumSpO2: true,
+	trackMinimumHR: true,
 	trackBodyWeight: false,
-	// BIOMETRIC TRACKING
-	trackPerRepSpO2: false,
-	trackPerRepHR: false,
-	trackSpO2Thresholds: false,
-	isDryTraining: false
+	// BIOMETRIC TRACKING - Enabled for dry static
+	trackPerRepSpO2: true,
+	trackPerRepHR: true,
+	trackSpO2Thresholds: true,
+	isDryTraining: true
 };
 
 // Tracking for interval routines (Sweet 16, etc.)
@@ -165,7 +165,7 @@ const intervalTracking: TrackingConfig = {
 	isDryTraining: false
 };
 
-// Tracking for static interval routines (Gentle 2-Breath, etc.)
+// Tracking for static interval routines (Gentle 2-Breath, etc.) - dry training with biometric CSV import support
 const staticIntervalTracking: TrackingConfig = {
 	// Session context
 	trackPoolLength: false,
@@ -188,26 +188,26 @@ const staticIntervalTracking: TrackingConfig = {
 	trackNotes: true,
 	// NEW METRICS (Custom routine builder)
 	trackWaterTemperature: false,
-	trackContractionsOnsetTime: false,
+	trackContractionsOnsetTime: true,
 	trackEquipmentUsed: false,
 	trackBuddyName: false,
-	trackRestingHeartRate: false,
-	trackHRV: false,
+	trackRestingHeartRate: true,
+	trackHRV: true,
 	trackPoolType: false,
-	trackSambaBO: false,
+	trackSambaBO: true,
 	trackBreathsBetweenReps: false,
 	// NEW METRICS - Phase 1 (Additional from testing)
 	trackMenstrualCycleDay: false,
 	trackFacialGear: false,
-	trackBasalMood: false,
-	trackMinimumSpO2: false,
-	trackMinimumHR: false,
+	trackBasalMood: true,
+	trackMinimumSpO2: true,
+	trackMinimumHR: true,
 	trackBodyWeight: false,
-	// BIOMETRIC TRACKING
-	trackPerRepSpO2: false,
-	trackPerRepHR: false,
-	trackSpO2Thresholds: false,
-	isDryTraining: false
+	// BIOMETRIC TRACKING - Enabled for dry static
+	trackPerRepSpO2: true,
+	trackPerRepHR: true,
+	trackSpO2Thresholds: true,
+	isDryTraining: true
 };
 
 // Tracking for dry static breath hold training with biometrics (RV Breath Hold Series, etc.)

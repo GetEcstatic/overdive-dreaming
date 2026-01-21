@@ -131,13 +131,10 @@ Keep on doing this until you get a proper instructions!
 
 
 send('''
-Some issues I notice with this implementation:
-     I think the share button would be better on the dashboard page session card rather than the session details card.
-     An icon only would suffice without the text "Share".
-     When clicking on a laptop computer, there is no option to save the image to file.
-     The image shoudl as closely as possible resemble the dashboard session card.
-     
-      '''
+
+Good session. Let's commit and push to main branch.
+            
+     '''
 
 )
 
@@ -146,4 +143,10 @@ Some issues I notice with this implementation:
 
 # %%
 
+# %%
 
+# %%
+
+
+
+# %%
