@@ -27,6 +27,7 @@
 		repDistance,
 		table,
 		maxDivePosition,
+		maxDiveRepNumber,
 		hybridMaxEffort,
 		trackingConfig,
 		displayConfig,
@@ -44,6 +45,7 @@
 		repDistance?: number;
 		table?: RoutineTable;
 		maxDivePosition: MaxDivePosition;
+		maxDiveRepNumber: number;
 		hybridMaxEffort: EffortLevel;
 		trackingConfig: TrackingConfig;
 		displayConfig: DisplayConfig;
@@ -223,25 +225,24 @@
 				{/if}
 			{:else if selectedType === 'hybrid'}
 				{@const numIntervals = table?.rows?.length || numberOfReps}
+				{@const totalReps = numIntervals + 1}
+				{@const warmupReps = maxDiveRepNumber - 1}
+				{@const cooldownReps = totalReps - maxDiveRepNumber}
 				<div class="structure-preview hybrid">
-					{#if maxDivePosition !== 'start'}
+					{#if warmupReps > 0}
 						<div class="phase warmup">
 							<span class="phase-label">Warmup</span>
-							<span class="phase-count">
-								{maxDivePosition === 'end' ? numIntervals : Math.floor(numIntervals / 2)} reps
-							</span>
+							<span class="phase-count">{warmupReps} rep{warmupReps > 1 ? 's' : ''}</span>
 						</div>
 					{/if}
 					<div class="phase max">
-						<span class="phase-label">Max</span>
+						<span class="phase-label">Max (Rep {maxDiveRepNumber})</span>
 						<span class="phase-effort">{hybridMaxEffort === 'max' ? '🔥' : '😌'}</span>
 					</div>
-					{#if maxDivePosition !== 'end'}
+					{#if cooldownReps > 0}
 						<div class="phase cooldown">
 							<span class="phase-label">Cooldown</span>
-							<span class="phase-count">
-								{maxDivePosition === 'start' ? numIntervals : numIntervals - Math.floor(numIntervals / 2)} reps
-							</span>
+							<span class="phase-count">{cooldownReps} rep{cooldownReps > 1 ? 's' : ''}</span>
 						</div>
 					{/if}
 				</div>

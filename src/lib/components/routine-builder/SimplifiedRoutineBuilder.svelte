@@ -96,7 +96,8 @@
 	// FORM STATE - Hybrid Specific
 	// ============================================================================
 	
-	let maxDivePosition = $state<MaxDivePosition>('end');
+	let maxDivePosition = $state<MaxDivePosition>(_sourceData?.maxDivePosition || 'end');
+	let maxDiveRepNumber = $state<number>(_sourceData?.maxDiveRepNumber || 1);
 	let hybridMaxEffort = $state<EffortLevel>('max');
 
 	// ============================================================================
@@ -344,6 +345,12 @@
 				}
 			}
 
+			// Add hybrid-specific fields
+			if (selectedType === 'hybrid') {
+				routineData.maxDivePosition = maxDivePosition;
+				routineData.maxDiveRepNumber = maxDiveRepNumber;
+			}
+
 			let resultId: string;
 
 			if (_isEditing && routineId) {
@@ -454,6 +461,7 @@
 					bind:repDistance
 					bind:table
 					bind:maxDivePosition
+					bind:maxDiveRepNumber
 					bind:hybridMaxEffort
 					bind:displayConfig
 				/>
@@ -479,6 +487,7 @@
 				{repDistance}
 				{table}
 				{maxDivePosition}
+				{maxDiveRepNumber}
 				{hybridMaxEffort}
 				{trackingConfig}
 				{displayConfig}

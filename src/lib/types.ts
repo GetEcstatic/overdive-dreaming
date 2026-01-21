@@ -256,6 +256,10 @@ export interface RoutineTemplate {
 	// OR variable table (progressive protocols)
 	table?: RoutineTable; // Mutually exclusive with uniform interval fields
 
+	// Hybrid routine fields (for hybrid activity type)
+	maxDivePosition?: MaxDivePosition; // 'start' | 'middle' | 'end' - general position
+	maxDiveRepNumber?: number; // Exact rep number for max dive (1-based, within total reps)
+
 	// Configurable tracking
 	trackingConfig: TrackingConfig;
 

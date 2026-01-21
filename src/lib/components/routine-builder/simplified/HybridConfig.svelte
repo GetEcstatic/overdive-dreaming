@@ -23,6 +23,7 @@
 		repDistance = $bindable(),
 		table = $bindable(),
 		maxDivePosition = $bindable(),
+		maxDiveRepNumber = $bindable(),
 		hybridMaxEffort = $bindable(),
 		displayConfig = $bindable()
 	}: {
@@ -35,6 +36,7 @@
 		repDistance: number | undefined;
 		table: RoutineTable | undefined;
 		maxDivePosition: MaxDivePosition;
+		maxDiveRepNumber: number;
 		hybridMaxEffort: EffortLevel;
 		displayConfig: DisplayConfig;
 	} = $props();
@@ -72,6 +74,25 @@
 		return `${mins}:${secs.toString().padStart(2, '0')}`;
 	}
 
+	// Calculate total reps (intervals + max dive)
+	let totalReps = $derived(
+		intervalStructure === 'variable' && table
+			? table.rows.length + 1  // variable table rows + 1 max dive
+			: numberOfReps + 1       // uniform reps + 1 max dive
+	);
+
+	// Update maxDivePosition when rep number changes
+	$effect(() => {
+		if (maxDiveRepNumber === 1) {
+			maxDivePosition = 'start';
+		} else if (maxDiveRepNumber >= totalReps) {
+			maxDivePosition = 'end';
+		} else {
+			maxDivePosition = 'middle';
+		}
+	});
+
+	// Legacy position options for simpler selection
 	const positionOptions: Array<{ value: MaxDivePosition; label: string; icon: string; desc: string }> = [
 		{ value: 'start', label: 'Start', icon: '⬆️', desc: 'Max dive first, then intervals' },
 		{ value: 'middle', label: 'Middle', icon: '↔️', desc: 'Intervals → Max → Intervals' },
@@ -133,21 +154,72 @@
 	<!-- Max Dive Position -->
 	<section class="form-section">
 		<h2>Max Dive Position</h2>
-		<p class="section-hint">Where does the max effort dive occur in the routine?</p>
+		<p class="section-hint">Which rep will be your max effort dive?</p>
 
-		<div class="position-grid">
-			{#each positionOptions as pos}
+		<div class="max-position-selector">
+			<div class="rep-selector">
+				<label for="maxDiveRepNumber">Max dive is rep</label>
+				<div class="rep-input-group">
+					<button
+						type="button"
+						class="rep-adjust-btn"
+						onclick={() => maxDiveRepNumber = Math.max(1, maxDiveRepNumber - 1)}
+						disabled={maxDiveRepNumber <= 1}
+					>−</button>
+					<input
+						id="maxDiveRepNumber"
+						type="number"
+						bind:value={maxDiveRepNumber}
+						min="1"
+						max={totalReps}
+						class="rep-number-input"
+					/>
+					<button
+						type="button"
+						class="rep-adjust-btn"
+						onclick={() => maxDiveRepNumber = Math.min(totalReps, maxDiveRepNumber + 1)}
+						disabled={maxDiveRepNumber >= totalReps}
+					>+</button>
+					<span class="total-reps">of {totalReps} total reps</span>
+				</div>
+			</div>
+
+			<div class="quick-positions">
 				<button
 					type="button"
-					class="position-btn"
-					class:active={maxDivePosition === pos.value}
-					onclick={() => (maxDivePosition = pos.value)}
+					class="quick-pos-btn"
+					class:active={maxDiveRepNumber === 1}
+					onclick={() => maxDiveRepNumber = 1}
 				>
-					<span class="pos-icon">{pos.icon}</span>
-					<span class="pos-label">{pos.label}</span>
-					<span class="pos-desc">{pos.desc}</span>
+					First
 				</button>
-			{/each}
+				<button
+					type="button"
+					class="quick-pos-btn"
+					class:active={maxDiveRepNumber === Math.ceil(totalReps / 2)}
+					onclick={() => maxDiveRepNumber = Math.ceil(totalReps / 2)}
+				>
+					Middle
+				</button>
+				<button
+					type="button"
+					class="quick-pos-btn"
+					class:active={maxDiveRepNumber === totalReps}
+					onclick={() => maxDiveRepNumber = totalReps}
+				>
+					Last
+				</button>
+			</div>
+
+			<p class="position-desc">
+				{#if maxDiveRepNumber === 1}
+					🔥 Max dive first, then {totalReps - 1} warmdown intervals
+				{:else if maxDiveRepNumber === totalReps}
+					💪 {totalReps - 1} warmup intervals, then max dive
+				{:else}
+					↔️ {maxDiveRepNumber - 1} warmup interval{maxDiveRepNumber > 2 ? 's' : ''}, then max dive, then {totalReps - maxDiveRepNumber} cooldown interval{totalReps - maxDiveRepNumber > 1 ? 's' : ''}
+				{/if}
+			</p>
 		</div>
 	</section>
 
@@ -516,5 +588,118 @@
 	.preview-arrow {
 		color: var(--color-text-muted);
 		font-size: 1.25rem;
+	}
+
+	/* Max Position Selector */
+	.max-position-selector {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+	}
+
+	.rep-selector {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.rep-selector label {
+		font-size: 0.85rem;
+		font-weight: 500;
+		color: var(--color-text-muted);
+	}
+
+	.rep-input-group {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.rep-adjust-btn {
+		width: 36px;
+		height: 36px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--color-bg-card);
+		border: 1px solid rgba(148, 163, 184, 0.3);
+		border-radius: 8px;
+		color: var(--color-text);
+		font-size: 1.25rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.rep-adjust-btn:hover:not(:disabled) {
+		border-color: var(--color-primary);
+		background: rgba(20, 184, 166, 0.1);
+	}
+
+	.rep-adjust-btn:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+
+	.rep-number-input {
+		width: 60px;
+		padding: 0.5rem;
+		background: var(--color-bg-card);
+		border: 1px solid rgba(148, 163, 184, 0.3);
+		border-radius: 8px;
+		color: var(--color-text);
+		font-size: 1.1rem;
+		font-weight: 600;
+		text-align: center;
+	}
+
+	.rep-number-input:focus {
+		outline: none;
+		border-color: var(--color-primary);
+	}
+
+	.total-reps {
+		font-size: 0.9rem;
+		color: var(--color-text-muted);
+		margin-left: 0.5rem;
+	}
+
+	.quick-positions {
+		display: flex;
+		gap: 0.5rem;
+	}
+
+	.quick-pos-btn {
+		flex: 1;
+		padding: 0.5rem 0.75rem;
+		background: var(--color-bg-card);
+		border: 1px solid rgba(148, 163, 184, 0.3);
+		border-radius: 8px;
+		color: var(--color-text-muted);
+		font-size: 0.85rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.quick-pos-btn:hover {
+		border-color: rgba(20, 184, 166, 0.4);
+		color: var(--color-text);
+	}
+
+	.quick-pos-btn.active {
+		border-color: var(--color-primary);
+		background: rgba(20, 184, 166, 0.1);
+		color: var(--color-primary);
+	}
+
+	.position-desc {
+		padding: 0.75rem 1rem;
+		background: var(--color-bg-card);
+		border-radius: 8px;
+		font-size: 0.85rem;
+		color: var(--color-text-muted);
+		text-align: center;
+		margin: 0;
 	}
 </style>
