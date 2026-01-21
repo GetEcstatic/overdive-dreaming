@@ -1,3 +1,4 @@
+
 # Simplified Routine Builder
 
 ## Overview
@@ -7,6 +8,17 @@ This document outlines a simplified approach to building custom routines based o
 ---
 
 ## User Instructions (For Review)
+
+
+
+
+#### Archived instructions (Already implemented/ignore!)
+In the routine builder, there is an either/or option for wet or dry (STA). However it's possible that a routine could be used for both. In the routine builder there should be an option to select dry, wet or both ( in which case the quick-log form and log editor toggle will be active)
+
+The 'effort level' section to select max or submax could be replace by tags for those. In fact all the tags need to be added to the routine builder. I see tags as a main method for filtering sessions in analytics. Where trackedmetrics don't require an actual value, tags are extremely important.
+a Note on the max-position option in the routine builder (hybrid routines):
+- `maxPosition?: 'start' | 'middle' | 'end'` - this isn't required. The max dive could be any one of the reps in a series. It should be easy to parse from the results data: the biggest dive (longest duration/distance) but the user may want to indicate which rep is expected for max in the routine builder. e.g. the routine expects a max on the 3rd rep, but actually the diver achieves the max dive on the 4th and needs to indicate this in the quick log.
+- When selecting  "variable" interval settings, the user should be presented with a table indicating rest times and duration (if STA intervals) or distance (if DYN/DYNB/DNF intervals)
 
 I believe there are only three routine types required to build almost all of the routines a user may need.
 
