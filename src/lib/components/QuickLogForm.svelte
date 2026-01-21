@@ -121,6 +121,12 @@
 	const supportsBiometrics = routine.trackingConfig.trackPerRepSpO2 || routine.trackingConfig.trackPerRepHR || routine.trackingConfig.isDryTraining;
 	let isDrySession = $state<boolean>(routine.trackingConfig.isDryTraining ?? false);
 
+	// Check if this is a max-type routine (show competition toggle for these)
+	const isMaxTypeRoutine = routine.activityType === 'max-attempt' || 
+		routine.activityType === 'submax-attempt' ||
+		routine.tags?.includes('hybrid') ||
+		(routine.protocolType === 'none' && !routine.tags?.includes('free-training'));
+
 	// Smart defaults from routine table
 	const defaultRepsCompleted = routine.table?.rows.length;
 	const calculatedRepDuration = routine.table?.rows.reduce((sum, row) => {
@@ -561,69 +567,71 @@
 		</div>
 		<p class="field-hint">When did this session take place? (dates from 2016 onwards)</p>
 
-		<div class="field-group">
-			<label class="field-label">Session Tags</label>
-			<div class="tag-row">
-				<button
-					type="button"
-					class="tag-button"
-					class:active={isCompetition}
-					onclick={() => (isCompetition = !isCompetition)}
-				>
-					Comp
-				</button>
-				{#if isCompetition}
-					<span class="tag-group-label">Cards</span>
-					<div class="tag-group">
-						{#each [
-							{ value: 'white', label: '⬜️' },
-							{ value: 'yellow', label: '🟨' },
-							{ value: 'red', label: '🟥' }
-						] as card}
-							<button
-								type="button"
-								class="tag-button"
-								class:active={cardTag === card.value}
-								onclick={() => toggleCardTag(card.value as CardTag)}
-								aria-label={`${card.value} card`}
-							>
-								{card.label}
-							</button>
-						{/each}
-					</div>
-					<span class="tag-group-label">Record</span>
-					<div class="tag-group">
-						{#each ['NR', 'CR', 'WR'] as tag}
-							<button
-								type="button"
-								class="tag-button"
-								class:active={recordTag === tag}
-								onclick={() => toggleRecordTag(tag as RecordTag)}
-							>
-								{tag}
-							</button>
-						{/each}
-					</div>
-				{/if}
-			</div>
-			<p class="field-hint">Pick a record tag if applicable (one max)</p>
-		</div>
-		{#if isCompetition}
+		{#if isMaxTypeRoutine}
 			<div class="field-group">
-				<label for="competitionOrg" class="field-label">Competition Org</label>
-				<input
-					id="competitionOrg"
-					type="text"
-					bind:value={compeitionOrg}
-					class="field-input"
-					list="competition-org-options"
-					placeholder="AIDA or CMAS"
-				/>
-				<datalist id="competition-org-options">
-					<option value="AIDA"></option>
-					<option value="CMAS"></option>
-				</datalist>
+				<label class="field-label">Session Tags</label>
+				<div class="tag-row">
+					<button
+						type="button"
+						class="tag-button"
+						class:active={isCompetition}
+						onclick={() => (isCompetition = !isCompetition)}
+					>
+						Comp
+					</button>
+					{#if isCompetition}
+						<span class="tag-group-label">Cards</span>
+						<div class="tag-group">
+							{#each [
+								{ value: 'white', label: '⬜️' },
+								{ value: 'yellow', label: '🟨' },
+								{ value: 'red', label: '🟥' }
+							] as card}
+								<button
+									type="button"
+									class="tag-button"
+									class:active={cardTag === card.value}
+									onclick={() => toggleCardTag(card.value as CardTag)}
+									aria-label={`${card.value} card`}
+								>
+									{card.label}
+								</button>
+							{/each}
+						</div>
+						<span class="tag-group-label">Record</span>
+						<div class="tag-group">
+							{#each ['NR', 'CR', 'WR'] as tag}
+								<button
+									type="button"
+									class="tag-button"
+									class:active={recordTag === tag}
+									onclick={() => toggleRecordTag(tag as RecordTag)}
+								>
+									{tag}
+								</button>
+							{/each}
+						</div>
+					{/if}
+				</div>
+				<p class="field-hint">Pick a record tag if applicable (one max)</p>
 			</div>
+			{#if isCompetition}
+				<div class="field-group">
+					<label for="competitionOrg" class="field-label">Competition Org</label>
+					<input
+						id="competitionOrg"
+						type="text"
+						bind:value={compeitionOrg}
+						class="field-input"
+						list="competition-org-options"
+						placeholder="AIDA or CMAS"
+					/>
+					<datalist id="competition-org-options">
+						<option value="AIDA"></option>
+						<option value="CMAS"></option>
+					</datalist>
+				</div>
+			{/if}
 		{/if}
 
 		<div class="field-group">
