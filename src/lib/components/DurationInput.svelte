@@ -1,6 +1,6 @@
 <script lang="ts">
 	/**
-	 * DurationInput - iOS-style scrolling wheel picker for duration (mm:ss format)
+	 * DurationInput - Compact iOS-style scrolling wheel picker for duration (mm:ss format)
 	 * Creates a mobile-native touch-scroll experience
 	 */
 	import { onMount, tick } from 'svelte';
@@ -29,9 +29,9 @@
 	let isScrolling = false;
 	let scrollTimeout: ReturnType<typeof setTimeout>;
 	
-	// Item height for scroll calculations
-	const ITEM_HEIGHT_COMPACT = 36;
-	const ITEM_HEIGHT_NORMAL = 44;
+	// Item height for scroll calculations - smaller for more compact feel
+	const ITEM_HEIGHT_COMPACT = 28;
+	const ITEM_HEIGHT_NORMAL = 32;
 	let itemHeight = $derived(compact ? ITEM_HEIGHT_COMPACT : ITEM_HEIGHT_NORMAL);
 	
 	// Generate arrays for minutes (0-59) and seconds (0-59)
@@ -122,6 +122,9 @@
 	{/if}
 	
 	<div class="wheel-picker">
+		<!-- Selection highlight (behind columns) -->
+		<div class="selection-highlight"></div>
+		
 		<!-- Minutes Column -->
 		<div class="picker-column-wrapper">
 			<div 
@@ -169,9 +172,6 @@
 			</div>
 			<span class="picker-unit">sec</span>
 		</div>
-
-		<!-- Selection highlight -->
-		<div class="selection-highlight"></div>
 	</div>
 
 	{#if hint}
@@ -186,34 +186,36 @@
 
 	.duration-label {
 		display: block;
-		font-size: 0.85rem;
+		font-size: 0.8rem;
 		font-weight: 500;
 		color: var(--color-text-muted);
-		margin-bottom: 0.5rem;
+		margin-bottom: 0.375rem;
 	}
 
 	.wheel-picker {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: 0.5rem;
+		gap: 0.125rem;
 		position: relative;
-		padding: 0.75rem;
+		padding: 0.5rem 0.75rem;
 		background: var(--color-bg-card);
-		border: 1px solid rgba(148, 163, 184, 0.3);
-		border-radius: 12px;
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		border-radius: 10px;
 	}
 
 	.picker-column-wrapper {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 0.25rem;
+		gap: 0.125rem;
+		position: relative;
+		z-index: 1;
 	}
 
 	.picker-column {
-		height: calc(44px * 3); /* Show 3 items */
-		width: 4rem;
+		height: calc(32px * 3); /* Show 3 items */
+		width: 3rem;
 		overflow-y: scroll;
 		scroll-snap-type: y mandatory;
 		-webkit-overflow-scrolling: touch;
@@ -223,15 +225,15 @@
 		mask-image: linear-gradient(
 			to bottom,
 			transparent 0%,
-			black 33%,
-			black 66%,
+			black 30%,
+			black 70%,
 			transparent 100%
 		);
 		-webkit-mask-image: linear-gradient(
 			to bottom,
 			transparent 0%,
-			black 33%,
-			black 66%,
+			black 30%,
+			black 70%,
 			transparent 100%
 		);
 	}
@@ -241,18 +243,19 @@
 	}
 
 	.picker-spacer {
-		height: 44px; /* One item height for top/bottom padding */
+		height: 32px;
 		flex-shrink: 0;
 	}
 
 	.picker-item {
-		height: 44px;
+		height: 32px;
 		width: 100%;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-size: 1.5rem;
+		font-size: 1.125rem;
 		font-weight: 600;
+		font-variant-numeric: tabular-nums;
 		color: var(--color-text-muted);
 		scroll-snap-align: center;
 		background: none;
@@ -260,11 +263,12 @@
 		cursor: pointer;
 		transition: color 0.15s, transform 0.15s;
 		padding: 0;
+		line-height: 1;
 	}
 
 	.picker-item.selected {
 		color: var(--color-text);
-		transform: scale(1.1);
+		transform: scale(1.05);
 	}
 
 	.picker-item:hover:not(.selected) {
@@ -272,59 +276,60 @@
 	}
 
 	.picker-unit {
-		font-size: 0.7rem;
+		font-size: 0.6rem;
 		color: var(--color-text-muted);
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
 	}
 
 	.picker-separator {
-		font-size: 1.75rem;
+		font-size: 1.25rem;
 		font-weight: 700;
 		color: var(--color-text);
-		margin: 0 0.25rem;
-		margin-bottom: 1.25rem;
+		margin: 0 0.125rem;
+		margin-bottom: 1rem;
+		line-height: 1;
 	}
 
 	.selection-highlight {
 		position: absolute;
-		left: 0.75rem;
-		right: 0.75rem;
-		top: 50%;
+		left: 0.5rem;
+		right: 0.5rem;
+		top: calc(50% - 0.5rem);
 		transform: translateY(-50%);
-		height: 44px;
-		background: rgba(20, 184, 166, 0.1);
-		border-radius: 8px;
-		border: 1px solid rgba(20, 184, 166, 0.3);
+		height: 32px;
+		background: rgba(20, 184, 166, 0.08);
+		border-radius: 6px;
+		border: 1px solid rgba(20, 184, 166, 0.25);
 		pointer-events: none;
-		margin-bottom: 1.25rem;
+		z-index: 0;
 	}
 
 	.duration-hint {
-		font-size: 0.75rem;
+		font-size: 0.7rem;
 		color: var(--color-text-muted);
-		margin: 0.5rem 0 0;
+		margin: 0.375rem 0 0;
 		text-align: center;
 	}
 
 	/* Compact mode for inline/table usage */
 	.compact .wheel-picker {
-		padding: 0.5rem;
-		gap: 0.25rem;
+		padding: 0.375rem 0.5rem;
+		gap: 0.125rem;
 	}
 
 	.compact .picker-column {
-		height: calc(36px * 3);
-		width: 3rem;
+		height: calc(28px * 3);
+		width: 2.5rem;
 	}
 
 	.compact .picker-spacer {
-		height: 36px;
+		height: 28px;
 	}
 
 	.compact .picker-item {
-		height: 36px;
-		font-size: 1.1rem;
+		height: 28px;
+		font-size: 0.95rem;
 	}
 
 	.compact .picker-unit {
@@ -332,23 +337,23 @@
 	}
 
 	.compact .picker-separator {
-		font-size: 1.25rem;
+		font-size: 1rem;
 		margin-bottom: 0;
 	}
 
 	.compact .selection-highlight {
-		height: 36px;
-		margin-bottom: 0;
+		height: 28px;
+		top: 50%;
 	}
 
 	/* Mobile adjustments */
 	@media (max-width: 640px) {
 		.picker-column {
-			width: 4.5rem;
+			width: 3.25rem;
 		}
 
 		.picker-item {
-			font-size: 1.75rem;
+			font-size: 1.25rem;
 		}
 	}
 </style>
