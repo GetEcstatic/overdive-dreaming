@@ -6,7 +6,7 @@
 	import { onMount, tick } from 'svelte';
 
 	let {
-		value = $bindable(0),
+		value = $bindable(),
 		min = 0,
 		max = 3600,
 		label = '',
@@ -22,6 +22,13 @@
 		showLabel?: boolean;
 		compact?: boolean;
 	} = $props();
+	
+	// Initialize value if undefined
+	$effect(() => {
+		if (value === undefined) {
+			value = 0;
+		}
+	});
 
 	// Internal state
 	let minutesColumn: HTMLDivElement;
