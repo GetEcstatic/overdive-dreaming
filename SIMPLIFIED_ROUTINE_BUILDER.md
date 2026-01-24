@@ -12,6 +12,12 @@ This document outlines a simplified approach to building custom routines based o
 ### In the routine builder
 
 
+
+
+
+
+# Archived instructions (Already implemented/ignore!)
+
 - When entering an interval series in the routine builder, rest between intervals need to be in mm:ss format. IT could use the wheel picker for mobile as per other routines.
 - The hold duration should be in mm:ss and likewise use the wheel selector
 - Rest between reps metric shoudl be listed under "Performance metrics" section after 'Rep duration'
@@ -25,9 +31,6 @@ This document outlines a simplified approach to building custom routines based o
 - When submitting a log in quick-log or edit-log form, a saving progress graphic of some kind should be made visible as it can take a while for a photo to upload to firebase
 - Bug: when saving a log, sometimes the log is visible as two separate session cards in the dashboard. When deleting one of the session cards, both of the visible cards are removed.
 
-
-
-# Archived instructions (Already implemented/ignore!)
 In the routine builder, there is an either/or option for wet or dry (STA). However it's possible that a routine could be used for both. In the routine builder there should be an option to select dry, wet or both ( in which case the quick-log form and log editor toggle will be active)
 
 The 'effort level' section to select max or submax could be replace by tags for those. In fact all the tags need to be added to the routine builder. I see tags as a main method for filtering sessions in analytics. Where trackedmetrics don't require an actual value, tags are extremely important.
