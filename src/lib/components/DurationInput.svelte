@@ -1,8 +1,9 @@
 <script lang="ts">
 	/**
-	 * DurationInput - A mobile-friendly duration picker (mm:ss format)
-	 * Uses native number inputs with wheel behavior on mobile
+	 * DurationInput - iOS-style scrolling wheel picker for duration (mm:ss format)
+	 * Creates a mobile-native touch-scroll experience
 	 */
+	import { onMount, tick } from 'svelte';
 
 	let {
 		value = $bindable(0),
@@ -22,72 +23,155 @@
 		compact?: boolean;
 	} = $props();
 
+	// Internal state
+	let minutesColumn: HTMLDivElement;
+	let secondsColumn: HTMLDivElement;
+	let isScrolling = false;
+	let scrollTimeout: ReturnType<typeof setTimeout>;
+	
+	// Item height for scroll calculations
+	const ITEM_HEIGHT_COMPACT = 36;
+	const ITEM_HEIGHT_NORMAL = 44;
+	let itemHeight = $derived(compact ? ITEM_HEIGHT_COMPACT : ITEM_HEIGHT_NORMAL);
+	
+	// Generate arrays for minutes (0-59) and seconds (0-59)
+	const minutesArray = Array.from({ length: 60 }, (_, i) => i);
+	const secondsArray = Array.from({ length: 60 }, (_, i) => i);
+
 	// Derived state from value (in seconds)
-	let minutes = $derived(Math.floor((value ?? 0) / 60));
-	let seconds = $derived((value ?? 0) % 60);
+	let currentMinutes = $derived(Math.floor((value ?? 0) / 60));
+	let currentSeconds = $derived((value ?? 0) % 60);
 
-	function updateMinutes(newMinutes: number) {
-		const clamped = Math.max(0, Math.min(59, newMinutes));
-		const newValue = clamped * 60 + seconds;
+	function updateValue(minutes: number, seconds: number) {
+		const newValue = minutes * 60 + seconds;
 		value = Math.max(min, Math.min(max, newValue));
 	}
 
-	function updateSeconds(newSeconds: number) {
-		const clamped = Math.max(0, Math.min(59, newSeconds));
-		const newValue = minutes * 60 + clamped;
-		value = Math.max(min, Math.min(max, newValue));
+	function formatNumber(n: number): string {
+		return n.toString().padStart(2, '0');
 	}
 
-	function handleMinutesInput(e: Event) {
-		const target = e.target as HTMLInputElement;
-		const val = parseInt(target.value) || 0;
-		updateMinutes(val);
+	function scrollToValue(column: HTMLDivElement, val: number, smooth = false) {
+		if (!column) return;
+		const scrollTop = val * itemHeight;
+		column.scrollTo({
+			top: scrollTop,
+			behavior: smooth ? 'smooth' : 'instant'
+		});
 	}
 
-	function handleSecondsInput(e: Event) {
-		const target = e.target as HTMLInputElement;
-		const val = parseInt(target.value) || 0;
-		updateSeconds(val);
+	function handleScroll(column: HTMLDivElement, type: 'minutes' | 'seconds') {
+		if (!column) return;
+		
+		clearTimeout(scrollTimeout);
+		isScrolling = true;
+		
+		scrollTimeout = setTimeout(() => {
+			// Snap to nearest item
+			const scrollTop = column.scrollTop;
+			const index = Math.round(scrollTop / itemHeight);
+			const clampedIndex = Math.max(0, Math.min(59, index));
+			
+			// Snap scroll position
+			scrollToValue(column, clampedIndex, true);
+			
+			// Update value
+			if (type === 'minutes') {
+				updateValue(clampedIndex, currentSeconds);
+			} else {
+				updateValue(currentMinutes, clampedIndex);
+			}
+			
+			isScrolling = false;
+		}, 100);
 	}
 
-	function formatNumber(n: number, pad: boolean = false): string {
-		return pad ? n.toString().padStart(2, '0') : n.toString();
+	function selectValue(type: 'minutes' | 'seconds', val: number) {
+		const column = type === 'minutes' ? minutesColumn : secondsColumn;
+		scrollToValue(column, val, true);
+		
+		if (type === 'minutes') {
+			updateValue(val, currentSeconds);
+		} else {
+			updateValue(currentMinutes, val);
+		}
 	}
+
+	// Initialize scroll positions on mount and when value changes
+	onMount(() => {
+		tick().then(() => {
+			scrollToValue(minutesColumn, currentMinutes);
+			scrollToValue(secondsColumn, currentSeconds);
+		});
+	});
+
+	// Watch for external value changes
+	$effect(() => {
+		if (!isScrolling) {
+			tick().then(() => {
+				scrollToValue(minutesColumn, currentMinutes);
+				scrollToValue(secondsColumn, currentSeconds);
+			});
+		}
+	});
 </script>
 
 <div class="duration-input" class:compact>
 	{#if showLabel && label}
-		<label class="duration-label">{label}</label>
+		<span class="duration-label">{label}</span>
 	{/if}
 	
-	<div class="duration-picker">
-		<div class="picker-segment">
-			<input
-				type="number"
-				inputmode="numeric"
-				class="picker-input"
-				value={formatNumber(minutes)}
-				min="0"
-				max="59"
-				oninput={handleMinutesInput}
-			/>
+	<div class="wheel-picker">
+		<!-- Minutes Column -->
+		<div class="picker-column-wrapper">
+			<div 
+				class="picker-column"
+				bind:this={minutesColumn}
+				onscroll={() => handleScroll(minutesColumn, 'minutes')}
+			>
+				<div class="picker-spacer"></div>
+				{#each minutesArray as min}
+					<button
+						type="button"
+						class="picker-item"
+						class:selected={min === currentMinutes}
+						onclick={() => selectValue('minutes', min)}
+					>
+						{formatNumber(min)}
+					</button>
+				{/each}
+				<div class="picker-spacer"></div>
+			</div>
 			<span class="picker-unit">min</span>
 		</div>
-		
+
 		<span class="picker-separator">:</span>
-		
-		<div class="picker-segment">
-			<input
-				type="number"
-				inputmode="numeric"
-				class="picker-input"
-				value={formatNumber(seconds, true)}
-				min="0"
-				max="59"
-				oninput={handleSecondsInput}
-			/>
+
+		<!-- Seconds Column -->
+		<div class="picker-column-wrapper">
+			<div 
+				class="picker-column"
+				bind:this={secondsColumn}
+				onscroll={() => handleScroll(secondsColumn, 'seconds')}
+			>
+				<div class="picker-spacer"></div>
+				{#each secondsArray as sec}
+					<button
+						type="button"
+						class="picker-item"
+						class:selected={sec === currentSeconds}
+						onclick={() => selectValue('seconds', sec)}
+					>
+						{formatNumber(sec)}
+					</button>
+				{/each}
+				<div class="picker-spacer"></div>
+			</div>
 			<span class="picker-unit">sec</span>
 		</div>
+
+		<!-- Selection highlight -->
+		<div class="selection-highlight"></div>
 	</div>
 
 	{#if hint}
@@ -108,50 +192,83 @@
 		margin-bottom: 0.5rem;
 	}
 
-	.duration-picker {
+	.wheel-picker {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: 0.25rem;
-		padding: 0.5rem;
+		gap: 0.5rem;
+		position: relative;
+		padding: 0.75rem;
 		background: var(--color-bg-card);
 		border: 1px solid rgba(148, 163, 184, 0.3);
 		border-radius: 12px;
 	}
 
-	.picker-segment {
+	.picker-column-wrapper {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		gap: 0.25rem;
 	}
 
-	.picker-input {
-		width: 3.5rem;
-		height: 3rem;
-		padding: 0;
-		background: var(--color-bg);
-		border: 1px solid rgba(148, 163, 184, 0.2);
-		border-radius: 8px;
-		color: var(--color-text);
+	.picker-column {
+		height: calc(44px * 3); /* Show 3 items */
+		width: 4rem;
+		overflow-y: scroll;
+		scroll-snap-type: y mandatory;
+		-webkit-overflow-scrolling: touch;
+		scrollbar-width: none;
+		-ms-overflow-style: none;
+		position: relative;
+		mask-image: linear-gradient(
+			to bottom,
+			transparent 0%,
+			black 33%,
+			black 66%,
+			transparent 100%
+		);
+		-webkit-mask-image: linear-gradient(
+			to bottom,
+			transparent 0%,
+			black 33%,
+			black 66%,
+			transparent 100%
+		);
+	}
+
+	.picker-column::-webkit-scrollbar {
+		display: none;
+	}
+
+	.picker-spacer {
+		height: 44px; /* One item height for top/bottom padding */
+		flex-shrink: 0;
+	}
+
+	.picker-item {
+		height: 44px;
+		width: 100%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		font-size: 1.5rem;
 		font-weight: 600;
-		text-align: center;
-		appearance: textfield;
-		-moz-appearance: textfield;
-		transition: border-color 0.2s, box-shadow 0.2s;
+		color: var(--color-text-muted);
+		scroll-snap-align: center;
+		background: none;
+		border: none;
+		cursor: pointer;
+		transition: color 0.15s, transform 0.15s;
+		padding: 0;
 	}
 
-	.picker-input::-webkit-inner-spin-button,
-	.picker-input::-webkit-outer-spin-button {
-		-webkit-appearance: none;
-		margin: 0;
+	.picker-item.selected {
+		color: var(--color-text);
+		transform: scale(1.1);
 	}
 
-	.picker-input:focus {
-		outline: none;
-		border-color: var(--color-primary);
-		box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15);
+	.picker-item:hover:not(.selected) {
+		color: var(--color-text);
 	}
 
 	.picker-unit {
@@ -162,11 +279,25 @@
 	}
 
 	.picker-separator {
-		font-size: 1.5rem;
+		font-size: 1.75rem;
 		font-weight: 700;
-		color: var(--color-text-muted);
+		color: var(--color-text);
 		margin: 0 0.25rem;
-		padding-bottom: 1.25rem;
+		margin-bottom: 1.25rem;
+	}
+
+	.selection-highlight {
+		position: absolute;
+		left: 0.75rem;
+		right: 0.75rem;
+		top: 50%;
+		transform: translateY(-50%);
+		height: 44px;
+		background: rgba(20, 184, 166, 0.1);
+		border-radius: 8px;
+		border: 1px solid rgba(20, 184, 166, 0.3);
+		pointer-events: none;
+		margin-bottom: 1.25rem;
 	}
 
 	.duration-hint {
@@ -177,15 +308,23 @@
 	}
 
 	/* Compact mode for inline/table usage */
-	.compact .duration-picker {
-		padding: 0.25rem;
-		gap: 0.125rem;
+	.compact .wheel-picker {
+		padding: 0.5rem;
+		gap: 0.25rem;
 	}
 
-	.compact .picker-input {
-		width: 2.5rem;
-		height: 2rem;
-		font-size: 1rem;
+	.compact .picker-column {
+		height: calc(36px * 3);
+		width: 3rem;
+	}
+
+	.compact .picker-spacer {
+		height: 36px;
+	}
+
+	.compact .picker-item {
+		height: 36px;
+		font-size: 1.1rem;
 	}
 
 	.compact .picker-unit {
@@ -193,15 +332,22 @@
 	}
 
 	.compact .picker-separator {
-		font-size: 1rem;
-		padding-bottom: 0;
+		font-size: 1.25rem;
+		margin-bottom: 0;
 	}
 
-	/* Touch-friendly on mobile */
+	.compact .selection-highlight {
+		height: 36px;
+		margin-bottom: 0;
+	}
+
+	/* Mobile adjustments */
 	@media (max-width: 640px) {
-		.picker-input {
-			width: 4rem;
-			height: 3.5rem;
+		.picker-column {
+			width: 4.5rem;
+		}
+
+		.picker-item {
 			font-size: 1.75rem;
 		}
 	}

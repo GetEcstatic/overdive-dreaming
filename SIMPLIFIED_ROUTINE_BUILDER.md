@@ -11,6 +11,11 @@ This document outlines a simplified approach to building custom routines based o
 
 ### In the routine builder
 
+We need to change how tags are selected in the routine builder. All possible tags should be listed in the routine builder for each type of routine. In addition:
+- The user should be able to select tags that will become a permanent default in that routine
+- The should also be able to select tags that they want the user to be able to select in the quick-log form or session-editor
+
+This process need to be intuitive and easy to udnerstand.
 
 
 

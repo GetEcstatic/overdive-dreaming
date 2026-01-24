@@ -32,6 +32,7 @@
 	import HybridConfig from './simplified/HybridConfig.svelte';
 	import TrackingOptions from './simplified/TrackingOptions.svelte';
 	import ReviewStep from './simplified/ReviewStep.svelte';
+	import TagSelector from './simplified/TagSelector.svelte';
 
 	// Props
 	let {
@@ -58,7 +59,7 @@
 	// WIZARD STATE
 	// ============================================================================
 	
-	type WizardStep = 'select-type' | 'configure' | 'tracking' | 'review';
+	type WizardStep = 'select-type' | 'configure' | 'tags' | 'tracking' | 'review';
 	let currentStep = $state<WizardStep>('select-type');
 	
 	// Selected routine type - infer from source data if available
@@ -74,6 +75,15 @@
 	let description = $state(_sourceData?.description || '');
 	let disciplines = $state<Discipline[]>(_sourceData?.disciplines || []);
 	let tags = $state<string[]>(_sourceData?.tags || []);
+
+	// ============================================================================
+	// FORM STATE - Tag Configuration (NEW SYSTEM)
+	// ============================================================================
+	
+	// Tags that are automatically applied to every log
+	let defaultTags = $state<string[]>(_sourceData?.defaultTags || []);
+	// Tags that users can choose from when logging
+	let selectableTags = $state<string[]>(_sourceData?.selectableTags || []);
 
 	// ============================================================================
 	// FORM STATE - Max Attempt Specific
@@ -331,6 +341,9 @@
 				activityType: mapToActivityType(),
 				trainingEnvironment,
 				routineTags,
+				// New tag system
+				defaultTags,
+				selectableTags,
 				trackingConfig: {
 					...trackingConfig,
 					isDryTraining: trainingEnvironment === 'dry'
@@ -400,11 +413,12 @@
 	const stepLabels: Record<WizardStep, string> = {
 		'select-type': 'Choose Type',
 		'configure': 'Configure',
+		'tags': 'Tags',
 		'tracking': 'Tracking',
 		'review': 'Review'
 	};
 
-	const stepOrder: WizardStep[] = ['select-type', 'configure', 'tracking', 'review'];
+	const stepOrder: WizardStep[] = ['select-type', 'configure', 'tags', 'tracking', 'review'];
 	let currentStepIndex = $derived(stepOrder.indexOf(currentStep));
 </script>
 
@@ -474,6 +488,11 @@
 					bind:displayConfig
 				/>
 			{/if}
+		{:else if currentStep === 'tags'}
+			<TagSelector
+				bind:defaultTags
+				bind:selectableTags
+			/>
 		{:else if currentStep === 'tracking'}
 			<TrackingOptions
 				bind:trackingConfig
@@ -488,6 +507,8 @@
 				{disciplines}
 				{selectedType}
 				{routineTags}
+				{defaultTags}
+				{selectableTags}
 				{trainingEnvironment}
 				{intervalStructure}
 				{numberOfReps}

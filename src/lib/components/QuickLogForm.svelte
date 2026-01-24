@@ -16,6 +16,7 @@
 	import BiometricImportModal from '$lib/components/BiometricImportModal.svelte';
 	import { isValidYouTubeUrl } from '$lib/storage';
 	import { biometricsToLapData, calculateSessionBiometricSummary } from '$lib/utils/biometricCsvParser';
+	import { getTagByValue } from '$lib/config/tagConfig';
 
 	interface Props {
 		routine: RoutineTemplate;
@@ -88,6 +89,8 @@
 		photoFile?: File;
 		youtubeUrl?: string;
 		visibility?: SessionVisibility;
+		// Tags selected by user from routine's selectableTags
+		selectedTags?: string[];
 	}
 
 	let { routine, onSubmit, onCancel, defaultVisibility = 'private', saving = false }: Props = $props();
@@ -116,6 +119,10 @@
 	let cardTag = $state<CardTag | undefined>(undefined);
 	let recordTag = $state<RecordTag | undefined>(undefined);
 	let visibility = $state<SessionVisibility>(defaultVisibility);
+	
+	// Selectable tags from routine - user can toggle these
+	let selectedTags = $state<string[]>([]);
+	const hasSelectableTags = routine.selectableTags && routine.selectableTags.length > 0;
 	
 	// Wet/Dry toggle - defaults to routine's isDryTraining setting for STA disciplines
 	// Only show for STA routines that support biometric tracking
@@ -475,7 +482,9 @@
 			rawBiometricCsv: rawBiometricCsv || undefined,
 			// Media
 			photoFile,
-			youtubeUrl: youtubeUrl.trim() || undefined
+			youtubeUrl: youtubeUrl.trim() || undefined,
+			// User-selected tags
+			selectedTags: selectedTags.length > 0 ? selectedTags : undefined
 		};
 
 		onSubmit(data);
@@ -674,6 +683,34 @@
 						class:active={disciplineUsed === disc}
 					>
 						{disc}
+					</button>
+				{/each}
+			</div>
+		</div>
+	{/if}
+
+	<!-- Selectable Tags (from routine configuration) -->
+	{#if hasSelectableTags}
+		<div class="form-section">
+			<label class="section-label">Tags</label>
+			<p class="section-hint">Select any that apply to this session</p>
+			<div class="selectable-tags">
+				{#each routine.selectableTags || [] as tagValue}
+					{@const tagInfo = getTagByValue(tagValue)}
+					<button
+						type="button"
+						class="tag-toggle-btn"
+						class:selected={selectedTags.includes(tagValue)}
+						onclick={() => {
+							if (selectedTags.includes(tagValue)) {
+								selectedTags = selectedTags.filter(t => t !== tagValue);
+							} else {
+								selectedTags = [...selectedTags, tagValue];
+							}
+						}}
+					>
+						{#if tagInfo?.icon}<span class="tag-icon">{tagInfo.icon}</span>{/if}
+						<span class="tag-label">{tagInfo?.label || tagValue}</span>
 					</button>
 				{/each}
 			</div>
@@ -1557,6 +1594,49 @@
 		background: rgba(20, 184, 166, 0.15);
 		border-color: var(--color-primary);
 		color: var(--color-primary);
+	}
+
+	/* Selectable Tags */
+	.selectable-tags {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+
+	.tag-toggle-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.375rem;
+		padding: 0.5rem 0.875rem;
+		background: var(--color-bg);
+		border: 1.5px solid rgba(148, 163, 184, 0.2);
+		border-radius: 9999px;
+		color: var(--color-text-muted);
+		font-size: 0.85rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.tag-toggle-btn:hover {
+		border-color: rgba(168, 85, 247, 0.5);
+		color: var(--color-text);
+	}
+
+	.tag-toggle-btn.selected {
+		background: rgba(168, 85, 247, 0.15);
+		border-color: #a855f7;
+		color: #a855f7;
+	}
+
+	.tag-toggle-btn .tag-icon {
+		font-size: 1rem;
+	}
+
+	.section-hint {
+		font-size: 0.8rem;
+		color: var(--color-text-muted);
+		margin: 0 0 0.75rem;
 	}
 
 

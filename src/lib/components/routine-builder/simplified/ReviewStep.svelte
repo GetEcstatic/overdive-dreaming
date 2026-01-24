@@ -14,6 +14,7 @@
 		RoutineTable,
 		TrainingEnvironment
 	} from '$lib/types';
+	import { getTagByValue } from '$lib/config/tagConfig';
 
 	let {
 		name,
@@ -21,6 +22,8 @@
 		selectedType,
 		disciplines,
 		routineTags,
+		defaultTags,
+		selectableTags,
 		trainingEnvironment,
 		intervalStructure,
 		numberOfReps,
@@ -39,6 +42,8 @@
 		selectedType: SimplifiedRoutineType | null;
 		disciplines: Discipline[];
 		routineTags: string[];
+		defaultTags: string[];
+		selectableTags: string[];
 		trainingEnvironment: TrainingEnvironment;
 		intervalStructure: IntervalStructure;
 		numberOfReps: number;
@@ -77,6 +82,12 @@
 	// Get effort label
 	function getEffortLabel(effort: EffortLevel): string {
 		return effort === 'max' ? 'Maximum Effort' : 'Submax / Comfortable';
+	}
+
+	// Get tag display with icon
+	function getTagDisplay(tagValue: string): { label: string; icon: string } {
+		const tag = getTagByValue(tagValue);
+		return tag ? { label: tag.label, icon: tag.icon || '' } : { label: tagValue, icon: '' };
 	}
 
 	// Get position label
@@ -195,6 +206,43 @@
 			</div>
 		</div>
 	</section>
+
+	<!-- Tags Configuration -->
+	{#if defaultTags.length > 0 || selectableTags.length > 0}
+		<section class="review-card">
+			<h3>🏷️ Tags</h3>
+			
+			{#if defaultTags.length > 0}
+				<div class="tags-section">
+					<span class="tags-label">Default (always applied):</span>
+					<div class="tags-list">
+						{#each defaultTags as tagValue}
+							{@const tag = getTagDisplay(tagValue)}
+							<span class="tag-chip default">
+								{#if tag.icon}<span class="tag-icon">{tag.icon}</span>{/if}
+								{tag.label}
+							</span>
+						{/each}
+					</div>
+				</div>
+			{/if}
+			
+			{#if selectableTags.length > 0}
+				<div class="tags-section">
+					<span class="tags-label">Selectable (user chooses):</span>
+					<div class="tags-list">
+						{#each selectableTags as tagValue}
+							{@const tag = getTagDisplay(tagValue)}
+							<span class="tag-chip selectable">
+								{#if tag.icon}<span class="tag-icon">{tag.icon}</span>{/if}
+								{tag.label}
+							</span>
+						{/each}
+					</div>
+				</div>
+			{/if}
+		</section>
+	{/if}
 
 	<!-- Structure Preview -->
 	{#if selectedType !== 'max-attempt'}
@@ -406,12 +454,53 @@
 	}
 
 	.tag-chip {
-		font-size: 0.7rem;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		font-size: 0.75rem;
 		font-weight: 500;
-		padding: 0.2rem 0.5rem;
+		padding: 0.25rem 0.5rem;
 		background: rgba(20, 184, 166, 0.15);
 		border-radius: 4px;
 		color: var(--color-primary);
+	}
+
+	.tag-chip.default {
+		background: rgba(20, 184, 166, 0.15);
+		color: var(--color-primary);
+		border: 1px solid rgba(20, 184, 166, 0.3);
+	}
+
+	.tag-chip.selectable {
+		background: rgba(168, 85, 247, 0.15);
+		color: #a855f7;
+		border: 1px solid rgba(168, 85, 247, 0.3);
+	}
+
+	.tag-icon {
+		font-size: 0.8rem;
+	}
+
+	/* Tags Section */
+	.tags-section {
+		margin-bottom: 0.75rem;
+	}
+
+	.tags-section:last-child {
+		margin-bottom: 0;
+	}
+
+	.tags-label {
+		display: block;
+		font-size: 0.8rem;
+		color: var(--color-text-muted);
+		margin-bottom: 0.5rem;
+	}
+
+	.tags-list {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.375rem;
 	}
 
 	/* Structure Preview */

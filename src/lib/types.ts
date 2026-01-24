@@ -274,7 +274,14 @@ export interface RoutineTemplate {
 	trainingEnvironment?: TrainingEnvironment;
 	
 	// Routine-specific tags for filtering (max, submax, competition, training, warmup, pb-attempt)
+	// DEPRECATED: Use defaultTags and selectableTags instead
 	routineTags?: string[];
+
+	// NEW TAG SYSTEM:
+	// Tags that are automatically applied to every log using this routine
+	defaultTags?: string[];
+	// Tags that users can choose from when logging (shown in quick-log form)
+	selectableTags?: string[];
 
 	// Configurable tracking
 	trackingConfig: TrackingConfig;
@@ -520,6 +527,9 @@ export interface RoutineLog {
 	visibility?: SessionVisibility; // Public/private visibility for social feed
 	authorDisplayName?: string;
 	authorPhotoURL?: string;
+
+	// Tags selected by user at log time (from routine's selectableTags)
+	selectedTags?: string[];
 
 	createdAt: Timestamp;
 	updatedAt: Timestamp;
