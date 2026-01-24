@@ -455,6 +455,8 @@
 					bind:repDuration
 					bind:table
 					bind:displayConfig
+					bind:trainingEnvironment
+					bind:routineTags
 				/>
 			{:else if selectedType === 'hybrid'}
 				<HybridConfig

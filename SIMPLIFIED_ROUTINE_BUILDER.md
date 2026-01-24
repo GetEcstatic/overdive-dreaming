@@ -27,7 +27,7 @@ This document outlines a simplified approach to building custom routines based o
 
 
 
-#### Archived instructions (Already implemented/ignore!)
+# Archived instructions (Already implemented/ignore!)
 In the routine builder, there is an either/or option for wet or dry (STA). However it's possible that a routine could be used for both. In the routine builder there should be an option to select dry, wet or both ( in which case the quick-log form and log editor toggle will be active)
 
 The 'effort level' section to select max or submax could be replace by tags for those. In fact all the tags need to be added to the routine builder. I see tags as a main method for filtering sessions in analytics. Where trackedmetrics don't require an actual value, tags are extremely important.

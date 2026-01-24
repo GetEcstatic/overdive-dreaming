@@ -36,6 +36,10 @@
 	let targetMinutes = $state(0);
 	let targetSeconds = $state(0);
 
+	// Time input states for dynamic target time
+	let dynamicTimeMinutes = $state(0);
+	let dynamicTimeSeconds = $state(0);
+
 	// Initialize from existing data
 	$effect(() => {
 		restMinutes = Math.floor(row.restBefore / 60);
@@ -44,6 +48,11 @@
 		if (isStatic && row.targetDuration) {
 			targetMinutes = Math.floor(row.targetDuration / 60);
 			targetSeconds = row.targetDuration % 60;
+		}
+
+		if (!isStatic && row.targetTime) {
+			dynamicTimeMinutes = Math.floor(row.targetTime / 60);
+			dynamicTimeSeconds = row.targetTime % 60;
 		}
 	});
 
@@ -56,6 +65,10 @@
 		if (isStatic) {
 			row.targetDuration = targetMinutes * 60 + targetSeconds;
 		}
+	}
+
+	function updateDynamicTime() {
+		row.targetTime = dynamicTimeMinutes * 60 + dynamicTimeSeconds;
 	}
 </script>
 
@@ -128,16 +141,29 @@
 			<span class="unit-label">m</span>
 		</div>
 
-		<!-- Target Time (Dynamic - Optional) -->
+		<!-- Target Time (Dynamic - mm:ss format) -->
 		<div class="col-time">
-			<input
-				type="number"
-				class="numeric-input"
-				bind:value={row.targetTime}
-				min="0"
-				placeholder="Optional"
-			/>
-			<span class="unit-label">s</span>
+			<div class="time-input-compact">
+				<input
+					type="number"
+					class="time-input"
+					bind:value={dynamicTimeMinutes}
+					onchange={updateDynamicTime}
+					min="0"
+					max="59"
+					placeholder="0"
+				/>
+				<span class="time-sep">:</span>
+				<input
+					type="number"
+					class="time-input"
+					bind:value={dynamicTimeSeconds}
+					onchange={updateDynamicTime}
+					min="0"
+					max="59"
+					placeholder="00"
+				/>
+			</div>
 		</div>
 	{/if}
 

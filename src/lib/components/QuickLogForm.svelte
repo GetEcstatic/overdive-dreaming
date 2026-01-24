@@ -22,6 +22,7 @@
 		onSubmit: (data: LogFormData) => void;
 		onCancel: () => void;
 		defaultVisibility?: SessionVisibility;
+		saving?: boolean;
 	}
 
 	export interface LogFormData {
@@ -89,7 +90,7 @@
 		visibility?: SessionVisibility;
 	}
 
-	let { routine, onSubmit, onCancel, defaultVisibility = 'private' }: Props = $props();
+	let { routine, onSubmit, onCancel, defaultVisibility = 'private', saving = false }: Props = $props();
 
 	// Form state
 	let disciplineUsed = $state<Discipline>(routine.disciplines[0]);
@@ -1307,10 +1308,28 @@
 
 	<!-- Action Buttons -->
 	<div class="form-actions">
-		<button type="button" onclick={onCancel} class="btn-cancel"> Cancel </button>
-		<button type="submit" class="btn-submit"> Save Log </button>
+		<button type="button" onclick={onCancel} class="btn-cancel" disabled={saving}> Cancel </button>
+		<button type="submit" class="btn-submit" disabled={saving}>
+			{#if saving}
+				<span class="saving-spinner"></span>
+				Saving...
+			{:else}
+				Save Log
+			{/if}
+		</button>
 	</div>
 </form>
+
+<!-- Saving Overlay -->
+{#if saving}
+	<div class="saving-overlay">
+		<div class="saving-content">
+			<div class="saving-spinner-large"></div>
+			<p class="saving-text">Saving your session...</p>
+			<p class="saving-hint">This may take a moment if uploading a photo</p>
+		</div>
+	</div>
+{/if}
 
 <!-- Biometric Import Modal -->
 <BiometricImportModal 
@@ -1961,5 +1980,77 @@
 
 	.environment-toggle .field-hint {
 		margin-top: 0.5rem;
+	}
+
+	/* Saving Overlay */
+	.saving-overlay {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background: rgba(15, 23, 42, 0.85);
+		backdrop-filter: blur(4px);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 1000;
+	}
+
+	.saving-content {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 1rem;
+		padding: 2rem;
+		background: var(--color-bg-card);
+		border-radius: 12px;
+		border: 1px solid rgba(20, 184, 166, 0.3);
+		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+	}
+
+	.saving-text {
+		font-size: 1.125rem;
+		font-weight: 600;
+		color: var(--color-text);
+		margin: 0;
+	}
+
+	.saving-hint {
+		font-size: 0.875rem;
+		color: var(--color-text-muted);
+		margin: 0;
+	}
+
+	.saving-spinner,
+	.saving-spinner-large {
+		display: inline-block;
+		border: 3px solid rgba(20, 184, 166, 0.2);
+		border-top-color: var(--color-primary);
+		border-radius: 50%;
+		animation: spin 0.8s linear infinite;
+	}
+
+	.saving-spinner {
+		width: 16px;
+		height: 16px;
+		margin-right: 0.5rem;
+	}
+
+	.saving-spinner-large {
+		width: 48px;
+		height: 48px;
+	}
+
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+
+	.btn-submit:disabled,
+	.btn-cancel:disabled {
+		opacity: 0.7;
+		cursor: not-allowed;
 	}
 </style>

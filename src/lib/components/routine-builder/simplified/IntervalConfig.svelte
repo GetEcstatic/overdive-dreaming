@@ -3,8 +3,9 @@
 	 * IntervalConfig - Configuration for interval series routines
 	 */
 
-	import type { Discipline, IntervalStructure, DisplayConfig, RoutineTable } from '$lib/types';
+	import type { Discipline, IntervalStructure, DisplayConfig, RoutineTable, TrainingEnvironment } from '$lib/types';
 	import TableEditor from '../TableEditor.svelte';
+	import DurationInput from '$lib/components/DurationInput.svelte';
 
 	let {
 		name = $bindable(),
@@ -16,7 +17,9 @@
 		repDistance = $bindable(),
 		repDuration = $bindable(),
 		table = $bindable(),
-		displayConfig = $bindable()
+		displayConfig = $bindable(),
+		trainingEnvironment = $bindable(),
+		routineTags = $bindable()
 	}: {
 		name: string;
 		description: string;
@@ -28,6 +31,8 @@
 		repDuration: number | undefined;
 		table: RoutineTable | undefined;
 		displayConfig: DisplayConfig;
+		trainingEnvironment: TrainingEnvironment;
+		routineTags: string[];
 	} = $props();
 
 	const allDisciplines: Array<{ value: Discipline; label: string; description: string }> = [
@@ -35,6 +40,19 @@
 		{ value: 'DNF', label: 'DNF', description: 'Dynamic no fins' },
 		{ value: 'DYNB', label: 'DYNB', description: 'Dynamic bifins' },
 		{ value: 'STA', label: 'STA', description: 'Static apnea' }
+	];
+
+	// Available tags for interval routines (same as max attempt)
+	const availableTags = [
+		{ value: 'max', label: 'Max Effort', icon: '🔥', description: 'True maximum attempt' },
+		{ value: 'submax', label: 'Sub-Max', icon: '💪', description: 'Below full capacity' },
+		{ value: 'competition', label: 'Competition', icon: '🏆', description: 'Competition dive' },
+		{ value: 'training', label: 'Training', icon: '📚', description: 'Training session' },
+		{ value: 'warmup', label: 'Warm-up', icon: '🌡️', description: 'Warm-up dive' },
+		{ value: 'pb-attempt', label: 'PB Attempt', icon: '⭐', description: 'Personal best attempt' },
+		{ value: 'co2', label: 'CO₂ Training', icon: '💨', description: 'CO₂ tolerance' },
+		{ value: 'o2', label: 'O₂ Training', icon: '🫁', description: 'Hypoxic training' },
+		{ value: 'endurance', label: 'Endurance', icon: '🏃', description: 'Endurance building' },
 	];
 
 	// Determine if we're doing static or dynamic intervals
@@ -64,6 +82,14 @@
 				secondaryMetric: 'totalDistance',
 				secondaryMetricLabel: 'Total Distance'
 			};
+		}
+	}
+
+	function toggleTag(tag: string) {
+		if (routineTags.includes(tag)) {
+			routineTags = routineTags.filter(t => t !== tag);
+		} else {
+			routineTags = [...routineTags, tag];
 		}
 	}
 
@@ -144,6 +170,68 @@
 		</div>
 	</section>
 
+	<!-- Routine Tags -->
+	<section class="form-section">
+		<h2>Routine Tags</h2>
+		<p class="section-hint">Select tags to help categorize and filter this routine</p>
+
+		<div class="tags-grid">
+			{#each availableTags as tag}
+				<button
+					type="button"
+					class="tag-btn"
+					class:selected={routineTags.includes(tag.value)}
+					onclick={() => toggleTag(tag.value)}
+				>
+					<span class="tag-icon">{tag.icon}</span>
+					<span class="tag-label">{tag.label}</span>
+				</button>
+			{/each}
+		</div>
+		<p class="field-hint">Tags help filter sessions in analytics</p>
+	</section>
+
+	<!-- Training Environment (for STA) -->
+	{#if isStatic}
+		<section class="form-section">
+			<h2>Training Environment</h2>
+			<p class="section-hint">Where will this routine be used?</p>
+
+			<div class="toggle-group-3">
+				<button
+					type="button"
+					class="toggle-btn"
+					class:active={trainingEnvironment === 'wet'}
+					onclick={() => (trainingEnvironment = 'wet')}
+				>
+					<span class="toggle-icon">🏊</span>
+					<span class="toggle-label">Wet Only</span>
+					<span class="toggle-desc">Pool training</span>
+				</button>
+				<button
+					type="button"
+					class="toggle-btn"
+					class:active={trainingEnvironment === 'dry'}
+					onclick={() => (trainingEnvironment = 'dry')}
+				>
+					<span class="toggle-icon">🛋️</span>
+					<span class="toggle-label">Dry Only</span>
+					<span class="toggle-desc">Land-based</span>
+				</button>
+				<button
+					type="button"
+					class="toggle-btn"
+					class:active={trainingEnvironment === 'both'}
+					onclick={() => (trainingEnvironment = 'both')}
+				>
+					<span class="toggle-icon">🔄</span>
+					<span class="toggle-label">Both</span>
+					<span class="toggle-desc">Choose at log time</span>
+				</button>
+			</div>
+		</section>
+	{/if}
+
 	<!-- Interval Structure -->
 	<section class="form-section">
 		<h2>Interval Structure</h2>
@@ -191,25 +279,19 @@
 				</div>
 
 				<div class="form-group">
-					<label for="restBetweenReps">Rest Between (seconds)</label>
-					<input
-						id="restBetweenReps"
-						type="number"
+					<DurationInput
 						bind:value={restBetweenReps}
-						min="0"
-						step="5"
+						label="Rest Between Reps"
+						hint="Recovery time between each rep"
 					/>
 				</div>
 
 				{#if isStatic}
 					<div class="form-group">
-						<label for="repDuration">Hold Duration (seconds)</label>
-						<input
-							id="repDuration"
-							type="number"
+						<DurationInput
 							bind:value={repDuration}
-							min="1"
-							placeholder="e.g., 60"
+							label="Hold Duration"
+							hint="Target breath hold time per rep"
 						/>
 					</div>
 				{:else}
@@ -485,5 +567,68 @@
 
 	.init-table-btn:hover {
 		filter: brightness(1.1);
+	}
+
+	/* Tags Grid */
+	.tags-grid {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 0.5rem;
+	}
+
+	.tag-btn {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		padding: 0.75rem 0.5rem;
+		background: var(--color-bg-card);
+		border: 2px solid transparent;
+		border-radius: 8px;
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.tag-btn:hover {
+		border-color: rgba(20, 184, 166, 0.4);
+	}
+
+	.tag-btn.selected {
+		border-color: var(--color-primary);
+		background: rgba(20, 184, 166, 0.1);
+	}
+
+	.tag-icon {
+		font-size: 1.25rem;
+		margin-bottom: 0.25rem;
+	}
+
+	.tag-label {
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: var(--color-text);
+		text-align: center;
+	}
+
+	.field-hint {
+		font-size: 0.75rem;
+		color: var(--color-text-muted);
+		margin: 0.75rem 0 0;
+		text-align: center;
+	}
+
+	/* Toggle Group (3 options) */
+	.toggle-group-3 {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 0.75rem;
+	}
+
+	@media (max-width: 480px) {
+		.tags-grid {
+			grid-template-columns: repeat(2, 1fr);
+		}
+		.toggle-group-3 {
+			grid-template-columns: 1fr;
+		}
 	}
 </style>

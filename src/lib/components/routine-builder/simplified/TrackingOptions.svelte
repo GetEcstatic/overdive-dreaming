@@ -45,6 +45,7 @@
 				{ key: 'trackRepsCompleted', label: 'Reps Completed', hint: 'Number of repetitions completed' },
 				{ key: 'trackRepDuration', label: 'Rep Duration', hint: 'Time per rep (for intervals)' },
 				{ key: 'trackRepDistance', label: 'Rep Distance', hint: 'Distance per rep (for intervals)' },
+				{ key: 'trackRestBetweenLaps', label: 'Rest Between Reps', hint: 'Recovery time between reps' },
 				{ key: 'trackTimePerLap', label: 'Time Per Lap', hint: 'Detailed lap-by-lap times' },
 				{ key: 'trackKicksPerLap', label: 'Kicks Per Lap', hint: 'Count kicks (dynamic disciplines)' },
 				{ key: 'trackArmPullsPerLap', label: 'Arm Pulls Per Lap', hint: 'Count arm pulls (DNF)' }
@@ -58,8 +59,7 @@
 				{ key: 'trackPoolLength', label: 'Pool Length', hint: '25m or 50m pool' },
 				{ key: 'trackPoolType', label: 'Pool Type', hint: 'Indoor or outdoor' },
 				{ key: 'trackWaterTemperature', label: 'Water Temperature', hint: 'Temperature in °C' },
-				{ key: 'trackInitialBreatheUpTime', label: 'Initial Breathe-up Time', hint: 'Pre-dive preparation time' },
-				{ key: 'trackRestBetweenLaps', label: 'Rest Between Reps', hint: 'Recovery time between reps' }
+				{ key: 'trackInitialBreatheUpTime', label: 'Initial Breathe-up Time', hint: 'Pre-dive preparation time' }
 			]
 		},
 		{

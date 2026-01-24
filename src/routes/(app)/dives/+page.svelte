@@ -296,16 +296,8 @@
 					onSubmit={handleSubmit}
 					onCancel={handleCancel}
 					defaultVisibility={defaultSessionVisibility}
+					{saving}
 				/>
-
-				{#if saving}
-					<div class="mt-4 p-4 bg-[var(--color-bg)] rounded-lg text-center">
-						<div
-							class="inline-block h-6 w-6 animate-spin rounded-full border-4 border-solid border-[var(--color-primary)] border-r-transparent"
-						></div>
-						<p class="mt-2 text-sm text-[var(--color-text-muted)]">Saving...</p>
-					</div>
-				{/if}
 			{/if}
 		</div>
 
