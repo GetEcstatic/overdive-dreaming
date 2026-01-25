@@ -4,7 +4,6 @@
 	 */
 
 	import type { Discipline, DisplayConfig, TrainingEnvironment } from '$lib/types';
-	import DisplayMetricSelector from './DisplayMetricSelector.svelte';
 
 	let {
 		name = $bindable(),
@@ -165,8 +164,7 @@
 		</section>
 	{/if}
 
-	<!-- Display Settings -->
-	<DisplayMetricSelector bind:displayConfig />
+	<!-- Display Settings will be shown in a dedicated step after tracking -->
 </div>
 
 <style>

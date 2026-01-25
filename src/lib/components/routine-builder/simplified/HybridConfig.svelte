@@ -12,7 +12,6 @@
 		EffortLevel 
 	} from '$lib/types';
 	import TableEditor from '../TableEditor.svelte';
-	import DisplayMetricSelector from './DisplayMetricSelector.svelte';
 
 	let {
 		name = $bindable(),
@@ -344,8 +343,7 @@
 		</div>
 	</section>
 
-	<!-- Display Settings -->
-	<DisplayMetricSelector bind:displayConfig />
+	<!-- Display Settings will be shown in a dedicated step after tracking -->
 </div>
 
 <style>

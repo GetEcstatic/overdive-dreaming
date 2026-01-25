@@ -31,6 +31,7 @@
 	import IntervalConfig from './simplified/IntervalConfig.svelte';
 	import HybridConfig from './simplified/HybridConfig.svelte';
 	import TrackingOptions from './simplified/TrackingOptions.svelte';
+	import DisplayMetricSelector from './simplified/DisplayMetricSelector.svelte';
 	import ReviewStep from './simplified/ReviewStep.svelte';
 	import TagSelector from './simplified/TagSelector.svelte';
 
@@ -59,7 +60,7 @@
 	// WIZARD STATE
 	// ============================================================================
 	
-	type WizardStep = 'select-type' | 'configure' | 'tags' | 'tracking' | 'review';
+	type WizardStep = 'select-type' | 'configure' | 'tags' | 'tracking' | 'display' | 'review';
 	let currentStep = $state<WizardStep>('select-type');
 	
 	// Selected routine type - infer from source data if available
@@ -96,7 +97,10 @@
 	// FORM STATE - Interval Specific
 	// ============================================================================
 	
-	let intervalStructure = $state<IntervalStructure>('uniform');
+	// Determine intervalStructure based on whether source data has a table
+	let intervalStructure = $state<IntervalStructure>(
+		_sourceData?.table?.rows?.length ? 'variable' : 'uniform'
+	);
 	let numberOfReps = $state<number>(_sourceData?.numberOfReps || 8);
 	let restBetweenReps = $state<number>(_sourceData?.restBetweenReps || 60);
 	let repDistance = $state<number | undefined>(_sourceData?.repDistance);
@@ -269,8 +273,11 @@
 			case 'tracking':
 				currentStep = 'tags';
 				break;
-			case 'review':
+			case 'display':
 				currentStep = 'tracking';
+				break;
+			case 'review':
+				currentStep = 'display';
 				break;
 		}
 	}
@@ -287,6 +294,9 @@
 				currentStep = 'tracking';
 				break;
 			case 'tracking':
+				currentStep = 'display';
+				break;
+			case 'display':
 				currentStep = 'review';
 				break;
 		}
@@ -322,6 +332,8 @@
 				return true; // Tags are optional but recommended
 			case 'tracking':
 				return true; // Always valid
+			case 'display':
+				return true; // Always valid - defaults are sensible
 			case 'review':
 				return true;
 			default:
@@ -423,10 +435,11 @@
 		'configure': 'Configure',
 		'tags': 'Tags',
 		'tracking': 'Tracking',
+		'display': 'Display',
 		'review': 'Review'
 	};
 
-	const stepOrder: WizardStep[] = ['select-type', 'configure', 'tags', 'tracking', 'review'];
+	const stepOrder: WizardStep[] = ['select-type', 'configure', 'tags', 'tracking', 'display', 'review'];
 	let currentStepIndex = $derived(stepOrder.indexOf(currentStep));
 </script>
 
@@ -507,6 +520,11 @@
 				{selectedType}
 				{disciplines}
 				{trainingEnvironment}
+			/>
+		{:else if currentStep === 'display'}
+			<DisplayMetricSelector
+				bind:displayConfig
+				{trackingConfig}
 			/>
 		{:else if currentStep === 'review'}
 			<ReviewStep

@@ -6,7 +6,6 @@
 	import type { Discipline, IntervalStructure, DisplayConfig, RoutineTable, TrainingEnvironment } from '$lib/types';
 	import TableEditor from '../TableEditor.svelte';
 	import DurationInput from '$lib/components/DurationInput.svelte';
-	import DisplayMetricSelector from './DisplayMetricSelector.svelte';
 
 	let {
 		name = $bindable(),
@@ -322,8 +321,7 @@
 		</section>
 	{/if}
 
-	<!-- Display Settings -->
-	<DisplayMetricSelector bind:displayConfig />
+	<!-- Display Settings will be shown in a dedicated step after tracking -->
 </div>
 
 <style>
