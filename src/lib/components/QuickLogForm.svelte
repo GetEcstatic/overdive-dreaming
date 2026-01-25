@@ -95,8 +95,15 @@
 
 	let { routine, onSubmit, onCancel, defaultVisibility = 'private', saving = false }: Props = $props();
 
-	// Form state
+	// Form state - use effect to sync initial value from routine prop
 	let disciplineUsed = $state<Discipline>(routine.disciplines[0]);
+	
+	// Keep discipline in sync if routine changes
+	$effect(() => {
+		if (routine.disciplines.length > 0 && !routine.disciplines.includes(disciplineUsed)) {
+			disciplineUsed = routine.disciplines[0];
+		}
+	});
 
 	// Session date - default to today, allow dates from 2016 onwards
 	const today = new Date();
@@ -122,27 +129,28 @@
 	
 	// Selectable tags from routine - user can toggle these
 	let selectedTags = $state<string[]>([]);
-	const hasSelectableTags = routine.selectableTags && routine.selectableTags.length > 0;
+	let hasSelectableTags = $derived(routine.selectableTags && routine.selectableTags.length > 0);
 	
 	// Wet/Dry toggle - defaults to routine's isDryTraining setting for STA disciplines
 	// Only show for STA routines that support biometric tracking
-	const isSTARoutine = routine.disciplines.includes('STA');
-	const supportsBiometrics = routine.trackingConfig.trackPerRepSpO2 || routine.trackingConfig.trackPerRepHR || routine.trackingConfig.isDryTraining;
+	let isSTARoutine = $derived(routine.disciplines.includes('STA'));
+	let supportsBiometrics = $derived(routine.trackingConfig.trackPerRepSpO2 || routine.trackingConfig.trackPerRepHR || routine.trackingConfig.isDryTraining);
 	let isDrySession = $state<boolean>(routine.trackingConfig.isDryTraining ?? false);
 
 	// Check if this is a max-type routine (show competition toggle for these)
-	const isMaxTypeRoutine = routine.activityType === 'max-attempt' || 
+	let isMaxTypeRoutine = $derived(routine.activityType === 'max-attempt' || 
 		routine.activityType === 'submax-attempt' ||
 		routine.tags?.includes('hybrid') ||
-		(routine.protocolType === 'none' && !routine.tags?.includes('free-training'));
+		(routine.protocolType === 'none' && !routine.tags?.includes('free-training')));
 
-	// Smart defaults from routine table
-	const defaultRepsCompleted = routine.table?.rows.length;
-	const calculatedRepDuration = routine.table?.rows.reduce((sum, row) => {
+	// Smart defaults from routine table - use derived for reactivity
+	let defaultRepsCompleted = $derived(routine.table?.rows.length);
+	let calculatedRepDuration = $derived(routine.table?.rows.reduce((sum, row) => {
 		return sum + (row.targetDuration || 0);
-	}, 0);
-	const avgRepDuration =
-		calculatedRepDuration && routine.table ? calculatedRepDuration / routine.table.rows.length : undefined;
+	}, 0));
+	let avgRepDuration = $derived(
+		calculatedRepDuration && routine.table ? calculatedRepDuration / routine.table.rows.length : undefined
+	);
 
 	// Session context
 	let poolLength = $state<number | undefined>(undefined);
@@ -230,16 +238,50 @@
 		}
 	}
 
-	// Auto-calculate total time from variable table based on reps completed
+	// Auto-calculate total time/distance from interval data based on best (longest) rep
+	// For interval training, "total time" means the best rep duration, not sum of all
+	let isIntervalRoutine = $derived(routine.table && routine.table.rows.length > 0);
+	let isStaticDiscipline = $derived(disciplineUsed === 'STA');
+	
 	$effect(() => {
-		if (routine.table && repsCompleted !== undefined && repsCompleted > 0) {
-			// Sum the targetDuration for the first X reps (where X = repsCompleted)
-			const totalSeconds = routine.table.rows
-				.slice(0, repsCompleted)
-				.reduce((sum, row) => sum + (row.targetDuration || 0), 0);
-
-			totalTimeMinutes = Math.floor(totalSeconds / 60);
-			totalTimeSeconds = totalSeconds % 60;
+		if (!isIntervalRoutine) return; // Only for interval routines
+		
+		// Calculate longest rep from either repEditorData (if edited) or routine table (default)
+		let longestDuration = 0;
+		let longestDistance = 0;
+		
+		if (repEditorData.length > 0) {
+			// Use edited data - only completed reps
+			for (const rep of repEditorData) {
+				if (rep.completed) {
+					if (rep.actualDuration && rep.actualDuration > longestDuration) {
+						longestDuration = rep.actualDuration;
+					}
+					if (rep.actualDistance && rep.actualDistance > longestDistance) {
+						longestDistance = rep.actualDistance;
+					}
+				}
+			}
+		} else if (routine.table) {
+			// Use routine table targets (based on reps completed)
+			const rowsToUse = routine.table.rows.slice(0, repsCompleted || routine.table.rows.length);
+			for (const row of rowsToUse) {
+				if (row.targetDuration && row.targetDuration > longestDuration) {
+					longestDuration = row.targetDuration;
+				}
+				if (row.targetDistance && row.targetDistance > longestDistance) {
+					longestDistance = row.targetDistance;
+				}
+			}
+		}
+		
+		if (isStaticDiscipline && longestDuration > 0) {
+			// For STA intervals: total time = longest hold duration
+			totalTimeMinutes = Math.floor(longestDuration / 60);
+			totalTimeSeconds = longestDuration % 60;
+		} else if (!isStaticDiscipline && longestDistance > 0) {
+			// For dynamic intervals: total distance = longest distance
+			totalDistance = longestDistance;
 		}
 	});
 
@@ -490,7 +532,8 @@
 		onSubmit(data);
 	}
 
-	const config = routine.trackingConfig;
+	// Use derived for tracking config to ensure reactivity
+	let config = $derived(routine.trackingConfig);
 
 	// Check if any fields exist in each section
 	const hasSessionContext = $derived(config.trackPoolLength || config.trackInitialBreatheUpTime);
@@ -512,6 +555,17 @@
 	// Check if biometric tracking is enabled - show CSV import for STA routines when user selects "Dry"
 	const hasBiometricTracking = $derived(
 		isSTARoutine && isDrySession
+	);
+	
+	// Check if this is an interval routine with a variable table (shows per-rep editor)
+	const hasVariableTable = $derived(
+		routine.table && routine.table.rows.length > 0
+	);
+	
+	// Show interval rep logging if has variable table but NOT showing biometric tracking
+	// (biometric tracking already includes the RepEditor with SpO2/HR)
+	const showIntervalRepLogging = $derived(
+		hasVariableTable && !hasBiometricTracking
 	);
 </script>
 
@@ -861,6 +915,30 @@
 					/>
 				</div>
 			{/if}
+		</div>
+	{/if}
+
+	<!-- Interval Rep Logging Section (for routines with variable tables) -->
+	{#if showIntervalRepLogging}
+		<div class="form-section interval-section">
+			<div class="section-header">
+				<h4 class="section-title">⏱️ Rep Times</h4>
+			</div>
+			
+			<p class="section-description">
+				Edit actual times for each rep. Tap a row to mark it skipped.
+			</p>
+
+			<RepEditor
+				discipline={disciplineUsed}
+				plannedReps={routine.numberOfReps || routine.table?.rows.length || 8}
+				routineTable={routine.table}
+				defaultRestSeconds={routine.restBetweenReps || 180}
+				bind:reps={repEditorData}
+				trackSpO2={false}
+				trackHR={false}
+				isDryTraining={false}
+			/>
 		</div>
 	{/if}
 
@@ -1920,6 +1998,30 @@
 
 	.biometric-section .section-title {
 		margin: 0;
+	}
+
+	/* Interval Rep Logging Section Styles */
+	.interval-section {
+		border: 1px solid rgba(59, 130, 246, 0.2);
+		border-radius: 12px;
+		background: rgba(59, 130, 246, 0.03);
+	}
+
+	.interval-section .section-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 0.75rem;
+	}
+
+	.interval-section .section-title {
+		margin: 0;
+	}
+
+	.interval-section .section-description {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+		margin: 0 0 1rem 0;
 	}
 
 	.import-btn {

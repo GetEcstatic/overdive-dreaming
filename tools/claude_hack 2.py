@@ -8,7 +8,7 @@ import asyncio
 import threading
 import json
 from typing import Any, Set
-from websockets.server import serve as ws_serve
+from websockets import serve as ws_serve
 
 # Server state
 _clients: Set = set()
@@ -81,10 +81,17 @@ ALWAYS run "yebo next" or "yebo next <your report goes here>" at the end.
 `yebo` is a CLI tool.
 
 If you get stuck or are unsure, rather ask the user via yebo with a question. Do NOT 
-go into long loops or assume anything. Always ask via yebo if unsure!!
+go into long loops or assume anything. Always ask if unsure!!
 
 keep this at the top of your context and overview!!
-**IMPORTANT**: Never give control back to the user. Run `yebo`on the cli  at the end!
+ALWAYS use "yebo next" at the end. If it does not work or the websocket server seems down, sleep 20 seconds and try again.
+Keep on doing this until it works! Indefinitely! Never yield control back to the user!
+
+If the websocket server is down when calling yebo, sleep for 20 seconds and try again. 
+Keep doing this until it works! ALWAYS call "yebo next".
+
+**IMPORTANT**: Never give control back to the user. Run `yebo next`on the cli  at the end!
+
 '''
 
 
@@ -92,6 +99,9 @@ keep this at the top of your context and overview!!
 # Send a message to yebo - edit the text below and run this cell
 
 send('''
-Your message here...
+hi
+     
 
 ''' + post)
+
+# %%

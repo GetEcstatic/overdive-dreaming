@@ -84,7 +84,7 @@ export const ADAPTATION_TAGS: TagCategory = {
       icon: '💨', 
       description: 'Build carbon dioxide tolerance',
       allowAsDefault: true,
-      allowAsSelectable: false
+      allowAsSelectable: true
     },
     { 
       value: 'o2', 
@@ -92,7 +92,7 @@ export const ADAPTATION_TAGS: TagCategory = {
       icon: '🫁', 
       description: 'Hypoxic / oxygen depletion training',
       allowAsDefault: true,
-      allowAsSelectable: false
+      allowAsSelectable: true
     },
     { 
       value: 'technique', 
@@ -100,7 +100,7 @@ export const ADAPTATION_TAGS: TagCategory = {
       icon: '🎯', 
       description: 'Focus on form and efficiency',
       allowAsDefault: true,
-      allowAsSelectable: false
+      allowAsSelectable: true
     },
     { 
       value: 'mental', 
@@ -108,7 +108,7 @@ export const ADAPTATION_TAGS: TagCategory = {
       icon: '🧠', 
       description: 'Mental training and relaxation',
       allowAsDefault: true,
-      allowAsSelectable: false
+      allowAsSelectable: true
     },
     { 
       value: 'endurance', 
@@ -116,7 +116,7 @@ export const ADAPTATION_TAGS: TagCategory = {
       icon: '🏋️', 
       description: 'Build stamina and capacity',
       allowAsDefault: true,
-      allowAsSelectable: false
+      allowAsSelectable: true
     },
     { 
       value: 'power', 
@@ -124,7 +124,7 @@ export const ADAPTATION_TAGS: TagCategory = {
       icon: '⚡', 
       description: 'Explosive power training',
       allowAsDefault: true,
-      allowAsSelectable: false
+      allowAsSelectable: true
     }
   ]
 };

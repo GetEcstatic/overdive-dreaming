@@ -4,6 +4,7 @@
 	 */
 
 	import type { Discipline, DisplayConfig, TrainingEnvironment } from '$lib/types';
+	import DisplayMetricSelector from './DisplayMetricSelector.svelte';
 
 	let {
 		name = $bindable(),
@@ -28,16 +29,6 @@
 		{ value: 'STA', label: 'STA', description: 'Static apnea' }
 	];
 
-	// Available tags for max attempt routines
-	const availableTags = [
-		{ value: 'max', label: 'Max Effort', icon: '🔥', description: 'True maximum attempt' },
-		{ value: 'submax', label: 'Sub-Max', icon: '💪', description: 'Below full capacity' },
-		{ value: 'competition', label: 'Competition', icon: '🏆', description: 'Competition dive' },
-		{ value: 'training', label: 'Training', icon: '📚', description: 'Training session' },
-		{ value: 'warmup', label: 'Warm-up', icon: '🌡️', description: 'Warm-up dive' },
-		{ value: 'pb-attempt', label: 'PB Attempt', icon: '⭐', description: 'Personal best attempt' },
-	];
-
 	// Is static discipline selected?
 	let isStatic = $derived(disciplines.includes('STA'));
 	let isDynamic = $derived(disciplines.some(d => ['DYN', 'DNF', 'DYNB'].includes(d)));
@@ -49,14 +40,6 @@
 			disciplines = [...disciplines, discipline];
 		}
 		updateDisplayConfig();
-	}
-
-	function toggleTag(tag: string) {
-		if (routineTags.includes(tag)) {
-			routineTags = routineTags.filter(t => t !== tag);
-		} else {
-			routineTags = [...routineTags, tag];
-		}
 	}
 
 	function updateDisplayConfig() {
@@ -129,27 +112,6 @@
 		</div>
 	</section>
 
-	<!-- Routine Tags -->
-	<section class="form-section">
-		<h2>Routine Tags</h2>
-		<p class="section-hint">Select tags to help categorize and filter this routine</p>
-
-		<div class="tags-grid">
-			{#each availableTags as tag}
-				<button
-					type="button"
-					class="tag-btn"
-					class:selected={routineTags.includes(tag.value)}
-					onclick={() => toggleTag(tag.value)}
-				>
-					<span class="tag-icon">{tag.icon}</span>
-					<span class="tag-label">{tag.label}</span>
-				</button>
-			{/each}
-		</div>
-		<p class="field-hint">Tags like Max/Sub-Max help filter dives in analytics</p>
-	</section>
-
 	<!-- Dry/Wet (for STA only) -->
 	{#if isStatic}
 		<section class="form-section">
@@ -202,6 +164,9 @@
 			{/if}
 		</section>
 	{/if}
+
+	<!-- Display Settings -->
+	<DisplayMetricSelector bind:displayConfig />
 </div>
 
 <style>
@@ -321,13 +286,7 @@
 		margin-top: 0.25rem;
 	}
 
-	/* Toggle Groups */
-	.toggle-group {
-		display: grid;
-		grid-template-columns: repeat(2, 1fr);
-		gap: 0.75rem;
-	}
-
+	/* Toggle Button Styles */
 	.toggle-btn {
 		display: flex;
 		flex-direction: column;
@@ -389,53 +348,6 @@
 		font-size: 0.85rem;
 		color: var(--color-text-muted);
 		line-height: 1.4;
-	}
-
-	/* Tags Grid */
-	.tags-grid {
-		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: 0.5rem;
-	}
-
-	.tag-btn {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		padding: 0.75rem 0.5rem;
-		background: var(--color-bg-card);
-		border: 2px solid transparent;
-		border-radius: 8px;
-		cursor: pointer;
-		transition: all 0.2s ease;
-	}
-
-	.tag-btn:hover {
-		border-color: rgba(20, 184, 166, 0.4);
-	}
-
-	.tag-btn.selected {
-		border-color: var(--color-primary);
-		background: rgba(20, 184, 166, 0.1);
-	}
-
-	.tag-icon {
-		font-size: 1.25rem;
-		margin-bottom: 0.25rem;
-	}
-
-	.tag-label {
-		font-size: 0.75rem;
-		font-weight: 600;
-		color: var(--color-text);
-		text-align: center;
-	}
-
-	.field-hint {
-		font-size: 0.75rem;
-		color: var(--color-text-muted);
-		margin-top: 0.75rem;
-		font-style: italic;
 	}
 
 	/* 3-option toggle group */

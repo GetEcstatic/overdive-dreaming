@@ -711,9 +711,17 @@
 
 <!-- Delete Confirmation Dialog -->
 {#if showDeleteConfirm && isOwner}
-	<div class="modal-overlay" onclick={handleCancelDelete}>
+	<div 
+		class="modal-overlay" 
+		onclick={handleCancelDelete}
+		onkeydown={(e) => e.key === 'Escape' && handleCancelDelete()}
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="delete-dialog-title"
+		tabindex="-1"
+	>
 		<div class="modal-content" onclick={(e) => e.stopPropagation()}>
-			<h2 class="modal-title">Delete Session?</h2>
+			<h2 class="modal-title" id="delete-dialog-title">Delete Session?</h2>
 			<p class="modal-message">
 				This will permanently delete this session and all associated data. This action cannot be undone.
 			</p>

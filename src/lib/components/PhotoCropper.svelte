@@ -15,14 +15,14 @@ import { onDestroy, onMount, tick } from 'svelte';
 		triggerApply = applyCrop;
 	});
 
-	let cropContainer: HTMLDivElement | null = null;
-	let imageEl: HTMLImageElement | null = null;
+	let cropContainer: HTMLDivElement | null = $state(null);
+	let imageEl: HTMLImageElement | null = $state(null);
 let imageSrc = $state('');
 let isLoading = $state(true);
 let loadError = $state<string | null>(null);
 	let fallbackSrc = $state<string | null>(null);
 	const showDebug = false;
-	let canvasEl: HTMLCanvasElement | null = null;
+	let canvasEl: HTMLCanvasElement | null = $state(null);
 	let cropSize = $state(240);
 	let naturalWidth = $state(0);
 	let naturalHeight = $state(0);

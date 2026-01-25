@@ -263,8 +263,11 @@
 			case 'configure':
 				currentStep = 'select-type';
 				break;
-			case 'tracking':
+			case 'tags':
 				currentStep = 'configure';
+				break;
+			case 'tracking':
+				currentStep = 'tags';
 				break;
 			case 'review':
 				currentStep = 'tracking';
@@ -278,6 +281,9 @@
 				if (selectedType) currentStep = 'configure';
 				break;
 			case 'configure':
+				currentStep = 'tags';
+				break;
+			case 'tags':
 				currentStep = 'tracking';
 				break;
 			case 'tracking':
@@ -312,6 +318,8 @@
 				return name.trim().length > 0 && 
 					description.trim().length > 0 && 
 					disciplines.length > 0;
+			case 'tags':
+				return true; // Tags are optional but recommended
 			case 'tracking':
 				return true; // Always valid
 			case 'review':

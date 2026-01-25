@@ -6,6 +6,7 @@
 	import type { Discipline, IntervalStructure, DisplayConfig, RoutineTable, TrainingEnvironment } from '$lib/types';
 	import TableEditor from '../TableEditor.svelte';
 	import DurationInput from '$lib/components/DurationInput.svelte';
+	import DisplayMetricSelector from './DisplayMetricSelector.svelte';
 
 	let {
 		name = $bindable(),
@@ -40,19 +41,6 @@
 		{ value: 'DNF', label: 'DNF', description: 'Dynamic no fins' },
 		{ value: 'DYNB', label: 'DYNB', description: 'Dynamic bifins' },
 		{ value: 'STA', label: 'STA', description: 'Static apnea' }
-	];
-
-	// Available tags for interval routines (same as max attempt)
-	const availableTags = [
-		{ value: 'max', label: 'Max Effort', icon: '🔥', description: 'True maximum attempt' },
-		{ value: 'submax', label: 'Sub-Max', icon: '💪', description: 'Below full capacity' },
-		{ value: 'competition', label: 'Competition', icon: '🏆', description: 'Competition dive' },
-		{ value: 'training', label: 'Training', icon: '📚', description: 'Training session' },
-		{ value: 'warmup', label: 'Warm-up', icon: '🌡️', description: 'Warm-up dive' },
-		{ value: 'pb-attempt', label: 'PB Attempt', icon: '⭐', description: 'Personal best attempt' },
-		{ value: 'co2', label: 'CO₂ Training', icon: '💨', description: 'CO₂ tolerance' },
-		{ value: 'o2', label: 'O₂ Training', icon: '🫁', description: 'Hypoxic training' },
-		{ value: 'endurance', label: 'Endurance', icon: '🏃', description: 'Endurance building' },
 	];
 
 	// Determine if we're doing static or dynamic intervals
@@ -168,27 +156,6 @@
 				</button>
 			{/each}
 		</div>
-	</section>
-
-	<!-- Routine Tags -->
-	<section class="form-section">
-		<h2>Routine Tags</h2>
-		<p class="section-hint">Select tags to help categorize and filter this routine</p>
-
-		<div class="tags-grid">
-			{#each availableTags as tag}
-				<button
-					type="button"
-					class="tag-btn"
-					class:selected={routineTags.includes(tag.value)}
-					onclick={() => toggleTag(tag.value)}
-				>
-					<span class="tag-icon">{tag.icon}</span>
-					<span class="tag-label">{tag.label}</span>
-				</button>
-			{/each}
-		</div>
-		<p class="field-hint">Tags help filter sessions in analytics</p>
 	</section>
 
 	<!-- Training Environment (for STA) -->
@@ -354,6 +321,9 @@
 			{/if}
 		</section>
 	{/if}
+
+	<!-- Display Settings -->
+	<DisplayMetricSelector bind:displayConfig />
 </div>
 
 <style>
@@ -569,53 +539,6 @@
 		filter: brightness(1.1);
 	}
 
-	/* Tags Grid */
-	.tags-grid {
-		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: 0.5rem;
-	}
-
-	.tag-btn {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		padding: 0.75rem 0.5rem;
-		background: var(--color-bg-card);
-		border: 2px solid transparent;
-		border-radius: 8px;
-		cursor: pointer;
-		transition: all 0.2s ease;
-	}
-
-	.tag-btn:hover {
-		border-color: rgba(20, 184, 166, 0.4);
-	}
-
-	.tag-btn.selected {
-		border-color: var(--color-primary);
-		background: rgba(20, 184, 166, 0.1);
-	}
-
-	.tag-icon {
-		font-size: 1.25rem;
-		margin-bottom: 0.25rem;
-	}
-
-	.tag-label {
-		font-size: 0.75rem;
-		font-weight: 600;
-		color: var(--color-text);
-		text-align: center;
-	}
-
-	.field-hint {
-		font-size: 0.75rem;
-		color: var(--color-text-muted);
-		margin: 0.75rem 0 0;
-		text-align: center;
-	}
-
 	/* Toggle Group (3 options) */
 	.toggle-group-3 {
 		display: grid;
@@ -624,9 +547,6 @@
 	}
 
 	@media (max-width: 480px) {
-		.tags-grid {
-			grid-template-columns: repeat(2, 1fr);
-		}
 		.toggle-group-3 {
 			grid-template-columns: 1fr;
 		}

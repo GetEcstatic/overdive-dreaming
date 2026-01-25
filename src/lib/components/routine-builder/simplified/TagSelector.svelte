@@ -73,18 +73,30 @@
 
 <div class="tag-selector">
 	<div class="header">
-		<h2>Routine Tags</h2>
-		<p class="section-hint">Configure which tags apply to this routine and which users can select when logging</p>
+		<h2>Configure Routine Tags</h2>
+		<p class="section-hint">Tags help categorize sessions and enable powerful filtering in analytics</p>
 	</div>
 
-	<div class="legend">
-		<div class="legend-item">
-			<span class="legend-badge default">D</span>
-			<span class="legend-text">Default - always applied to logs</span>
+	<div class="instructions">
+		<div class="instruction-card">
+			<div class="instruction-header">
+				<span class="legend-badge default">D</span>
+				<span class="instruction-title">Default Tags</span>
+			</div>
+			<p class="instruction-text">
+				Automatically applied to every log created with this routine. 
+				Great for training focus (CO₂/O₂), difficulty level, or adaptation type.
+			</p>
 		</div>
-		<div class="legend-item">
-			<span class="legend-badge selectable">S</span>
-			<span class="legend-text">Selectable - user chooses when logging</span>
+		<div class="instruction-card">
+			<div class="instruction-header">
+				<span class="legend-badge selectable">S</span>
+				<span class="instruction-title">Selectable Tags</span>
+			</div>
+			<p class="instruction-text">
+				Users choose from these when logging a session. 
+				Useful for variable conditions like effort level or session context.
+			</p>
 		</div>
 	</div>
 
@@ -205,19 +217,37 @@
 		margin: 0;
 	}
 
-	.legend {
-		display: flex;
-		gap: 1.5rem;
-		padding: 0.75rem 1rem;
+	.instructions {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 1rem;
+	}
+
+	.instruction-card {
+		padding: 1rem;
 		background: var(--color-bg);
-		border-radius: 8px;
+		border-radius: 10px;
 		border: 1px solid rgba(148, 163, 184, 0.2);
 	}
 
-	.legend-item {
+	.instruction-header {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
+		margin-bottom: 0.5rem;
+	}
+
+	.instruction-title {
+		font-weight: 600;
+		font-size: 0.9rem;
+		color: var(--color-text);
+	}
+
+	.instruction-text {
+		font-size: 0.8rem;
+		color: var(--color-text-muted);
+		margin: 0;
+		line-height: 1.4;
 	}
 
 	.legend-badge {
@@ -241,11 +271,6 @@
 		background: rgba(168, 85, 247, 0.2);
 		color: #a855f7;
 		border: 1px solid #a855f7;
-	}
-
-	.legend-text {
-		font-size: 0.8rem;
-		color: var(--color-text-muted);
 	}
 
 	.categories {
@@ -460,9 +485,8 @@
 
 	/* Mobile adjustments */
 	@media (max-width: 640px) {
-		.legend {
-			flex-direction: column;
-			gap: 0.5rem;
+		.instructions {
+			grid-template-columns: 1fr;
 		}
 
 		.tag-row {
