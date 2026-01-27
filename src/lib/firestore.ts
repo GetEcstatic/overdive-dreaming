@@ -334,8 +334,13 @@ export async function updateRoutineLog(
 	// Prepare updates with both old and new field names
 	const preparedUpdates = prepareLogForWrite(updates);
 
+	// Remove undefined values - Firestore doesn't accept undefined
+	const cleanedUpdates = Object.fromEntries(
+		Object.entries(preparedUpdates).filter(([_, v]) => v !== undefined)
+	);
+
 	await updateDoc(docRef, {
-		...preparedUpdates,
+		...cleanedUpdates,
 		updatedAt: serverTimestamp()
 	});
 }
