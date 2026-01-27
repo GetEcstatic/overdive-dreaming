@@ -24,22 +24,29 @@ src/lib/components/forms/
 
 ---
 
-## 1. Consolidate Routine Builders
+## ✅ COMPLETED: Consolidate Routine Builders
 
-**Current State:**
-- `RoutineBuilder.svelte` (396 lines) - Original 5-step wizard
-- `SimplifiedRoutineBuilder.svelte` (709 lines) - New streamlined 4-step wizard
+**Status:** Complete (2026-01-27)
 
-**Recommendation:**
-Consider deprecating `RoutineBuilder.svelte` and fully migrating to `SimplifiedRoutineBuilder.svelte`. The simplified builder has:
+Removed the deprecated `RoutineBuilder.svelte` and its 7 associated step components:
+- `RoutineBuilder.svelte` (main wizard)
+- `BasicInfoStep.svelte`
+- `ProtocolSetupStep.svelte`
+- `TrackingSelectionStep.svelte`
+- `DisplayConfigStep.svelte`
+- `ReviewSubmitStep.svelte`
+- `ProgressIndicator.svelte`
+- `WizardNavigation.svelte`
+
+`SimplifiedRoutineBuilder.svelte` is now the only routine builder, with:
 - Clearer 3-type model (max-attempt, interval-series, hybrid)
 - Better tag configuration (default + selectable tags)
 - Tracking presets (minimal/standard/full/custom)
+- Components in `routine-builder/simplified/` subfolder
 
-**Files to review:**
-- `src/lib/components/routine-builder/RoutineBuilder.svelte`
-- `src/lib/components/routine-builder/SimplifiedRoutineBuilder.svelte`
-- Routes that may still reference the old builder
+Kept shared components used by SimplifiedRoutineBuilder:
+- `TableEditor.svelte`
+- `TableRowEditor.svelte`
 
 ---
 
@@ -92,7 +99,7 @@ export function validateForm<T>(data: T, rules: ValidationRules<T>): ValidationR
 
 **Benefits:**
 - Consistent validation across forms
-- Reusable in QuickLogForm, EditableLogForm, RoutineBuilder
+- Reusable in QuickLogForm, EditableLogForm, SimplifiedRoutineBuilder
 - Easier to add new validation rules
 
 ---
@@ -163,12 +170,12 @@ Two TODO comments were found:
 
 ---
 
-## Timeline Suggestion
+## Timeline Suggestion (Updated 2026-01-27)
 
-| Week | Task |
-|------|------|
-| 1 | Extract shared styles, add validation helpers |
-| 2 | Split QuickLogForm into sub-components |
-| 3 | Split EditableLogForm, reuse sub-components |
-| 4 | Deprecate old RoutineBuilder, complete TODOs |
-| 5 | Add basic test coverage |
+| Week | Task | Status |
+|------|------|--------|
+| 1 | Extract shared styles, add validation helpers | |
+| 2 | Split QuickLogForm into sub-components | |
+| 3 | Split EditableLogForm, reuse sub-components | |
+| 4 | ~~Deprecate old RoutineBuilder~~, complete TODOs | ✅ RoutineBuilder removed |
+| 5 | Add basic test coverage | |
