@@ -5,6 +5,9 @@ import { error } from '@sveltejs/kit';
 import { getRoutineLog, getRoutine } from '$lib/firestore';
 import type { PageLoad } from './$types';
 
+// Disable SSR - chart libraries (chartjs-plugin-zoom, hammerjs) require browser APIs
+export const ssr = false;
+
 export const load: PageLoad = async ({ params }) => {
 	const { id } = params;
 

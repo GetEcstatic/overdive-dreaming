@@ -1,10 +1,12 @@
 <script lang="ts">
 	/**
 	 * TableRowEditor - Edit a single row in a variable table
-	 * Handles time inputs (mm:ss) and numeric inputs
+	 * Uses DurationInput wheel picker for times
+	 * Compact action menu instead of up/down arrows
 	 */
 
 	import type { TableRow } from '$lib/types';
+	import DurationInput from '../DurationInput.svelte';
 
 	let {
 		row = $bindable<TableRow>({
@@ -28,47 +30,29 @@
 		onMoveDown: () => void;
 	} = $props();
 
-	// Time input states for breathing time (restBefore)
-	let restMinutes = $state(0);
-	let restSeconds = $state(0);
+	// Menu state
+	let showMenu = $state(false);
+	let menuRef: HTMLDivElement;
 
-	// Time input states for target duration (static only)
-	let targetMinutes = $state(0);
-	let targetSeconds = $state(0);
-
-	// Time input states for dynamic target time
-	let dynamicTimeMinutes = $state(0);
-	let dynamicTimeSeconds = $state(0);
-
-	// Initialize from existing data
-	$effect(() => {
-		restMinutes = Math.floor(row.restBefore / 60);
-		restSeconds = row.restBefore % 60;
-
-		if (isStatic && row.targetDuration) {
-			targetMinutes = Math.floor(row.targetDuration / 60);
-			targetSeconds = row.targetDuration % 60;
+	// Close menu when clicking outside
+	function handleClickOutside(event: MouseEvent) {
+		if (menuRef && !menuRef.contains(event.target as Node)) {
+			showMenu = false;
 		}
+	}
 
-		if (!isStatic && row.targetTime) {
-			dynamicTimeMinutes = Math.floor(row.targetTime / 60);
-			dynamicTimeSeconds = row.targetTime % 60;
+	$effect(() => {
+		if (showMenu) {
+			document.addEventListener('click', handleClickOutside);
+			return () => document.removeEventListener('click', handleClickOutside);
 		}
 	});
 
-	// Update row when time inputs change
-	function updateRestTime() {
-		row.restBefore = restMinutes * 60 + restSeconds;
-	}
-
-	function updateTargetTime() {
-		if (isStatic) {
-			row.targetDuration = targetMinutes * 60 + targetSeconds;
-		}
-	}
-
-	function updateDynamicTime() {
-		row.targetTime = dynamicTimeMinutes * 60 + dynamicTimeSeconds;
+	function handleMenuAction(action: 'up' | 'down' | 'remove') {
+		showMenu = false;
+		if (action === 'up') onMoveUp();
+		else if (action === 'down') onMoveDown();
+		else onRemove();
 	}
 </script>
 
@@ -78,55 +62,23 @@
 		<div class="rep-number">{row.repNumber}</div>
 	</div>
 
-	<!-- Rest Before (Breathing Time) -->
+	<!-- Rest Before (Breathing Time) - using DurationInput wheel picker -->
 	<div class="col-rest">
-		<div class="time-input-compact">
-			<input
-				type="number"
-				class="time-input"
-				bind:value={restMinutes}
-				onchange={updateRestTime}
-				min="0"
-				max="59"
-				placeholder="0"
-			/>
-			<span class="time-sep">:</span>
-			<input
-				type="number"
-				class="time-input"
-				bind:value={restSeconds}
-				onchange={updateRestTime}
-				min="0"
-				max="59"
-				placeholder="00"
-			/>
-		</div>
+		<DurationInput
+			bind:value={row.restBefore}
+			compact={true}
+			showLabel={false}
+		/>
 	</div>
 
 	{#if isStatic}
-		<!-- Target Duration (Static) -->
+		<!-- Target Duration (Static) - using DurationInput wheel picker -->
 		<div class="col-target">
-			<div class="time-input-compact">
-				<input
-					type="number"
-					class="time-input"
-					bind:value={targetMinutes}
-					onchange={updateTargetTime}
-					min="0"
-					max="59"
-					placeholder="0"
-				/>
-				<span class="time-sep">:</span>
-				<input
-					type="number"
-					class="time-input"
-					bind:value={targetSeconds}
-					onchange={updateTargetTime}
-					min="0"
-					max="59"
-					placeholder="00"
-				/>
-			</div>
+			<DurationInput
+				bind:value={row.targetDuration}
+				compact={true}
+				showLabel={false}
+			/>
 		</div>
 	{:else}
 		<!-- Target Distance (Dynamic) -->
@@ -141,56 +93,54 @@
 			<span class="unit-label">m</span>
 		</div>
 
-		<!-- Target Time (Dynamic - mm:ss format) -->
+		<!-- Target Time (Dynamic) - using DurationInput wheel picker -->
 		<div class="col-time">
-			<div class="time-input-compact">
-				<input
-					type="number"
-					class="time-input"
-					bind:value={dynamicTimeMinutes}
-					onchange={updateDynamicTime}
-					min="0"
-					max="59"
-					placeholder="0"
-				/>
-				<span class="time-sep">:</span>
-				<input
-					type="number"
-					class="time-input"
-					bind:value={dynamicTimeSeconds}
-					onchange={updateDynamicTime}
-					min="0"
-					max="59"
-					placeholder="00"
-				/>
-			</div>
+			<DurationInput
+				bind:value={row.targetTime}
+				compact={true}
+				showLabel={false}
+			/>
 		</div>
 	{/if}
 
-	<!-- Actions -->
+	<!-- Actions - compact menu button -->
 	<div class="col-actions">
-		<div class="action-buttons">
+		<div class="action-menu" bind:this={menuRef}>
 			<button
 				type="button"
-				class="btn-icon"
-				onclick={onMoveUp}
-				disabled={index === 0}
-				title="Move up"
+				class="btn-menu"
+				onclick={() => showMenu = !showMenu}
+				title="Row actions"
 			>
-				↑
+				⋮
 			</button>
-			<button
-				type="button"
-				class="btn-icon"
-				onclick={onMoveDown}
-				disabled={index === totalRows - 1}
-				title="Move down"
-			>
-				↓
-			</button>
-			<button type="button" class="btn-icon btn-danger" onclick={onRemove} title="Remove">
-				×
-			</button>
+			{#if showMenu}
+				<div class="menu-dropdown">
+					<button
+						type="button"
+						class="menu-item"
+						onclick={() => handleMenuAction('up')}
+						disabled={index === 0}
+					>
+						↑ Move Up
+					</button>
+					<button
+						type="button"
+						class="menu-item"
+						onclick={() => handleMenuAction('down')}
+						disabled={index === totalRows - 1}
+					>
+						↓ Move Down
+					</button>
+					<button
+						type="button"
+						class="menu-item menu-item-danger"
+						onclick={() => handleMenuAction('remove')}
+					>
+						× Remove
+					</button>
+				</div>
+			{/if}
 		</div>
 	</div>
 </div>
@@ -198,8 +148,8 @@
 <style>
 	.table-row-editor {
 		display: grid;
-		grid-template-columns: 60px 120px 120px 120px 1fr;
-		gap: 0.75rem;
+		grid-template-columns: 50px 1fr 1fr 1fr 40px;
+		gap: 0.5rem;
 		padding: 0.75rem;
 		background: rgba(15, 23, 42, 0.3);
 		border: 1px solid rgba(148, 163, 184, 0.1);
@@ -224,36 +174,16 @@
 		font-size: 1rem;
 	}
 
-	.time-input-compact {
+	.col-rest,
+	.col-target,
+	.col-time {
 		display: flex;
 		align-items: center;
 		gap: 0.25rem;
 	}
 
-	.time-input {
-		width: 45px;
-		padding: 0.4rem 0.25rem;
-		background: rgba(15, 23, 42, 0.6);
-		border: 1px solid rgba(148, 163, 184, 0.2);
-		border-radius: 4px;
-		color: var(--color-text);
-		font-size: 0.875rem;
-		text-align: center;
-	}
-
-	.time-input:focus {
-		outline: none;
-		border-color: var(--color-primary);
-		box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.1);
-	}
-
-	.time-sep {
-		font-weight: 600;
-		color: var(--color-text-muted);
-	}
-
 	.numeric-input {
-		width: 70px;
+		width: 60px;
 		padding: 0.4rem 0.5rem;
 		background: rgba(15, 23, 42, 0.6);
 		border: 1px solid rgba(148, 163, 184, 0.2);
@@ -271,16 +201,18 @@
 	.unit-label {
 		font-size: 0.8125rem;
 		color: var(--color-text-muted);
-		margin-left: 0.25rem;
 	}
 
-	.action-buttons {
+	.col-actions {
 		display: flex;
 		justify-content: flex-end;
-		gap: 0.25rem;
 	}
 
-	.btn-icon {
+	.action-menu {
+		position: relative;
+	}
+
+	.btn-menu {
 		width: 28px;
 		height: 28px;
 		display: flex;
@@ -290,55 +222,80 @@
 		border: 1px solid rgba(148, 163, 184, 0.2);
 		border-radius: 4px;
 		color: var(--color-text);
-		font-size: 1rem;
-		font-weight: 600;
+		font-size: 1.25rem;
+		font-weight: bold;
 		cursor: pointer;
 		transition: all 0.2s ease;
 	}
 
-	.btn-icon:hover:not(:disabled) {
+	.btn-menu:hover {
 		background: rgba(148, 163, 184, 0.2);
 		border-color: rgba(148, 163, 184, 0.3);
 	}
 
-	.btn-icon:disabled {
-		opacity: 0.3;
+	.menu-dropdown {
+		position: absolute;
+		top: 100%;
+		right: 0;
+		margin-top: 4px;
+		background: var(--color-surface, #1e293b);
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		border-radius: 6px;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+		z-index: 100;
+		min-width: 120px;
+		overflow: hidden;
+	}
+
+	.menu-item {
+		width: 100%;
+		padding: 0.5rem 0.75rem;
+		background: transparent;
+		border: none;
+		color: var(--color-text);
+		font-size: 0.8125rem;
+		text-align: left;
+		cursor: pointer;
+		transition: background 0.15s ease;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.menu-item:hover:not(:disabled) {
+		background: rgba(148, 163, 184, 0.15);
+	}
+
+	.menu-item:disabled {
+		opacity: 0.4;
 		cursor: not-allowed;
 	}
 
-	.btn-danger {
+	.menu-item-danger {
 		color: #ef4444;
-		font-size: 1.5rem;
-		line-height: 1;
 	}
 
-	.btn-danger:hover:not(:disabled) {
+	.menu-item-danger:hover:not(:disabled) {
 		background: rgba(239, 68, 68, 0.15);
-		border-color: rgba(239, 68, 68, 0.3);
 	}
 
 	/* Mobile responsive */
 	@media (max-width: 768px) {
 		.table-row-editor {
-			grid-template-columns: 50px 100px 100px 100px 80px;
-			gap: 0.5rem;
+			grid-template-columns: 40px 1fr 1fr 1fr 36px;
+			gap: 0.375rem;
 			padding: 0.5rem;
 		}
 
-		.time-input {
-			width: 38px;
-			font-size: 0.8125rem;
-		}
-
 		.numeric-input {
-			width: 60px;
+			width: 50px;
 			font-size: 0.8125rem;
 		}
 
-		.btn-icon {
+		.btn-menu {
 			width: 24px;
 			height: 24px;
-			font-size: 0.875rem;
+			font-size: 1rem;
 		}
 	}
 </style>

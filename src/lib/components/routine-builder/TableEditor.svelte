@@ -228,8 +228,8 @@
 
 	.table-header {
 		display: grid;
-		grid-template-columns: 60px 120px 120px 120px 1fr;
-		gap: 0.75rem;
+		grid-template-columns: 50px 1fr 1fr 1fr 40px;
+		gap: 0.5rem;
 		padding: 0.75rem;
 		background: rgba(148, 163, 184, 0.1);
 		border-radius: 6px;
@@ -271,8 +271,8 @@
 		}
 
 		.table-header {
-			grid-template-columns: 50px 100px 100px 100px 80px;
-			gap: 0.5rem;
+			grid-template-columns: 40px 1fr 1fr 1fr 36px;
+			gap: 0.375rem;
 			font-size: 0.75rem;
 		}
 	}
