@@ -13,12 +13,11 @@
 	} from '$lib/types';
 	import type { LogFormData } from '$lib/components/QuickLogForm.svelte';
 	import {
-		routineLogToFormData,
-		convertSecondsToTimeFields,
-		convertTimeFieldsToSeconds
+		routineLogToFormData
 	} from '$lib/utils/formData';
 	import MediaManager from '$lib/components/MediaManager.svelte';
 	import BiometricImportModal from '$lib/components/BiometricImportModal.svelte';
+	import DurationInput from '$lib/components/DurationInput.svelte';
 	import { calculateSessionBiometricSummary } from '$lib/utils/biometricCsvParser';
 	import { formatTime } from '$lib/utils/time';
 
@@ -71,27 +70,19 @@
 
 	// Session context
 	let poolLength = $state<number | undefined>(formData.poolLength);
-	const breatheUpTime = convertSecondsToTimeFields(formData.initialBreatheUpTime);
-	let breatheUpMinutes = $state<number | undefined>(breatheUpTime.minutes);
-	let breatheUpSeconds = $state<number | undefined>(breatheUpTime.seconds);
+	let initialBreatheUpTime = $state<number | undefined>(formData.initialBreatheUpTime);
 
 	// Performance metrics
 	let totalDistance = $state<number | undefined>(formData.totalDistance);
-	const totalTimeFields = convertSecondsToTimeFields(formData.totalTime);
-	let totalTimeMinutes = $state<number | undefined>(totalTimeFields.minutes);
-	let totalTimeSeconds = $state<number | undefined>(totalTimeFields.seconds);
+	let totalTimeSeconds = $state<number | undefined>(formData.totalTime);
 	let repsCompleted = $state<number | undefined>(formData.repsCompleted);
-	const repDurationFields = convertSecondsToTimeFields(formData.repDuration);
-	let repDurationMinutes = $state<number | undefined>(repDurationFields.minutes);
-	let repDurationSeconds = $state<number | undefined>(repDurationFields.seconds);
+	let repDurationSeconds = $state<number | undefined>(formData.repDuration);
 	let repDistance = $state<number | undefined>(formData.repDistance);
 
 	// Training context
 	let breathingTechnique = $state<BreathingTechnique | undefined>(formData.breathingTechnique);
 	let waterTemperature = $state<number | undefined>(formData.waterTemperature);
-	const contractionsOnsetTimeFields = convertSecondsToTimeFields(formData.contractionsOnsetTime);
-	let contractionsOnsetMinutes = $state<number | undefined>(contractionsOnsetTimeFields.minutes);
-	let contractionsOnsetSeconds = $state<number | undefined>(contractionsOnsetTimeFields.seconds);
+	let contractionsOnsetTime = $state<number | undefined>(formData.contractionsOnsetTime);
 	let equipmentUsed = $state<string>(formData.equipmentUsed ?? '');
 	let buddyName = $state<string>(formData.buddyName ?? '');
 	let restingHeartRate = $state<number | undefined>(formData.restingHeartRate);
@@ -244,15 +235,6 @@
 
 	function doSubmit() {
 
-		// Convert mm:ss to total seconds
-		const initialBreatheUp = convertTimeFieldsToSeconds(breatheUpMinutes, breatheUpSeconds);
-		const totalTimeInSeconds = convertTimeFieldsToSeconds(totalTimeMinutes, totalTimeSeconds);
-		const repDurationInSeconds = convertTimeFieldsToSeconds(repDurationMinutes, repDurationSeconds);
-		const contractionsOnsetTimeInSeconds = convertTimeFieldsToSeconds(
-			contractionsOnsetMinutes,
-			contractionsOnsetSeconds
-		);
-
 		// Collect facial gear array
 		const facialGear: string[] = [];
 		if (facialGearMask) facialGear.push('mask');
@@ -292,17 +274,17 @@
 			// Session context
 			isDrySession: isSTARoutine ? isDrySession : undefined,
 			poolLength: normalizeNumber(poolLength),
-			initialBreatheUpTime: initialBreatheUp,
+			initialBreatheUpTime: initialBreatheUpTime,
 			// Performance metrics
 			totalDistance: normalizeNumber(totalDistance),
-			totalTime: totalTimeInSeconds,
+			totalTime: totalTimeSeconds,
 			repsCompleted: normalizeNumber(repsCompleted),
-			repDuration: repDurationInSeconds,
+			repDuration: repDurationSeconds,
 			repDistance: normalizeNumber(repDistance),
 			// Training context
 			breathingTechnique,
 			waterTemperature: normalizeNumber(waterTemperature),
-			contractionsOnsetTime: contractionsOnsetTimeInSeconds,
+			contractionsOnsetTime: contractionsOnsetTime,
 			equipmentUsed: equipmentUsed.trim() || undefined,
 			buddyName: buddyName.trim() || undefined,
 			restingHeartRate: normalizeNumber(restingHeartRate),
@@ -600,24 +582,10 @@
 			{#if config.trackInitialBreatheUpTime}
 				<div class="field-group">
 					<label class="field-label">Initial Breathe-Up</label>
-					<div class="time-input">
-						<input
-							type="number"
-							bind:value={breatheUpMinutes}
-							min="0"
-							class="field-input time-part"
-							placeholder="mm"
-						/>
-						<span class="time-separator">:</span>
-						<input
-							type="number"
-							bind:value={breatheUpSeconds}
-							min="0"
-							max="59"
-							class="field-input time-part"
-							placeholder="ss"
-						/>
-					</div>
+					<DurationInput
+						bind:value={initialBreatheUpTime}
+						max={900}
+					/>
 				</div>
 			{/if}
 		</div>
@@ -645,24 +613,10 @@
 			{#if config.trackTotalTime}
 				<div class="field-group">
 					<label class="field-label">Total Time</label>
-					<div class="time-input">
-						<input
-							type="number"
-							bind:value={totalTimeMinutes}
-							min="0"
-							class="field-input time-part"
-							placeholder="mm"
-						/>
-						<span class="time-separator">:</span>
-						<input
-							type="number"
-							bind:value={totalTimeSeconds}
-							min="0"
-							max="59"
-							class="field-input time-part"
-							placeholder="ss"
-						/>
-					</div>
+					<DurationInput
+						bind:value={totalTimeSeconds}
+						max={3600}
+					/>
 				</div>
 			{/if}
 
@@ -683,24 +637,10 @@
 			{#if config.trackRepDuration}
 				<div class="field-group">
 					<label class="field-label">Rep Duration (target: 1:30)</label>
-					<div class="time-input">
-						<input
-							type="number"
-							bind:value={repDurationMinutes}
-							min="0"
-							class="field-input time-part"
-							placeholder="mm"
-						/>
-						<span class="time-separator">:</span>
-						<input
-							type="number"
-							bind:value={repDurationSeconds}
-							min="0"
-							max="59"
-							class="field-input time-part"
-							placeholder="ss"
-						/>
-					</div>
+					<DurationInput
+						bind:value={repDurationSeconds}
+						max={600}
+					/>
 				</div>
 			{/if}
 
@@ -821,26 +761,11 @@
 
 			{#if config.trackContractionsOnsetTime}
 				<div class="field-group">
-					<label for="contractionsOnset" class="field-label">Contractions Onset Time (mm:ss)</label>
-					<div class="time-input-group">
-						<input
-							type="number"
-							bind:value={contractionsOnsetMinutes}
-							min="0"
-							max="10"
-							placeholder="MM"
-							class="time-input"
-						/>
-						<span class="time-separator">:</span>
-						<input
-							type="number"
-							bind:value={contractionsOnsetSeconds}
-							min="0"
-							max="59"
-							placeholder="SS"
-							class="time-input"
-						/>
-					</div>
+					<label class="field-label">Contractions Onset Time</label>
+					<DurationInput
+						bind:value={contractionsOnsetTime}
+						max={600}
+					/>
 				</div>
 			{/if}
 
@@ -1350,23 +1275,6 @@
 		border-color: var(--color-primary);
 	}
 
-	/* Time Input (mm:ss) */
-	.time-input {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-	}
-
-	.time-part {
-		flex: 1;
-	}
-
-	.time-separator {
-		color: var(--color-text-muted);
-		font-weight: 600;
-		font-size: 1.25rem;
-	}
-
 	.date-time-row {
 		display: grid;
 		grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
@@ -1404,37 +1312,6 @@
 	}
 
 	.discipline-btn.active {
-		background: rgba(20, 184, 166, 0.15);
-		border-color: var(--color-primary);
-		color: var(--color-primary);
-	}
-
-	/* Technique Buttons */
-	.technique-buttons {
-		display: flex;
-		gap: 0.5rem;
-		flex-wrap: wrap;
-	}
-
-	.technique-btn {
-		flex: 1;
-		min-width: 120px;
-		padding: 0.625rem 0.75rem;
-		background: var(--color-bg);
-		border: 2px solid rgba(148, 163, 184, 0.15);
-		border-radius: 6px;
-		color: var(--color-text-muted);
-		font-size: 0.75rem;
-		cursor: pointer;
-		transition: all 0.2s ease;
-		text-transform: capitalize;
-	}
-
-	.technique-btn:hover {
-		border-color: var(--color-primary);
-	}
-
-	.technique-btn.active {
 		background: rgba(20, 184, 166, 0.15);
 		border-color: var(--color-primary);
 		color: var(--color-primary);
@@ -1610,10 +1487,6 @@
 	@media (max-width: 640px) {
 		.date-time-row {
 			grid-template-columns: minmax(0, 1fr);
-		}
-
-		.technique-btn {
-			min-width: 100px;
 		}
 	}
 

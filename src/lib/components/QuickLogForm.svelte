@@ -14,6 +14,7 @@
 	import PhotoCropper from '$lib/components/PhotoCropper.svelte';
 	import RepEditor from '$lib/components/RepEditor.svelte';
 	import BiometricImportModal from '$lib/components/BiometricImportModal.svelte';
+	import DurationInput from '$lib/components/DurationInput.svelte';
 	import { isValidYouTubeUrl } from '$lib/storage';
 	import { biometricsToLapData, calculateSessionBiometricSummary } from '$lib/utils/biometricCsvParser';
 	import { getTagByValue } from '$lib/config/tagConfig';
@@ -154,20 +155,13 @@
 
 	// Session context
 	let poolLength = $state<number | undefined>(undefined);
-	let breatheUpMinutes = $state<number | undefined>(undefined);
-	let breatheUpSeconds = $state<number | undefined>(undefined);
+	let initialBreatheUpTime = $state<number | undefined>(undefined); // in seconds
 
 	// Performance metrics
 	let totalDistance = $state<number | undefined>(undefined);
-	let totalTimeMinutes = $state<number | undefined>(undefined);
-	let totalTimeSeconds = $state<number | undefined>(undefined);
+	let totalTimeSeconds = $state<number | undefined>(undefined); // in seconds
 	let repsCompleted = $state<number | undefined>(defaultRepsCompleted);
-	let repDurationMinutes = $state<number | undefined>(
-		avgRepDuration ? Math.floor(avgRepDuration / 60) : undefined
-	);
-	let repDurationSeconds = $state<number | undefined>(
-		avgRepDuration ? avgRepDuration % 60 : undefined
-	);
+	let repDurationSeconds = $state<number | undefined>(avgRepDuration); // in seconds
 	let repDistance = $state<number | undefined>(undefined);
 
 	// Training context
@@ -179,8 +173,7 @@
 
 	// NEW METRICS
 	let waterTemperature = $state<number | undefined>(undefined);
-	let contractionsOnsetMinutes = $state<number | undefined>(undefined);
-	let contractionsOnsetSeconds = $state<number | undefined>(undefined);
+	let contractionsOnsetTime = $state<number | undefined>(undefined); // in seconds
 	let equipmentUsed = $state<string>('');
 	let buddyName = $state<string>('');
 	let restingHeartRate = $state<number | undefined>(undefined);
@@ -226,14 +219,12 @@
 			// For single max attempt routines (trackTotalTime but not reps-based), 
 			// set totalTime from the longest hold
 			if (config.trackTotalTime && !config.trackRepsCompleted) {
-				totalTimeMinutes = Math.floor(summary.longestHold / 60);
-				totalTimeSeconds = summary.longestHold % 60;
+				totalTimeSeconds = summary.longestHold;
 			}
 			
 			// Set initial breathe-up time from CSV if available and tracked
 			if (summary.initialBreatheUpTime !== undefined && config.trackInitialBreatheUpTime) {
-				breatheUpMinutes = Math.floor(summary.initialBreatheUpTime / 60);
-				breatheUpSeconds = summary.initialBreatheUpTime % 60;
+				initialBreatheUpTime = summary.initialBreatheUpTime;
 			}
 		}
 	}
@@ -277,8 +268,7 @@
 		
 		if (isStaticDiscipline && longestDuration > 0) {
 			// For STA intervals: total time = longest hold duration
-			totalTimeMinutes = Math.floor(longestDuration / 60);
-			totalTimeSeconds = longestDuration % 60;
+			totalTimeSeconds = longestDuration;
 		} else if (!isStaticDiscipline && longestDistance > 0) {
 			// For dynamic intervals: total distance = longest distance
 			totalDistance = longestDistance;
@@ -421,27 +411,6 @@
 	
 	function doSubmit() {
 
-		// Convert mm:ss to total seconds
-		const initialBreatheUp =
-			breatheUpMinutes !== undefined && breatheUpSeconds !== undefined
-				? breatheUpMinutes * 60 + breatheUpSeconds
-				: undefined;
-
-		const totalTimeInSeconds =
-			totalTimeMinutes !== undefined && totalTimeSeconds !== undefined
-				? totalTimeMinutes * 60 + totalTimeSeconds
-				: undefined;
-
-		const repDurationInSeconds =
-			repDurationMinutes !== undefined && repDurationSeconds !== undefined
-				? repDurationMinutes * 60 + repDurationSeconds
-				: undefined;
-
-		const contractionsOnset =
-			contractionsOnsetMinutes !== undefined && contractionsOnsetSeconds !== undefined
-				? contractionsOnsetMinutes * 60 + contractionsOnsetSeconds
-				: undefined;
-
 		// Collect facial gear array
 		const facialGear: string[] = [];
 		if (facialGearMask) facialGear.push('mask');
@@ -461,12 +430,12 @@
 			// Session context
 			isDrySession: isSTARoutine ? isDrySession : undefined,
 			poolLength,
-			initialBreatheUpTime: initialBreatheUp,
+			initialBreatheUpTime: initialBreatheUpTime,
 			// Performance metrics
 			totalDistance,
-			totalTime: totalTimeInSeconds,
+			totalTime: totalTimeSeconds,
 			repsCompleted,
-			repDuration: repDurationInSeconds,
+			repDuration: repDurationSeconds,
 			repDistance,
 			// Training context
 			breathingTechnique,
@@ -476,7 +445,7 @@
 			notes: notes.trim() || undefined,
 			// NEW METRICS
 			waterTemperature,
-			contractionsOnsetTime: contractionsOnset,
+			contractionsOnsetTime: contractionsOnsetTime,
 			equipmentUsed: equipmentUsed.trim() || undefined,
 			buddyName: buddyName.trim() || undefined,
 			restingHeartRate,
@@ -792,25 +761,11 @@
 
 			{#if config.trackInitialBreatheUpTime}
 				<div class="field-group">
-					<label class="field-label">Initial Breathe-Up</label>
-					<div class="time-input">
-						<input
-							type="number"
-							bind:value={breatheUpMinutes}
-							min="0"
-							class="field-input time-part"
-							placeholder="mm"
-						/>
-						<span class="time-separator">:</span>
-						<input
-							type="number"
-							bind:value={breatheUpSeconds}
-							min="0"
-							max="59"
-							class="field-input time-part"
-							placeholder="ss"
-						/>
-					</div>
+					<DurationInput
+						bind:value={initialBreatheUpTime}
+						label="Initial Breathe-Up"
+						compact={true}
+					/>
 				</div>
 			{/if}
 		</div>
@@ -837,30 +792,12 @@
 
 			{#if config.trackTotalTime}
 				<div class="field-group">
-					<label class="field-label">
-						Total Time
-						{#if routine.table}
-							<span class="field-hint-inline">(auto-calculated from table)</span>
-						{/if}
-					</label>
-					<div class="time-input">
-						<input
-							type="number"
-							bind:value={totalTimeMinutes}
-							min="0"
-							class="field-input time-part"
-							placeholder="mm"
-						/>
-						<span class="time-separator">:</span>
-						<input
-							type="number"
-							bind:value={totalTimeSeconds}
-							min="0"
-							max="59"
-							class="field-input time-part"
-							placeholder="ss"
-						/>
-					</div>
+					<DurationInput
+						bind:value={totalTimeSeconds}
+						label="Total Time"
+						hint={routine.table ? '(auto-calculated from table)' : ''}
+						compact={true}
+					/>
 				</div>
 			{/if}
 
@@ -880,25 +817,12 @@
 
 			{#if config.trackRepDuration}
 				<div class="field-group">
-					<label class="field-label">Rep Duration (target: 1:30)</label>
-					<div class="time-input">
-						<input
-							type="number"
-							bind:value={repDurationMinutes}
-							min="0"
-							class="field-input time-part"
-							placeholder="mm"
-						/>
-						<span class="time-separator">:</span>
-						<input
-							type="number"
-							bind:value={repDurationSeconds}
-							min="0"
-							max="59"
-							class="field-input time-part"
-							placeholder="ss"
-						/>
-					</div>
+					<DurationInput
+						bind:value={repDurationSeconds}
+						label="Rep Duration"
+						hint="Target: 1:30"
+						compact={true}
+					/>
 				</div>
 			{/if}
 
@@ -1138,26 +1062,11 @@
 
 			{#if config.trackContractionsOnsetTime}
 				<div class="field-group">
-					<label for="contractionsOnset" class="field-label">Contractions Onset Time (mm:ss)</label>
-					<div class="time-input-group">
-						<input
-							type="number"
-							bind:value={contractionsOnsetMinutes}
-							min="0"
-							max="10"
-							placeholder="MM"
-							class="time-input"
-						/>
-						<span class="time-separator">:</span>
-						<input
-							type="number"
-							bind:value={contractionsOnsetSeconds}
-							min="0"
-							max="59"
-							placeholder="SS"
-							class="time-input"
-						/>
-					</div>
+					<DurationInput
+						bind:value={contractionsOnsetTime}
+						label="Contractions Onset Time"
+						compact={true}
+					/>
 				</div>
 			{/if}
 
