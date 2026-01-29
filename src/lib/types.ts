@@ -91,11 +91,14 @@ export interface PersonalBests {
 	DYNB?: number; // Best dynamic bifins distance in meters
 }
 
+export type Gender = 'male' | 'female' | 'prefer-not-to-say';
+
 export interface UserSettings {
 	defaultTimeframe?: '1month' | '6months' | '1year';
 	defaultAnalyticsFilter?: string;
 	defaultSessionVisibility?: SessionVisibility;
 	showMenstrualCycleTracking?: boolean; // Opt-in to show menstrual cycle day tracking
+	gender?: Gender; // User's gender for analytics/filtering
 }
 
 export interface User {

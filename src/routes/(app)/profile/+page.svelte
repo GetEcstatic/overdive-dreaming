@@ -12,7 +12,7 @@
 		updateUserSettings
 	} from '$lib/firestore';
 	import { getProfileCache, refreshProfileCache, updateProfileCache } from '$lib/utils/profileCache';
-	import type { Season, SessionVisibility, UserSettings } from '$lib/types';
+	import type { Season, SessionVisibility, UserSettings, Gender } from '$lib/types';
 
 	type DefaultTimeframe = '1month' | '6months' | '1year';
 
@@ -22,10 +22,17 @@
 		{ value: '1year', label: 'Last Year' }
 	];
 
+	const genderOptions: { value: Gender; label: string }[] = [
+		{ value: 'male', label: 'Male' },
+		{ value: 'female', label: 'Female' },
+		{ value: 'prefer-not-to-say', label: 'Prefer not to say' }
+	];
+
 	let defaultFilterKey = $state<string>('tf:1month');
 	let defaultTimeframeFallback = $state<DefaultTimeframe>('1month');
 	let defaultSessionVisibility = $state<SessionVisibility>('private');
 	let showMenstrualCycleTracking = $state<boolean>(false);
+	let gender = $state<Gender | undefined>(undefined);
 	let settingsSaving = $state(false);
 	let settingsError = $state<string | null>(null);
 
@@ -95,6 +102,9 @@
 		if (settings?.showMenstrualCycleTracking !== undefined) {
 			showMenstrualCycleTracking = settings.showMenstrualCycleTracking;
 		}
+		if (settings?.gender) {
+			gender = settings.gender;
+		}
 	}
 
 	function applyProfileCache(entry: { settings?: UserSettings; seasons?: Season[] }) {
@@ -145,7 +155,8 @@
 				defaultAnalyticsFilter: defaultFilterKey,
 				defaultTimeframe: defaultTimeframeFallback,
 				defaultSessionVisibility,
-				showMenstrualCycleTracking
+				showMenstrualCycleTracking,
+				gender
 			};
 			await updateUserSettings($user.uid, nextSettings);
 			updateProfileCache($user.uid, { settings: nextSettings });
@@ -166,7 +177,8 @@
 				defaultAnalyticsFilter: defaultFilterKey,
 				defaultTimeframe: defaultTimeframeFallback,
 				defaultSessionVisibility,
-				showMenstrualCycleTracking
+				showMenstrualCycleTracking,
+				gender
 			};
 			await updateUserSettings($user.uid, nextSettings);
 			updateProfileCache($user.uid, { settings: nextSettings });
@@ -187,7 +199,30 @@
 				defaultAnalyticsFilter: defaultFilterKey,
 				defaultTimeframe: defaultTimeframeFallback,
 				defaultSessionVisibility,
-				showMenstrualCycleTracking
+				showMenstrualCycleTracking,
+				gender
+			};
+			await updateUserSettings($user.uid, nextSettings);
+			updateProfileCache($user.uid, { settings: nextSettings });
+		} catch (error) {
+			console.error('Failed to update settings:', error);
+			settingsError = 'Failed to save settings.';
+		} finally {
+			settingsSaving = false;
+		}
+	}
+
+	async function handleGenderChange() {
+		if (!$user) return;
+		try {
+			settingsSaving = true;
+			settingsError = null;
+			const nextSettings: UserSettings = {
+				defaultAnalyticsFilter: defaultFilterKey,
+				defaultTimeframe: defaultTimeframeFallback,
+				defaultSessionVisibility,
+				showMenstrualCycleTracking,
+				gender
 			};
 			await updateUserSettings($user.uid, nextSettings);
 			updateProfileCache($user.uid, { settings: nextSettings });
@@ -452,6 +487,22 @@
 						<span>Show menstrual cycle tracking</span>
 					</label>
 					<p class="form-hint">Enable to track cycle day in session logs. Useful for correlating performance with your cycle.</p>
+				</div>
+				<div class="form-group">
+					<label class="form-label" for="gender-select">Gender</label>
+					<select
+						id="gender-select"
+						class="form-select"
+						bind:value={gender}
+						onchange={handleGenderChange}
+						disabled={settingsSaving}
+					>
+						<option value={undefined}>Not specified</option>
+						{#each genderOptions as option}
+							<option value={option.value}>{option.label}</option>
+						{/each}
+					</select>
+					<p class="form-hint">Optional. May be used for future analytics and comparisons.</p>
 				</div>
 			</section>
 		</div>
