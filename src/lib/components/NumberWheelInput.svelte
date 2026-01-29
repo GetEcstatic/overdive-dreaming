@@ -133,11 +133,10 @@
 	{/if}
 	
 	<div class="wheel-picker">
-		<!-- Selection highlight (behind column) -->
-		<div class="selection-highlight"></div>
-		
 		<!-- Value Column -->
 		<div class="picker-column-wrapper">
+			<!-- Selection highlight (behind column) -->
+			<div class="selection-highlight"></div>
 			<div 
 				class="picker-column"
 				bind:this={column}
@@ -272,10 +271,9 @@
 
 	.selection-highlight {
 		position: absolute;
-		left: 0.5rem;
-		right: 0.5rem;
-		top: calc(50% - 0.5rem);
-		transform: translateY(-50%);
+		left: -0.25rem;
+		right: -0.25rem;
+		top: 32px;  /* Position at the middle item (second row in 3-item view) */
 		height: 32px;
 		background: rgba(20, 184, 166, 0.08);
 		border-radius: 6px;
@@ -316,7 +314,7 @@
 
 	.compact .selection-highlight {
 		height: 28px;
-		top: 50%;
+		top: 28px;  /* Position at middle item in compact mode */
 	}
 
 	/* Mobile adjustments */
