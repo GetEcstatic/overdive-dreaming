@@ -25,6 +25,7 @@
 	let defaultFilterKey = $state<string>('tf:1month');
 	let defaultTimeframeFallback = $state<DefaultTimeframe>('1month');
 	let defaultSessionVisibility = $state<SessionVisibility>('private');
+	let showMenstrualCycleTracking = $state<boolean>(false);
 	let settingsSaving = $state(false);
 	let settingsError = $state<string | null>(null);
 
@@ -91,6 +92,9 @@
 		if (settings?.defaultSessionVisibility) {
 			defaultSessionVisibility = settings.defaultSessionVisibility;
 		}
+		if (settings?.showMenstrualCycleTracking !== undefined) {
+			showMenstrualCycleTracking = settings.showMenstrualCycleTracking;
+		}
 	}
 
 	function applyProfileCache(entry: { settings?: UserSettings; seasons?: Season[] }) {
@@ -140,7 +144,8 @@
 			const nextSettings: UserSettings = {
 				defaultAnalyticsFilter: defaultFilterKey,
 				defaultTimeframe: defaultTimeframeFallback,
-				defaultSessionVisibility
+				defaultSessionVisibility,
+				showMenstrualCycleTracking
 			};
 			await updateUserSettings($user.uid, nextSettings);
 			updateProfileCache($user.uid, { settings: nextSettings });
@@ -160,7 +165,29 @@
 			const nextSettings: UserSettings = {
 				defaultAnalyticsFilter: defaultFilterKey,
 				defaultTimeframe: defaultTimeframeFallback,
-				defaultSessionVisibility
+				defaultSessionVisibility,
+				showMenstrualCycleTracking
+			};
+			await updateUserSettings($user.uid, nextSettings);
+			updateProfileCache($user.uid, { settings: nextSettings });
+		} catch (error) {
+			console.error('Failed to update settings:', error);
+			settingsError = 'Failed to save settings.';
+		} finally {
+			settingsSaving = false;
+		}
+	}
+
+	async function handleMenstrualCycleTrackingChange() {
+		if (!$user) return;
+		try {
+			settingsSaving = true;
+			settingsError = null;
+			const nextSettings: UserSettings = {
+				defaultAnalyticsFilter: defaultFilterKey,
+				defaultTimeframe: defaultTimeframeFallback,
+				defaultSessionVisibility,
+				showMenstrualCycleTracking
 			};
 			await updateUserSettings($user.uid, nextSettings);
 			updateProfileCache($user.uid, { settings: nextSettings });
@@ -413,6 +440,18 @@
 						<option value="public">Public</option>
 					</select>
 					<p class="form-hint">New logs default to this setting unless you override per session.</p>
+				</div>
+				<div class="form-group">
+					<label class="form-label toggle-label">
+						<input
+							type="checkbox"
+							bind:checked={showMenstrualCycleTracking}
+							onchange={handleMenstrualCycleTrackingChange}
+							disabled={settingsSaving}
+						/>
+						<span>Show menstrual cycle tracking</span>
+					</label>
+					<p class="form-hint">Enable to track cycle day in session logs. Useful for correlating performance with your cycle.</p>
 				</div>
 			</section>
 		</div>
@@ -797,6 +836,25 @@
 		font-size: 0.85rem;
 		color: var(--color-text-muted);
 		margin-top: 0.35rem;
+	}
+
+	.toggle-label {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		cursor: pointer;
+	}
+
+	.toggle-label input[type="checkbox"] {
+		width: 1.25rem;
+		height: 1.25rem;
+		accent-color: var(--color-primary, #14b8a6);
+		cursor: pointer;
+	}
+
+	.toggle-label input[type="checkbox"]:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
 	}
 
 	.error-text {

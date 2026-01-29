@@ -19,6 +19,7 @@
 	let error = $state<string | null>(null);
 	let success = $state<string | null>(null);
 	let defaultSessionVisibility = $state<SessionVisibility>('private');
+	let showMenstrualCycleTracking = $state<boolean>(false);
 
 	onMount(async () => {
 		if (!$user) return;
@@ -28,6 +29,9 @@
 			const settings = await getUserSettings($user.uid);
 			if (settings?.defaultSessionVisibility) {
 				defaultSessionVisibility = settings.defaultSessionVisibility;
+			}
+			if (settings?.showMenstrualCycleTracking) {
+				showMenstrualCycleTracking = settings.showMenstrualCycleTracking;
 			}
 			loading = false;
 		} catch (err) {
@@ -296,6 +300,7 @@
 					onSubmit={handleSubmit}
 					onCancel={handleCancel}
 					defaultVisibility={defaultSessionVisibility}
+					{showMenstrualCycleTracking}
 					{saving}
 				/>
 			{/if}

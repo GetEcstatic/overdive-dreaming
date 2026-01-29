@@ -11,11 +11,12 @@
 		open: boolean;
 		log: RoutineLog;
 		routine: RoutineTemplate;
+		showMenstrualCycleTracking?: boolean;
 		onClose: () => void;
 		onSave: (updates: Partial<RoutineLog>) => Promise<void>;
 	}
 
-	let { open, log, routine, onClose, onSave }: Props = $props();
+	let { open, log, routine, showMenstrualCycleTracking = false, onClose, onSave }: Props = $props();
 
 	// State
 	let saveError = $state<string | null>(null);
@@ -296,6 +297,7 @@
 					{routine}
 					initialData={log}
 					mode="edit"
+					{showMenstrualCycleTracking}
 					onSubmit={handleSubmit}
 					onCancel={handleCloseClick}
 				/>

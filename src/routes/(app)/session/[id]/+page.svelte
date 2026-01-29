@@ -17,7 +17,7 @@
 	import type { RoutineLog, Discipline, BiometricReading } from '$lib/types';
 
 	let { data } = $props();
-	let { log, routine } = $derived(data);
+	let { log, routine, showMenstrualCycleTracking } = $derived(data);
 
 	// Edit modal state
 	let editingLog = $state<{ log: RoutineLog; routine: typeof routine } | null>(null);
@@ -748,6 +748,7 @@
 		open={true}
 		log={editingLog.log}
 		routine={editingLog.routine}
+		{showMenstrualCycleTracking}
 		onClose={() => {
 			editingLog = null;
 			saveError = null;

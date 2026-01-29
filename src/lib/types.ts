@@ -95,6 +95,7 @@ export interface UserSettings {
 	defaultTimeframe?: '1month' | '6months' | '1year';
 	defaultAnalyticsFilter?: string;
 	defaultSessionVisibility?: SessionVisibility;
+	showMenstrualCycleTracking?: boolean; // Opt-in to show menstrual cycle day tracking
 }
 
 export interface User {

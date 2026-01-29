@@ -26,6 +26,7 @@
 		routine: RoutineTemplate;
 		initialData: RoutineLog;
 		mode: 'create' | 'edit';
+		showMenstrualCycleTracking?: boolean;
 		onSubmit: (
 			data: LogFormData,
 			photoAction: 'keep' | 'remove' | 'replace' | 'add',
@@ -34,7 +35,7 @@
 		onCancel: () => void;
 	}
 
-	let { routine, initialData, mode, onSubmit, onCancel }: Props = $props();
+	let { routine, initialData, mode, showMenstrualCycleTracking = false, onSubmit, onCancel }: Props = $props();
 
 	// Pre-populate from initialData
 	const formData = routineLogToFormData(initialData);
@@ -854,7 +855,7 @@
 			{/if}
 
 			<!-- NEW METRICS - Phase 1 -->
-			{#if config.trackMenstrualCycleDay}
+			{#if config.trackMenstrualCycleDay && showMenstrualCycleTracking}
 				<div class="field-group">
 					<NumberWheelInput
 						bind:value={menstrualCycleDay}

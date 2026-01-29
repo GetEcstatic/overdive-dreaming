@@ -25,6 +25,7 @@
 		onSubmit: (data: LogFormData) => void;
 		onCancel: () => void;
 		defaultVisibility?: SessionVisibility;
+		showMenstrualCycleTracking?: boolean;
 		saving?: boolean;
 	}
 
@@ -95,7 +96,7 @@
 		selectedTags?: string[];
 	}
 
-	let { routine, onSubmit, onCancel, defaultVisibility = 'private', saving = false }: Props = $props();
+	let { routine, onSubmit, onCancel, defaultVisibility = 'private', showMenstrualCycleTracking = false, saving = false }: Props = $props();
 
 	// Form state - use effect to sync initial value from routine prop
 	let disciplineUsed = $state<Discipline>(routine.disciplines[0]);
@@ -1158,7 +1159,7 @@
 			{/if}
 
 			<!-- NEW METRICS - Phase 1 -->
-			{#if config.trackMenstrualCycleDay}
+			{#if config.trackMenstrualCycleDay && showMenstrualCycleTracking}
 				<div class="field-group">
 					<NumberWheelInput
 						bind:value={menstrualCycleDay}

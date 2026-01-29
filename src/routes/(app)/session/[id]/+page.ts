@@ -2,7 +2,7 @@
 // Fetches routine log and template data for detail view
 
 import { error } from '@sveltejs/kit';
-import { getRoutineLog, getRoutine } from '$lib/firestore';
+import { getRoutineLog, getRoutine, getUserSettings } from '$lib/firestore';
 import type { PageLoad } from './$types';
 
 // Disable SSR - chart libraries (chartjs-plugin-zoom, hammerjs) require browser APIs
@@ -23,8 +23,12 @@ export const load: PageLoad = async ({ params }) => {
 		throw error(404, 'Routine template not found');
 	}
 
+	// Fetch user settings (for menstrual cycle tracking preference)
+	const userSettings = await getUserSettings(log.userId);
+
 	return {
 		log,
-		routine
+		routine,
+		showMenstrualCycleTracking: userSettings?.showMenstrualCycleTracking ?? false
 	};
 };
