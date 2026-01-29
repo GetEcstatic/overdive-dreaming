@@ -25,7 +25,7 @@
 	const genderOptions: { value: Gender; label: string }[] = [
 		{ value: 'male', label: 'Male' },
 		{ value: 'female', label: 'Female' },
-		{ value: 'prefer-not-to-say', label: 'Prefer not to say' }
+		{ value: 'prefer-not-to-say', label: 'Other / Prefer not to say' }
 	];
 
 	let defaultFilterKey = $state<string>('tf:1month');
