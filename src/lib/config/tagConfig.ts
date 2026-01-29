@@ -147,7 +147,7 @@ export const CONTEXT_TAGS: TagCategory = {
       label: 'Competition', 
       icon: '🏆', 
       description: 'Competition dive',
-      allowAsDefault: false,
+      allowAsDefault: true,
       allowAsSelectable: true
     },
     { 
@@ -155,7 +155,7 @@ export const CONTEXT_TAGS: TagCategory = {
       label: 'PB Attempt', 
       icon: '⭐', 
       description: 'Personal best attempt',
-      allowAsDefault: false,
+      allowAsDefault: true,
       allowAsSelectable: true
     },
     { 
@@ -163,7 +163,7 @@ export const CONTEXT_TAGS: TagCategory = {
       label: 'Fun Dive', 
       icon: '🎉', 
       description: 'Casual, enjoyment-focused',
-      allowAsDefault: false,
+      allowAsDefault: true,
       allowAsSelectable: true
     },
     { 
@@ -171,7 +171,7 @@ export const CONTEXT_TAGS: TagCategory = {
       label: 'Experimental', 
       icon: '🧪', 
       description: 'Testing new techniques',
-      allowAsDefault: false,
+      allowAsDefault: true,
       allowAsSelectable: true
     }
   ]
@@ -188,7 +188,7 @@ export const DIFFICULTY_TAGS: TagCategory = {
       icon: '🌱', 
       description: 'Suitable for beginners',
       allowAsDefault: true,
-      allowAsSelectable: false
+      allowAsSelectable: true
     },
     { 
       value: 'intermediate', 
@@ -196,7 +196,7 @@ export const DIFFICULTY_TAGS: TagCategory = {
       icon: '🌳', 
       description: 'For intermediate freedivers',
       allowAsDefault: true,
-      allowAsSelectable: false
+      allowAsSelectable: true
     },
     { 
       value: 'advanced', 
@@ -204,7 +204,7 @@ export const DIFFICULTY_TAGS: TagCategory = {
       icon: '🏔️', 
       description: 'Requires advanced skills',
       allowAsDefault: true,
-      allowAsSelectable: false
+      allowAsSelectable: true
     },
     { 
       value: 'expert', 
@@ -212,7 +212,7 @@ export const DIFFICULTY_TAGS: TagCategory = {
       icon: '🔱', 
       description: 'Expert level only',
       allowAsDefault: true,
-      allowAsSelectable: false
+      allowAsSelectable: true
     }
   ]
 };
