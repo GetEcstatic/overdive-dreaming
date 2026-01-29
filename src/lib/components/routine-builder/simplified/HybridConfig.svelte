@@ -12,6 +12,7 @@
 		EffortLevel 
 	} from '$lib/types';
 	import TableEditor from '../TableEditor.svelte';
+	import NumberWheelInput from '$lib/components/NumberWheelInput.svelte';
 
 	let {
 		name = $bindable(),
@@ -279,13 +280,11 @@
 		{#if intervalStructure === 'uniform'}
 			<div class="interval-grid">
 				<div class="form-group">
-					<label for="numberOfReps">Interval Reps</label>
-					<input
-						id="numberOfReps"
-						type="number"
+					<NumberWheelInput
 						bind:value={numberOfReps}
-						min="1"
-						max="20"
+						label="Interval Reps"
+						min={1}
+						max={20}
 					/>
 				</div>
 

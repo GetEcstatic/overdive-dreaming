@@ -6,6 +6,7 @@
 	import type { Discipline, IntervalStructure, DisplayConfig, RoutineTable, TrainingEnvironment } from '$lib/types';
 	import TableEditor from '../TableEditor.svelte';
 	import DurationInput from '$lib/components/DurationInput.svelte';
+	import NumberWheelInput from '$lib/components/NumberWheelInput.svelte';
 
 	let {
 		name = $bindable(),
@@ -234,13 +235,11 @@
 
 			<div class="interval-grid">
 				<div class="form-group">
-					<label for="numberOfReps">Number of Reps</label>
-					<input
-						id="numberOfReps"
-						type="number"
+					<NumberWheelInput
 						bind:value={numberOfReps}
-						min="1"
-						max="50"
+						label="Number of Reps"
+						min={1}
+						max={50}
 					/>
 				</div>
 
@@ -301,13 +300,11 @@
 				/>
 			{:else}
 				<div class="form-group">
-					<label for="tableReps">How many reps in this table?</label>
-					<input
-						id="tableReps"
-						type="number"
+					<NumberWheelInput
 						bind:value={numberOfReps}
-						min="1"
-						max="20"
+						label="How many reps in this table?"
+						min={1}
+						max={20}
 					/>
 					<button 
 						type="button" 
