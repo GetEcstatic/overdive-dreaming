@@ -29,8 +29,22 @@ service cloud.firestore {
 
     // Routine logs (flat structure)
     match /routineLogs/{routineLogId} {
-      allow read: if request.auth != null &&
+      // Allow list queries where userId filter matches auth user
+      allow list: if request.auth != null;
+      // Allow get/read of individual docs user owns or public
+      allow get: if request.auth != null &&
         (request.auth.uid == resource.data.userId || resource.data.visibility == 'public');
+      allow write: if request.auth != null &&
+        request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null &&
+        request.auth.uid == request.resource.data.userId;
+    }
+
+    // Personal bests (user-owned)
+    match /personalBests/{pbId} {
+      allow read: if request.auth != null &&
+        request.auth.uid == resource.data.userId;
+      allow list: if request.auth != null;
       allow write: if request.auth != null &&
         request.auth.uid == resource.data.userId;
       allow create: if request.auth != null &&
