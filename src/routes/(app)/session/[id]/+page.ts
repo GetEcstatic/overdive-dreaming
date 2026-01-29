@@ -3,6 +3,7 @@
 
 import { error } from '@sveltejs/kit';
 import { getRoutineLog, getRoutine, getUserSettings } from '$lib/firestore';
+import { auth } from '$lib/firebase';
 import type { PageLoad } from './$types';
 
 // Disable SSR - chart libraries (chartjs-plugin-zoom, hammerjs) require browser APIs
@@ -23,8 +24,11 @@ export const load: PageLoad = async ({ params }) => {
 		throw error(404, 'Routine template not found');
 	}
 
-	// Fetch user settings (for menstrual cycle tracking preference)
-	const userSettings = await getUserSettings(log.userId);
+	// Fetch user settings only if this is the current user's session
+	// (User settings are private and can only be read by the owner)
+	const currentUserId = auth.currentUser?.uid;
+	const isOwnSession = currentUserId && log.userId === currentUserId;
+	const userSettings = isOwnSession ? await getUserSettings(log.userId) : undefined;
 
 	return {
 		log,
