@@ -18,6 +18,7 @@
 	import MediaManager from '$lib/components/MediaManager.svelte';
 	import BiometricImportModal from '$lib/components/BiometricImportModal.svelte';
 	import DurationInput from '$lib/components/DurationInput.svelte';
+	import NumberWheelInput from '$lib/components/NumberWheelInput.svelte';
 	import { calculateSessionBiometricSummary } from '$lib/utils/biometricCsvParser';
 	import { formatTime } from '$lib/utils/time';
 
@@ -567,14 +568,13 @@
 
 			{#if config.trackPoolLength}
 				<div class="field-group">
-					<label for="poolLength" class="field-label">Pool Length (m)</label>
-					<input
-						id="poolLength"
-						type="number"
+					<NumberWheelInput
 						bind:value={poolLength}
-						min="0"
-						class="field-input"
-						placeholder="25 or 50"
+						label="Pool Length"
+						min={15}
+						max={50}
+						step={5}
+						unit="m"
 					/>
 				</div>
 			{/if}
@@ -622,14 +622,12 @@
 
 			{#if config.trackRepsCompleted}
 				<div class="field-group">
-					<label for="repsCompleted" class="field-label">Reps Completed</label>
-					<input
-						id="repsCompleted"
-						type="number"
+					<NumberWheelInput
 						bind:value={repsCompleted}
-						min="0"
-						class="field-input"
-						placeholder={routine.numberOfReps ? `Target: ${routine.numberOfReps}` : 'e.g., 16'}
+						label="Reps Completed"
+						min={1}
+						max={50}
+						hint={routine.numberOfReps ? `Target: ${routine.numberOfReps}` : ''}
 					/>
 				</div>
 			{/if}
@@ -846,14 +844,11 @@
 
 			{#if config.trackBreathsBetweenReps}
 				<div class="field-group">
-					<label for="breathsBetweenReps" class="field-label">Breaths Between Reps</label>
-					<input
-						id="breathsBetweenReps"
-						type="number"
+					<NumberWheelInput
 						bind:value={breathsBetweenReps}
-						min="1"
-						class="field-input"
-						placeholder="e.g., 2"
+						label="Breaths Between Reps"
+						min={1}
+						max={10}
 					/>
 				</div>
 			{/if}
@@ -861,17 +856,13 @@
 			<!-- NEW METRICS - Phase 1 -->
 			{#if config.trackMenstrualCycleDay}
 				<div class="field-group">
-					<label for="menstrualCycleDay" class="field-label">Menstrual Cycle Day</label>
-					<input
-						id="menstrualCycleDay"
-						type="number"
+					<NumberWheelInput
 						bind:value={menstrualCycleDay}
-						min="1"
-						max="40"
-						class="field-input"
-						placeholder="e.g., 3"
+						label="Menstrual Cycle Day"
+						min={1}
+						max={40}
+						hint="Day of cycle (1 = day after menstruation starts)"
 					/>
-					<p class="field-hint">Day of cycle (1 = day after menstruation starts)</p>
 				</div>
 			{/if}
 
