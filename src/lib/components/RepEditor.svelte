@@ -197,24 +197,14 @@
 		{/if}
 	</div>
 
-	<div class="reps-table" class:has-biometrics={trackSpO2 || trackHR} class:has-targets={allowEditPlanned}>
+	<div class="reps-table" class:has-biometrics={trackSpO2 || trackHR}>
 		<div class="table-header">
 			<div class="col-rep">#</div>
 			{#if isStatic}
-				{#if allowEditPlanned}
-					<div class="col-duration col-target">Target</div>
-					<div class="col-duration col-actual">Actual</div>
-				{:else}
-					<div class="col-duration">Hold</div>
-				{/if}
+				<div class="col-duration">{allowEditPlanned ? 'Target' : 'Hold'}</div>
 			{:else}
-				{#if allowEditPlanned}
-					<div class="col-distance col-target">Target</div>
-					<div class="col-distance col-actual">Actual</div>
-				{:else}
-					<div class="col-distance">Dist</div>
-					<div class="col-duration">Time</div>
-				{/if}
+				<div class="col-distance">Dist</div>
+				<div class="col-duration">Time</div>
 			{/if}
 			<div class="col-rest">Rest</div>
 			{#if trackSpO2}
@@ -234,107 +224,67 @@
 			>
 				<div class="col-rep">
 					<span class="rep-number">{rep.repNumber}</span>
-					{#if rep.plannedDuration && rep.actualDuration !== rep.plannedDuration}
+					{#if !allowEditPlanned && rep.plannedDuration && rep.actualDuration !== rep.plannedDuration}
 						<span class="deviation-marker" title="Differs from planned">⚡</span>
 					{/if}
 				</div>
 
 				{#if isStatic}
 					<!-- STA: Duration only -->
-					{#if allowEditPlanned}
-						<!-- Target (editable) -->
-						<div class="col-duration col-target">
-							<input 
-								type="text" 
-								class="time-input target-input"
-								value={formatTimeForInput(rep.plannedDuration)}
-								placeholder="0:00"
-								oninput={(e) => handlePlannedTimeChange(i, 'plannedDuration', e)}
-								disabled={!rep.completed}
-							/>
-						</div>
-						<!-- Actual -->
-						<div class="col-duration col-actual">
-							<input 
-								type="text" 
-								class="time-input"
-								value={formatTimeForInput(rep.actualDuration)}
-								placeholder={rep.plannedDuration ? formatTimeForInput(rep.plannedDuration) : '0:00'}
-								oninput={(e) => handleTimeChange(i, 'actualDuration', e)}
-								disabled={!rep.completed}
-							/>
-						</div>
-					{:else}
-						<div class="col-duration">
-							<input 
-								type="text" 
-								class="time-input"
-								value={formatTimeForInput(rep.actualDuration)}
-								placeholder={rep.plannedDuration ? formatTimeForInput(rep.plannedDuration) : '0:00'}
-								oninput={(e) => handleTimeChange(i, 'actualDuration', e)}
-								disabled={!rep.completed}
-							/>
-						</div>
-					{/if}
+					<div class="col-duration">
+						<input 
+							type="text" 
+							class="time-input"
+							class:target-input={allowEditPlanned}
+							value={formatTimeForInput(allowEditPlanned ? rep.plannedDuration : rep.actualDuration)}
+							placeholder={rep.plannedDuration ? formatTimeForInput(rep.plannedDuration) : '0:00'}
+							oninput={(e) => allowEditPlanned 
+								? handlePlannedTimeChange(i, 'plannedDuration', e)
+								: handleTimeChange(i, 'actualDuration', e)}
+							disabled={!rep.completed}
+						/>
+					</div>
 				{:else}
 					<!-- Dynamic: Distance + Time -->
-					{#if allowEditPlanned}
-						<!-- Target (editable) -->
-						<div class="col-distance col-target">
-							<input 
-								type="number" 
-								class="distance-input target-input"
-								value={rep.plannedDistance || ''}
-								placeholder="0"
-								oninput={(e) => handlePlannedDistanceChange(i, e)}
-								disabled={!rep.completed}
-							/>
-							<span class="unit">m</span>
-						</div>
-						<!-- Actual -->
-						<div class="col-distance col-actual">
-							<input 
-								type="number" 
-								class="distance-input"
-								value={rep.actualDistance || ''}
-								placeholder={rep.plannedDistance?.toString() || '0'}
-								oninput={(e) => handleDistanceChange(i, e)}
-								disabled={!rep.completed}
-							/>
-							<span class="unit">m</span>
-						</div>
-					{:else}
-						<div class="col-distance">
-							<input 
-								type="number" 
-								class="distance-input"
-								value={rep.actualDistance || ''}
-								placeholder={rep.plannedDistance?.toString() || '0'}
-								oninput={(e) => handleDistanceChange(i, e)}
-								disabled={!rep.completed}
-							/>
-							<span class="unit">m</span>
-						</div>
-						<div class="col-duration">
-							<input 
-								type="text" 
-								class="time-input"
-								value={formatTimeForInput(rep.actualDuration)}
-								placeholder={rep.plannedDuration ? formatTimeForInput(rep.plannedDuration) : '0:00'}
-								oninput={(e) => handleTimeChange(i, 'actualDuration', e)}
-								disabled={!rep.completed}
-							/>
-						</div>
-					{/if}
+					<div class="col-distance">
+						<input 
+							type="number" 
+							class="distance-input"
+							class:target-input={allowEditPlanned}
+							value={allowEditPlanned ? (rep.plannedDistance || '') : (rep.actualDistance || '')}
+							placeholder={rep.plannedDistance?.toString() || '0'}
+							oninput={(e) => allowEditPlanned 
+								? handlePlannedDistanceChange(i, e) 
+								: handleDistanceChange(i, e)}
+							disabled={!rep.completed}
+						/>
+						<span class="unit">m</span>
+					</div>
+					<div class="col-duration">
+						<input 
+							type="text" 
+							class="time-input"
+							class:target-input={allowEditPlanned}
+							value={formatTimeForInput(allowEditPlanned ? rep.plannedDuration : rep.actualDuration)}
+							placeholder={rep.plannedDuration ? formatTimeForInput(rep.plannedDuration) : '0:00'}
+							oninput={(e) => allowEditPlanned 
+								? handlePlannedTimeChange(i, 'plannedDuration', e)
+								: handleTimeChange(i, 'actualDuration', e)}
+							disabled={!rep.completed}
+						/>
+					</div>
 				{/if}
 
 				<div class="col-rest">
 					<input 
 						type="text" 
 						class="time-input"
-						value={formatTimeForInput(rep.actualRest)}
+						class:target-input={allowEditPlanned}
+						value={formatTimeForInput(allowEditPlanned ? rep.plannedRest : rep.actualRest)}
 						placeholder={rep.plannedRest ? formatTimeForInput(rep.plannedRest) : '0:00'}
-						oninput={(e) => handleTimeChange(i, 'actualRest', e)}
+						oninput={(e) => allowEditPlanned 
+							? handlePlannedTimeChange(i, 'plannedRest', e)
+							: handleTimeChange(i, 'actualRest', e)}
 						disabled={!rep.completed}
 					/>
 				</div>
@@ -707,10 +657,6 @@
 	}
 
 	/* Target column styling */
-	.col-target {
-		position: relative;
-	}
-
 	.target-input {
 		background: rgba(59, 130, 246, 0.1);
 		border-color: rgba(59, 130, 246, 0.3);
@@ -719,26 +665,5 @@
 	.target-input:focus {
 		border-color: rgba(59, 130, 246, 0.5);
 		outline: none;
-	}
-
-	.col-target .time-input,
-	.col-target .distance-input {
-		background: rgba(59, 130, 246, 0.1);
-		border-color: rgba(59, 130, 246, 0.3);
-	}
-
-	/* When targets are editable, adjust layout */
-	.reps-table.has-targets .col-duration,
-	.reps-table.has-targets .col-distance {
-		flex: 0.8;
-	}
-
-	.reps-table.has-targets .table-header .col-target,
-	.reps-table.has-targets .table-header .col-actual {
-		font-size: 0.6875rem;
-	}
-
-	.col-actual {
-		opacity: 0.85;
 	}
 </style>
