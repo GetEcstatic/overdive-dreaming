@@ -13,6 +13,8 @@
 	import type { RepEditorData, Discipline, RoutineTable } from '$lib/types';
 	import { formatTime, parseTimeInput } from '$lib/utils/time';
 	import { getSpO2ColorClass } from '$lib/utils/biometricCsvParser';
+	import DurationInput from '$lib/components/DurationInput.svelte';
+	import NumberWheelInput from '$lib/components/NumberWheelInput.svelte';
 
 	let {
 		discipline,
@@ -232,90 +234,140 @@
 				{#if isStatic}
 					<!-- STA: Duration only -->
 					<div class="col-duration">
-						<input 
-							type="text" 
-							class="time-input"
-							class:target-input={allowEditPlanned}
-							value={formatTimeForInput(allowEditPlanned ? rep.plannedDuration : rep.actualDuration)}
-							placeholder={rep.plannedDuration ? formatTimeForInput(rep.plannedDuration) : '0:00'}
-							oninput={(e) => allowEditPlanned 
-								? handlePlannedTimeChange(i, 'plannedDuration', e)
-								: handleTimeChange(i, 'actualDuration', e)}
-							disabled={!rep.completed}
-						/>
+						{#if rep.completed}
+							{#if allowEditPlanned}
+								<DurationInput
+									bind:value={rep.plannedDuration}
+									compact={true}
+									showLabel={false}
+									max={600}
+								/>
+							{:else}
+								<DurationInput
+									bind:value={rep.actualDuration}
+									compact={true}
+									showLabel={false}
+									max={600}
+								/>
+							{/if}
+						{:else}
+							<span class="skipped-value">
+								{formatTimeForInput(allowEditPlanned ? rep.plannedDuration : rep.actualDuration) || '—'}
+							</span>
+						{/if}
 					</div>
 				{:else}
 					<!-- Dynamic: Distance + Time -->
 					<div class="col-distance">
-						<input 
-							type="number" 
-							class="distance-input"
-							class:target-input={allowEditPlanned}
-							value={allowEditPlanned ? (rep.plannedDistance || '') : (rep.actualDistance || '')}
-							placeholder={rep.plannedDistance?.toString() || '0'}
-							oninput={(e) => allowEditPlanned 
-								? handlePlannedDistanceChange(i, e) 
-								: handleDistanceChange(i, e)}
-							disabled={!rep.completed}
-						/>
-						<span class="unit">m</span>
+						{#if rep.completed}
+							{#if allowEditPlanned}
+								<NumberWheelInput
+									bind:value={rep.plannedDistance}
+									min={5}
+									max={200}
+									step={5}
+									unit="m"
+									compact={true}
+									showLabel={false}
+								/>
+							{:else}
+								<NumberWheelInput
+									bind:value={rep.actualDistance}
+									min={5}
+									max={200}
+									step={5}
+									unit="m"
+									compact={true}
+									showLabel={false}
+								/>
+							{/if}
+						{:else}
+							<span class="skipped-value">
+								{allowEditPlanned ? (rep.plannedDistance || '—') : (rep.actualDistance || '—')}m
+							</span>
+						{/if}
 					</div>
 					<div class="col-duration">
-						<input 
-							type="text" 
-							class="time-input"
-							class:target-input={allowEditPlanned}
-							value={formatTimeForInput(allowEditPlanned ? rep.plannedDuration : rep.actualDuration)}
-							placeholder={rep.plannedDuration ? formatTimeForInput(rep.plannedDuration) : '0:00'}
-							oninput={(e) => allowEditPlanned 
-								? handlePlannedTimeChange(i, 'plannedDuration', e)
-								: handleTimeChange(i, 'actualDuration', e)}
-							disabled={!rep.completed}
-						/>
+						{#if rep.completed}
+							{#if allowEditPlanned}
+								<DurationInput
+									bind:value={rep.plannedDuration}
+									compact={true}
+									showLabel={false}
+									max={600}
+								/>
+							{:else}
+								<DurationInput
+									bind:value={rep.actualDuration}
+									compact={true}
+									showLabel={false}
+									max={600}
+								/>
+							{/if}
+						{:else}
+							<span class="skipped-value">
+								{formatTimeForInput(allowEditPlanned ? rep.plannedDuration : rep.actualDuration) || '—'}
+							</span>
+						{/if}
 					</div>
 				{/if}
 
 				<div class="col-rest">
-					<input 
-						type="text" 
-						class="time-input"
-						class:target-input={allowEditPlanned}
-						value={formatTimeForInput(allowEditPlanned ? rep.plannedRest : rep.actualRest)}
-						placeholder={rep.plannedRest ? formatTimeForInput(rep.plannedRest) : '0:00'}
-						oninput={(e) => allowEditPlanned 
-							? handlePlannedTimeChange(i, 'plannedRest', e)
-							: handleTimeChange(i, 'actualRest', e)}
-						disabled={!rep.completed}
-					/>
+					{#if rep.completed}
+						{#if allowEditPlanned}
+							<DurationInput
+								bind:value={rep.plannedRest}
+								compact={true}
+								showLabel={false}
+								max={600}
+							/>
+						{:else}
+							<DurationInput
+								bind:value={rep.actualRest}
+								compact={true}
+								showLabel={false}
+								max={600}
+							/>
+						{/if}
+					{:else}
+						<span class="skipped-value">
+							{formatTimeForInput(allowEditPlanned ? rep.plannedRest : rep.actualRest) || '—'}
+						</span>
+					{/if}
 				</div>
 
 				{#if trackSpO2}
 					<div class="col-spo2">
-						<input 
-							type="number" 
-							class="spo2-input {rep.spo2Min ? getSpO2ColorClass(rep.spo2Min) : ''}"
-							value={rep.spo2Min ?? ''}
-							placeholder="Min"
-							oninput={(e) => handleSpO2Change(i, 'spo2Min', e)}
-							disabled={!rep.completed}
-							min="0"
-							max="100"
-						/>
+						{#if rep.completed}
+							<NumberWheelInput
+								bind:value={rep.spo2Min}
+								min={40}
+								max={100}
+								step={1}
+								unit="%"
+								compact={true}
+								showLabel={false}
+							/>
+						{:else}
+							<span class="skipped-value">—</span>
+						{/if}
 					</div>
 				{/if}
 
 				{#if trackHR}
 					<div class="col-hr">
-						<input 
-							type="number" 
-							class="hr-input"
-							value={rep.hrMin ?? ''}
-							placeholder="Min"
-							oninput={(e) => handleHRChange(i, 'hrMin', e)}
-							disabled={!rep.completed}
-							min="0"
-							max="300"
-						/>
+						{#if rep.completed}
+							<NumberWheelInput
+								bind:value={rep.hrMin}
+								min={30}
+								max={200}
+								step={1}
+								compact={true}
+								showLabel={false}
+							/>
+						{:else}
+							<span class="skipped-value">—</span>
+						{/if}
 					</div>
 				{/if}
 
@@ -463,102 +515,6 @@
 		justify-content: center;
 	}
 
-	.time-input,
-	.distance-input {
-		width: 100%;
-		padding: 0.375rem 0.5rem;
-		background: rgba(15, 23, 42, 0.7);
-		border: 1px solid rgba(148, 163, 184, 0.2);
-		border-radius: 6px;
-		color: var(--color-text);
-		font-size: 0.875rem;
-		text-align: center;
-	}
-
-	/* Biometric inputs */
-	.spo2-input,
-	.hr-input {
-		width: 100%;
-		padding: 0.375rem 0.5rem;
-		background: rgba(15, 23, 42, 0.7);
-		border: 1px solid rgba(148, 163, 184, 0.2);
-		border-radius: 6px;
-		color: var(--color-text);
-		font-size: 0.875rem;
-		text-align: center;
-		/* Hide number spinner */
-		appearance: textfield;
-		-moz-appearance: textfield;
-	}
-
-	.spo2-input::-webkit-outer-spin-button,
-	.spo2-input::-webkit-inner-spin-button,
-	.hr-input::-webkit-outer-spin-button,
-	.hr-input::-webkit-inner-spin-button {
-		-webkit-appearance: none;
-		margin: 0;
-	}
-
-	.spo2-input:focus,
-	.hr-input:focus {
-		outline: none;
-		border-color: var(--color-primary);
-	}
-
-	.spo2-input:disabled,
-	.hr-input:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	/* SpO2 severity colors (global utility classes) */
-	.spo2-input.text-green-500 {
-		color: #22c55e;
-		border-color: rgba(34, 197, 94, 0.3);
-	}
-
-	.spo2-input.text-yellow-500 {
-		color: #eab308;
-		border-color: rgba(234, 179, 8, 0.3);
-	}
-
-	.spo2-input.text-orange-500 {
-		color: #f97316;
-		border-color: rgba(249, 115, 22, 0.3);
-	}
-
-	.spo2-input.text-red-500 {
-		color: #ef4444;
-		border-color: rgba(239, 68, 68, 0.3);
-	}
-
-	.spo2-input.text-red-700 {
-		color: #b91c1c;
-		border-color: rgba(185, 28, 28, 0.5);
-		background: rgba(185, 28, 28, 0.1);
-	}
-
-	.time-input:focus,
-	.distance-input:focus {
-		outline: none;
-		border-color: var(--color-primary);
-	}
-
-	.time-input:disabled,
-	.distance-input:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	.distance-input {
-		width: calc(100% - 20px);
-	}
-
-	.unit {
-		font-size: 0.75rem;
-		color: var(--color-text-muted);
-	}
-
 	.status-btn {
 		width: 28px;
 		height: 28px;
@@ -631,14 +587,6 @@
 			font-size: 0.8125rem;
 		}
 
-		.time-input,
-		.distance-input,
-		.spo2-input,
-		.hr-input {
-			padding: 0.25rem 0.375rem;
-			font-size: 0.8125rem;
-		}
-
 		/* Biometric columns slightly smaller on mobile */
 		.col-spo2,
 		.col-hr {
@@ -656,14 +604,29 @@
 		width: 32px;
 	}
 
-	/* Target column styling */
-	.target-input {
-		background: rgba(59, 130, 246, 0.1);
-		border-color: rgba(59, 130, 246, 0.3);
+	/* Skipped rep value display */
+	.skipped-value {
+		color: var(--color-text-muted);
+		font-size: 0.875rem;
+		text-align: center;
+		padding: 0.375rem;
 	}
 
-	.target-input:focus {
-		border-color: rgba(59, 130, 246, 0.5);
-		outline: none;
+	/* Wheel selector container within table cells */
+	.col-duration :global(.duration-input),
+	.col-distance :global(.number-wheel),
+	.col-rest :global(.duration-input),
+	.col-spo2 :global(.number-wheel),
+	.col-hr :global(.number-wheel) {
+		margin: 0;
+		padding: 0;
+	}
+
+	.col-duration :global(.wheel-container),
+	.col-distance :global(.wheel-container),
+	.col-rest :global(.wheel-container),
+	.col-spo2 :global(.wheel-container),
+	.col-hr :global(.wheel-container) {
+		height: 84px;
 	}
 </style>
