@@ -863,6 +863,7 @@
 				trackSpO2={false}
 				trackHR={false}
 				isDryTraining={false}
+				allowEditPlanned={hasVariableTable}
 			/>
 		</div>
 	{/if}
@@ -937,6 +938,7 @@
 				trackSpO2={config.trackPerRepSpO2 ?? true}
 				trackHR={config.trackPerRepHR ?? true}
 				isDryTraining={config.isDryTraining ?? true}
+				allowEditPlanned={hasVariableTable}
 			/>
 
 			<p class="biometric-hint">
