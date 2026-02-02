@@ -60,7 +60,7 @@
 			
 			let confirmMessage: string;
 			if (sessionCount > 0) {
-				confirmMessage = `⚠️ "${routineName}" has ${sessionCount} logged session${sessionCount === 1 ? '' : 's'}.\n\nIf you delete this routine, those sessions will become orphaned and invisible in the app.\n\nAre you sure you want to delete it?`;
+				confirmMessage = `⚠️ "${routineName}" has ${sessionCount} logged session${sessionCount === 1 ? '' : 's'}.\n\nIf you delete this routine, those sessions will show as "Deleted Routine" and lose their routine-specific display settings.\n\nAre you sure you want to delete it?`;
 			} else {
 				confirmMessage = `Are you sure you want to delete "${routineName}"?`;
 			}
