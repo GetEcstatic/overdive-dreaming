@@ -100,6 +100,47 @@ export async function getRoutine(routineId: string): Promise<RoutineTemplate | n
 }
 
 /**
+ * Get a routine by ID, or return a placeholder if the routine was deleted
+ * Use this when displaying sessions to ensure orphaned sessions are still viewable
+ */
+export async function getRoutineOrPlaceholder(routineId: string): Promise<RoutineTemplate> {
+	const routine = await getRoutine(routineId);
+	if (routine) return routine;
+
+	// Return a placeholder routine for orphaned sessions
+	return createPlaceholderRoutine(routineId);
+}
+
+/**
+ * Create a placeholder routine for sessions whose original routine was deleted
+ */
+export function createPlaceholderRoutine(routineId: string): RoutineTemplate {
+	return {
+		id: routineId,
+		name: 'Deleted Routine',
+		description: 'This routine has been deleted. The session data is preserved.',
+		disciplines: ['STA'], // Default to STA as most generic
+		tags: [],
+		trackingConfig: {
+			trackRPE: false,
+			trackJoy: false,
+			trackSpO2: false,
+			trackHeartRate: false
+		},
+		displayConfig: {
+			heroMetric: 'date',
+			heroMetricLabel: 'Date',
+			secondaryMetric: 'repsCompleted',
+			secondaryMetricLabel: 'Reps'
+		},
+		createdBy: 'system',
+		isPublic: false,
+		createdAt: Timestamp.now(),
+		updatedAt: Timestamp.now()
+	};
+}
+
+/**
  * Create a new custom routine
  */
 export async function createRoutine(
@@ -152,6 +193,17 @@ export async function updateRoutine(
 export async function deleteRoutine(routineId: string): Promise<void> {
 	const docRef = doc(db, 'routines', routineId);
 	await deleteDoc(docRef);
+}
+
+/**
+ * Count sessions (routine logs) associated with a specific routine
+ * Useful for warning users before deleting a routine
+ */
+export async function getSessionCountForRoutine(routineId: string): Promise<number> {
+	const routineLogsRef = collection(db, 'routineLogs');
+	const q = query(routineLogsRef, where('routineId', '==', routineId));
+	const snapshot = await getCountFromServer(q);
+	return snapshot.data().count;
 }
 
 /**

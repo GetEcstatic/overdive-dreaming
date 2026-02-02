@@ -10,7 +10,8 @@
 		getRoutinesForUser,
 		deleteRoutine,
 		createRoutine,
-		searchPublicUsersByDisplayName
+		searchPublicUsersByDisplayName,
+		getSessionCountForRoutine
 	} from '$lib/firestore';
 	import type { RoutineTemplate, RoutineTemplateFormData, PublicUserProfile } from '$lib/types';
 	import { goto } from '$app/navigation';
@@ -53,11 +54,21 @@
 	}
 
 	async function handleDelete(routineId: string, routineName: string) {
-		if (!confirm(`Are you sure you want to delete "${routineName}"?`)) {
-			return;
-		}
-
 		try {
+			// Check if there are any sessions using this routine
+			const sessionCount = await getSessionCountForRoutine(routineId);
+			
+			let confirmMessage: string;
+			if (sessionCount > 0) {
+				confirmMessage = `⚠️ "${routineName}" has ${sessionCount} logged session${sessionCount === 1 ? '' : 's'}.\n\nIf you delete this routine, those sessions will become orphaned and invisible in the app.\n\nAre you sure you want to delete it?`;
+			} else {
+				confirmMessage = `Are you sure you want to delete "${routineName}"?`;
+			}
+			
+			if (!confirm(confirmMessage)) {
+				return;
+			}
+
 			deletingId = routineId;
 			await deleteRoutine(routineId);
 			// Reload routines

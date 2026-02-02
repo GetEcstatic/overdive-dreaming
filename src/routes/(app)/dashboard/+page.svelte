@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { user } from '$lib/stores/auth';
-	import { getRecentActivityPaginated, getPublicActivityPaginated, getPublicUserProfile, getLogCountInDays } from '$lib/firestore';
+	import { getRecentActivityPaginated, getPublicActivityPaginated, getPublicUserProfile, getLogCountInDays, getRoutineOrPlaceholder } from '$lib/firestore';
 	import { doc, getDoc, collection, query, where, getDocs, type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore';
 	import { db } from '$lib/firebase';
 	import type { RoutineLog, RoutineTemplate, PersonalBests, Discipline } from '$lib/types';
@@ -65,16 +65,10 @@
 
 			const sessionsData: LogWithRoutine[] = [];
 
-			// Fetch routine template for each log
+			// Fetch routine template for each log (includes placeholder for deleted routines)
 			for (const log of result.logs) {
-				// Fetch the associated routine template
-				const routineRef = doc(db, 'routines', log.routineId);
-				const routineSnap = await getDoc(routineRef);
-
-				if (routineSnap.exists()) {
-					const routine = { id: routineSnap.id, ...routineSnap.data() } as RoutineTemplate;
-					sessionsData.push({ log, routine });
-				}
+				const routine = await getRoutineOrPlaceholder(log.routineId);
+				sessionsData.push({ log, routine });
 			}
 
 			// Calculate "This Week" count using server query (accurate count)
@@ -114,30 +108,25 @@
 			const sessionsData: LogWithRoutine[] = [];
 
 			for (const log of result.logs) {
-				const routineRef = doc(db, 'routines', log.routineId);
-				const routineSnap = await getDoc(routineRef);
-
-				if (routineSnap.exists()) {
-					const routine = { id: routineSnap.id, ...routineSnap.data() } as RoutineTemplate;
-					if (!log.authorDisplayName) {
-						let profile = profileCache.get(log.userId);
-						if (!profile) {
-							const publicProfile = await getPublicUserProfile(log.userId);
-							if (publicProfile) {
-								profile = {
-									displayName: publicProfile.displayName,
-									photoURL: publicProfile.photoURL ?? undefined
-								};
-								profileCache.set(log.userId, profile);
-							}
-						}
-						if (profile) {
-							log.authorDisplayName = profile.displayName;
-							log.authorPhotoURL = profile.photoURL;
+				const routine = await getRoutineOrPlaceholder(log.routineId);
+				if (!log.authorDisplayName) {
+					let profile = profileCache.get(log.userId);
+					if (!profile) {
+						const publicProfile = await getPublicUserProfile(log.userId);
+						if (publicProfile) {
+							profile = {
+								displayName: publicProfile.displayName,
+								photoURL: publicProfile.photoURL ?? undefined
+							};
+							profileCache.set(log.userId, profile);
 						}
 					}
-					sessionsData.push({ log, routine });
+					if (profile) {
+						log.authorDisplayName = profile.displayName;
+						log.authorPhotoURL = profile.photoURL;
+					}
 				}
+				sessionsData.push({ log, routine });
 			}
 
 			communitySessions = sessionsData;
@@ -171,32 +160,27 @@
 
 			const newSessionsData: LogWithRoutine[] = [];
 
-			// Fetch routine template for each log
+			// Fetch routine template for each log (includes placeholder for deleted routines)
 			for (const log of result.logs) {
-				const routineRef = doc(db, 'routines', log.routineId);
-				const routineSnap = await getDoc(routineRef);
-
-				if (routineSnap.exists()) {
-					const routine = { id: routineSnap.id, ...routineSnap.data() } as RoutineTemplate;
-					if (!log.authorDisplayName) {
-						let profile = profileCache.get(log.userId);
-						if (!profile) {
-							const publicProfile = await getPublicUserProfile(log.userId);
-							if (publicProfile) {
-								profile = {
-									displayName: publicProfile.displayName,
-									photoURL: publicProfile.photoURL ?? undefined
-								};
-								profileCache.set(log.userId, profile);
-							}
-						}
-						if (profile) {
-							log.authorDisplayName = profile.displayName;
-							log.authorPhotoURL = profile.photoURL;
+				const routine = await getRoutineOrPlaceholder(log.routineId);
+				if (!log.authorDisplayName) {
+					let profile = profileCache.get(log.userId);
+					if (!profile) {
+						const publicProfile = await getPublicUserProfile(log.userId);
+						if (publicProfile) {
+							profile = {
+								displayName: publicProfile.displayName,
+								photoURL: publicProfile.photoURL ?? undefined
+							};
+							profileCache.set(log.userId, profile);
 						}
 					}
-					newSessionsData.push({ log, routine });
+					if (profile) {
+						log.authorDisplayName = profile.displayName;
+						log.authorPhotoURL = profile.photoURL;
+					}
 				}
+				newSessionsData.push({ log, routine });
 			}
 
 			// Append new sessions to existing ones
@@ -225,13 +209,8 @@
 			const newSessionsData: LogWithRoutine[] = [];
 
 			for (const log of result.logs) {
-				const routineRef = doc(db, 'routines', log.routineId);
-				const routineSnap = await getDoc(routineRef);
-
-				if (routineSnap.exists()) {
-					const routine = { id: routineSnap.id, ...routineSnap.data() } as RoutineTemplate;
-					newSessionsData.push({ log, routine });
-				}
+				const routine = await getRoutineOrPlaceholder(log.routineId);
+				newSessionsData.push({ log, routine });
 			}
 
 			communitySessions = [...communitySessions, ...newSessionsData];
@@ -284,22 +263,17 @@
 			for (const logDoc of logsSnapshot.docs) {
 				const log = logDoc.data() as RoutineLog;
 
-				// Get the routine to check if it's a max attempt
-				const routineRef = doc(db, 'routines', log.routineId);
-				const routineSnap = await getDoc(routineRef);
+				// Get the routine to check if it's a max attempt (use placeholder if deleted)
+				const routine = await getRoutineOrPlaceholder(log.routineId);
+				const isMaxAttempt =
+					routine.tags.includes('max-attempt') || routine.tags.includes('pb');
 
-				if (routineSnap.exists()) {
-					const routine = routineSnap.data() as RoutineTemplate;
-					const isMaxAttempt =
-						routine.tags.includes('max-attempt') || routine.tags.includes('pb');
+				if (isMaxAttempt) {
+					// Get the result value
+					const result = discipline === 'STA' ? log.totalTime : log.totalDistance;
 
-					if (isMaxAttempt) {
-						// Get the result value
-						const result = discipline === 'STA' ? log.totalTime : log.totalDistance;
-
-						if (result !== undefined && result > maxValue) {
-							maxValue = result;
-						}
+					if (result !== undefined && result > maxValue) {
+						maxValue = result;
 					}
 				}
 			}

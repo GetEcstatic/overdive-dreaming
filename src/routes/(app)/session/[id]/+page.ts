@@ -2,7 +2,7 @@
 // Fetches routine log and template data for detail view
 
 import { error } from '@sveltejs/kit';
-import { getRoutineLog, getRoutine, getUserSettings } from '$lib/firestore';
+import { getRoutineLog, getRoutineOrPlaceholder, getUserSettings } from '$lib/firestore';
 import { auth } from '$lib/firebase';
 import type { PageLoad } from './$types';
 
@@ -18,11 +18,8 @@ export const load: PageLoad = async ({ params }) => {
 		throw error(404, 'Session not found');
 	}
 
-	// Fetch the associated routine template
-	const routine = await getRoutine(log.routineId);
-	if (!routine) {
-		throw error(404, 'Routine template not found');
-	}
+	// Fetch the associated routine template (uses placeholder if routine was deleted)
+	const routine = await getRoutineOrPlaceholder(log.routineId);
 
 	// Fetch user settings only if this is the current user's session
 	// (User settings are private and can only be read by the owner)
