@@ -424,7 +424,7 @@
 							{new Date($user.metadata.creationTime || '').toLocaleDateString()}
 						</span>
 					</div>
-					<div class="detail-item full-width">
+					<div class="detail-item">
 						<span class="detail-label">User ID</span>
 						<span class="detail-value mono">{$user.uid}</span>
 					</div>
@@ -802,12 +802,6 @@
 		gap: 1rem;
 	}
 
-	@media (min-width: 640px) {
-		.detail-grid {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
-		}
-	}
-
 	.detail-item {
 		display: flex;
 		flex-direction: column;
@@ -816,10 +810,6 @@
 		border-radius: 12px;
 		padding: 0.75rem 1rem;
 		border: 1px solid rgba(148, 163, 184, 0.08);
-	}
-
-	.detail-item.full-width {
-		grid-column: 1 / -1;
 	}
 
 	.detail-label {
