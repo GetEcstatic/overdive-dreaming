@@ -797,11 +797,6 @@
 		font-weight: 600;
 	}
 
-	.account-email {
-		color: var(--color-text-muted);
-		font-size: 0.9rem;
-	}
-
 	.detail-grid {
 		display: grid;
 		gap: 1rem;
@@ -836,6 +831,9 @@
 
 	.detail-value {
 		font-size: 0.95rem;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		word-break: break-word;
 	}
 
 	.detail-value.mono {
