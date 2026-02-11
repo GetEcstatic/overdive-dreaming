@@ -22,6 +22,7 @@
 		Legend,
 		Filler
 	} from 'chart.js';
+	import 'hammerjs';
 	import zoomPlugin from 'chartjs-plugin-zoom';
 	import type { BiometricReading } from '$lib/types';
 
@@ -54,6 +55,11 @@
 	// Hover state (synchronized between charts)
 	let hoverIndex = $state<number | null>(null);
 	let hoverData = $state<{ time: string; spo2: number; hr: number; intervalType: string } | null>(null);
+
+	// Track whether user is currently panning (to avoid hover interference)
+	let isPanning = false;
+	// Prevent recursive sync between charts
+	let isSyncing = false;
 
 	// Format time as mm:ss
 	function formatTime(seconds: number): string {
@@ -120,15 +126,15 @@
 		}
 	}
 
-	// Handle mouse/touch move - update hover position
+	// Handle mouse/touch move - update hover position (skip during pan)
 	function handleSpo2PointerMove(event: MouseEvent | TouchEvent) {
-		if (!spo2Chart) return;
+		if (!spo2Chart || isPanning) return;
 		const pixelX = getCanvasX(event, spo2Canvas);
 		updateHover(spo2Chart, pixelX);
 	}
 
 	function handleHrPointerMove(event: MouseEvent | TouchEvent) {
-		if (!hrChart) return;
+		if (!hrChart || isPanning) return;
 		const pixelX = getCanvasX(event, hrCanvas);
 		updateHover(hrChart, pixelX);
 	}
@@ -219,6 +225,21 @@
 		}
 	};
 
+	// Sync pan/zoom between both charts (with re-entrancy guard)
+	function syncCharts(sourceChart: Chart) {
+		if (isSyncing) return;
+		isSyncing = true;
+		try {
+			const otherChart = sourceChart === spo2Chart ? hrChart : spo2Chart;
+			if (!otherChart || !sourceChart.scales.x) return;
+			const { min, max } = sourceChart.scales.x;
+			// Use zoom plugin API so it tracks the zoom state properly
+			otherChart.zoomScale('x', { min, max }, 'none');
+		} finally {
+			isSyncing = false;
+		}
+	}
+
 	// Common chart options
 	function getCommonOptions(maxX: number) {
 		return {
@@ -237,9 +258,18 @@
 					enabled: false
 				},
 				zoom: {
+					limits: {
+						x: { min: 0, max: maxX, minRange: 10 }
+					},
 					pan: {
 						enabled: true,
-						mode: 'x' as const
+						mode: 'x' as const,
+						onPanStart: () => { isPanning = true; return true; },
+						onPan: ({ chart }: { chart: Chart }) => { if (!isSyncing) syncCharts(chart); },
+						onPanComplete: ({ chart }: { chart: Chart }) => {
+							isPanning = false;
+							if (!isSyncing) syncCharts(chart);
+						}
 					},
 					zoom: {
 						wheel: {
@@ -248,7 +278,12 @@
 						pinch: {
 							enabled: true
 						},
-						mode: 'x' as const
+						drag: {
+							enabled: false
+						},
+						mode: 'x' as const,
+						onZoom: ({ chart }: { chart: Chart }) => { if (!isSyncing) syncCharts(chart); },
+						onZoomComplete: ({ chart }: { chart: Chart }) => { if (!isSyncing) syncCharts(chart); }
 					}
 				}
 			},
@@ -407,22 +442,26 @@
 		};
 	});
 
-	// Update charts when readings change
+	// Update charts when readings change (but don't override zoom scales)
 	$effect(() => {
 		if (!spo2Chart || !hrChart || !readings.length) return;
 		
 		const dataWithTime = getReadingsWithTime();
 		const spo2Points = dataWithTime.map(d => ({ x: d.time, y: d.spo2 }));
 		const hrPoints = dataWithTime.map(d => ({ x: d.time, y: d.hr }));
-		const maxX = readings.length - 1;
 		
 		spo2Chart.data.datasets[0].data = spo2Points;
 		hrChart.data.datasets[0].data = hrPoints;
 		
-		if (spo2Chart.options.scales?.x) {
+		// Only reset scale max if chart is not currently zoomed
+		const maxX = readings.length - 1;
+		const spo2Zoomed = spo2Chart.isZoomedOrPanned?.() ?? false;
+		const hrZoomed = hrChart.isZoomedOrPanned?.() ?? false;
+		
+		if (!spo2Zoomed && spo2Chart.options.scales?.x) {
 			(spo2Chart.options.scales.x as any).max = maxX;
 		}
-		if (hrChart.options.scales?.x) {
+		if (!hrZoomed && hrChart.options.scales?.x) {
 			(hrChart.options.scales.x as any).max = maxX;
 		}
 		

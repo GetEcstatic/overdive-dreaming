@@ -53,6 +53,18 @@
 		return false;
 	});
 
+	// Check if the hero metric is time-based
+	const TIME_METRICS = new Set([
+		'totalTime', 'diveDuration', 'repDuration', 'avgTimePerLap', 'avgTimePerRep',
+		'avgRestBetweenLaps', 'totalBreathHoldTime', 'cumulativeHoldTime', 'longestHold',
+		'totalBreathingTime', 'initialBreatheUpTime', 'contractionsOnsetTime',
+		'holdDuration', 'sessionDuration'
+	]);
+	let isTimeMetric = $derived.by(() => {
+		const heroMetric = routine.displayConfig?.heroMetric || 'totalDistance';
+		return TIME_METRICS.has(heroMetric);
+	});
+
 	// Derived chart data
 	let chartData = $derived.by(() => {
 		if (recentLogs.length === 0) {
@@ -73,21 +85,16 @@
 		});
 
 		// Use getMetricValue to properly calculate metrics (handles calculated metrics)
+		// Keep values in seconds - formatting is handled by chart tick formatter
 		const values = reversedLogs.map((log) => {
-			const value = getMetricValue(heroMetric, log, routine);
-			// Convert seconds to minutes for time-based metrics
-			if (heroMetric.includes('Time') || heroMetric.includes('time')) {
-				return value / 60; // Convert to minutes
-			}
-			return value;
+			return getMetricValue(heroMetric, log, routine);
 		});
 
 		// Determine label based on metric
 		let label = routine.displayConfig?.heroMetricLabel || 'Value';
-		const isTimeMetric = heroMetric.includes('Time') || heroMetric.includes('time');
 
 		if (isTimeMetric) {
-			label = lowerIsBetter ? `${label} (min) - Lower is Better` : `${label} (min)`;
+			label = lowerIsBetter ? `${label} (mm:ss) - Lower is Better` : `${label} (mm:ss)`;
 		} else if (heroMetric === 'totalDistance') {
 			label = `${label} (m)`;
 		}
@@ -245,7 +252,12 @@
 		</div>
 	{:else}
 		<div class="chart-container">
-			<LineChart data={chartData} height={200} />
+			<LineChart
+				data={chartData}
+				height={200}
+				yTickFormatter={isTimeMetric ? formatTime : undefined}
+				tooltipValueFormatter={isTimeMetric ? formatTime : undefined}
+			/>
 		</div>
 
 		{#if isPersonalBest}
