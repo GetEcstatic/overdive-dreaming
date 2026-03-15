@@ -256,7 +256,7 @@
 		return sections;
 	}
 
-	// Interval strip plugin — draws a thin colored bar at the top of each chart
+	// Interval boundary lines plugin — draws dashed lines at apnea/recovery transitions with labels
 	const intervalBandsPlugin = {
 		id: 'intervalBands',
 		afterDatasetsDraw: (chartInstance: Chart) => {
@@ -264,23 +264,43 @@
 			const xScale = scales.x;
 			if (!xScale || !chartArea) return;
 
-			const stripHeight = 6;
 			ctx.save();
 			const sections = getSectionBoundaries();
 
-			for (const section of sections) {
-				const x1 = xScale.getPixelForValue(section.start);
-				const x2 = xScale.getPixelForValue(section.end);
-				// Clamp to chart area
-				const left = Math.max(x1, chartArea.left);
-				const right = Math.min(x2, chartArea.right);
-				if (left >= right) continue;
+			for (let i = 0; i < sections.length; i++) {
+				const section = sections[i];
 
-				ctx.fillStyle = section.type === 'apnea'
-					? 'rgba(139, 92, 246, 0.5)'   // Purple for apnea
-					: 'rgba(56, 189, 248, 0.35)';  // Blue for recovery
+				// Draw vertical dashed line at the start of each section (skip the very first one)
+				if (i > 0) {
+					const x = xScale.getPixelForValue(section.start);
+					if (x >= chartArea.left && x <= chartArea.right) {
+						ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
+						ctx.lineWidth = 1;
+						ctx.setLineDash([3, 3]);
+						ctx.beginPath();
+						ctx.moveTo(x, chartArea.top);
+						ctx.lineTo(x, chartArea.bottom);
+						ctx.stroke();
+					}
+				}
 
-				ctx.fillRect(left, chartArea.top, right - left, stripHeight);
+				// Draw a small label at the top center of each section
+				const startX = xScale.getPixelForValue(section.start);
+				const endX = xScale.getPixelForValue(section.end);
+				const centerX = (Math.max(startX, chartArea.left) + Math.min(endX, chartArea.right)) / 2;
+
+				if (centerX >= chartArea.left && centerX <= chartArea.right) {
+					const label = section.type === 'apnea' ? 'A' : 'R';
+					const labelColor = section.type === 'apnea'
+						? 'rgba(139, 92, 246, 0.7)'  // Purple for apnea
+						: 'rgba(56, 189, 248, 0.5)'; // Blue for recovery
+
+					ctx.font = 'bold 9px sans-serif';
+					ctx.textAlign = 'center';
+					ctx.textBaseline = 'top';
+					ctx.fillStyle = labelColor;
+					ctx.fillText(label, centerX, chartArea.top + 3);
+				}
 			}
 
 			ctx.restore();
