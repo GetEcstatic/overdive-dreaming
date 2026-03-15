@@ -208,36 +208,6 @@
 		};
 	}
 
-	// SpO2 threshold zones plugin
-	const spo2ZonesPlugin = {
-		id: 'spo2Zones',
-		beforeDatasetsDraw: (chartInstance: Chart) => {
-			const { ctx, chartArea, scales } = chartInstance;
-			const yScale = scales.y;
-			if (!yScale || !chartArea) return;
-			
-			ctx.save();
-			
-			// Zone colors (subtle backgrounds)
-			const zones = [
-				{ min: 70, max: 80, color: 'rgba(251, 191, 36, 0.08)' },  // Warning (yellow)
-				{ min: 60, max: 70, color: 'rgba(249, 115, 22, 0.08)' },  // Danger (orange)
-				{ min: 50, max: 60, color: 'rgba(239, 68, 68, 0.08)' },   // Critical (red)
-				{ min: 30, max: 50, color: 'rgba(217, 70, 239, 0.08)' }   // Extreme (purple)
-			];
-			
-			for (const zone of zones) {
-				const top = yScale.getPixelForValue(zone.max);
-				const bottom = yScale.getPixelForValue(zone.min);
-				
-				ctx.fillStyle = zone.color;
-				ctx.fillRect(chartArea.left, top, chartArea.right - chartArea.left, bottom - top);
-			}
-			
-			ctx.restore();
-		}
-	};
-
 	// Sync pan/zoom between both charts (with re-entrancy guard)
 	function syncCharts(sourceChart: Chart) {
 		if (isSyncing) return;
@@ -393,7 +363,6 @@
 				}
 			},
 			plugins: [
-				spo2ZonesPlugin,
 				createHoverLinePlugin('#14b8a6', () => {
 					if (hoverIndex === null || !spo2Chart) return undefined;
 					return spo2Chart.scales.y.getPixelForValue(readings[hoverIndex]?.spo2 ?? 0);
