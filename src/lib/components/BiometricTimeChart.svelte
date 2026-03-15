@@ -107,6 +107,17 @@
 		return 0;
 	}
 
+	// Calculate the start index of the current section (apnea/recovery) for a given reading index
+	function getSectionStartIndex(index: number): number {
+		const currentType = readings[index]?.intervalType;
+		if (!currentType) return index;
+		let start = index;
+		while (start > 0 && readings[start - 1]?.intervalType === currentType) {
+			start--;
+		}
+		return start;
+	}
+
 	// Update hover state from either chart
 	function updateHover(chart: Chart, pixelX: number) {
 		const index = getIndexFromPixel(chart, pixelX);
@@ -114,8 +125,10 @@
 		if (index !== null && readings[index]) {
 			hoverIndex = index;
 			const reading = readings[index];
+			const sectionStart = getSectionStartIndex(index);
+			const sectionElapsed = index - sectionStart; // seconds since section start
 			hoverData = {
-				time: formatTime(reading.intervalTime),
+				time: formatTime(sectionElapsed),
 				spo2: reading.spo2,
 				hr: reading.hr,
 				intervalType: reading.intervalType === 'apnea' ? 'Apnea' : 'Recovery'
