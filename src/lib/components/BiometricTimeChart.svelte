@@ -256,7 +256,7 @@
 		return sections;
 	}
 
-	// Interval boundary lines plugin — draws dashed lines at apnea/recovery transitions with labels
+	// Interval labels plugin — draws boundary lines at section transitions only (no labels in chart)
 	const intervalBandsPlugin = {
 		id: 'intervalBands',
 		afterDatasetsDraw: (chartInstance: Chart) => {
@@ -267,39 +267,16 @@
 			ctx.save();
 			const sections = getSectionBoundaries();
 
-			for (let i = 0; i < sections.length; i++) {
-				const section = sections[i];
-
-				// Draw vertical dashed line at the start of each section (skip the very first one)
-				if (i > 0) {
-					const x = xScale.getPixelForValue(section.start);
-					if (x >= chartArea.left && x <= chartArea.right) {
-						ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
-						ctx.lineWidth = 1;
-						ctx.setLineDash([3, 3]);
-						ctx.beginPath();
-						ctx.moveTo(x, chartArea.top);
-						ctx.lineTo(x, chartArea.bottom);
-						ctx.stroke();
-					}
-				}
-
-				// Draw a small label at the top center of each section
-				const startX = xScale.getPixelForValue(section.start);
-				const endX = xScale.getPixelForValue(section.end);
-				const centerX = (Math.max(startX, chartArea.left) + Math.min(endX, chartArea.right)) / 2;
-
-				if (centerX >= chartArea.left && centerX <= chartArea.right) {
-					const label = section.type === 'apnea' ? 'A' : 'R';
-					const labelColor = section.type === 'apnea'
-						? 'rgba(139, 92, 246, 0.7)'  // Purple for apnea
-						: 'rgba(56, 189, 248, 0.5)'; // Blue for recovery
-
-					ctx.font = 'bold 9px sans-serif';
-					ctx.textAlign = 'center';
-					ctx.textBaseline = 'top';
-					ctx.fillStyle = labelColor;
-					ctx.fillText(label, centerX, chartArea.top + 3);
+			for (let i = 1; i < sections.length; i++) {
+				const x = xScale.getPixelForValue(sections[i].start);
+				if (x >= chartArea.left && x <= chartArea.right) {
+					ctx.strokeStyle = 'rgba(148, 163, 184, 0.3)';
+					ctx.lineWidth = 1;
+					ctx.setLineDash([3, 3]);
+					ctx.beginPath();
+					ctx.moveTo(x, chartArea.top);
+					ctx.lineTo(x, chartArea.bottom);
+					ctx.stroke();
 				}
 			}
 
@@ -421,7 +398,17 @@
 					borderWidth: 1.5,
 					pointRadius: 0,
 					tension: 0.2,
-					fill: true
+					fill: true,
+					segment: {
+						borderColor: (ctx: any) => {
+							const idx = ctx.p0DataIndex;
+							return readings[idx]?.intervalType === 'apnea' ? '#8b5cf6' : '#14b8a6';
+						},
+						backgroundColor: (ctx: any) => {
+							const idx = ctx.p0DataIndex;
+							return readings[idx]?.intervalType === 'apnea' ? 'rgba(139, 92, 246, 0.12)' : 'rgba(20, 184, 166, 0.12)';
+						}
+					}
 				}]
 			},
 			options: {
@@ -473,7 +460,17 @@
 					borderWidth: 1.5,
 					pointRadius: 0,
 					tension: 0.2,
-					fill: true
+					fill: true,
+					segment: {
+						borderColor: (ctx: any) => {
+							const idx = ctx.p0DataIndex;
+							return readings[idx]?.intervalType === 'apnea' ? '#8b5cf6' : '#f43f5e';
+						},
+						backgroundColor: (ctx: any) => {
+							const idx = ctx.p0DataIndex;
+							return readings[idx]?.intervalType === 'apnea' ? 'rgba(139, 92, 246, 0.12)' : 'rgba(244, 63, 94, 0.12)';
+						}
+					}
 				}]
 			},
 			options: {
