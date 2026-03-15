@@ -256,14 +256,15 @@
 		return sections;
 	}
 
-	// Interval background bands plugin — draws apnea (purple) and recovery (blue) bands
+	// Interval strip plugin — draws a thin colored bar at the top of each chart
 	const intervalBandsPlugin = {
 		id: 'intervalBands',
-		beforeDatasetsDraw: (chartInstance: Chart) => {
+		afterDatasetsDraw: (chartInstance: Chart) => {
 			const { ctx, chartArea, scales } = chartInstance;
 			const xScale = scales.x;
 			if (!xScale || !chartArea) return;
 
+			const stripHeight = 6;
 			ctx.save();
 			const sections = getSectionBoundaries();
 
@@ -276,10 +277,10 @@
 				if (left >= right) continue;
 
 				ctx.fillStyle = section.type === 'apnea'
-					? 'rgba(139, 92, 246, 0.08)'   // Subtle purple for apnea
-					: 'rgba(56, 189, 248, 0.06)';  // Subtle blue for recovery
+					? 'rgba(139, 92, 246, 0.5)'   // Purple for apnea
+					: 'rgba(56, 189, 248, 0.35)';  // Blue for recovery
 
-				ctx.fillRect(left, chartArea.top, right - left, chartArea.bottom - chartArea.top);
+				ctx.fillRect(left, chartArea.top, right - left, stripHeight);
 			}
 
 			ctx.restore();
