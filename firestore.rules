@@ -34,10 +34,15 @@ service cloud.firestore {
       // Allow get/read of individual docs user owns or public
       allow get: if request.auth != null &&
         (request.auth.uid == resource.data.userId || resource.data.visibility == 'public');
+      // Owner can write anything
       allow write: if request.auth != null &&
         request.auth.uid == resource.data.userId;
       allow create: if request.auth != null &&
         request.auth.uid == request.resource.data.userId;
+      // Any authenticated user can update likes on public logs
+      allow update: if request.auth != null &&
+        resource.data.visibility == 'public' &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes']);
     }
 
     // Personal bests (user-owned)
