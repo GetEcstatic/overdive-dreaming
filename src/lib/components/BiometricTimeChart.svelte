@@ -115,7 +115,7 @@
 			hoverIndex = index;
 			const reading = readings[index];
 			hoverData = {
-				time: formatTime(index),
+				time: formatTime(reading.intervalTime),
 				spo2: reading.spo2,
 				hr: reading.hr,
 				intervalType: reading.intervalType === 'apnea' ? 'Apnea' : 'Recovery'
