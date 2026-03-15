@@ -238,52 +238,6 @@
 		}
 	};
 
-	// Compute section boundaries (apnea/recovery segments) from readings
-	function getSectionBoundaries(): { start: number; end: number; type: 'apnea' | 'recovery' }[] {
-		if (readings.length === 0) return [];
-		const sections: { start: number; end: number; type: 'apnea' | 'recovery' }[] = [];
-		let currentType = readings[0].intervalType;
-		let sectionStart = 0;
-
-		for (let i = 1; i < readings.length; i++) {
-			if (readings[i].intervalType !== currentType) {
-				sections.push({ start: sectionStart, end: i - 1, type: currentType });
-				currentType = readings[i].intervalType;
-				sectionStart = i;
-			}
-		}
-		sections.push({ start: sectionStart, end: readings.length - 1, type: currentType });
-		return sections;
-	}
-
-	// Interval labels plugin — draws boundary lines at section transitions only (no labels in chart)
-	const intervalBandsPlugin = {
-		id: 'intervalBands',
-		afterDatasetsDraw: (chartInstance: Chart) => {
-			const { ctx, chartArea, scales } = chartInstance;
-			const xScale = scales.x;
-			if (!xScale || !chartArea) return;
-
-			ctx.save();
-			const sections = getSectionBoundaries();
-
-			for (let i = 1; i < sections.length; i++) {
-				const x = xScale.getPixelForValue(sections[i].start);
-				if (x >= chartArea.left && x <= chartArea.right) {
-					ctx.strokeStyle = 'rgba(148, 163, 184, 0.3)';
-					ctx.lineWidth = 1;
-					ctx.setLineDash([3, 3]);
-					ctx.beginPath();
-					ctx.moveTo(x, chartArea.top);
-					ctx.lineTo(x, chartArea.bottom);
-					ctx.stroke();
-				}
-			}
-
-			ctx.restore();
-		}
-	};
-
 	// Sync pan/zoom between both charts (with re-entrancy guard)
 	function syncCharts(sourceChart: Chart) {
 		if (isSyncing) return;
@@ -439,7 +393,6 @@
 				}
 			},
 			plugins: [
-				intervalBandsPlugin,
 				spo2ZonesPlugin,
 				createHoverLinePlugin('#14b8a6', () => {
 					if (hoverIndex === null || !spo2Chart) return undefined;
@@ -509,7 +462,6 @@
 				}
 			},
 			plugins: [
-				intervalBandsPlugin,
 				createHoverLinePlugin('#f43f5e', () => {
 					if (hoverIndex === null || !hrChart) return undefined;
 					return hrChart.scales.y.getPixelForValue(readings[hoverIndex]?.hr ?? 0);
