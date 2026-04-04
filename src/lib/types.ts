@@ -555,6 +555,8 @@ export interface Comment {
 	parentCommentId?: string;
 	/** Display name of the comment being replied to */
 	replyToDisplayName?: string;
+	/** Array of user IDs who liked (flowed) this comment */
+	likedBy?: string[];
 	createdAt: Timestamp;
 	updatedAt: Timestamp;
 }

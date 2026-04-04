@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Comment } from '$lib/types';
 	import { user } from '$lib/stores/auth';
-	import { getCommentsForLog, addComment, deleteComment } from '$lib/firestore';
+	import { getCommentsForLog, addComment, deleteComment, toggleCommentLike } from '$lib/firestore';
 	import { formatDistanceToNow } from 'date-fns';
 	import { onMount } from 'svelte';
 
@@ -147,6 +147,37 @@
 		}
 	}
 
+	async function handleLike(comment: Comment) {
+		if (!$user) return;
+		const uid = $user.uid;
+		const liked = comment.likedBy?.includes(uid) ?? false;
+
+		// Optimistic update
+		comments = comments.map((c) => {
+			if (c.id !== comment.id) return c;
+			const currentLikes = c.likedBy ?? [];
+			return {
+				...c,
+				likedBy: liked ? currentLikes.filter((id) => id !== uid) : [...currentLikes, uid]
+			};
+		});
+
+		try {
+			await toggleCommentLike(comment.id, uid, liked);
+		} catch (e) {
+			console.error('Failed to toggle like:', e);
+			// Revert optimistic update
+			comments = comments.map((c) => {
+				if (c.id !== comment.id) return c;
+				const currentLikes = c.likedBy ?? [];
+				return {
+					...c,
+					likedBy: liked ? [...currentLikes, uid] : currentLikes.filter((id) => id !== uid)
+				};
+			});
+		}
+	}
+
 	const visibleComments = $derived(
 		previewCount > 0 ? comments.slice(-previewCount) : comments
 	);
@@ -181,7 +212,18 @@
 							<span class="reply-badge">↩ {comment.replyToDisplayName}</span>
 						{/if}
 						<p class="comment-text">{comment.text}</p>
-						<button class="reply-btn" onclick={() => startReply(comment)}>Reply</button>
+						<div class="comment-actions">
+							<button
+								class="flow-btn"
+								class:flowed={$user && (comment.likedBy?.includes($user.uid) ?? false)}
+								onclick={() => handleLike(comment)}
+								aria-label={$user && comment.likedBy?.includes($user.uid) ? 'Remove flow' : 'Flow'}
+								disabled={!$user}
+							>
+								🌊{#if (comment.likedBy?.length ?? 0) > 0}<span class="flow-count">{comment.likedBy?.length}</span>{/if}
+							</button>
+							<button class="reply-btn" onclick={() => startReply(comment)}>Reply</button>
+						</div>
 					</div>
 					{#if $user?.uid === comment.userId}
 						{#if confirmingDeleteId === comment.id}
@@ -370,13 +412,55 @@
 		font-size: 0.7rem;
 		cursor: pointer;
 		padding: 0;
-		margin-top: 0.15rem;
 		opacity: 0.6;
 		transition: opacity 0.15s ease, color 0.15s ease;
 	}
 
 	.reply-btn:hover {
 		opacity: 1;
+		color: var(--color-primary);
+	}
+
+	.comment-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		margin-top: 0.15rem;
+	}
+
+	.flow-btn {
+		background: none;
+		border: none;
+		cursor: pointer;
+		font-size: 0.7rem;
+		padding: 0;
+		display: flex;
+		align-items: center;
+		gap: 0.2rem;
+		opacity: 0.5;
+		transition: opacity 0.15s ease, transform 0.15s ease;
+	}
+
+	.flow-btn:hover {
+		opacity: 1;
+		transform: scale(1.15);
+	}
+
+	.flow-btn:disabled {
+		cursor: default;
+	}
+
+	.flow-btn.flowed {
+		opacity: 1;
+	}
+
+	.flow-count {
+		font-size: 0.7rem;
+		color: var(--color-text-muted);
+		margin-left: 0.1rem;
+	}
+
+	.flow-btn.flowed .flow-count {
 		color: var(--color-primary);
 	}
 

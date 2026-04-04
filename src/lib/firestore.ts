@@ -23,6 +23,8 @@ import {
 	serverTimestamp,
 	deleteField,
 	increment,
+	arrayUnion,
+	arrayRemove,
 	type DocumentData,
 	type QueryConstraint,
 	type QueryDocumentSnapshot
@@ -975,4 +977,19 @@ export async function deleteComment(commentId: string, routineLogId: string): Pr
 	// Decrement commentCount (floor at 0)
 	const logRef = doc(db, 'routineLogs', routineLogId);
 	await updateDoc(logRef, { commentCount: increment(-1) });
+}
+
+/**
+ * Toggle a "flow" (like) on a comment.
+ * Returns true if the user now likes it, false if unliked.
+ */
+export async function toggleCommentLike(commentId: string, userId: string, currentlyLiked: boolean): Promise<boolean> {
+	const commentRef = doc(db, 'comments', commentId);
+	if (currentlyLiked) {
+		await updateDoc(commentRef, { likedBy: arrayRemove(userId) });
+		return false;
+	} else {
+		await updateDoc(commentRef, { likedBy: arrayUnion(userId) });
+		return true;
+	}
 }
