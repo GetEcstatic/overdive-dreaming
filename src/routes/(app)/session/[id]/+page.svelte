@@ -15,6 +15,7 @@
 	import { shareCard, downloadShareCard } from '$lib/utils/shareCard';
 	import { parseBiometricCsv } from '$lib/utils/biometricCsvParser';
 	import type { RoutineLog, Discipline, BiometricReading } from '$lib/types';
+	import CommentSection from '$lib/components/CommentSection.svelte';
 
 	let { data } = $props();
 	let { log, routine, showMenstrualCycleTracking } = $derived(data);
@@ -688,6 +689,12 @@
 		</section>
 	{/if}
 
+	<!-- Comments -->
+	<section class="comments-section">
+		<h2>Comments</h2>
+		<CommentSection routineLogId={log.id} />
+	</section>
+
 	<!-- Action Bar -->
 	{#if isOwner}
 		<div class="action-bar">
@@ -871,7 +878,8 @@
 	/* Sections */
 	.metrics-section,
 	.notes-section,
-	.media-section {
+	.media-section,
+	.comments-section {
 		background: var(--color-bg-card);
 		border-radius: 12px;
 		padding: 1.25rem;
@@ -880,7 +888,8 @@
 
 	.metrics-section h2,
 	.notes-section h2,
-	.media-section h2 {
+	.media-section h2,
+	.comments-section h2 {
 		font-size: 1.125rem;
 		font-weight: 600;
 		color: var(--color-text);

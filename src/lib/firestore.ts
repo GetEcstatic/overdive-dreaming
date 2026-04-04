@@ -22,6 +22,7 @@ import {
 	Timestamp,
 	serverTimestamp,
 	deleteField,
+	increment,
 	type DocumentData,
 	type QueryConstraint,
 	type QueryDocumentSnapshot
@@ -41,7 +42,8 @@ import type {
 	Season,
 	SeasonFormData,
 	UserSettings,
-	PublicUserProfile
+	PublicUserProfile,
+	Comment
 } from '$lib/types';
 import {
 	normalizeRoutineLog,
@@ -883,4 +885,94 @@ export async function getPublicActivityPaginated(
 		lastDoc: lastVisible,
 		hasMore
 	};
+}
+
+// ============================================================================
+// COMMENTS
+// ============================================================================
+
+/**
+ * Get comments for a routine log, ordered oldest-first
+ */
+export async function getCommentsForLog(
+	routineLogId: string,
+	limitCount = 50
+): Promise<Comment[]> {
+	const commentsRef = collection(db, 'comments');
+	// Query without orderBy to avoid composite index requirement; sort client-side
+	const q = query(
+		commentsRef,
+		where('routineLogId', '==', routineLogId),
+		limit(limitCount)
+	);
+
+	const snapshot = await getDocs(q);
+	const comments = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Comment));
+	return comments.sort((a, b) => {
+		const aTime = a.createdAt?.toMillis?.() ?? 0;
+		const bTime = b.createdAt?.toMillis?.() ?? 0;
+		return aTime - bTime;
+	});
+}
+
+/**
+ * Add a comment to a routine log.
+ * Increments commentCount on the parent log document.
+ */
+export async function addComment(
+	routineLogId: string,
+	userId: string,
+	authorDisplayName: string,
+	authorPhotoURL: string | undefined,
+	text: string,
+	parentCommentId?: string,
+	replyToDisplayName?: string
+): Promise<Comment> {
+	const commentsRef = collection(db, 'comments');
+	const newComment: Record<string, any> = {
+		routineLogId,
+		userId,
+		authorDisplayName,
+		authorPhotoURL: authorPhotoURL ?? null,
+		text: text.trim(),
+		createdAt: serverTimestamp(),
+		updatedAt: serverTimestamp()
+	};
+	if (parentCommentId) {
+		newComment.parentCommentId = parentCommentId;
+	}
+	if (replyToDisplayName) {
+		newComment.replyToDisplayName = replyToDisplayName;
+	}
+
+	const docRef = await addDoc(commentsRef, newComment);
+
+	// Increment commentCount on the parent routine log
+	const logRef = doc(db, 'routineLogs', routineLogId);
+	await updateDoc(logRef, { commentCount: increment(1) });
+
+	return {
+		id: docRef.id,
+		routineLogId,
+		userId,
+		authorDisplayName,
+		authorPhotoURL,
+		text: text.trim(),
+		parentCommentId,
+		replyToDisplayName,
+		createdAt: Timestamp.now(),
+		updatedAt: Timestamp.now()
+	};
+}
+
+/**
+ * Delete a comment (caller must verify ownership before calling).
+ * Decrements commentCount on the parent log document.
+ */
+export async function deleteComment(commentId: string, routineLogId: string): Promise<void> {
+	await deleteDoc(doc(db, 'comments', commentId));
+
+	// Decrement commentCount (floor at 0)
+	const logRef = doc(db, 'routineLogs', routineLogId);
+	await updateDoc(logRef, { commentCount: increment(-1) });
 }

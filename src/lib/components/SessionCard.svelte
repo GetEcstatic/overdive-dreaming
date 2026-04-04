@@ -10,6 +10,7 @@
 	import { getPublicUserProfilesByIds } from '$lib/firestore';
 	import { shareCard } from '$lib/utils/shareCard';
 	import { onMount } from 'svelte';
+	import CommentSection from '$lib/components/CommentSection.svelte';
 
 	let {
 		log,
@@ -199,6 +200,16 @@
 	// Share state
 	let isGeneratingShare = $state(false);
 
+	// Comment state
+	let showComments = $state(false);
+	let commentCount = $state(log.commentCount ?? 0);
+
+	function toggleComments(e: MouseEvent) {
+		e.preventDefault();
+		e.stopPropagation();
+		showComments = !showComments;
+	}
+
 	async function handleShare(e: MouseEvent) {
 		e.preventDefault();
 		e.stopPropagation();
@@ -219,8 +230,9 @@
 
 </script>
 
+<div class="card-wrapper">
 <a href="/session/{log.id}" class="card-link" bind:this={cardElement}>
-	<div class="session-card" class:mobile-focused={isMobileFocused}>
+	<div class="session-card" class:mobile-focused={isMobileFocused} class:comments-open={showComments}>
 	<!-- Header with profile info -->
 	<div class="card-header">
 		<div class="profile-section">
@@ -358,6 +370,19 @@
 		{/if}
 		</div>
 		<button
+			class="comment-button"
+			class:active={showComments}
+			onclick={toggleComments}
+			aria-label="Toggle comments"
+		>
+			<svg class="comment-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+			</svg>
+			{#if commentCount > 0}
+				<span class="comment-count">{commentCount}</span>
+			{/if}
+		</button>
+		<button
 			class="share-button"
 			onclick={handleShare}
 			disabled={isGeneratingShare}
@@ -376,17 +401,30 @@
 	</div>
 	</div>
 </a>
+<!-- Inline comment panel (outside <a> to allow proper interactive element behavior) -->
+{#if showComments}
+	<div class="comment-panel">
+		<CommentSection
+			routineLogId={log.id}
+			onCountChange={(n) => { commentCount = n; }}
+		/>
+	</div>
+{/if}
+</div>
 
 <style>
+	.card-wrapper {
+		margin-bottom: 1.5rem;
+	}
+
+	.card-wrapper:last-child {
+		margin-bottom: 0;
+	}
+
 	.card-link {
 		display: block;
 		text-decoration: none;
 		color: inherit;
-		margin-bottom: 1.5rem;
-	}
-
-	.card-link:last-child {
-		margin-bottom: 0;
 	}
 
 	.session-card {
@@ -399,6 +437,11 @@
 		transition: all 0.2s ease;
 		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 		cursor: pointer;
+	}
+
+	.session-card.comments-open {
+		border-radius: 12px 12px 0 0;
+		border-bottom: none;
 	}
 
 	/* Hover effect - cyan border on desktop */
@@ -697,6 +740,46 @@
 		align-items: center;
 		gap: 0.75rem;
 		position: relative;
+	}
+
+	.comment-button {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		background: transparent;
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		border-radius: 6px;
+		padding: 0.5rem 0.625rem;
+		color: var(--color-text-muted);
+		font-size: 0.875rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.comment-button:hover,
+	.comment-button.active {
+		background: rgba(148, 163, 184, 0.05);
+		border-color: var(--color-primary);
+		color: var(--color-primary);
+	}
+
+	.comment-icon {
+		width: 16px;
+		height: 16px;
+	}
+
+	.comment-count {
+		font-size: 0.8125rem;
+	}
+
+	.comment-panel {
+		padding: 0.75rem 1rem 1rem;
+		border-top: 1px solid rgba(148, 163, 184, 0.1);
+		background: var(--color-bg-card);
+		border: 1px solid var(--color-border, rgba(100, 116, 139, 0.15));
+		border-top: none;
+		border-radius: 0 0 12px 12px;
 	}
 
 	.share-button {

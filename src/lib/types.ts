@@ -520,6 +520,7 @@ export interface RoutineLog {
 
 	// Social features
 	likes?: string[]; // Array of user IDs who have liked this log
+	commentCount?: number; // Denormalized count for display without fetching subcollection
 
 	// PB tracking
 	isPB?: boolean; // True if this dive was a personal best when logged
@@ -535,6 +536,25 @@ export interface RoutineLog {
 	// Tags selected by user at log time (from routine's selectableTags)
 	selectedTags?: string[];
 
+	createdAt: Timestamp;
+	updatedAt: Timestamp;
+}
+
+// ============================================================================
+// COMMENT
+// ============================================================================
+
+export interface Comment {
+	id: string;
+	routineLogId: string;
+	userId: string;
+	authorDisplayName: string;
+	authorPhotoURL?: string;
+	text: string;
+	/** If this is a reply, the parent comment's ID */
+	parentCommentId?: string;
+	/** Display name of the comment being replied to */
+	replyToDisplayName?: string;
 	createdAt: Timestamp;
 	updatedAt: Timestamp;
 }

@@ -39,10 +39,12 @@ service cloud.firestore {
         request.auth.uid == resource.data.userId;
       allow create: if request.auth != null &&
         request.auth.uid == request.resource.data.userId;
-      // Any authenticated user can update likes on public logs
+      // Any authenticated user can update likes or commentCount on public logs
       allow update: if request.auth != null &&
         resource.data.visibility == 'public' &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes']);
+      allow update: if request.auth != null &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount']);
     }
 
     // Personal bests (user-owned)
@@ -62,6 +64,20 @@ service cloud.firestore {
         request.auth.uid == resource.data.userId;
       allow create: if request.auth != null &&
         request.auth.uid == request.resource.data.userId;
+    }
+
+    // Comments (social feature)
+    match /comments/{commentId} {
+      // Any authenticated user can read comments
+      allow read: if request.auth != null;
+      // Any authenticated user can create a comment (userId must match their own)
+      allow create: if request.auth != null &&
+        request.resource.data.userId == request.auth.uid;
+      // Only the comment author can delete their own comment
+      allow delete: if request.auth != null &&
+        resource.data.userId == request.auth.uid;
+      // No updates allowed (comments are immutable)
+      allow update: if false;
     }
 
     // Config (read-only for users)
