@@ -308,7 +308,7 @@
 	.modal-backdrop {
 		position: fixed;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.7);
+		background: rgba(0, 0, 0, 0.85);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -317,7 +317,7 @@
 	}
 
 	.modal {
-		background: var(--color-surface);
+		background: var(--color-bg-card-solid, #0a0f14);
 		border: 1px solid rgba(148, 163, 184, 0.2);
 		border-radius: 16px;
 		width: 100%;
@@ -442,7 +442,7 @@
 	}
 
 	.session-summary {
-		background: rgba(148, 163, 184, 0.05);
+		background: rgba(148, 163, 184, 0.1);
 		border-radius: 12px;
 		padding: 1rem;
 	}
@@ -510,7 +510,7 @@
 	}
 
 	.chart-section {
-		background: rgba(148, 163, 184, 0.05);
+		background: rgba(148, 163, 184, 0.1);
 		border-radius: 12px;
 		padding: 1rem;
 	}
@@ -556,7 +556,7 @@
 		gap: 0.5rem;
 		padding: 0.5rem;
 		font-size: 0.8125rem;
-		background: rgba(148, 163, 184, 0.05);
+		background: rgba(148, 163, 184, 0.08);
 		border-radius: 6px;
 	}
 
