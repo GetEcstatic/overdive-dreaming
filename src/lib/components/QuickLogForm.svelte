@@ -72,6 +72,9 @@
 		minimumHR?: number;
 		bodyWeight?: number;
 		breathingTechniqueLevel?: number;
+		// Lung capacity
+		fvc?: number;
+		fvcWithPacking?: number;
 		// Per-rep data (for detailed logging)
 		laps?: LapData[];
 		// Biometric session summary (aggregated from per-rep data)
@@ -195,6 +198,10 @@
 	let minimumHR = $state<number | undefined>(undefined);
 	let bodyWeight = $state<number | undefined>(undefined);
 	let breathingTechniqueLevel = $state<number | undefined>(0); // Default to tidal (0)
+
+	// LUNG CAPACITY
+	let fvc = $state<number | undefined>(undefined);
+	let fvcWithPacking = $state<number | undefined>(undefined);
 
 	// BIOMETRIC TRACKING - Per-rep SpO2/HR for dry static training
 	let repEditorData = $state<RepEditorData[]>([]);
@@ -463,6 +470,9 @@
 			minimumHR,
 			bodyWeight,
 			breathingTechniqueLevel,
+			// Lung capacity
+			fvc,
+			fvcWithPacking,
 			// Per-rep data (biometric tracking)
 			laps: repEditorData.length > 0 ? biometricsToLapData(repEditorData.map(r => ({
 				repNumber: r.repNumber,
@@ -1261,6 +1271,38 @@
 						step="0.1"
 						class="field-input"
 						placeholder="e.g., 72.5"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackFVC}
+				<div class="field-group">
+					<label for="fvc" class="field-label">FVC (liters)</label>
+					<input
+						id="fvc"
+						type="number"
+						bind:value={fvc}
+						min="0"
+						max="15"
+						step="0.1"
+						class="field-input"
+						placeholder="e.g., 5.2"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackFVCWithPacking}
+				<div class="field-group">
+					<label for="fvcWithPacking" class="field-label">FVC with Packing (liters)</label>
+					<input
+						id="fvcWithPacking"
+						type="number"
+						bind:value={fvcWithPacking}
+						min="0"
+						max="15"
+						step="0.1"
+						class="field-input"
+						placeholder="e.g., 7.8"
 					/>
 				</div>
 			{/if}

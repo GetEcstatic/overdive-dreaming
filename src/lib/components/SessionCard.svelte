@@ -67,6 +67,17 @@
 		routine
 	));
 
+	const tertiaryMetric = $derived(
+		routine.displayConfig.tertiaryMetric && routine.displayConfig.tertiaryMetricLabel
+			? getFormattedMetric(
+					routine.displayConfig.tertiaryMetric,
+					routine.displayConfig.tertiaryMetricLabel,
+					log,
+					routine
+				)
+			: null
+	);
+
 	const isOwner = $derived($user?.uid === log.userId);
 	const displayName = $derived(
 		isOwner ? ($user?.displayName ?? log.authorDisplayName ?? 'User') : (log.authorDisplayName ?? 'Diver')
@@ -292,6 +303,13 @@
 			<div class="metric-label">{secondaryMetric.label}</div>
 			<div class="metric-value">{secondaryMetric.value}</div>
 		</div>
+
+		{#if tertiaryMetric}
+			<div class="metric-box">
+				<div class="metric-label">{tertiaryMetric.label}</div>
+				<div class="metric-value">{tertiaryMetric.value}</div>
+			</div>
+		{/if}
 
 		<div class="metric-box">
 			<div class="metric-label">{rpeEmoji} RPE</div>
@@ -634,7 +652,7 @@
 	/* Metrics Row */
 	.metrics-row {
 		display: grid;
-		grid-template-columns: repeat(3, 1fr);
+		grid-template-columns: repeat(2, 1fr);
 		gap: 0.75rem;
 		padding: 1rem;
 	}

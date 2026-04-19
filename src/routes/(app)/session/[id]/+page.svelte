@@ -406,7 +406,7 @@
 	{/if}
 
 	<!-- Subjective Ratings & Health Metrics -->
-	{#if log.rpe || log.joyScale || log.hoursSinceLastMeal || log.basalMood || log.menstrualCycleDay || log.minimumSpO2 || log.minimumHR || log.restingHeartRate || log.bodyWeight || log.waterTemperature || log.contractionsOnsetTime || log.equipmentUsed || log.buddyName || log.hrv || log.poolType || log.sambaBO || log.breathsBetweenReps || (log.facialGear && log.facialGear.length > 0)}
+	{#if log.rpe || log.joyScale || log.hoursSinceLastMeal || log.basalMood || log.menstrualCycleDay || log.minimumSpO2 || log.minimumHR || log.restingHeartRate || log.bodyWeight || log.fvc || log.fvcWithPacking || log.waterTemperature || log.contractionsOnsetTime || log.equipmentUsed || log.buddyName || log.hrv || log.poolType || log.sambaBO || log.breathsBetweenReps || (log.facialGear && log.facialGear.length > 0)}
 		<section class="metrics-section">
 			<h2>Subjective Ratings & Health Metrics</h2>
 			<div class="metrics-grid">
@@ -516,6 +516,18 @@
 					<div class="metric-item">
 						<span class="label">Body Weight</span>
 						<span class="value">{log.bodyWeight} kg</span>
+					</div>
+				{/if}
+				{#if log.fvc}
+					<div class="metric-item">
+						<span class="label">FVC</span>
+						<span class="value">{log.fvc} L</span>
+					</div>
+				{/if}
+				{#if log.fvcWithPacking}
+					<div class="metric-item">
+						<span class="label">FVC with Packing</span>
+						<span class="value">{log.fvcWithPacking} L</span>
 					</div>
 				{/if}
 			</div>

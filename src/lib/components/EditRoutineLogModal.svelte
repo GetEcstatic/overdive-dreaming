@@ -122,6 +122,8 @@
 				updates.minimumSpO2 = formData.minimumSpO2;
 			if (formData.minimumHR !== log.minimumHR) updates.minimumHR = formData.minimumHR;
 			if (formData.bodyWeight !== log.bodyWeight) updates.bodyWeight = formData.bodyWeight;
+			if (formData.fvc !== log.fvc) updates.fvc = formData.fvc;
+			if (formData.fvcWithPacking !== log.fvcWithPacking) updates.fvcWithPacking = formData.fvcWithPacking;
 			if (formData.rpe !== log.rpe) updates.rpe = formData.rpe;
 			if (formData.joyScale !== log.joyScale) updates.joyScale = formData.joyScale;
 			if (formData.hoursSinceLastMeal !== log.hoursSinceLastMeal)

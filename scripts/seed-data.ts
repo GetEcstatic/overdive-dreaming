@@ -68,6 +68,9 @@ const dynamicMaxTracking: TrackingConfig = {
 	trackMinimumSpO2: false,
 	trackMinimumHR: false,
 	trackBodyWeight: false,
+	// LUNG CAPACITY
+	trackFVC: false,
+	trackFVCWithPacking: false,
 	// BIOMETRIC TRACKING
 	trackPerRepSpO2: false,
 	trackPerRepHR: false,
@@ -113,6 +116,9 @@ const staticMaxTracking: TrackingConfig = {
 	trackMinimumSpO2: true,
 	trackMinimumHR: true,
 	trackBodyWeight: false,
+	// LUNG CAPACITY
+	trackFVC: false,
+	trackFVCWithPacking: false,
 	// BIOMETRIC TRACKING - Enabled for dry static
 	trackPerRepSpO2: true,
 	trackPerRepHR: true,
@@ -158,6 +164,9 @@ const intervalTracking: TrackingConfig = {
 	trackMinimumSpO2: false,
 	trackMinimumHR: false,
 	trackBodyWeight: false,
+	// LUNG CAPACITY
+	trackFVC: false,
+	trackFVCWithPacking: false,
 	// BIOMETRIC TRACKING
 	trackPerRepSpO2: false,
 	trackPerRepHR: false,
@@ -203,6 +212,9 @@ const staticIntervalTracking: TrackingConfig = {
 	trackMinimumSpO2: true,
 	trackMinimumHR: true,
 	trackBodyWeight: false,
+	// LUNG CAPACITY
+	trackFVC: false,
+	trackFVCWithPacking: false,
 	// BIOMETRIC TRACKING - Enabled for dry static
 	trackPerRepSpO2: true,
 	trackPerRepHR: true,
@@ -248,6 +260,9 @@ const dryStaticBiometricTracking: TrackingConfig = {
 	trackMinimumSpO2: true,
 	trackMinimumHR: true,
 	trackBodyWeight: false,
+	// LUNG CAPACITY
+	trackFVC: false,
+	trackFVCWithPacking: false,
 	// BIOMETRIC TRACKING - Enabled for dry static
 	trackPerRepSpO2: true,
 	trackPerRepHR: true,

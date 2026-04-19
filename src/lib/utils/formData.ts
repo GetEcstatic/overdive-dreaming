@@ -62,6 +62,10 @@ export function routineLogToFormData(log: RoutineLog): LogFormData {
 		minimumHR: log.minimumHR,
 		bodyWeight: log.bodyWeight,
 
+		// Lung capacity
+		fvc: log.fvc,
+		fvcWithPacking: log.fvcWithPacking,
+
 		// Biometric tracking data (from CSV import)
 		laps: log.laps,
 		hasBiometricData: log.hasBiometricData,

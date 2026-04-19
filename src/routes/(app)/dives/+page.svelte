@@ -182,6 +182,10 @@
 			if (logData.bodyWeight !== undefined) routineLogData.bodyWeight = logData.bodyWeight;
 			if (logData.breathingTechniqueLevel !== undefined) routineLogData.breathingTechniqueLevel = logData.breathingTechniqueLevel;
 
+			// Lung capacity
+			if (logData.fvc !== undefined) routineLogData.fvc = logData.fvc;
+			if (logData.fvcWithPacking !== undefined) routineLogData.fvcWithPacking = logData.fvcWithPacking;
+
 			// BIOMETRIC TRACKING - Per-rep SpO2/HR data
 			if (logData.laps && logData.laps.length > 0) routineLogData.laps = logData.laps;
 			if (logData.hasBiometricData) routineLogData.hasBiometricData = logData.hasBiometricData;

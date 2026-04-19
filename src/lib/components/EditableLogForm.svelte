@@ -109,6 +109,10 @@
 	let bodyWeight = $state<number | undefined>(formData.bodyWeight);
 	let breathingTechniqueLevel = $state<number | undefined>(formData.breathingTechniqueLevel ?? 0);
 
+	// Lung capacity
+	let fvc = $state<number | undefined>(formData.fvc);
+	let fvcWithPacking = $state<number | undefined>(formData.fvcWithPacking);
+
 	// Biometric tracking state (from CSV import)
 	let showBiometricModal = $state(false);
 	let repEditorData = $state<RepEditorData[]>([]);
@@ -306,6 +310,9 @@
 			minimumHR: normalizeNumber(minimumHR),
 			bodyWeight: normalizeNumber(bodyWeight),
 			breathingTechniqueLevel: normalizeNumber(breathingTechniqueLevel),
+			// Lung capacity
+			fvc: normalizeNumber(fvc),
+			fvcWithPacking: normalizeNumber(fvcWithPacking),
 			// Biometric tracking data
 			laps: lapsData,
 			hasBiometricData: biometricSummary?.hasBiometricData,
@@ -359,7 +366,9 @@
 			config.trackBasalMood ||
 			config.trackMinimumSpO2 ||
 			config.trackMinimumHR ||
-			config.trackBodyWeight
+			config.trackBodyWeight ||
+			config.trackFVC ||
+			config.trackFVCWithPacking
 	);
 
 	// Check if biometric CSV import should be shown - for STA routines when user selects "Dry"
@@ -954,6 +963,38 @@
 						step="0.1"
 						class="field-input"
 						placeholder="e.g., 72.5"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackFVC}
+				<div class="field-group">
+					<label for="fvc" class="field-label">FVC (liters)</label>
+					<input
+						id="fvc"
+						type="number"
+						bind:value={fvc}
+						min="0"
+						max="15"
+						step="0.1"
+						class="field-input"
+						placeholder="e.g., 5.2"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackFVCWithPacking}
+				<div class="field-group">
+					<label for="fvcWithPacking" class="field-label">FVC with Packing (liters)</label>
+					<input
+						id="fvcWithPacking"
+						type="number"
+						bind:value={fvcWithPacking}
+						min="0"
+						max="15"
+						step="0.1"
+						class="field-input"
+						placeholder="e.g., 7.8"
 					/>
 				</div>
 			{/if}

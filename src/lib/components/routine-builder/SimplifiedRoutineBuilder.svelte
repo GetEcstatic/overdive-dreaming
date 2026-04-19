@@ -185,6 +185,8 @@
 			trackMinimumSpO2: false,
 			trackMinimumHR: false,
 			trackBodyWeight: false,
+			trackFVC: false,
+			trackFVCWithPacking: false,
 			trackPerRepSpO2: false,
 			trackPerRepHR: false,
 			trackSpO2Thresholds: false,

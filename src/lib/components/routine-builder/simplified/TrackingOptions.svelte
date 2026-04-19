@@ -75,6 +75,8 @@
 				{ key: 'trackRestingHeartRate', label: 'Resting Heart Rate', hint: 'Pre-session resting HR' },
 				{ key: 'trackHRV', label: 'HRV', hint: 'Heart rate variability' },
 				{ key: 'trackBodyWeight', label: 'Body Weight', hint: 'Weight on training day' },
+				{ key: 'trackFVC', label: 'FVC', hint: 'Forced Vital Capacity (liters)' },
+				{ key: 'trackFVCWithPacking', label: 'FVC with Packing', hint: 'FVC with packing technique (liters)' },
 				{ key: 'trackBasalMood', label: 'Mood', hint: 'General mood 1-10' },
 				{ key: 'trackMenstrualCycleDay', label: 'Cycle Day', hint: 'Menstrual cycle tracking' }
 			]

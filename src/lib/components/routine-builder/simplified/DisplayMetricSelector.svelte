@@ -55,9 +55,25 @@
 		}
 	}
 
+	function handleTertiaryChange(event: Event) {
+		const select = event.target as HTMLSelectElement;
+		const value = select.value;
+		if (value === 'none') {
+			displayConfig.tertiaryMetric = undefined;
+			displayConfig.tertiaryMetricLabel = undefined;
+		} else {
+			const metric = allMetrics.find((m) => m.value === value);
+			if (metric) {
+				displayConfig.tertiaryMetric = metric.value;
+				displayConfig.tertiaryMetricLabel = metric.label;
+			}
+		}
+	}
+
 	// Get the current hero metric info
 	let heroInfo = $derived(allMetrics.find(m => m.value === displayConfig.heroMetric));
 	let secondaryInfo = $derived(allMetrics.find(m => m.value === displayConfig.secondaryMetric));
+	let tertiaryInfo = $derived(displayConfig.tertiaryMetric ? allMetrics.find(m => m.value === displayConfig.tertiaryMetric) : undefined);
 </script>
 
 <div class="display-selector">
@@ -117,6 +133,32 @@
 				<div class="metric-hint">{secondaryInfo.description}</div>
 			{/if}
 		</div>
+
+		<!-- Tertiary Metric Selection (Optional) -->
+		<div class="metric-card">
+			<div class="card-header-section">
+				<span class="card-icon">📎</span>
+				<div class="card-title">
+					<span class="title">Tertiary Metric</span>
+					<span class="desc">Optional third metric shown on the card</span>
+				</div>
+			</div>
+			<div class="select-wrapper">
+				<select
+					class="metric-select"
+					value={displayConfig.tertiaryMetric ?? 'none'}
+					onchange={handleTertiaryChange}
+				>
+					<option value="none">— None —</option>
+					{#each availableMetrics as metric}
+						<option value={metric.value}>{metric.icon} {metric.label}</option>
+					{/each}
+				</select>
+			</div>
+			{#if tertiaryInfo}
+				<div class="metric-hint">{tertiaryInfo.description}</div>
+			{/if}
+		</div>
 	</div>
 
 	<!-- Preview Card - styled like SessionCard -->
@@ -167,6 +209,22 @@
 						{/if}
 					</div>
 				</div>
+				{#if displayConfig.tertiaryMetric && displayConfig.tertiaryMetricLabel}
+					<div class="metric-box">
+						<div class="metric-label">{displayConfig.tertiaryMetricLabel}</div>
+						<div class="metric-value">
+							{#if displayConfig.tertiaryMetric === 'totalDistance' || displayConfig.tertiaryMetric === 'lapDistance' || displayConfig.tertiaryMetric === 'totalRepDistance'}
+								125m
+							{:else if displayConfig.tertiaryMetric === 'totalTime' || displayConfig.tertiaryMetric === 'repDuration' || displayConfig.tertiaryMetric === 'longestHold'}
+								3:45
+							{:else if displayConfig.tertiaryMetric === 'repsCompleted'}
+								8
+							{:else}
+								---
+							{/if}
+						</div>
+					</div>
+				{/if}
 				<div class="metric-box">
 					<div class="metric-label">💪 RPE</div>
 					<div class="metric-value">7</div>
@@ -366,7 +424,7 @@
 	/* Metrics Row - matches SessionCard exactly */
 	.metrics-row {
 		display: grid;
-		grid-template-columns: repeat(3, 1fr);
+		grid-template-columns: repeat(2, 1fr);
 		gap: 0.5rem;
 	}
 

@@ -196,6 +196,12 @@ export interface TrackingConfig {
 	trackPerRepHR: boolean; // Per-rep HR (min, max, avg) from pulse oximeter
 	trackSpO2Thresholds: boolean; // Time below critical SpO2 levels (70%, 60%, 50%, 40%)
 	isDryTraining: boolean; // Flag for dry/land-based training (affects UI/safety)
+
+	// ============================================================================
+	// LUNG CAPACITY TRACKING (FVC)
+	// ============================================================================
+	trackFVC: boolean; // Forced Vital Capacity (liters)
+	trackFVCWithPacking: boolean; // FVC with packing technique (liters)
 }
 
 export type MetricType =
@@ -235,6 +241,8 @@ export interface DisplayConfig {
 	heroMetricLabel: string;
 	secondaryMetric: MetricType;
 	secondaryMetricLabel: string;
+	tertiaryMetric?: MetricType;
+	tertiaryMetricLabel?: string;
 }
 
 export interface RoutineTemplate {
@@ -492,6 +500,10 @@ export interface RoutineLog {
 	minimumHR?: number; // bpm, minimum heart rate during routine
 	bodyWeight?: number; // kg, body weight that day
 	breathingTechniqueLevel?: number; // -3 to +3 (NEW field, coexists with old breathingTechnique)
+
+	// Lung capacity
+	fvc?: number; // Forced Vital Capacity in liters (to 1 decimal place)
+	fvcWithPacking?: number; // FVC with packing in liters (to 1 decimal place)
 
 	// ============================================================================
 	// BIOMETRIC SESSION SUMMARY (Aggregated from per-rep data)
