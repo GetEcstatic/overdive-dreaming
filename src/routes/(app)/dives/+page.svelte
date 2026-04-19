@@ -191,8 +191,6 @@
 			if (logData.urgeToBreathe !== undefined) routineLogData.urgeToBreathe = logData.urgeToBreathe;
 			if (logData.contractions !== undefined) routineLogData.contractions = logData.contractions;
 			if (logData.etco2 !== undefined) routineLogData.etco2 = logData.etco2;
-			if (logData.vcAfterStretch !== undefined) routineLogData.vcAfterStretch = logData.vcAfterStretch;
-			if (logData.wetPackedVC !== undefined) routineLogData.wetPackedVC = logData.wetPackedVC;
 			if (logData.expiredAirPostHold !== undefined) routineLogData.expiredAirPostHold = logData.expiredAirPostHold;
 			if (logData.lungVolumeLossPerMin !== undefined) routineLogData.lungVolumeLossPerMin = logData.lungVolumeLossPerMin;
 			if (logData.gasMix !== undefined) routineLogData.gasMix = logData.gasMix;

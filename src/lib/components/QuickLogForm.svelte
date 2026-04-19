@@ -80,8 +80,6 @@
 		urgeToBreathe?: number;
 		contractions?: number;
 		etco2?: number;
-		vcAfterStretch?: number;
-		wetPackedVC?: number;
 		expiredAirPostHold?: number;
 		lungVolumeLossPerMin?: number;
 		gasMix?: string;
@@ -223,8 +221,6 @@
 	let urgeToBreathe = $state<number | undefined>(undefined);
 	let contractions = $state<number | undefined>(undefined);
 	let etco2 = $state<number | undefined>(undefined);
-	let vcAfterStretch = $state<number | undefined>(undefined);
-	let wetPackedVC = $state<number | undefined>(undefined);
 	let expiredAirPostHold = $state<number | undefined>(undefined);
 	let lungVolumeLossPerMin = $state<number | undefined>(undefined);
 	let gasMix = $state<string | undefined>(undefined);
@@ -509,8 +505,6 @@
 			urgeToBreathe,
 			contractions,
 			etco2,
-			vcAfterStretch,
-			wetPackedVC,
 			expiredAirPostHold,
 			lungVolumeLossPerMin,
 			gasMix: gasMix?.trim() || undefined,
@@ -1356,7 +1350,7 @@
 	{/if}
 
 	<!-- O2-Assisted Static Apnea Section -->
-	{#if config.trackLucidity || config.trackUrgeToBreathe || config.trackContractions || config.trackETCO2 || config.trackVCAfterStretch || config.trackWetPackedVC || config.trackExpiredAirPostHold || config.trackLungVolumeLossPerMin || config.trackGasMix || config.trackCO2TremorOnset || config.trackMentalChangeTime || config.trackRecoveryQuality || config.trackEndSpO2 || config.trackBreatheUpType}
+	{#if config.trackLucidity || config.trackUrgeToBreathe || config.trackContractions || config.trackETCO2 || config.trackExpiredAirPostHold || config.trackLungVolumeLossPerMin || config.trackGasMix || config.trackCO2TremorOnset || config.trackMentalChangeTime || config.trackRecoveryQuality || config.trackEndSpO2 || config.trackBreatheUpType}
 		<div class="form-section">
 			<h4 class="section-title">🫁 O₂-Assisted Static Metrics</h4>
 
@@ -1386,37 +1380,7 @@
 				</div>
 			{/if}
 
-			{#if config.trackVCAfterStretch}
-				<div class="field-group">
-					<label for="vcAfterStretch" class="field-label">VC After Stretch (liters)</label>
-					<input
-						id="vcAfterStretch"
-						type="number"
-						bind:value={vcAfterStretch}
-						min="0"
-						max="15"
-						step="0.1"
-						class="field-input"
-						placeholder="e.g., 3.8"
-					/>
-				</div>
-			{/if}
 
-			{#if config.trackWetPackedVC}
-				<div class="field-group">
-					<label for="wetPackedVC" class="field-label">Wet Packed VC (liters)</label>
-					<input
-						id="wetPackedVC"
-						type="number"
-						bind:value={wetPackedVC}
-						min="0"
-						max="15"
-						step="0.1"
-						class="field-input"
-						placeholder="e.g., 4.92"
-					/>
-				</div>
-			{/if}
 
 			{#if config.trackExpiredAirPostHold}
 				<div class="field-group">

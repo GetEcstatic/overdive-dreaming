@@ -129,8 +129,6 @@
 			if (formData.urgeToBreathe !== log.urgeToBreathe) updates.urgeToBreathe = formData.urgeToBreathe;
 			if (formData.contractions !== log.contractions) updates.contractions = formData.contractions;
 			if (formData.etco2 !== log.etco2) updates.etco2 = formData.etco2;
-			if (formData.vcAfterStretch !== log.vcAfterStretch) updates.vcAfterStretch = formData.vcAfterStretch;
-			if (formData.wetPackedVC !== log.wetPackedVC) updates.wetPackedVC = formData.wetPackedVC;
 			if (formData.expiredAirPostHold !== log.expiredAirPostHold) updates.expiredAirPostHold = formData.expiredAirPostHold;
 			if (formData.lungVolumeLossPerMin !== log.lungVolumeLossPerMin) updates.lungVolumeLossPerMin = formData.lungVolumeLossPerMin;
 			if (formData.gasMix !== log.gasMix) updates.gasMix = formData.gasMix;

@@ -312,8 +312,6 @@ const o2AssistedStaticTracking: TrackingConfig = {
 	trackUrgeToBreathe: true,
 	trackContractions: true,
 	trackETCO2: true,
-	trackVCAfterStretch: true,
-	trackWetPackedVC: true,
 	trackExpiredAirPostHold: true,
 	trackLungVolumeLossPerMin: true,
 	trackGasMix: true,

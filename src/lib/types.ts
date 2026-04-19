@@ -210,8 +210,6 @@ export interface TrackingConfig {
 	trackUrgeToBreathe?: boolean; // Urge to breathe scale (1-10)
 	trackContractions?: boolean; // Contractions intensity scale (1-10)
 	trackETCO2?: boolean; // End-tidal CO2 (mmHg)
-	trackVCAfterStretch?: boolean; // Vital capacity after stretching (liters)
-	trackWetPackedVC?: boolean; // Wet packed vital capacity (liters)
 	trackExpiredAirPostHold?: boolean; // Expired air volume after hold (liters)
 	trackLungVolumeLossPerMin?: boolean; // Lung volume loss rate (L/min)
 	trackGasMix?: boolean; // Gas mixture (e.g., "100% O2")
@@ -531,8 +529,6 @@ export interface RoutineLog {
 	urgeToBreathe?: number; // 1-10 scale, urge to breathe intensity
 	contractions?: number; // 1-10 scale, contraction intensity
 	etco2?: number; // End-tidal CO2 in mmHg
-	vcAfterStretch?: number; // Vital capacity after stretching (liters)
-	wetPackedVC?: number; // Wet packed vital capacity (liters)
 	expiredAirPostHold?: number; // Expired air volume after hold (liters)
 	lungVolumeLossPerMin?: number; // Lung volume loss rate (L/min)
 	gasMix?: string; // Gas mixture description (e.g., "100% O2")

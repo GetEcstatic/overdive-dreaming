@@ -118,8 +118,6 @@
 	let urgeToBreathe = $state<number | undefined>(formData.urgeToBreathe);
 	let contractions = $state<number | undefined>(formData.contractions);
 	let etco2 = $state<number | undefined>(formData.etco2);
-	let vcAfterStretch = $state<number | undefined>(formData.vcAfterStretch);
-	let wetPackedVC = $state<number | undefined>(formData.wetPackedVC);
 	let expiredAirPostHold = $state<number | undefined>(formData.expiredAirPostHold);
 	let lungVolumeLossPerMin = $state<number | undefined>(formData.lungVolumeLossPerMin);
 	let gasMix = $state<string | undefined>(formData.gasMix);
@@ -334,8 +332,6 @@
 			urgeToBreathe: normalizeNumber(urgeToBreathe),
 			contractions: normalizeNumber(contractions),
 			etco2: normalizeNumber(etco2),
-			vcAfterStretch: normalizeNumber(vcAfterStretch),
-			wetPackedVC: normalizeNumber(wetPackedVC),
 			expiredAirPostHold: normalizeNumber(expiredAirPostHold),
 			lungVolumeLossPerMin: normalizeNumber(lungVolumeLossPerMin),
 			gasMix: gasMix?.trim() || undefined,
@@ -1041,18 +1037,6 @@
 				<div class="field-group">
 					<label for="edit-breatheUpType" class="field-label">Breathe-Up Type</label>
 					<input id="edit-breatheUpType" type="text" bind:value={breatheUpType} class="field-input" placeholder="e.g., continuous 4:6 on 100% O2" />
-				</div>
-			{/if}
-			{#if config.trackVCAfterStretch}
-				<div class="field-group">
-					<label for="edit-vcAfterStretch" class="field-label">VC After Stretch (liters)</label>
-					<input id="edit-vcAfterStretch" type="number" bind:value={vcAfterStretch} min="0" max="15" step="0.1" class="field-input" placeholder="e.g., 3.8" />
-				</div>
-			{/if}
-			{#if config.trackWetPackedVC}
-				<div class="field-group">
-					<label for="edit-wetPackedVC" class="field-label">Wet Packed VC (liters)</label>
-					<input id="edit-wetPackedVC" type="number" bind:value={wetPackedVC} min="0" max="15" step="0.1" class="field-input" placeholder="e.g., 4.92" />
 				</div>
 			{/if}
 			{#if config.trackExpiredAirPostHold}
