@@ -180,10 +180,15 @@ export async function updateRoutine(
 ): Promise<void> {
 	const docRef = doc(db, 'routines', routineId);
 
-	// Remove undefined values - Firestore doesn't accept undefined
-	const cleanedUpdates = Object.fromEntries(
-		Object.entries(updates).filter(([_, v]) => v !== undefined)
-	);
+	// Remove undefined values deeply - Firestore doesn't accept undefined
+	const removeUndefined = (obj: Record<string, any>): Record<string, any> => {
+		return Object.fromEntries(
+			Object.entries(obj)
+				.filter(([_, v]) => v !== undefined)
+				.map(([k, v]) => [k, v !== null && typeof v === 'object' && !Array.isArray(v) ? removeUndefined(v) : v])
+		);
+	};
+	const cleanedUpdates = removeUndefined(updates as Record<string, any>);
 
 	await updateDoc(docRef, {
 		...cleanedUpdates,
