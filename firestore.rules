@@ -21,9 +21,10 @@ service cloud.firestore {
       allow create: if request.auth != null;
 
       // Creator can update/delete their own routines
-      // System routines can be updated by any authenticated user (for customization)
+      // Only admin can update system routines
       allow update: if request.auth != null &&
-        (resource.data.createdBy == request.auth.uid || resource.data.createdBy == 'system');
+        (resource.data.createdBy == request.auth.uid ||
+         (resource.data.createdBy == 'system' && request.auth.uid == 'GRm9WVvOjCMpX7zqD3ZktaiSQzm2'));
       allow delete: if request.auth != null &&
         resource.data.createdBy == request.auth.uid;
     }
