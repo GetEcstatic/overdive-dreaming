@@ -252,7 +252,8 @@ export type MetricType =
 	// NEW: Speed metrics (calculated)
 	| 'avgSpeed'          // Average m/s across session
 	| 'maxRepSpeed'       // Fastest rep speed
-	| 'minRepSpeed';      // Slowest rep speed
+	| 'minRepSpeed'      // Slowest rep speed
+	| 'breathingTechnique'; // Breathing technique used
 
 export interface DisplayConfig {
 	heroMetric: MetricType;

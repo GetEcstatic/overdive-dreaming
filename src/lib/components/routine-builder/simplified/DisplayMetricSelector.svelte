@@ -27,7 +27,8 @@
 		{ value: 'cumulativeHoldTime', label: 'Cumulative Hold', description: 'Sum of all holds (biometrics)', icon: '📈' },
 		{ value: 'initialBreatheUpTime', label: 'Breathe-Up Time', description: 'Pre-dive breathe-up', icon: '🌬️' },
 		{ value: 'lapDistance', label: 'Lap Distance', description: 'Distance per rep', icon: '📏' },
-		{ value: 'totalRepDistance', label: 'Total Rep Distance', description: 'Sum of all rep distances', icon: '📐' }
+		{ value: 'totalRepDistance', label: 'Total Rep Distance', description: 'Sum of all rep distances', icon: '📐' },
+		{ value: 'breathingTechnique', label: 'Breathing Technique', description: 'Breathing technique used', icon: '🫁' }
 	];
 
 	// Filter to show most relevant metrics based on tracking config

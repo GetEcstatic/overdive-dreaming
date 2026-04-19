@@ -195,6 +195,10 @@ export function getMetricValue(
 		case 'minRepSpeed':
 			return log.minRepSpeed || 0;
 
+		case 'breathingTechnique':
+			// String metric - return 0 as placeholder, handled in getFormattedMetric
+			return 0;
+
 		default:
 			return 0;
 	}
@@ -279,6 +283,12 @@ export function getFormattedMetric(
 	log: RoutineLog,
 	routine: RoutineTemplate
 ): { value: string; label: string } {
+	// Handle string-based metrics
+	if (metricType === 'breathingTechnique') {
+		const technique = log.breathingTechnique || '—';
+		return { value: technique, label };
+	}
+
 	const rawValue = getMetricValue(metricType, log, routine);
 	const formattedValue = formatMetricValue(metricType, rawValue);
 
