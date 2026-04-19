@@ -75,6 +75,21 @@
 		// Lung capacity
 		fvc?: number;
 		fvcWithPacking?: number;
+		// O2-Assisted Static Apnea
+		lucidity?: number;
+		urgeToBreathe?: number;
+		contractions?: number;
+		etco2?: number;
+		vcAfterStretch?: number;
+		wetPackedVC?: number;
+		expiredAirPostHold?: number;
+		lungVolumeLossPerMin?: number;
+		gasMix?: string;
+		co2TremorOnset?: number;
+		mentalChangeTime?: number;
+		recoveryQuality?: number;
+		endSpO2?: number;
+		breatheUpType?: string;
 		// Per-rep data (for detailed logging)
 		laps?: LapData[];
 		// Biometric session summary (aggregated from per-rep data)
@@ -202,6 +217,22 @@
 	// LUNG CAPACITY
 	let fvc = $state<number | undefined>(undefined);
 	let fvcWithPacking = $state<number | undefined>(undefined);
+
+	// O2-ASSISTED STATIC APNEA
+	let lucidity = $state<number | undefined>(undefined);
+	let urgeToBreathe = $state<number | undefined>(undefined);
+	let contractions = $state<number | undefined>(undefined);
+	let etco2 = $state<number | undefined>(undefined);
+	let vcAfterStretch = $state<number | undefined>(undefined);
+	let wetPackedVC = $state<number | undefined>(undefined);
+	let expiredAirPostHold = $state<number | undefined>(undefined);
+	let lungVolumeLossPerMin = $state<number | undefined>(undefined);
+	let gasMix = $state<string | undefined>(undefined);
+	let co2TremorOnset = $state<number | undefined>(undefined);
+	let mentalChangeTime = $state<number | undefined>(undefined);
+	let recoveryQuality = $state<number | undefined>(undefined);
+	let endSpO2 = $state<number | undefined>(undefined);
+	let breatheUpType = $state<string | undefined>(undefined);
 
 	// BIOMETRIC TRACKING - Per-rep SpO2/HR for dry static training
 	let repEditorData = $state<RepEditorData[]>([]);
@@ -473,6 +504,21 @@
 			// Lung capacity
 			fvc,
 			fvcWithPacking,
+			// O2-Assisted Static Apnea
+			lucidity,
+			urgeToBreathe,
+			contractions,
+			etco2,
+			vcAfterStretch,
+			wetPackedVC,
+			expiredAirPostHold,
+			lungVolumeLossPerMin,
+			gasMix: gasMix?.trim() || undefined,
+			co2TremorOnset,
+			mentalChangeTime,
+			recoveryQuality,
+			endSpO2,
+			breatheUpType: breatheUpType?.trim() || undefined,
 			// Per-rep data (biometric tracking)
 			laps: repEditorData.length > 0 ? biometricsToLapData(repEditorData.map(r => ({
 				repNumber: r.repNumber,
@@ -1304,6 +1350,233 @@
 						class="field-input"
 						placeholder="e.g., 7.8"
 					/>
+				</div>
+			{/if}
+		</div>
+	{/if}
+
+	<!-- O2-Assisted Static Apnea Section -->
+	{#if config.trackLucidity || config.trackUrgeToBreathe || config.trackContractions || config.trackETCO2 || config.trackVCAfterStretch || config.trackWetPackedVC || config.trackExpiredAirPostHold || config.trackLungVolumeLossPerMin || config.trackGasMix || config.trackCO2TremorOnset || config.trackMentalChangeTime || config.trackRecoveryQuality || config.trackEndSpO2 || config.trackBreatheUpType}
+		<div class="form-section">
+			<h4 class="section-title">🫁 O₂-Assisted Static Metrics</h4>
+
+			{#if config.trackGasMix}
+				<div class="field-group">
+					<label for="gasMix" class="field-label">Gas Mix</label>
+					<input
+						id="gasMix"
+						type="text"
+						bind:value={gasMix}
+						class="field-input"
+						placeholder="e.g., 100% O2"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackBreatheUpType}
+				<div class="field-group">
+					<label for="breatheUpType" class="field-label">Breathe-Up Type</label>
+					<input
+						id="breatheUpType"
+						type="text"
+						bind:value={breatheUpType}
+						class="field-input"
+						placeholder="e.g., continuous 4:6 on 100% O2"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackVCAfterStretch}
+				<div class="field-group">
+					<label for="vcAfterStretch" class="field-label">VC After Stretch (liters)</label>
+					<input
+						id="vcAfterStretch"
+						type="number"
+						bind:value={vcAfterStretch}
+						min="0"
+						max="15"
+						step="0.1"
+						class="field-input"
+						placeholder="e.g., 3.8"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackWetPackedVC}
+				<div class="field-group">
+					<label for="wetPackedVC" class="field-label">Wet Packed VC (liters)</label>
+					<input
+						id="wetPackedVC"
+						type="number"
+						bind:value={wetPackedVC}
+						min="0"
+						max="15"
+						step="0.1"
+						class="field-input"
+						placeholder="e.g., 4.92"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackExpiredAirPostHold}
+				<div class="field-group">
+					<label for="expiredAirPostHold" class="field-label">Expired Air Post-Hold (liters)</label>
+					<input
+						id="expiredAirPostHold"
+						type="number"
+						bind:value={expiredAirPostHold}
+						min="0"
+						max="15"
+						step="0.1"
+						class="field-input"
+						placeholder="e.g., 1.7"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackLungVolumeLossPerMin}
+				<div class="field-group">
+					<label for="lungVolumeLossPerMin" class="field-label">Lung Volume Loss (L/min)</label>
+					<input
+						id="lungVolumeLossPerMin"
+						type="number"
+						bind:value={lungVolumeLossPerMin}
+						min="0"
+						max="5"
+						step="0.01"
+						class="field-input"
+						placeholder="e.g., 0.27"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackETCO2}
+				<div class="field-group">
+					<label for="etco2" class="field-label">ETCO₂ (mmHg)</label>
+					<input
+						id="etco2"
+						type="number"
+						bind:value={etco2}
+						min="0"
+						max="100"
+						class="field-input"
+						placeholder="e.g., 35"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackEndSpO2}
+				<div class="field-group">
+					<label for="endSpO2" class="field-label">End SpO₂ (%)</label>
+					<input
+						id="endSpO2"
+						type="number"
+						bind:value={endSpO2}
+						min="0"
+						max="100"
+						class="field-input"
+						placeholder="e.g., 65"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackCO2TremorOnset}
+				<div class="field-group">
+					<DurationInput
+						bind:value={co2TremorOnset}
+						label="CO₂ Tremor Onset"
+						compact={true}
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackMentalChangeTime}
+				<div class="field-group">
+					<DurationInput
+						bind:value={mentalChangeTime}
+						label="Mental Change Time"
+						compact={true}
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackLucidity}
+				<div class="field-group">
+					<label for="lucidity" class="field-label">
+						Lucidity{lucidity !== undefined ? `: ${lucidity}/10` : ''}
+					</label>
+					<input
+						id="lucidity"
+						type="range"
+						bind:value={lucidity}
+						min="0"
+						max="10"
+						class="slider"
+					/>
+					<div class="slider-labels">
+						<span>Confused</span>
+						<span>Crystal clear</span>
+					</div>
+				</div>
+			{/if}
+
+			{#if config.trackContractions}
+				<div class="field-group">
+					<label for="contractions" class="field-label">
+						Contractions{contractions !== undefined ? `: ${contractions}/10` : ''}
+					</label>
+					<input
+						id="contractions"
+						type="range"
+						bind:value={contractions}
+						min="0"
+						max="10"
+						class="slider"
+					/>
+					<div class="slider-labels">
+						<span>None</span>
+						<span>Violent</span>
+					</div>
+				</div>
+			{/if}
+
+			{#if config.trackUrgeToBreathe}
+				<div class="field-group">
+					<label for="urgeToBreathe" class="field-label">
+						Urge to Breathe{urgeToBreathe !== undefined ? `: ${urgeToBreathe}/10` : ''}
+					</label>
+					<input
+						id="urgeToBreathe"
+						type="range"
+						bind:value={urgeToBreathe}
+						min="0"
+						max="10"
+						class="slider"
+					/>
+					<div class="slider-labels">
+						<span>Mild</span>
+						<span>Overwhelming</span>
+					</div>
+				</div>
+			{/if}
+
+			{#if config.trackRecoveryQuality}
+				<div class="field-group">
+					<label for="recoveryQuality" class="field-label">
+						Recovery Quality{recoveryQuality !== undefined ? `: ${recoveryQuality}/10` : ''}
+					</label>
+					<input
+						id="recoveryQuality"
+						type="range"
+						bind:value={recoveryQuality}
+						min="0"
+						max="10"
+						class="slider"
+					/>
+					<div class="slider-labels">
+						<span>Poor</span>
+						<span>Clean</span>
+					</div>
 				</div>
 			{/if}
 		</div>

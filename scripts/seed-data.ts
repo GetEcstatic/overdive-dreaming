@@ -270,6 +270,60 @@ const dryStaticBiometricTracking: TrackingConfig = {
 	isDryTraining: true
 };
 
+const o2AssistedStaticTracking: TrackingConfig = {
+	trackPoolLength: false,
+	trackInitialBreatheUpTime: true,
+	trackTotalDistance: false,
+	trackTotalTime: true,
+	trackRepsCompleted: false,
+	trackRepDuration: false,
+	trackRepDistance: false,
+	trackTimePerLap: false,
+	trackRestBetweenLaps: false,
+	trackKicksPerLap: false,
+	trackArmPullsPerLap: false,
+	trackBreathingTechnique: false,
+	trackRPE: true,
+	trackJoyScale: true,
+	trackHoursSinceLastMeal: true,
+	trackNotes: true,
+	trackWaterTemperature: false,
+	trackContractionsOnsetTime: true,
+	trackEquipmentUsed: false,
+	trackBuddyName: true,
+	trackRestingHeartRate: true,
+	trackHRV: false,
+	trackPoolType: false,
+	trackSambaBO: true,
+	trackBreathsBetweenReps: false,
+	trackMenstrualCycleDay: true,
+	trackFacialGear: false,
+	trackBasalMood: true,
+	trackMinimumSpO2: false,
+	trackMinimumHR: false,
+	trackBodyWeight: false,
+	trackFVC: true,
+	trackFVCWithPacking: true,
+	trackPerRepSpO2: false,
+	trackPerRepHR: false,
+	trackSpO2Thresholds: false,
+	isDryTraining: false,
+	trackLucidity: true,
+	trackUrgeToBreathe: true,
+	trackContractions: true,
+	trackETCO2: true,
+	trackVCAfterStretch: true,
+	trackWetPackedVC: true,
+	trackExpiredAirPostHold: true,
+	trackLungVolumeLossPerMin: true,
+	trackGasMix: true,
+	trackCO2TremorOnset: true,
+	trackMentalChangeTime: true,
+	trackRecoveryQuality: true,
+	trackEndSpO2: true,
+	trackBreatheUpType: true
+};
+
 // ============================================================================
 // DEFAULT ROUTINES (4 System Routines)
 // ============================================================================
@@ -371,6 +425,27 @@ const defaultRoutines: Omit<RoutineTemplate, 'createdAt' | 'updatedAt'>[] = [
 			heroMetricLabel: 'Longest Hold',
 			secondaryMetric: 'repsCompleted',
 			secondaryMetricLabel: 'Rounds'
+		},
+		createdBy: 'system',
+		isPublic: true
+	},
+	// 6. O2-Assisted Static Apnea (Guinness WR Training)
+	{
+		id: 'system-o2-assisted-static',
+		name: 'O₂ Assisted Static',
+		description:
+			'O₂-assisted static apnea max attempt with comprehensive physiological tracking. Designed for coached world record training with detailed breathe-up, lung capacity, CO₂ response, and recovery metrics.',
+		activityType: 'max-attempt',
+		disciplines: ['STA'],
+		tags: ['o2', 'max-attempt', 'advanced', 'world-record'],
+		trackingConfig: o2AssistedStaticTracking,
+		displayConfig: {
+			heroMetric: 'totalTime',
+			heroMetricLabel: 'Hold Duration',
+			secondaryMetric: 'contractionsOnsetTime',
+			secondaryMetricLabel: '1st Contraction',
+			tertiaryMetric: 'initialBreatheUpTime',
+			tertiaryMetricLabel: 'Breathe-Up'
 		},
 		createdBy: 'system',
 		isPublic: true

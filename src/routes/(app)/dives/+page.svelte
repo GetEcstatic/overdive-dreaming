@@ -186,6 +186,22 @@
 			if (logData.fvc !== undefined) routineLogData.fvc = logData.fvc;
 			if (logData.fvcWithPacking !== undefined) routineLogData.fvcWithPacking = logData.fvcWithPacking;
 
+			// O2-Assisted Static Apnea
+			if (logData.lucidity !== undefined) routineLogData.lucidity = logData.lucidity;
+			if (logData.urgeToBreathe !== undefined) routineLogData.urgeToBreathe = logData.urgeToBreathe;
+			if (logData.contractions !== undefined) routineLogData.contractions = logData.contractions;
+			if (logData.etco2 !== undefined) routineLogData.etco2 = logData.etco2;
+			if (logData.vcAfterStretch !== undefined) routineLogData.vcAfterStretch = logData.vcAfterStretch;
+			if (logData.wetPackedVC !== undefined) routineLogData.wetPackedVC = logData.wetPackedVC;
+			if (logData.expiredAirPostHold !== undefined) routineLogData.expiredAirPostHold = logData.expiredAirPostHold;
+			if (logData.lungVolumeLossPerMin !== undefined) routineLogData.lungVolumeLossPerMin = logData.lungVolumeLossPerMin;
+			if (logData.gasMix !== undefined) routineLogData.gasMix = logData.gasMix;
+			if (logData.co2TremorOnset !== undefined) routineLogData.co2TremorOnset = logData.co2TremorOnset;
+			if (logData.mentalChangeTime !== undefined) routineLogData.mentalChangeTime = logData.mentalChangeTime;
+			if (logData.recoveryQuality !== undefined) routineLogData.recoveryQuality = logData.recoveryQuality;
+			if (logData.endSpO2 !== undefined) routineLogData.endSpO2 = logData.endSpO2;
+			if (logData.breatheUpType !== undefined) routineLogData.breatheUpType = logData.breatheUpType;
+
 			// BIOMETRIC TRACKING - Per-rep SpO2/HR data
 			if (logData.laps && logData.laps.length > 0) routineLogData.laps = logData.laps;
 			if (logData.hasBiometricData) routineLogData.hasBiometricData = logData.hasBiometricData;

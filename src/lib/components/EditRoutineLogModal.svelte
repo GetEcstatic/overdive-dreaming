@@ -124,6 +124,21 @@
 			if (formData.bodyWeight !== log.bodyWeight) updates.bodyWeight = formData.bodyWeight;
 			if (formData.fvc !== log.fvc) updates.fvc = formData.fvc;
 			if (formData.fvcWithPacking !== log.fvcWithPacking) updates.fvcWithPacking = formData.fvcWithPacking;
+			// O2-Assisted Static Apnea
+			if (formData.lucidity !== log.lucidity) updates.lucidity = formData.lucidity;
+			if (formData.urgeToBreathe !== log.urgeToBreathe) updates.urgeToBreathe = formData.urgeToBreathe;
+			if (formData.contractions !== log.contractions) updates.contractions = formData.contractions;
+			if (formData.etco2 !== log.etco2) updates.etco2 = formData.etco2;
+			if (formData.vcAfterStretch !== log.vcAfterStretch) updates.vcAfterStretch = formData.vcAfterStretch;
+			if (formData.wetPackedVC !== log.wetPackedVC) updates.wetPackedVC = formData.wetPackedVC;
+			if (formData.expiredAirPostHold !== log.expiredAirPostHold) updates.expiredAirPostHold = formData.expiredAirPostHold;
+			if (formData.lungVolumeLossPerMin !== log.lungVolumeLossPerMin) updates.lungVolumeLossPerMin = formData.lungVolumeLossPerMin;
+			if (formData.gasMix !== log.gasMix) updates.gasMix = formData.gasMix;
+			if (formData.co2TremorOnset !== log.co2TremorOnset) updates.co2TremorOnset = formData.co2TremorOnset;
+			if (formData.mentalChangeTime !== log.mentalChangeTime) updates.mentalChangeTime = formData.mentalChangeTime;
+			if (formData.recoveryQuality !== log.recoveryQuality) updates.recoveryQuality = formData.recoveryQuality;
+			if (formData.endSpO2 !== log.endSpO2) updates.endSpO2 = formData.endSpO2;
+			if (formData.breatheUpType !== log.breatheUpType) updates.breatheUpType = formData.breatheUpType;
 			if (formData.rpe !== log.rpe) updates.rpe = formData.rpe;
 			if (formData.joyScale !== log.joyScale) updates.joyScale = formData.joyScale;
 			if (formData.hoursSinceLastMeal !== log.hoursSinceLastMeal)

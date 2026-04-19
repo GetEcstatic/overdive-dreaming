@@ -202,6 +202,24 @@ export interface TrackingConfig {
 	// ============================================================================
 	trackFVC: boolean; // Forced Vital Capacity (liters)
 	trackFVCWithPacking: boolean; // FVC with packing technique (liters)
+
+	// ============================================================================
+	// O2-ASSISTED STATIC APNEA TRACKING
+	// ============================================================================
+	trackLucidity?: boolean; // Lucidity scale (1-10)
+	trackUrgeToBreathe?: boolean; // Urge to breathe scale (1-10)
+	trackContractions?: boolean; // Contractions intensity scale (1-10)
+	trackETCO2?: boolean; // End-tidal CO2 (mmHg)
+	trackVCAfterStretch?: boolean; // Vital capacity after stretching (liters)
+	trackWetPackedVC?: boolean; // Wet packed vital capacity (liters)
+	trackExpiredAirPostHold?: boolean; // Expired air volume after hold (liters)
+	trackLungVolumeLossPerMin?: boolean; // Lung volume loss rate (L/min)
+	trackGasMix?: boolean; // Gas mixture (e.g., "100% O2")
+	trackCO2TremorOnset?: boolean; // Time when CO2 tremors started (seconds)
+	trackMentalChangeTime?: boolean; // Time when mental state changed (seconds)
+	trackRecoveryQuality?: boolean; // Recovery breathing quality (1-10)
+	trackEndSpO2?: boolean; // SpO2 at end of hold (%)
+	trackBreatheUpType?: boolean; // Breathe-up technique description
 }
 
 export type MetricType =
@@ -504,6 +522,24 @@ export interface RoutineLog {
 	// Lung capacity
 	fvc?: number; // Forced Vital Capacity in liters (to 1 decimal place)
 	fvcWithPacking?: number; // FVC with packing in liters (to 1 decimal place)
+
+	// ============================================================================
+	// O2-ASSISTED STATIC APNEA DATA
+	// ============================================================================
+	lucidity?: number; // 1-10 scale, mental clarity during hold
+	urgeToBreathe?: number; // 1-10 scale, urge to breathe intensity
+	contractions?: number; // 1-10 scale, contraction intensity
+	etco2?: number; // End-tidal CO2 in mmHg
+	vcAfterStretch?: number; // Vital capacity after stretching (liters)
+	wetPackedVC?: number; // Wet packed vital capacity (liters)
+	expiredAirPostHold?: number; // Expired air volume after hold (liters)
+	lungVolumeLossPerMin?: number; // Lung volume loss rate (L/min)
+	gasMix?: string; // Gas mixture description (e.g., "100% O2")
+	co2TremorOnset?: number; // Time when CO2 tremors started (seconds)
+	mentalChangeTime?: number; // Time when mental state changed (seconds)
+	recoveryQuality?: number; // Recovery breathing quality (1-10)
+	endSpO2?: number; // SpO2 at end of hold (%)
+	breatheUpType?: string; // Breathe-up technique description
 
 	// ============================================================================
 	// BIOMETRIC SESSION SUMMARY (Aggregated from per-rep data)
