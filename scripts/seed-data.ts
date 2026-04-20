@@ -427,12 +427,12 @@ const defaultRoutines: Omit<RoutineTemplate, 'createdAt' | 'updatedAt'>[] = [
 		createdBy: 'system',
 		isPublic: true
 	},
-	// 6. O2-Assisted Static Apnea (Guinness WR Training)
+	// 6. Zero-Nitrogen Static (Guinness WR Training)
 	{
 		id: 'system-o2-assisted-static',
-		name: 'O₂ Assisted Static',
+		name: 'Zero-Nitrogen Static',
 		description:
-			'O₂-assisted static apnea max attempt with comprehensive physiological tracking. Designed for coached world record training with detailed breathe-up, lung capacity, CO₂ response, and recovery metrics.',
+			'Zero-nitrogen static apnea max attempt with comprehensive physiological tracking. Designed for coached world record training with detailed breathe-up, lung capacity, CO₂ response, and recovery metrics.',
 		activityType: 'max-attempt',
 		disciplines: ['STA'],
 		tags: ['o2', 'max-attempt', 'advanced', 'world-record'],
