@@ -218,160 +218,192 @@ export async function generateShareCard(
 		}
 	}
 	
-	const padding = 48;
+	const padding = 40;
 	const contentWidth = width - padding * 2;
 	
-	// === BACKGROUND ===
+	// === SOLID DARK BACKGROUND (entire card) ===
+	const bgGradient = ctx.createLinearGradient(0, 0, 0, height);
+	bgGradient.addColorStop(0, '#0a1628');
+	bgGradient.addColorStop(0.5, '#0d2040');
+	bgGradient.addColorStop(1, '#060e1a');
+	ctx.fillStyle = bgGradient;
+	ctx.fillRect(0, 0, width, height);
+	
+	// Subtle radial glow
+	const glow = ctx.createRadialGradient(width / 2, height * 0.25, 0, width / 2, height * 0.25, width * 0.7);
+	glow.addColorStop(0, disciplineColor + '0a');
+	glow.addColorStop(1, 'transparent');
+	ctx.fillStyle = glow;
+	ctx.fillRect(0, 0, width, height);
+	
+	let currentY = padding;
+	
+	// === PHOTO SECTION (if available) - rounded box at top ===
 	if (sessionPhoto) {
-		// Draw photo covering top ~55% with graduated overlay
+		const photoBoxHeight = height * 0.38;
+		const photoBoxRadius = 24;
+		
+		// Clip to rounded rect and draw photo
+		ctx.save();
+		roundRect(ctx, padding, currentY, contentWidth, photoBoxHeight, photoBoxRadius);
+		ctx.clip();
+		
 		const imgAspect = sessionPhoto.width / sessionPhoto.height;
-		const canvasAspect = width / height;
+		const boxAspect = contentWidth / photoBoxHeight;
 		
 		let drawWidth, drawHeight, drawX, drawY;
-		if (imgAspect > canvasAspect) {
-			drawHeight = height;
+		if (imgAspect > boxAspect) {
+			drawHeight = photoBoxHeight;
 			drawWidth = drawHeight * imgAspect;
-			drawX = (width - drawWidth) / 2;
-			drawY = 0;
+			drawX = padding + (contentWidth - drawWidth) / 2;
+			drawY = currentY;
 		} else {
-			drawWidth = width;
+			drawWidth = contentWidth;
 			drawHeight = drawWidth / imgAspect;
-			drawX = 0;
-			drawY = (height - drawHeight) / 2;
+			drawX = padding;
+			drawY = currentY + (photoBoxHeight - drawHeight) / 2;
 		}
 		
 		ctx.drawImage(sessionPhoto, drawX, drawY, drawWidth, drawHeight);
 		
-		// Graduated overlay: light at top, heavy at bottom
-		const overlay = ctx.createLinearGradient(0, 0, 0, height);
-		overlay.addColorStop(0, 'rgba(10, 22, 40, 0.25)');
-		overlay.addColorStop(0.4, 'rgba(10, 22, 40, 0.45)');
-		overlay.addColorStop(0.55, 'rgba(10, 22, 40, 0.75)');
-		overlay.addColorStop(0.7, 'rgba(10, 22, 40, 0.92)');
-		overlay.addColorStop(1, 'rgba(10, 22, 40, 0.98)');
-		ctx.fillStyle = overlay;
-		ctx.fillRect(0, 0, width, height);
-	} else {
-		// Deep ocean gradient background
-		const bgGradient = ctx.createLinearGradient(0, 0, 0, height);
-		bgGradient.addColorStop(0, '#0a1628');
-		bgGradient.addColorStop(0.4, '#0d2847');
-		bgGradient.addColorStop(0.7, '#0a1e3a');
-		bgGradient.addColorStop(1, '#060e1a');
-		ctx.fillStyle = bgGradient;
-		ctx.fillRect(0, 0, width, height);
+		// Light overlay at bottom of photo for transition
+		const photoOverlay = ctx.createLinearGradient(0, currentY + photoBoxHeight * 0.6, 0, currentY + photoBoxHeight);
+		photoOverlay.addColorStop(0, 'rgba(10, 22, 40, 0)');
+		photoOverlay.addColorStop(1, 'rgba(10, 22, 40, 0.5)');
+		ctx.fillStyle = photoOverlay;
+		ctx.fillRect(padding, currentY, contentWidth, photoBoxHeight);
 		
-		// Subtle radial glow in center
-		const glow = ctx.createRadialGradient(width / 2, height * 0.35, 0, width / 2, height * 0.35, width * 0.8);
-		glow.addColorStop(0, disciplineColor + '12');
-		glow.addColorStop(0.5, disciplineColor + '06');
-		glow.addColorStop(1, 'transparent');
-		ctx.fillStyle = glow;
-		ctx.fillRect(0, 0, width, height);
+		ctx.restore();
+		
+		// Discipline badge overlapping bottom-left of photo
+		const badgeText = log.disciplineUsed;
+		ctx.font = `bold 24px system-ui, -apple-system, sans-serif`;
+		const badgeTextW = ctx.measureText(badgeText).width;
+		const badgeW = badgeTextW + 48;
+		const badgeH = 44;
+		const badgeX = padding + 20;
+		const badgeY = currentY + photoBoxHeight - badgeH / 2;
+		
+		ctx.fillStyle = disciplineColor;
+		roundRect(ctx, badgeX, badgeY, badgeW, badgeH, badgeH / 2);
+		ctx.fill();
+		
+		ctx.fillStyle = '#ffffff';
+		ctx.font = `bold 24px system-ui, -apple-system, sans-serif`;
+		ctx.textAlign = 'center';
+		ctx.fillText(badgeText, badgeX + badgeW / 2, badgeY + 30);
+		
+		// Date overlapping bottom-right of photo
+		ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+		ctx.font = `400 22px system-ui, -apple-system, sans-serif`;
+		ctx.textAlign = 'right';
+		ctx.fillText(dateStr, width - padding - 20, badgeY + 30);
+		
+		currentY += photoBoxHeight + 32;
+	} else {
+		// No photo: discipline badge and date at top
+		const badgeText = log.disciplineUsed;
+		ctx.font = `bold 28px system-ui, -apple-system, sans-serif`;
+		const badgeTextW = ctx.measureText(badgeText).width;
+		const badgeW = badgeTextW + 56;
+		const badgeH = 52;
+		const badgeX = padding;
+		const badgeY = currentY + 40;
+		
+		ctx.shadowColor = disciplineColor;
+		ctx.shadowBlur = 25;
+		ctx.fillStyle = disciplineColor + '40';
+		roundRect(ctx, badgeX, badgeY, badgeW, badgeH, badgeH / 2);
+		ctx.fill();
+		ctx.shadowBlur = 0;
+		
+		ctx.strokeStyle = disciplineColor + '70';
+		ctx.lineWidth = 1.5;
+		roundRect(ctx, badgeX, badgeY, badgeW, badgeH, badgeH / 2);
+		ctx.stroke();
+		
+		ctx.fillStyle = '#ffffff';
+		ctx.font = `bold 28px system-ui, -apple-system, sans-serif`;
+		ctx.textAlign = 'center';
+		ctx.fillText(badgeText, badgeX + badgeW / 2, badgeY + 36);
+		
+		ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+		ctx.font = `400 26px system-ui, -apple-system, sans-serif`;
+		ctx.textAlign = 'right';
+		ctx.fillText(dateStr, width - padding, badgeY + 36);
+		
+		currentY = badgeY + badgeH + 40;
 	}
 	
-	// === TOP SECTION: Discipline badge ===
-	const topY = format === 'story' ? 80 : 100;
-	
-	// Discipline badge with glow
-	const badgeText = log.disciplineUsed;
-	ctx.font = `bold 28px system-ui, -apple-system, sans-serif`;
-	const badgeTextWidth = ctx.measureText(badgeText).width;
-	const badgePadH = 36;
-	const badgePadV = 16;
-	const badgeW = badgeTextWidth + badgePadH * 2;
-	const badgeH = 52;
-	const badgeX = padding;
-	const badgeY = topY;
-	
-	// Glow behind badge
-	ctx.shadowColor = disciplineColor;
-	ctx.shadowBlur = 30;
-	ctx.shadowOffsetX = 0;
-	ctx.shadowOffsetY = 0;
-	
-	ctx.fillStyle = disciplineColor + '35';
-	roundRect(ctx, badgeX, badgeY, badgeW, badgeH, badgeH / 2);
-	ctx.fill();
-	
-	ctx.shadowBlur = 0;
-	
-	ctx.strokeStyle = disciplineColor + '70';
-	ctx.lineWidth = 1.5;
-	roundRect(ctx, badgeX, badgeY, badgeW, badgeH, badgeH / 2);
-	ctx.stroke();
-	
+	// === ROUTINE NAME ===
 	ctx.fillStyle = '#ffffff';
-	ctx.font = `bold 28px system-ui, -apple-system, sans-serif`;
-	ctx.textAlign = 'center';
-	ctx.fillText(badgeText, badgeX + badgeW / 2, badgeY + 36);
-	
-	// Date top-right
-	ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-	ctx.font = `400 26px system-ui, -apple-system, sans-serif`;
-	ctx.textAlign = 'right';
-	ctx.fillText(dateStr, width - padding, badgeY + 36);
-	
-	// Routine name below badge
-	const routineY = badgeY + badgeH + 40;
-	ctx.fillStyle = '#ffffff';
-	ctx.font = `600 40px system-ui, -apple-system, sans-serif`;
+	ctx.font = `600 38px system-ui, -apple-system, sans-serif`;
 	ctx.textAlign = 'left';
 	
 	let routineName = routine.name;
-	const maxRoutineWidth = contentWidth;
-	while (ctx.measureText(routineName).width > maxRoutineWidth && routineName.length > 10) {
+	while (ctx.measureText(routineName).width > contentWidth && routineName.length > 10) {
 		routineName = routineName.slice(0, -4) + '...';
 	}
-	ctx.fillText(routineName, padding, routineY);
+	ctx.fillText(routineName, padding, currentY);
 	
-	// Thin accent separator
-	const separatorY = routineY + 24;
-	const sepGradient = ctx.createLinearGradient(padding, 0, padding + 200, 0);
-	sepGradient.addColorStop(0, disciplineColor + '80');
+	// Accent line under routine name
+	currentY += 20;
+	const sepGradient = ctx.createLinearGradient(padding, 0, padding + 180, 0);
+	sepGradient.addColorStop(0, disciplineColor);
 	sepGradient.addColorStop(1, 'transparent');
 	ctx.fillStyle = sepGradient;
-	ctx.fillRect(padding, separatorY, 200, 2);
+	ctx.fillRect(padding, currentY, 180, 3);
 	
-	// === HERO METRIC - Big centerpiece ===
+	currentY += 40;
+	
+	// === HERO METRIC ===
 	const heroLabel = routine.displayConfig.heroMetricLabel || 'Result';
-	const heroCenterY = format === 'story' ? height * 0.40 : height * 0.45;
 	
-	// Hero label
 	ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-	ctx.font = `500 22px system-ui, -apple-system, sans-serif`;
+	ctx.font = `500 20px system-ui, -apple-system, sans-serif`;
 	ctx.textAlign = 'center';
 	ctx.letterSpacing = '3px';
-	ctx.fillText(heroLabel.toUpperCase(), width / 2, heroCenterY - 80);
+	ctx.fillText(heroLabel.toUpperCase(), width / 2, currentY);
 	ctx.letterSpacing = '0px';
 	
-	// Hero value with glow
-	const heroFontSize = format === 'story' ? 150 : 120;
+	currentY += 10;
+	
+	const heroFontSize = sessionPhoto ? 120 : 150;
 	ctx.font = `bold ${heroFontSize}px system-ui, -apple-system, sans-serif`;
 	
 	// Glow behind hero
 	ctx.shadowColor = disciplineColor;
-	ctx.shadowBlur = 40;
+	ctx.shadowBlur = 35;
 	
-	const heroGradient = ctx.createLinearGradient(0, heroCenterY - 60, 0, heroCenterY + 30);
+	const heroGradient = ctx.createLinearGradient(0, currentY, 0, currentY + heroFontSize * 0.8);
 	heroGradient.addColorStop(0, '#ffffff');
-	heroGradient.addColorStop(0.6, disciplineColor);
+	heroGradient.addColorStop(0.7, disciplineColor);
 	heroGradient.addColorStop(1, '#10b981');
 	ctx.fillStyle = heroGradient;
-	ctx.fillText(heroValue, width / 2, heroCenterY + 20);
+	ctx.fillText(heroValue, width / 2, currentY + heroFontSize * 0.8);
 	
 	ctx.shadowBlur = 0;
+	currentY += heroFontSize * 0.85 + 40;
 	
-	// === FROSTED GLASS METRICS PANEL ===
-	const panelY = format === 'story' ? height * 0.54 : height * 0.58;
-	const panelHeight = format === 'story' ? 310 : 260;
+	// === METRICS PANEL (solid background, high contrast) ===
+	const panelHeight = 260;
+	const panelY = currentY;
 	
-	drawGlassPanel(ctx, padding, panelY, contentWidth, panelHeight, 24, 0.06);
+	// Solid dark panel with slight transparency
+	ctx.fillStyle = 'rgba(8, 16, 32, 0.85)';
+	roundRect(ctx, padding, panelY, contentWidth, panelHeight, 20);
+	ctx.fill();
+	
+	// Subtle border
+	ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+	ctx.lineWidth = 1;
+	roundRect(ctx, padding, panelY, contentWidth, panelHeight, 20);
+	ctx.stroke();
 	
 	const panelPad = 32;
 	const innerWidth = contentWidth - panelPad * 2;
 	
-	// Secondary metric inside panel
+	// Secondary metric
 	const secY = panelY + 50;
 	ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
 	ctx.font = `500 18px system-ui, -apple-system, sans-serif`;
@@ -384,23 +416,22 @@ export async function generateShareCard(
 	ctx.font = `bold 48px system-ui, -apple-system, sans-serif`;
 	ctx.fillText(secondaryValue, width / 2, secY + 55);
 	
-	// Thin divider
+	// Divider
 	const divY = secY + 80;
 	const divGradient = ctx.createLinearGradient(padding + panelPad, 0, padding + panelPad + innerWidth, 0);
 	divGradient.addColorStop(0, 'transparent');
-	divGradient.addColorStop(0.2, 'rgba(255,255,255,0.15)');
-	divGradient.addColorStop(0.8, 'rgba(255,255,255,0.15)');
+	divGradient.addColorStop(0.2, 'rgba(255,255,255,0.12)');
+	divGradient.addColorStop(0.8, 'rgba(255,255,255,0.12)');
 	divGradient.addColorStop(1, 'transparent');
 	ctx.fillStyle = divGradient;
 	ctx.fillRect(padding + panelPad, divY, innerWidth, 1);
 	
-	// RPE and Joy side by side below divider
+	// RPE and Joy
 	const statsY = divY + 45;
 	const halfW = innerWidth / 2;
 	const leftCenterX = padding + panelPad + halfW / 2;
 	const rightCenterX = padding + panelPad + halfW + halfW / 2;
 	
-	// RPE
 	ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
 	ctx.font = `500 18px system-ui, -apple-system, sans-serif`;
 	ctx.textAlign = 'center';
@@ -412,11 +443,10 @@ export async function generateShareCard(
 	ctx.font = `bold 42px system-ui, -apple-system, sans-serif`;
 	ctx.fillText(log.rpe !== undefined ? String(log.rpe) : '—', leftCenterX, statsY + 50);
 	
-	// Vertical divider between RPE and Joy
-	ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+	// Vertical divider
+	ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
 	ctx.fillRect(padding + panelPad + halfW - 0.5, statsY - 15, 1, 75);
 	
-	// Joy
 	ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
 	ctx.font = `500 18px system-ui, -apple-system, sans-serif`;
 	ctx.letterSpacing = '2px';
@@ -429,7 +459,7 @@ export async function generateShareCard(
 	
 	// === NOTES ===
 	if (notesFirstLine) {
-		const notesY = panelY + panelHeight + 50;
+		const notesY = panelY + panelHeight + 45;
 		ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
 		ctx.font = `italic 24px system-ui, -apple-system, sans-serif`;
 		ctx.textAlign = 'center';
@@ -437,21 +467,20 @@ export async function generateShareCard(
 	}
 	
 	// === BOTTOM: Username + Branding ===
-	const bottomY = height - 120;
+	const bottomY = height - 100;
 	
 	if (userName) {
 		ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-		ctx.font = `400 28px system-ui, -apple-system, sans-serif`;
+		ctx.font = `400 26px system-ui, -apple-system, sans-serif`;
 		ctx.textAlign = 'center';
 		ctx.fillText(`@${userName}`, width / 2, bottomY);
 	}
 	
-	// Branding with discipline accent
 	ctx.fillStyle = disciplineColor + '80';
-	ctx.font = `500 22px system-ui, -apple-system, sans-serif`;
-	ctx.fillText('overdive.app', width / 2, bottomY + 40);
+	ctx.font = `500 20px system-ui, -apple-system, sans-serif`;
+	ctx.fillText('overdive.app', width / 2, bottomY + 36);
 	
-	// Bottom accent glow line
+	// Bottom accent line
 	const bottomGlow = ctx.createLinearGradient(0, 0, width, 0);
 	bottomGlow.addColorStop(0, 'transparent');
 	bottomGlow.addColorStop(0.3, disciplineColor + '50');
