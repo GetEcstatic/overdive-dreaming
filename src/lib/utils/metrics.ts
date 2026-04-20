@@ -285,6 +285,15 @@ export function getFormattedMetric(
 ): { value: string; label: string } {
 	// Handle string-based metrics
 	if (metricType === 'breathingTechnique') {
+		// Prefer breathingTechniqueLevel (newer numeric field) over old enum
+		if (log.breathingTechniqueLevel !== undefined && log.breathingTechniqueLevel !== null) {
+			const level = log.breathingTechniqueLevel;
+			let technique: string;
+			if (level === 0) technique = 'Tidal';
+			else if (level < 0) technique = `Hypoventilation (${level})`;
+			else technique = `Hyperventilation (+${level})`;
+			return { value: technique, label };
+		}
 		const technique = log.breathingTechnique || '—';
 		return { value: technique, label };
 	}
