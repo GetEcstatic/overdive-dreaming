@@ -1,11 +1,14 @@
 /**
  * Share Card Image Generator
  * Creates a styled image from session data for social sharing
+ * Mirrors the SessionCard dashboard layout for IG stories
  */
 
 import type { RoutineLog, RoutineTemplate, Discipline } from '$lib/types';
 import { formatTime } from '$lib/utils/time';
 import { format as formatDate } from 'date-fns';
+import { getFormattedMetric } from '$lib/utils/metrics';
+import { formatTimeOfDay } from '$lib/utils/sessions';
 
 interface ShareCardData {
 	log: RoutineLog;
@@ -18,20 +21,17 @@ interface ShareCardOptions {
 	height?: number;
 	brandColor?: string;
 	secondaryColor?: string;
-	format?: 'square' | 'story'; // 'story' = 9:16 aspect ratio for Instagram
+	format?: 'square' | 'story';
 }
 
 const defaultOptions: Required<ShareCardOptions> = {
 	width: 1080,
-	height: 1920, // 9:16 aspect ratio for Instagram stories
+	height: 1920,
 	brandColor: '#14b8a6',
 	secondaryColor: '#38bdf8',
 	format: 'story'
 };
 
-/**
- * Get discipline color
- */
 function getDisciplineColor(discipline: Discipline): string {
 	const colors: Record<Discipline, string> = {
 		DYN: '#14b8a6',
@@ -42,58 +42,9 @@ function getDisciplineColor(discipline: Discipline): string {
 	return colors[discipline] || '#14b8a6';
 }
 
-/**
- * Format the hero metric value
- */
-function getHeroValue(log: RoutineLog, routine: RoutineTemplate): string {
-	const metric = routine.displayConfig.heroMetric;
-	
-	if (metric === 'totalTime' && log.totalTime !== undefined) {
-		return formatTime(log.totalTime);
-	}
-	if (metric === 'totalDistance' && log.totalDistance !== undefined) {
-		return `${log.totalDistance}m`;
-	}
-	if (metric === 'repDuration' && log.repDuration !== undefined) {
-		return formatTime(log.repDuration);
-	}
-	if (metric === 'totalRepDistance' && log.repDistance !== undefined) {
-		return `${log.repDistance}m`;
-	}
-	return '—';
-}
-
-/**
- * Format the secondary metric value
- */
-function getSecondaryValue(log: RoutineLog, routine: RoutineTemplate): string {
-	const metric = routine.displayConfig.secondaryMetric;
-	
-	if (metric === 'totalTime' && log.totalTime !== undefined) {
-		return formatTime(log.totalTime);
-	}
-	if (metric === 'totalDistance' && log.totalDistance !== undefined) {
-		return `${log.totalDistance}m`;
-	}
-	if (metric === 'repDuration' && log.repDuration !== undefined) {
-		return formatTime(log.repDuration);
-	}
-	if (metric === 'totalRepDistance' && log.repDistance !== undefined) {
-		return `${log.repDistance}m`;
-	}
-	return '—';
-}
-
-/**
- * Draw rounded rectangle
- */
 function roundRect(
 	ctx: CanvasRenderingContext2D,
-	x: number,
-	y: number,
-	width: number,
-	height: number,
-	radius: number
+	x: number, y: number, width: number, height: number, radius: number
 ): void {
 	ctx.beginPath();
 	ctx.moveTo(x + radius, y);
@@ -108,34 +59,18 @@ function roundRect(
 	ctx.closePath();
 }
 
-/**
- * Load an image from URL and return it as an HTMLImageElement
- * Uses fetch to handle CORS properly for Firebase Storage URLs
- */
 async function loadImage(url: string): Promise<HTMLImageElement> {
 	return new Promise(async (resolve, reject) => {
 		try {
-			// For Firebase Storage URLs, fetch as blob first to handle CORS
 			const response = await fetch(url, { mode: 'cors' });
-			if (!response.ok) {
-				throw new Error(`Failed to fetch image: ${response.status}`);
-			}
+			if (!response.ok) throw new Error(`Failed to fetch image: ${response.status}`);
 			const blob = await response.blob();
 			const objectUrl = URL.createObjectURL(blob);
-			
 			const img = new Image();
-			img.onload = () => {
-				// Clean up the object URL after image loads
-				URL.revokeObjectURL(objectUrl);
-				resolve(img);
-			};
-			img.onerror = () => {
-				URL.revokeObjectURL(objectUrl);
-				reject(new Error('Failed to load image from blob'));
-			};
+			img.onload = () => { URL.revokeObjectURL(objectUrl); resolve(img); };
+			img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('Failed to load image')); };
 			img.src = objectUrl;
 		} catch (error) {
-			// Fallback: try loading directly with crossOrigin
 			const img = new Image();
 			img.crossOrigin = 'anonymous';
 			img.onload = () => resolve(img);
@@ -145,44 +80,17 @@ async function loadImage(url: string): Promise<HTMLImageElement> {
 	});
 }
 
-/**
- * Get first line of notes (for share card)
- */
-function getFirstLine(notes?: string): string | null {
+function getNotesPreview(notes?: string): string | null {
 	if (!notes) return null;
 	const trimmed = notes.trim();
 	const firstLine = trimmed.split('\n')[0].trim();
-	if (firstLine.length > 80) {
-		return firstLine.slice(0, 77) + '...';
-	}
+	if (firstLine.length > 80) return firstLine.slice(0, 77) + '...';
 	return firstLine || null;
 }
 
 /**
- * Draw a frosted glass panel
- */
-function drawGlassPanel(
-	ctx: CanvasRenderingContext2D,
-	x: number,
-	y: number,
-	w: number,
-	h: number,
-	radius: number = 24,
-	opacity: number = 0.08
-): void {
-	// Glass fill
-	ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
-	roundRect(ctx, x, y, w, h, radius);
-	ctx.fill();
-	// Subtle border
-	ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-	ctx.lineWidth = 1;
-	roundRect(ctx, x, y, w, h, radius);
-	ctx.stroke();
-}
-
-/**
  * Generate share card image as data URL
+ * Layout mirrors the SessionCard component from the dashboard
  */
 export async function generateShareCard(
 	data: ShareCardData,
@@ -190,310 +98,277 @@ export async function generateShareCard(
 ): Promise<string> {
 	const opts = { ...defaultOptions, ...options };
 	const { log, routine, userName } = data;
-	const { width, height, format } = opts;
-	
+	const { width, height } = opts;
+
 	const canvas = document.createElement('canvas');
 	canvas.width = width;
 	canvas.height = height;
 	const ctx = canvas.getContext('2d');
-	
-	if (!ctx) {
-		throw new Error('Could not get canvas context');
-	}
-	
+	if (!ctx) throw new Error('Could not get canvas context');
+
 	const disciplineColor = getDisciplineColor(log.disciplineUsed);
-	const heroValue = getHeroValue(log, routine);
-	const secondaryValue = getSecondaryValue(log, routine);
+
+	// Use same metric system as SessionCard
+	const heroMetric = getFormattedMetric(
+		routine.displayConfig.heroMetric, routine.displayConfig.heroMetricLabel, log, routine
+	);
+	const secondaryMetric = getFormattedMetric(
+		routine.displayConfig.secondaryMetric, routine.displayConfig.secondaryMetricLabel, log, routine
+	);
+	const tertiaryMetric = routine.displayConfig.tertiaryMetric && routine.displayConfig.tertiaryMetricLabel
+		? getFormattedMetric(routine.displayConfig.tertiaryMetric, routine.displayConfig.tertiaryMetricLabel, log, routine)
+		: null;
+
 	const dateStr = formatDate(log.date.toDate(), 'MMM d, yyyy');
-	const notesFirstLine = getFirstLine(log.notes);
-	
-	// Try to load session photo
+	const timeStr = formatDate(log.date.toDate(), 'h:mm a');
+	const notesPreview = getNotesPreview(log.notes);
+
+	// Session tags (same as SessionCard)
+	const sessionTags: string[] = [];
+	if (log.isCompetition) sessionTags.push('Comp');
+	if (log.compeitionOrg) sessionTags.push(log.compeitionOrg.toUpperCase());
+	if (log.cardTag) {
+		const labels: Record<string, string> = { white: '⬜️', yellow: '🟨', red: '🟥' };
+		sessionTags.push(labels[log.cardTag] ?? log.cardTag);
+	}
+	if (log.recordTag) sessionTags.push(log.recordTag);
+
+	// Load session photo
 	let sessionPhoto: HTMLImageElement | null = null;
 	const photoUrl = log.photoUrl || log.thumbnailImageUrl;
 	if (photoUrl) {
-		try {
-			sessionPhoto = await loadImage(photoUrl);
-		} catch (e) {
-			console.warn('Failed to load session photo for share card:', e);
-		}
+		try { sessionPhoto = await loadImage(photoUrl); }
+		catch (e) { console.warn('Failed to load session photo:', e); }
 	}
-	
-	const padding = 40;
-	const contentWidth = width - padding * 2;
-	
-	// === SOLID DARK BACKGROUND (entire card) ===
-	const bgGradient = ctx.createLinearGradient(0, 0, 0, height);
-	bgGradient.addColorStop(0, '#0a1628');
-	bgGradient.addColorStop(0.5, '#0d2040');
-	bgGradient.addColorStop(1, '#060e1a');
-	ctx.fillStyle = bgGradient;
+
+	// === BACKGROUND ===
+	const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+	bgGrad.addColorStop(0, '#0f172a');
+	bgGrad.addColorStop(0.5, '#1e293b');
+	bgGrad.addColorStop(1, '#0f172a');
+	ctx.fillStyle = bgGrad;
 	ctx.fillRect(0, 0, width, height);
-	
-	// Subtle radial glow
-	const glow = ctx.createRadialGradient(width / 2, height * 0.25, 0, width / 2, height * 0.25, width * 0.7);
-	glow.addColorStop(0, disciplineColor + '0a');
-	glow.addColorStop(1, 'transparent');
-	ctx.fillStyle = glow;
-	ctx.fillRect(0, 0, width, height);
-	
-	let currentY = padding;
-	
-	// === PHOTO SECTION (if available) - rounded box at top ===
-	if (sessionPhoto) {
-		const photoBoxHeight = height * 0.38;
-		const photoBoxRadius = 24;
-		
-		// Clip to rounded rect and draw photo
-		ctx.save();
-		roundRect(ctx, padding, currentY, contentWidth, photoBoxHeight, photoBoxRadius);
-		ctx.clip();
-		
-		const imgAspect = sessionPhoto.width / sessionPhoto.height;
-		const boxAspect = contentWidth / photoBoxHeight;
-		
-		let drawWidth, drawHeight, drawX, drawY;
-		if (imgAspect > boxAspect) {
-			drawHeight = photoBoxHeight;
-			drawWidth = drawHeight * imgAspect;
-			drawX = padding + (contentWidth - drawWidth) / 2;
-			drawY = currentY;
-		} else {
-			drawWidth = contentWidth;
-			drawHeight = drawWidth / imgAspect;
-			drawX = padding;
-			drawY = currentY + (photoBoxHeight - drawHeight) / 2;
-		}
-		
-		ctx.drawImage(sessionPhoto, drawX, drawY, drawWidth, drawHeight);
-		
-		// Light overlay at bottom of photo for transition
-		const photoOverlay = ctx.createLinearGradient(0, currentY + photoBoxHeight * 0.6, 0, currentY + photoBoxHeight);
-		photoOverlay.addColorStop(0, 'rgba(10, 22, 40, 0)');
-		photoOverlay.addColorStop(1, 'rgba(10, 22, 40, 0.5)');
-		ctx.fillStyle = photoOverlay;
-		ctx.fillRect(padding, currentY, contentWidth, photoBoxHeight);
-		
-		ctx.restore();
-		
-		// Discipline badge overlapping bottom-left of photo
-		const badgeText = log.disciplineUsed;
-		ctx.font = `bold 24px system-ui, -apple-system, sans-serif`;
-		const badgeTextW = ctx.measureText(badgeText).width;
-		const badgeW = badgeTextW + 48;
-		const badgeH = 44;
-		const badgeX = padding + 20;
-		const badgeY = currentY + photoBoxHeight - badgeH / 2;
-		
-		ctx.fillStyle = disciplineColor;
-		roundRect(ctx, badgeX, badgeY, badgeW, badgeH, badgeH / 2);
-		ctx.fill();
-		
-		ctx.fillStyle = '#ffffff';
-		ctx.font = `bold 24px system-ui, -apple-system, sans-serif`;
-		ctx.textAlign = 'center';
-		ctx.fillText(badgeText, badgeX + badgeW / 2, badgeY + 30);
-		
-		// Date overlapping bottom-right of photo
-		ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-		ctx.font = `400 22px system-ui, -apple-system, sans-serif`;
-		ctx.textAlign = 'right';
-		ctx.fillText(dateStr, width - padding - 20, badgeY + 30);
-		
-		currentY += photoBoxHeight + 32;
-	} else {
-		// No photo: discipline badge and date at top
-		const badgeText = log.disciplineUsed;
-		ctx.font = `bold 28px system-ui, -apple-system, sans-serif`;
-		const badgeTextW = ctx.measureText(badgeText).width;
-		const badgeW = badgeTextW + 56;
-		const badgeH = 52;
-		const badgeX = padding;
-		const badgeY = currentY + 40;
-		
-		ctx.shadowColor = disciplineColor;
-		ctx.shadowBlur = 25;
-		ctx.fillStyle = disciplineColor + '40';
-		roundRect(ctx, badgeX, badgeY, badgeW, badgeH, badgeH / 2);
-		ctx.fill();
-		ctx.shadowBlur = 0;
-		
-		ctx.strokeStyle = disciplineColor + '70';
-		ctx.lineWidth = 1.5;
-		roundRect(ctx, badgeX, badgeY, badgeW, badgeH, badgeH / 2);
-		ctx.stroke();
-		
-		ctx.fillStyle = '#ffffff';
-		ctx.font = `bold 28px system-ui, -apple-system, sans-serif`;
-		ctx.textAlign = 'center';
-		ctx.fillText(badgeText, badgeX + badgeW / 2, badgeY + 36);
-		
-		ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-		ctx.font = `400 26px system-ui, -apple-system, sans-serif`;
-		ctx.textAlign = 'right';
-		ctx.fillText(dateStr, width - padding, badgeY + 36);
-		
-		currentY = badgeY + badgeH + 40;
-	}
-	
-	// === ROUTINE NAME ===
-	ctx.fillStyle = '#ffffff';
-	ctx.font = `600 38px system-ui, -apple-system, sans-serif`;
-	ctx.textAlign = 'left';
-	
-	let routineName = routine.name;
-	while (ctx.measureText(routineName).width > contentWidth && routineName.length > 10) {
-		routineName = routineName.slice(0, -4) + '...';
-	}
-	ctx.fillText(routineName, padding, currentY);
-	
-	// Accent line under routine name
-	currentY += 20;
-	const sepGradient = ctx.createLinearGradient(padding, 0, padding + 180, 0);
-	sepGradient.addColorStop(0, disciplineColor);
-	sepGradient.addColorStop(1, 'transparent');
-	ctx.fillStyle = sepGradient;
-	ctx.fillRect(padding, currentY, 180, 3);
-	
-	currentY += 40;
-	
-	// === HERO METRIC ===
-	const heroLabel = routine.displayConfig.heroMetricLabel || 'Result';
-	
-	ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-	ctx.font = `500 20px system-ui, -apple-system, sans-serif`;
-	ctx.textAlign = 'center';
-	ctx.letterSpacing = '3px';
-	ctx.fillText(heroLabel.toUpperCase(), width / 2, currentY);
-	ctx.letterSpacing = '0px';
-	
-	currentY += 10;
-	
-	const heroFontSize = sessionPhoto ? 120 : 150;
-	ctx.font = `bold ${heroFontSize}px system-ui, -apple-system, sans-serif`;
-	
-	// Glow behind hero
-	ctx.shadowColor = disciplineColor;
-	ctx.shadowBlur = 35;
-	
-	const heroGradient = ctx.createLinearGradient(0, currentY, 0, currentY + heroFontSize * 0.8);
-	heroGradient.addColorStop(0, '#ffffff');
-	heroGradient.addColorStop(0.7, disciplineColor);
-	heroGradient.addColorStop(1, '#10b981');
-	ctx.fillStyle = heroGradient;
-	ctx.fillText(heroValue, width / 2, currentY + heroFontSize * 0.8);
-	
-	ctx.shadowBlur = 0;
-	currentY += heroFontSize * 0.85 + 40;
-	
-	// === METRICS PANEL (solid background, high contrast) ===
-	const panelHeight = 260;
-	const panelY = currentY;
-	
-	// Solid dark panel with slight transparency
-	ctx.fillStyle = 'rgba(8, 16, 32, 0.85)';
-	roundRect(ctx, padding, panelY, contentWidth, panelHeight, 20);
+
+	// Card layout constants
+	const cardX = 32;
+	const cardW = width - cardX * 2;
+	const cardPad = 40;
+	const cardRadius = 24;
+	const cx = cardX + cardPad;
+	const cw = cardW - cardPad * 2;
+
+	// First pass: calculate card height
+	const profileSize = 52;
+	let contentH = 0;
+	contentH += profileSize + 16; // header
+	contentH += 34; // routine + discipline
+	if (sessionTags.length > 0) contentH += 42;
+	contentH += 28; // gradient line
+	if (notesPreview) contentH += 40;
+	contentH += 26 + 120 + 20; // hero label + value + gap
+	const metricBoxH = 100;
+	contentH += metricBoxH + 24;
+	const photoH = sessionPhoto ? 360 : 0;
+	if (sessionPhoto) contentH += photoH + 16;
+
+	const cardH = contentH + cardPad * 2;
+	const cardY = Math.max(40, (height - cardH - 80) / 2);
+
+	// === DRAW CARD BACKGROUND ===
+	ctx.fillStyle = 'rgba(30, 41, 59, 0.9)';
+	roundRect(ctx, cardX, cardY, cardW, cardH, cardRadius);
 	ctx.fill();
-	
-	// Subtle border
-	ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+	ctx.strokeStyle = 'rgba(100, 116, 139, 0.2)';
 	ctx.lineWidth = 1;
-	roundRect(ctx, padding, panelY, contentWidth, panelHeight, 20);
+	roundRect(ctx, cardX, cardY, cardW, cardH, cardRadius);
 	ctx.stroke();
-	
-	const panelPad = 32;
-	const innerWidth = contentWidth - panelPad * 2;
-	
-	// Secondary metric
-	const secY = panelY + 50;
-	ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-	ctx.font = `500 18px system-ui, -apple-system, sans-serif`;
+
+	// === CARD CONTENT ===
+	let cy = cardY + cardPad;
+
+	// --- Profile ---
+	const avatarR = profileSize / 2;
+	ctx.fillStyle = disciplineColor + '50';
+	ctx.beginPath();
+	ctx.arc(cx + avatarR, cy + avatarR, avatarR, 0, Math.PI * 2);
+	ctx.fill();
+
+	ctx.fillStyle = '#ffffff';
+	ctx.font = 'bold 26px system-ui, -apple-system, sans-serif';
 	ctx.textAlign = 'center';
-	ctx.letterSpacing = '2px';
-	ctx.fillText((routine.displayConfig.secondaryMetricLabel || 'Secondary').toUpperCase(), width / 2, secY);
-	ctx.letterSpacing = '0px';
-	
-	ctx.fillStyle = '#f1f5f9';
-	ctx.font = `bold 48px system-ui, -apple-system, sans-serif`;
-	ctx.fillText(secondaryValue, width / 2, secY + 55);
-	
-	// Divider
-	const divY = secY + 80;
-	const divGradient = ctx.createLinearGradient(padding + panelPad, 0, padding + panelPad + innerWidth, 0);
-	divGradient.addColorStop(0, 'transparent');
-	divGradient.addColorStop(0.2, 'rgba(255,255,255,0.12)');
-	divGradient.addColorStop(0.8, 'rgba(255,255,255,0.12)');
-	divGradient.addColorStop(1, 'transparent');
-	ctx.fillStyle = divGradient;
-	ctx.fillRect(padding + panelPad, divY, innerWidth, 1);
-	
-	// RPE and Joy
-	const statsY = divY + 45;
-	const halfW = innerWidth / 2;
-	const leftCenterX = padding + panelPad + halfW / 2;
-	const rightCenterX = padding + panelPad + halfW + halfW / 2;
-	
-	ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-	ctx.font = `500 18px system-ui, -apple-system, sans-serif`;
-	ctx.textAlign = 'center';
-	ctx.letterSpacing = '2px';
-	ctx.fillText('RPE', leftCenterX, statsY);
-	ctx.letterSpacing = '0px';
-	
-	ctx.fillStyle = '#f1f5f9';
-	ctx.font = `bold 42px system-ui, -apple-system, sans-serif`;
-	ctx.fillText(log.rpe !== undefined ? String(log.rpe) : '—', leftCenterX, statsY + 50);
-	
-	// Vertical divider
-	ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
-	ctx.fillRect(padding + panelPad + halfW - 0.5, statsY - 15, 1, 75);
-	
-	ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-	ctx.font = `500 18px system-ui, -apple-system, sans-serif`;
-	ctx.letterSpacing = '2px';
-	ctx.fillText('JOY', rightCenterX, statsY);
-	ctx.letterSpacing = '0px';
-	
-	ctx.fillStyle = '#f1f5f9';
-	ctx.font = `bold 42px system-ui, -apple-system, sans-serif`;
-	ctx.fillText(log.joyScale !== undefined ? String(log.joyScale) : '—', rightCenterX, statsY + 50);
-	
-	// === NOTES ===
-	if (notesFirstLine) {
-		const notesY = panelY + panelHeight + 45;
-		ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-		ctx.font = `italic 24px system-ui, -apple-system, sans-serif`;
-		ctx.textAlign = 'center';
-		ctx.fillText(`"${notesFirstLine}"`, width / 2, notesY);
+	ctx.fillText((userName?.charAt(0) ?? 'U').toUpperCase(), cx + avatarR, cy + avatarR + 9);
+
+	const nameX = cx + profileSize + 14;
+	ctx.fillStyle = '#ffffff';
+	ctx.font = '600 28px system-ui, -apple-system, sans-serif';
+	ctx.textAlign = 'left';
+	ctx.fillText(userName ?? 'Diver', nameX, cy + 22);
+
+	let meta = dateStr;
+	if (log.timeOfDay) meta += ' \u2022 ' + formatTimeOfDay(log.timeOfDay);
+	meta += ' \u2022 ' + timeStr;
+	ctx.fillStyle = '#94a3b8';
+	ctx.font = '400 20px system-ui, -apple-system, sans-serif';
+	ctx.fillText(meta, nameX, cy + 48);
+	cy += profileSize + 16;
+
+	// --- Routine + Discipline ---
+	ctx.fillStyle = '#cbd5e1';
+	ctx.font = '500 24px system-ui, -apple-system, sans-serif';
+	ctx.textAlign = 'left';
+	let rName = routine.name;
+	const maxNW = cw - 120;
+	while (ctx.measureText(rName).width > maxNW && rName.length > 10) {
+		rName = rName.slice(0, -4) + '...';
 	}
-	
-	// === BOTTOM: Username + Branding ===
-	const bottomY = height - 100;
-	
+	ctx.fillText(rName, cx, cy + 4);
+
+	ctx.fillStyle = '#94a3b8';
+	ctx.font = '400 24px system-ui, -apple-system, sans-serif';
+	const rnW = ctx.measureText(rName).width;
+	ctx.fillText(' \u2022 ', cx + rnW, cy + 4);
+
+	ctx.fillStyle = disciplineColor;
+	ctx.font = '500 24px system-ui, -apple-system, sans-serif';
+	const dotW = ctx.measureText(' \u2022 ').width;
+	ctx.fillText(log.disciplineUsed, cx + rnW + dotW, cy + 4);
+	cy += 34;
+
+	// --- Tags ---
+	if (sessionTags.length > 0) {
+		let tagX = cx;
+		ctx.font = '500 16px system-ui, -apple-system, sans-serif';
+		for (const tag of sessionTags) {
+			const tw = ctx.measureText(tag).width + 20;
+			const th = 28;
+			ctx.fillStyle = 'rgba(56, 189, 248, 0.12)';
+			roundRect(ctx, tagX, cy, tw, th, th / 2);
+			ctx.fill();
+			ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+			ctx.lineWidth = 1;
+			roundRect(ctx, tagX, cy, tw, th, th / 2);
+			ctx.stroke();
+			ctx.fillStyle = '#e0f2fe';
+			ctx.textAlign = 'center';
+			ctx.fillText(tag, tagX + tw / 2, cy + 19);
+			tagX += tw + 8;
+		}
+		cy += 42;
+	}
+
+	// --- Gradient line ---
+	const lineGrad = ctx.createLinearGradient(cx, 0, cx + cw, 0);
+	lineGrad.addColorStop(0, disciplineColor);
+	lineGrad.addColorStop(0.5, '#10b981');
+	lineGrad.addColorStop(1, disciplineColor);
+	ctx.fillStyle = lineGrad;
+	ctx.fillRect(cx, cy, cw, 3);
+	cy += 28;
+
+	// --- Notes ---
+	if (notesPreview) {
+		ctx.fillStyle = '#94a3b8';
+		ctx.font = 'italic 22px system-ui, -apple-system, sans-serif';
+		ctx.textAlign = 'left';
+		ctx.fillText('"' + notesPreview + '"', cx, cy + 4);
+		cy += 40;
+	}
+
+	// --- Hero metric ---
+	ctx.fillStyle = '#94a3b8';
+	ctx.font = '500 20px system-ui, -apple-system, sans-serif';
+	ctx.textAlign = 'center';
+	ctx.fillText(heroMetric.label, width / 2, cy);
+	cy += 6;
+
+	ctx.fillStyle = '#ffffff';
+	ctx.font = 'bold 120px system-ui, -apple-system, sans-serif';
+	ctx.textAlign = 'center';
+	ctx.fillText(heroMetric.value, width / 2, cy + 100);
+	cy += 120 + 20;
+
+	// --- Metrics row ---
+	const metricBoxes: { label: string; value: string }[] = [
+		{ label: secondaryMetric.label, value: secondaryMetric.value }
+	];
+	if (tertiaryMetric) metricBoxes.push({ label: tertiaryMetric.label, value: tertiaryMetric.value });
+	metricBoxes.push(
+		{ label: '💪 RPE', value: log.rpe !== undefined ? String(log.rpe) : '—' },
+		{ label: '😊 Joy', value: log.joyScale !== undefined ? String(log.joyScale) : '—' }
+	);
+
+	const boxCount = metricBoxes.length;
+	const boxGap = 12;
+	const boxW = (cw - boxGap * (boxCount - 1)) / boxCount;
+
+	for (let i = 0; i < boxCount; i++) {
+		const bx = cx + i * (boxW + boxGap);
+		const mb = metricBoxes[i];
+
+		ctx.fillStyle = 'rgba(15, 23, 42, 0.6)';
+		roundRect(ctx, bx, cy, boxW, metricBoxH, 12);
+		ctx.fill();
+		ctx.strokeStyle = 'rgba(100, 116, 139, 0.15)';
+		ctx.lineWidth = 1;
+		roundRect(ctx, bx, cy, boxW, metricBoxH, 12);
+		ctx.stroke();
+
+		ctx.fillStyle = '#94a3b8';
+		ctx.font = '500 15px system-ui, -apple-system, sans-serif';
+		ctx.textAlign = 'center';
+		let label = mb.label;
+		while (ctx.measureText(label).width > boxW - 12 && label.length > 3) {
+			label = label.slice(0, -2) + '\u2026';
+		}
+		ctx.fillText(label, bx + boxW / 2, cy + 30);
+
+		ctx.fillStyle = '#f1f5f9';
+		let vfs = 30;
+		ctx.font = 'bold ' + vfs + 'px system-ui, -apple-system, sans-serif';
+		while (ctx.measureText(mb.value).width > boxW - 16 && vfs > 16) {
+			vfs -= 2;
+			ctx.font = 'bold ' + vfs + 'px system-ui, -apple-system, sans-serif';
+		}
+		ctx.fillText(mb.value, bx + boxW / 2, cy + 72);
+	}
+	cy += metricBoxH + 24;
+
+	// --- Photo ---
+	if (sessionPhoto) {
+		const photoRadius = 16;
+		ctx.save();
+		roundRect(ctx, cx, cy, cw, photoH, photoRadius);
+		ctx.clip();
+
+		const imgAspect = sessionPhoto.width / sessionPhoto.height;
+		const boxAspect = cw / photoH;
+		let dw, dh, dx, dy;
+		if (imgAspect > boxAspect) {
+			dh = photoH; dw = dh * imgAspect;
+			dx = cx + (cw - dw) / 2; dy = cy;
+		} else {
+			dw = cw; dh = dw / imgAspect;
+			dx = cx; dy = cy + (photoH - dh) / 2;
+		}
+		ctx.drawImage(sessionPhoto, dx, dy, dw, dh);
+		ctx.restore();
+	}
+
+	// === BRANDING ===
+	const brandY = cardY + cardH + 36;
 	if (userName) {
-		ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-		ctx.font = `400 26px system-ui, -apple-system, sans-serif`;
+		ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+		ctx.font = '400 22px system-ui, -apple-system, sans-serif';
 		ctx.textAlign = 'center';
-		ctx.fillText(`@${userName}`, width / 2, bottomY);
+		ctx.fillText('@' + userName, width / 2, brandY);
 	}
-	
-	ctx.fillStyle = disciplineColor + '80';
-	ctx.font = `500 20px system-ui, -apple-system, sans-serif`;
-	ctx.fillText('overdive.app', width / 2, bottomY + 36);
-	
-	// Bottom accent line
-	const bottomGlow = ctx.createLinearGradient(0, 0, width, 0);
-	bottomGlow.addColorStop(0, 'transparent');
-	bottomGlow.addColorStop(0.3, disciplineColor + '50');
-	bottomGlow.addColorStop(0.5, disciplineColor + '80');
-	bottomGlow.addColorStop(0.7, disciplineColor + '50');
-	bottomGlow.addColorStop(1, 'transparent');
-	ctx.fillStyle = bottomGlow;
-	ctx.fillRect(0, height - 3, width, 3);
-	
+	ctx.fillStyle = disciplineColor + '60';
+	ctx.font = '500 20px system-ui, -apple-system, sans-serif';
+	ctx.textAlign = 'center';
+	ctx.fillText('overdive.app', width / 2, brandY + 32);
+
 	return canvas.toDataURL('image/png');
 }
-
-
 
 /**
  * Download the share card as an image file
@@ -504,7 +379,6 @@ export async function downloadShareCard(
 	options: ShareCardOptions = {}
 ): Promise<void> {
 	const dataUrl = await generateShareCard(data, options);
-	
 	const link = document.createElement('a');
 	link.download = filename;
 	link.href = dataUrl;
@@ -521,17 +395,15 @@ export async function shareCard(
 	options: ShareCardOptions = {}
 ): Promise<boolean> {
 	const dataUrl = await generateShareCard(data, options);
-	
-	// Convert data URL to blob
+
 	const response = await fetch(dataUrl);
 	const blob = await response.blob();
 	const file = new File([blob], 'overdive-session.png', { type: 'image/png' });
-	
-	// Check if mobile-style sharing with files is available
-	const canShareFiles = typeof navigator.share === 'function' && 
-		typeof navigator.canShare === 'function' && 
+
+	const canShareFiles = typeof navigator.share === 'function' &&
+		typeof navigator.canShare === 'function' &&
 		navigator.canShare({ files: [file] });
-	
+
 	if (canShareFiles) {
 		try {
 			await navigator.share({
@@ -547,8 +419,7 @@ export async function shareCard(
 			return false;
 		}
 	}
-	
-	// Desktop fallback: always download the file
+
 	await downloadShareCard(data, `overdive-${data.log.disciplineUsed}-session.png`, options);
 	return false;
 }
