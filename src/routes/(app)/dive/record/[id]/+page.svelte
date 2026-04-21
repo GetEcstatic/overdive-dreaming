@@ -2,11 +2,10 @@
   Dive video capture page.
   Route: /dive/record/[sessionId]
 
-  Flow:
-    1. Show DiveRecorder (camera preview, GO/LAP/STOP).
-    2. On capture, show a save panel (pool length, discipline, athlete, pin).
-    3. On confirm: enqueue upload in IndexedDB, then drain immediately.
-    4. Navigate back to the session detail on success.
+  Stages:
+    setup  → pick discipline, pool length (wheel), waypoints per lap (wheel)
+    record → full-screen DiveRecorder
+    review → confirm details, pin, choose athlete, save
 -->
 <script lang="ts">
 	import { goto } from '$app/navigation';
@@ -14,6 +13,7 @@
 	import { user } from '$lib/stores/auth';
 	import DiveRecorder from '$lib/components/DiveRecorder.svelte';
 	import AthletePicker from '$lib/components/AthletePicker.svelte';
+	import NumberWheelInput from '$lib/components/NumberWheelInput.svelte';
 	import { buildDiveVideoFormData } from '$lib/services/diveVideos';
 	import { enqueueUpload } from '$lib/capture/uploadQueue';
 	import { drainUploadQueue } from '$lib/capture/uploadProcessor';
@@ -36,9 +36,9 @@
 	type Stage = 'setup' | 'record' | 'review' | 'saving' | 'done';
 	let stage = $state<Stage>('setup');
 
-	let poolLength = $state(25);
+	let poolLength = $state<number | undefined>(25);
+	let waypointsPerLap = $state<number | undefined>(2);
 	let discipline = $state<DiveVideoDiscipline>('DYN');
-	let plannedReps = $state(0); // 0 = open-ended; >0 shows "Lap X of N" during recording
 	let resolution = $state<DiveVideoResolution>('720p');
 	let resolutionLoaded = $state(false);
 	let pinned = $state(false);
@@ -48,7 +48,14 @@
 	let saveError = $state<string | null>(null);
 	let uploadProgress = $state(0);
 
-	// Load the user's default video resolution preference once on mount.
+	const waypointSpacing = $derived(
+		poolLength && waypointsPerLap ? poolLength / waypointsPerLap : 0
+	);
+
+	function formatMeters(m: number): string {
+		return Number.isInteger(m) ? `${m}` : m.toFixed(1);
+	}
+
 	$effect(() => {
 		const uid = $user?.uid;
 		if (!uid || resolutionLoaded) return;
@@ -60,7 +67,6 @@
 				}
 			})
 			.catch((err) => {
-				// Non-fatal — just keep the 720p default.
 				// eslint-disable-next-line no-console
 				console.warn('[dive-record] could not load resolution preference', err);
 			});
@@ -87,7 +93,7 @@
 				ownerId: uid,
 				athleteId: athleteId ?? uid,
 				discipline,
-				poolLength,
+				poolLength: poolLength ?? 25,
 				mimeType: capture.mimeType,
 				sizeBytes: capture.sizeBytes,
 				widthPx: capture.widthPx,
@@ -100,11 +106,9 @@
 			if (pinned) metadata.retentionTier = 'pinned';
 			await enqueueUpload(capture.blob, metadata);
 
-			// Fire-and-forget drain. User can navigate away; we resume on reconnect.
 			drainUploadQueue((p) => {
 				uploadProgress = p.fraction;
 			}).catch((err) => {
-				// Non-fatal — item stays queued.
 				// eslint-disable-next-line no-console
 				console.warn('[dive-record] drain failed', err);
 			});
@@ -128,74 +132,66 @@
 </svelte:head>
 
 {#if stage === 'setup'}
-	<div class="min-h-screen bg-slate-950 text-white">
-		<div class="mx-auto max-w-md p-4">
-			<h1 class="mb-1 text-2xl font-bold">Record dive</h1>
-			<p class="mb-6 text-sm text-slate-400">
-				Set up the dive, then tap <strong>Start camera</strong> to frame the diver.
-			</p>
+	<div class="setup-screen">
+		<div class="setup-inner">
+			<header class="setup-head">
+				<h1>Record dive</h1>
+				<p>Dial in pool length and waypoints, then start the camera.</p>
+			</header>
 
-			<div class="space-y-5">
-				<label class="block">
-					<span class="text-sm font-medium text-slate-300">Discipline</span>
-					<select
-						bind:value={discipline}
-						class="mt-1 w-full rounded-lg bg-slate-900 p-3 text-base"
-					>
+			<section class="card">
+				<label class="field">
+					<span class="field-label">Discipline</span>
+					<select class="select" bind:value={discipline}>
 						<option value="DYN">DYN (with fins)</option>
 						<option value="DYNB">DYNB (bifins)</option>
 						<option value="DNF">DNF (no fins)</option>
 					</select>
 				</label>
 
-				<label class="block">
-					<span class="text-sm font-medium text-slate-300">Pool length (m)</span>
-					<input
-						type="number"
-						min="10"
-						max="100"
-						step="5"
+				<div class="field">
+					<NumberWheelInput
 						bind:value={poolLength}
-						class="mt-1 w-full rounded-lg bg-slate-900 p-3 text-base"
+						label="Pool length"
+						min={10}
+						max={100}
+						step={5}
+						unit="m"
+						hint="The full length of the pool you're recording in."
 					/>
-					<span class="mt-1 block text-xs text-slate-500">
-						Each LAP tap adds one pool length to the distance counter.
-					</span>
-				</label>
+				</div>
 
-				<label class="block">
-					<span class="text-sm font-medium text-slate-300">
-						Planned laps (waypoints)
-					</span>
-					<input
-						type="number"
-						min="0"
-						max="99"
-						step="1"
-						bind:value={plannedReps}
-						class="mt-1 w-full rounded-lg bg-slate-900 p-3 text-base"
+				<div class="field">
+					<NumberWheelInput
+						bind:value={waypointsPerLap}
+						label="Waypoints per lap"
+						min={1}
+						max={8}
+						step={1}
+						unit={waypointsPerLap === 1 ? 'point' : 'points'}
+						hint="2 = tap at the mid-pool mark and at the wall."
 					/>
-					<span class="mt-1 block text-xs text-slate-500">
-						Optional. Set the number of laps you expect so the HUD shows
-						"Lap X of N". Leave at 0 to keep it open-ended.
-					</span>
-					{#if plannedReps > 0 && poolLength > 0}
-						<span class="mt-1 block text-xs text-teal-300">
-							Target distance: {plannedReps * poolLength} m
-						</span>
-					{/if}
-				</label>
-			</div>
+				</div>
 
-			<div class="mt-8 flex items-center gap-3">
-				<button
-					class="flex-1 rounded-xl bg-slate-800 py-4 text-base font-semibold text-slate-200 active:scale-95"
-					onclick={() => history.back()}
-				>
+				{#if waypointSpacing > 0}
+					<div class="summary">
+						You'll tap every
+						<strong>{formatMeters(waypointSpacing)} m</strong>
+						— first waypoint at
+						<strong>{formatMeters(waypointSpacing)} m</strong>,
+						next at <strong>{formatMeters(waypointSpacing * 2)} m</strong>,
+						and so on.
+					</div>
+				{/if}
+			</section>
+
+			<div class="actions">
+				<button class="btn btn-secondary" onclick={() => history.back()}>
 					Cancel
 				</button>
 				<button
-					class="flex-2 rounded-xl bg-teal-400 py-4 text-base font-bold text-slate-900 shadow-lg active:scale-95"
+					class="btn btn-primary"
+					disabled={!poolLength || !waypointsPerLap}
 					onclick={() => (stage = 'record')}
 				>
 					Start camera →
@@ -205,63 +201,45 @@
 	</div>
 {:else if stage === 'record'}
 	<DiveRecorder
-		{poolLength}
+		poolLength={poolLength ?? 25}
+		waypointsPerLap={waypointsPerLap ?? 2}
 		{resolution}
-		{plannedReps}
 		{discipline}
 		onCapture={onCaptured}
 		onCancel={() => (stage = 'setup')}
 	/>
 {:else}
-	<div class="min-h-screen bg-slate-950 text-white">
-		<div class="mx-auto max-w-md p-4">
-			<h1 class="mb-4 text-xl font-bold">Review &amp; save</h1>
+	<div class="review-screen">
+		<div class="review-inner">
+			<h1 class="review-title">Review &amp; save</h1>
 
 			{#if capture}
-				<div class="mb-4 rounded-xl bg-slate-900 p-3 text-sm text-slate-300">
-					<div>Duration: {capture.durationSeconds.toFixed(1)}s</div>
-					<div>Laps tapped: {capture.timeline.laps.length}</div>
+				<div class="stats-card">
+					<div><span>Duration</span><strong>{capture.durationSeconds.toFixed(1)} s</strong></div>
+					<div><span>Waypoints tapped</span><strong>{capture.timeline.laps.length}</strong></div>
 					<div>
-						Distance: {capture.timeline.laps.length > 0
-							? capture.timeline.laps[capture.timeline.laps.length - 1].cumulativeDistanceM
-							: 0} m
+						<span>Distance</span>
+						<strong>
+							{capture.timeline.laps.length > 0
+								? formatMeters(
+										capture.timeline.laps[capture.timeline.laps.length - 1]
+											.cumulativeDistanceM
+									)
+								: 0} m
+						</strong>
 					</div>
-					<div>Size: {(capture.sizeBytes / (1024 * 1024)).toFixed(1)} MB</div>
+					<div><span>Size</span><strong>{(capture.sizeBytes / (1024 * 1024)).toFixed(1)} MB</strong></div>
 				</div>
 			{/if}
 
-			<div class="space-y-4">
-				<label class="block">
-					<span class="text-sm text-slate-400">Pool length (m)</span>
-					<input
-						type="number"
-						min="10"
-						max="100"
-						step="5"
-						bind:value={poolLength}
-						class="mt-1 w-full rounded-lg bg-slate-900 p-2"
-					/>
-				</label>
-
-				<label class="block">
-					<span class="text-sm text-slate-400">Discipline</span>
-					<select
-						bind:value={discipline}
-						class="mt-1 w-full rounded-lg bg-slate-900 p-2"
-					>
-						<option value="DYN">DYN (with fins)</option>
-						<option value="DYNB">DYNB (bifins)</option>
-						<option value="DNF">DNF (no fins)</option>
-					</select>
-				</label>
-
-				<label class="flex items-center gap-2 text-sm text-slate-300">
+			<section class="card">
+				<label class="pin">
 					<input type="checkbox" bind:checked={pinned} />
 					Pin this dive (keep beyond the 5-video cap)
 				</label>
 
-				<div class="rounded-lg bg-slate-900 p-3">
-					<div class="mb-2 text-sm text-slate-400">Gift this dive to…</div>
+				<div class="gift">
+					<div class="gift-label">Gift this dive to…</div>
 					{#if $user}
 						<AthletePicker
 							bind:athleteId
@@ -270,28 +248,200 @@
 						/>
 					{/if}
 				</div>
-			</div>
+			</section>
 
 			{#if saveError}
-				<p class="mt-4 text-sm text-red-400">{saveError}</p>
+				<p class="error">{saveError}</p>
 			{/if}
 
-			<div class="mt-6 flex items-center gap-3">
+			<div class="actions">
 				<button
-					class="flex-1 rounded-full bg-slate-800 py-3 font-semibold text-slate-200"
+					class="btn btn-secondary"
 					onclick={discard}
 					disabled={stage === 'saving'}
 				>
 					Re-record
 				</button>
 				<button
-					class="flex-1 rounded-full bg-teal-400 py-3 font-semibold text-slate-900 disabled:opacity-50"
+					class="btn btn-primary"
 					onclick={save}
 					disabled={stage === 'saving' || !capture}
 				>
-					{stage === 'saving' ? `Saving… ${Math.round(uploadProgress * 100)}%` : 'Save dive'}
+					{stage === 'saving'
+						? `Saving… ${Math.round(uploadProgress * 100)}%`
+						: 'Save dive'}
 				</button>
 			</div>
 		</div>
 	</div>
 {/if}
+
+<style>
+	.setup-screen,
+	.review-screen {
+		min-height: 100vh;
+		background: var(--color-bg);
+		color: var(--color-text);
+		padding: 1rem 1rem calc(2rem + env(safe-area-inset-bottom));
+	}
+	.setup-inner,
+	.review-inner {
+		max-width: 32rem;
+		margin: 0 auto;
+	}
+
+	.setup-head h1 {
+		font-size: 1.6rem;
+		font-weight: 700;
+		margin: 0 0 0.25rem;
+		background: linear-gradient(90deg, var(--color-primary), var(--color-secondary));
+		-webkit-background-clip: text;
+		background-clip: text;
+		color: transparent;
+	}
+	.setup-head p {
+		margin: 0 0 1.25rem;
+		color: var(--color-text-muted);
+		font-size: 0.9rem;
+	}
+
+	.card {
+		background: var(--color-bg-card);
+		border: 1px solid rgba(148, 163, 184, 0.15);
+		border-radius: 14px;
+		padding: 1.1rem 1rem;
+		margin-bottom: 1.25rem;
+		display: flex;
+		flex-direction: column;
+		gap: 1.1rem;
+	}
+
+	.field {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+	}
+	.field-label {
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--color-text);
+	}
+
+	.select {
+		appearance: none;
+		width: 100%;
+		padding: 0.85rem 0.9rem;
+		border-radius: 10px;
+		background: rgba(15, 23, 42, 0.65);
+		color: var(--color-text);
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		font: inherit;
+		font-size: 1rem;
+	}
+
+	.summary {
+		font-size: 0.85rem;
+		color: var(--color-text-muted);
+		background: rgba(20, 184, 166, 0.08);
+		border: 1px solid rgba(20, 184, 166, 0.25);
+		border-radius: 10px;
+		padding: 0.7rem 0.85rem;
+	}
+	.summary strong {
+		color: var(--color-primary);
+	}
+
+	.actions {
+		display: flex;
+		gap: 0.65rem;
+		margin-top: 0.5rem;
+	}
+	.btn {
+		flex: 1 1 auto;
+		font: inherit;
+		padding: 1rem 1rem;
+		border-radius: 12px;
+		border: 1px solid transparent;
+		font-weight: 600;
+		font-size: 1rem;
+		cursor: pointer;
+		transition:
+			filter 0.12s ease,
+			transform 0.06s ease;
+	}
+	.btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+	.btn:active:not(:disabled) {
+		transform: scale(0.98);
+	}
+	.btn-primary {
+		flex: 2 1 auto;
+		background: linear-gradient(90deg, var(--color-primary), var(--color-secondary));
+		color: #0f172a;
+		font-weight: 700;
+	}
+	.btn-primary:hover:not(:disabled) {
+		filter: brightness(1.05);
+	}
+	.btn-secondary {
+		background: transparent;
+		border-color: rgba(148, 163, 184, 0.25);
+		color: var(--color-text-muted);
+	}
+
+	.review-title {
+		font-size: 1.4rem;
+		font-weight: 700;
+		margin: 0 0 1rem;
+	}
+
+	.stats-card {
+		background: var(--color-bg-card);
+		border: 1px solid rgba(148, 163, 184, 0.15);
+		border-radius: 12px;
+		padding: 0.9rem 1rem;
+		margin-bottom: 1rem;
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.55rem 1rem;
+	}
+	.stats-card > div {
+		display: flex;
+		flex-direction: column;
+	}
+	.stats-card span {
+		color: var(--color-text-muted);
+		font-size: 0.75rem;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+	}
+	.stats-card strong {
+		font-size: 1rem;
+		color: var(--color-text);
+	}
+
+	.pin {
+		display: flex;
+		align-items: center;
+		gap: 0.55rem;
+		font-size: 0.9rem;
+		color: var(--color-text);
+	}
+	.gift {
+		border-top: 1px solid rgba(148, 163, 184, 0.12);
+		padding-top: 0.85rem;
+	}
+	.gift-label {
+		font-size: 0.85rem;
+		font-weight: 600;
+		margin-bottom: 0.45rem;
+	}
+
+	.error {
+		color: #fca5a5;
+		font-size: 0.9rem;
+		margin: 0.75rem 0;
+	}
+</style>

@@ -2,14 +2,14 @@
   DiveRecorder.svelte
   One-screen capture UI for a dynamic dive. See docs/Dynamic video feature.md.
 
-  Responsibilities:
-    - Acquire portrait camera stream (rear-facing).
-    - Lock screen orientation to portrait + request Wake Lock.
-    - Start MediaRecorder on "GO"; build a DiveTimeline on LAP taps.
-    - STOP finalises timeline; emits { blob, mimeType, timeline, size, width, height, duration, deviceLabel }.
-
-  Consumers drive `poolLength`, `resolution`, and handle the resulting capture
-  via the `onCapture` callback.
+  Flow:
+    arming  → camera acquisition
+    ready   → preview shown; "Start dive" arms the clock (recording starts too)
+    diving  → waypoint button advances the timeline by one waypoint-spacing
+              (= poolLength / waypointsPerLap); "Stop dive" ends the dive clock
+              but keeps recording for the surface protocol.
+    surface → dive is over but the MediaRecorder keeps running. "Stop recording"
+              finalises and emits the capture result.
 -->
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
@@ -42,8 +42,8 @@
 
 	interface Props {
 		poolLength: number;
+		waypointsPerLap?: number;
 		resolution?: DiveVideoResolution;
-		plannedReps?: number;
 		discipline?: DiveVideoDiscipline;
 		onCapture: (result: CaptureResult) => void;
 		onCancel?: () => void;
@@ -51,16 +51,16 @@
 
 	let {
 		poolLength,
+		waypointsPerLap = 2,
 		resolution = '720p',
-		plannedReps = 0,
 		discipline = 'DYN',
 		onCapture,
 		onCancel
 	}: Props = $props();
 
-	type Phase = 'idle' | 'arming' | 'ready' | 'recording' | 'stopping' | 'error';
+	type Phase = 'arming' | 'ready' | 'diving' | 'surface' | 'stopping' | 'error';
 
-	let phase = $state<Phase>('idle');
+	let phase = $state<Phase>('arming');
 	let errorMessage = $state<string | null>(null);
 
 	let videoEl: HTMLVideoElement;
@@ -68,41 +68,43 @@
 	let recorder: RecorderHandle | null = null;
 	let wakeLock: WakeLockHandle | null = null;
 
-	// When the camera sensor delivers a landscape stream but the device is held
-	// in portrait (typical on iOS Safari where screen.orientation.lock() is not
-	// supported), we rotate the preview with CSS so the diver looks upright.
-	let needsRotation = $state(false);
-	let containerW = $state(0);
-	let containerH = $state(0);
+	// Meters added per waypoint tap. For a 50 m pool with 2 waypoints per lap
+	// this is 25 m; for a 25 m pool with 2 waypoints per lap this is 12.5 m.
+	const waypointSpacing = $derived(
+		waypointsPerLap > 0 ? poolLength / waypointsPerLap : poolLength
+	);
 
-	function onVideoLoaded(): void {
-		if (!videoEl) return;
-		const vw = videoEl.videoWidth;
-		const vh = videoEl.videoHeight;
-		if (vw > 0 && vh > 0) {
-			const streamIsLandscape = vw > vh;
-			const deviceIsPortrait =
-				typeof window !== 'undefined' ? window.innerHeight >= window.innerWidth : true;
-			needsRotation = streamIsLandscape && deviceIsPortrait;
-		}
-	}
-
-	// Timeline clock uses performance.now() so it stays monotonic.
+	// Clocks — monotonic, relative to the MediaRecorder start.
 	let recordingStartedAtPerfMs = 0;
-	let recordingStartedAtWallMs = 0;
+	let diveEndPerfMs = 0; // set when the user taps Stop dive
+
 	let timeline = $state<DiveTimeline>(createEmptyTimeline(0));
 
-	// Display tick — drives the live timer readout at ~10 Hz.
+	// Display tick.
 	let nowMs = $state(0);
 	let tickHandle: number | null = null;
 
-	const elapsedMs = $derived(
-		phase === 'recording' ? Math.max(0, nowMs - recordingStartedAtPerfMs) : 0
-	);
-	const lapCount = $derived(timeline.laps.length);
+	const diveElapsedMs = $derived.by(() => {
+		if (phase === 'diving') return Math.max(0, nowMs - recordingStartedAtPerfMs);
+		if (phase === 'surface' || phase === 'stopping')
+			return Math.max(0, diveEndPerfMs - recordingStartedAtPerfMs);
+		return 0;
+	});
+	const waypointCount = $derived(timeline.laps.length);
 	const cumulativeDistanceM = $derived(
-		lapCount === 0 ? 0 : timeline.laps[lapCount - 1].cumulativeDistanceM
+		waypointCount === 0 ? 0 : timeline.laps[waypointCount - 1].cumulativeDistanceM
 	);
+	const nextWaypointDistanceM = $derived((waypointCount + 1) * waypointSpacing);
+
+	// Live speed. Defaults to 1 m/s before the first waypoint so the HUD isn't
+	// stuck at 0 m/s while the diver is still accelerating.
+	const liveSpeedMs = $derived.by(() => {
+		if (phase !== 'diving') return 0;
+		if (waypointCount === 0) return 1;
+		const last = timeline.laps[waypointCount - 1];
+		if (last.splitMs <= 0) return 0;
+		return waypointSpacing / (last.splitMs / 1000);
+	});
 
 	function formatMs(ms: number): string {
 		const totalSecs = Math.floor(ms / 1000);
@@ -114,34 +116,14 @@
 		return `${mm}:${ss}.${tenths}`;
 	}
 
-	async function lockPortrait(): Promise<void> {
-		try {
-			const orientation = (screen.orientation as unknown as {
-				lock?: (o: string) => Promise<void>;
-			}) ?? null;
-			if (orientation && typeof orientation.lock === 'function') {
-				await orientation.lock('portrait');
-			}
-		} catch {
-			// Non-fatal: iOS Safari doesn't support lock, but the UI still works.
-		}
-	}
-
-	function unlockPortrait(): void {
-		try {
-			const orientation = screen.orientation as unknown as { unlock?: () => void };
-			orientation?.unlock?.();
-		} catch {
-			/* ignore */
-		}
+	function formatMeters(m: number): string {
+		return Number.isInteger(m) ? `${m}` : m.toFixed(1);
 	}
 
 	async function arm(): Promise<void> {
-		if (phase !== 'idle') return;
 		phase = 'arming';
 		errorMessage = null;
 		try {
-			await lockPortrait();
 			acquired = await acquireCameraStream({ resolution, facingMode: 'environment' });
 			if (videoEl) {
 				videoEl.srcObject = acquired.stream;
@@ -169,7 +151,8 @@
 		}
 	}
 
-	async function start(): Promise<void> {
+	/** "Start dive": begin MediaRecorder AND the dive clock at the same instant. */
+	async function startDive(): Promise<void> {
 		if (phase !== 'ready' || !acquired) return;
 		try {
 			wakeLock = await requestWakeLock();
@@ -179,10 +162,9 @@
 				timesliceMs: 2000
 			});
 			recordingStartedAtPerfMs = performance.now();
-			recordingStartedAtWallMs = Date.now();
-			timeline = createEmptyTimeline(0); // ms offsets from recording start
+			timeline = createEmptyTimeline(0);
 			recorder.start();
-			phase = 'recording';
+			phase = 'diving';
 			startTicking();
 		} catch (err) {
 			errorMessage = err instanceof Error ? err.message : String(err);
@@ -190,29 +172,41 @@
 		}
 	}
 
-	function markLap(): void {
-		if (phase !== 'recording') return;
+	function markWaypoint(): void {
+		if (phase !== 'diving') return;
 		const atMs = performance.now() - recordingStartedAtPerfMs;
-		timeline = appendLap(timeline, atMs, poolLength);
+		timeline = appendLap(timeline, atMs, waypointSpacing);
 	}
 
-	function undoLap(): void {
-		if (phase !== 'recording') return;
+	function undoWaypoint(): void {
+		if (phase !== 'diving') return;
 		timeline = removeLastLap(timeline);
 	}
 
-	async function stop(): Promise<void> {
-		if (phase !== 'recording' || !recorder) return;
+	/** Stop dive: freeze clock + distance, keep camera rolling for surface protocol. */
+	function stopDive(): void {
+		if (phase !== 'diving') return;
+		diveEndPerfMs = performance.now();
+		timeline = finalizeTimeline(timeline, diveEndPerfMs - recordingStartedAtPerfMs);
+		phase = 'surface';
+	}
+
+	/** Stop recording: finalise MediaRecorder and emit capture. */
+	async function stopRecording(): Promise<void> {
+		if (phase !== 'diving' && phase !== 'surface') return;
+		if (!recorder) return;
+		if (phase === 'diving') {
+			diveEndPerfMs = performance.now();
+			timeline = finalizeTimeline(timeline, diveEndPerfMs - recordingStartedAtPerfMs);
+		}
+
 		phase = 'stopping';
 		stopTicking();
 		try {
 			const result = await recorder.stop();
-			const endMs = performance.now() - recordingStartedAtPerfMs;
-			const finalTimeline = finalizeTimeline(timeline, endMs);
-			timeline = finalTimeline;
-
+			const recordingEndPerfMs = performance.now();
+			const durationSeconds = (recordingEndPerfMs - recordingStartedAtPerfMs) / 1000;
 			const settings = acquired?.stream.getVideoTracks()[0]?.getSettings() ?? {};
-			const durationSeconds = endMs / 1000;
 
 			onCapture({
 				blob: result.blob,
@@ -222,7 +216,7 @@
 				heightPx: settings.height ?? acquired?.actualHeight ?? 0,
 				durationSeconds,
 				deviceLabel: acquired?.deviceLabel,
-				timeline: finalTimeline
+				timeline
 			});
 		} catch (err) {
 			errorMessage = err instanceof Error ? err.message : String(err);
@@ -241,7 +235,6 @@
 			stopStream(acquired.stream);
 			acquired = null;
 		}
-		unlockPortrait();
 		stopTicking();
 	}
 
@@ -257,127 +250,100 @@
 		cleanup();
 		onCancel?.();
 	}
-
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	const _unused = recordingStartedAtWallMs; // keep reference for debugging; lint-safe
 </script>
 
-<div class="fixed inset-0 z-50 flex flex-col bg-slate-950 text-white">
-	<!-- Camera preview -->
-	<div
-		class="relative flex-1 overflow-hidden"
-		bind:clientWidth={containerW}
-		bind:clientHeight={containerH}
-	>
+<div class="recorder">
+	<!-- Camera preview: full bleed, native aspect ratio. -->
+	<div class="preview">
 		<!-- svelte-ignore a11y_media_has_caption -->
-		<video
-			bind:this={videoEl}
-			class="absolute left-1/2 top-1/2 object-cover"
-			style:width={needsRotation ? `${containerH}px` : '100%'}
-			style:height={needsRotation ? `${containerW}px` : '100%'}
-			style:transform={needsRotation
-				? 'translate(-50%, -50%) rotate(90deg)'
-				: 'translate(-50%, -50%)'}
-			muted
-			playsinline
-			autoplay
-			onloadedmetadata={onVideoLoaded}
-		></video>
+		<video bind:this={videoEl} muted playsinline autoplay></video>
 
-		<!-- Top HUD: always visible so the coach sees discipline + pool info -->
-		<div
-			class="pointer-events-none absolute inset-x-0 top-4 mx-4 rounded-xl bg-black/55 px-4 py-3 backdrop-blur-sm"
-		>
-			<div class="flex items-center justify-between">
-				<div>
-					<div class="text-xs uppercase tracking-wider text-slate-300">Time</div>
-					<div class="font-mono text-3xl tabular-nums">
-						{phase === 'recording' ? formatMs(elapsedMs) : '00:00.0'}
-					</div>
+		<!-- Top HUD -->
+		<div class="hud hud-top">
+			<div class="hud-row">
+				<div class="hud-cell">
+					<div class="hud-label">Time</div>
+					<div class="hud-value">{formatMs(diveElapsedMs)}</div>
 				</div>
-				<div class="text-right">
-					<div class="text-xs uppercase tracking-wider text-slate-300">Distance</div>
-					<div class="font-mono text-3xl tabular-nums">{cumulativeDistanceM} m</div>
+				<div class="hud-cell right">
+					<div class="hud-label">Distance</div>
+					<div class="hud-value">{formatMeters(cumulativeDistanceM)} m</div>
 				</div>
 			</div>
-			<div class="mt-1 flex items-center justify-between text-sm text-slate-300">
+			<div class="hud-sub">
 				<span>
-					Lap {lapCount}{plannedReps > 0 ? ` of ${plannedReps}` : ''}
+					{#if phase === 'diving' || phase === 'surface' || phase === 'stopping'}
+						Waypoint {waypointCount}
+					{:else}
+						{discipline} · Pool {poolLength} m
+					{/if}
 				</span>
-				<span>{discipline} · Pool {poolLength} m</span>
+				<span>
+					{#if phase === 'diving'}
+						{liveSpeedMs.toFixed(2)} m/s
+					{:else if phase === 'surface'}
+						Surface protocol
+					{:else}
+						{waypointsPerLap} waypoints/lap · step {formatMeters(waypointSpacing)} m
+					{/if}
+				</span>
 			</div>
 		</div>
 
 		{#if phase === 'arming'}
-			<div class="absolute inset-0 flex items-center justify-center">
-				<span class="text-sm text-slate-300">Arming camera…</span>
+			<div class="overlay">
+				<span>Arming camera…</span>
 			</div>
 		{/if}
 
 		{#if phase === 'error' && errorMessage}
-			<div class="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-slate-950/80 p-6 text-center">
-				<p class="text-red-300">{errorMessage}</p>
-				<button
-					class="rounded-full bg-teal-400 px-6 py-3 text-base font-semibold text-slate-900"
-					onclick={arm}
-				>
-					Retry
-				</button>
+			<div class="overlay error">
+				<p>{errorMessage}</p>
+				<button class="btn btn-primary" onclick={arm}>Retry</button>
 			</div>
 		{/if}
 	</div>
 
 	<!-- Controls -->
-	<div class="shrink-0 border-t border-slate-800 bg-slate-950/95 p-4 pb-8">
+	<div class="controls">
 		{#if phase === 'ready'}
-			<div class="flex items-center gap-3">
-				<button
-					class="h-16 flex-1 rounded-2xl bg-slate-800 text-base font-semibold text-slate-200 active:scale-95"
-					onclick={cancel}
-				>
-					Cancel
-				</button>
-				<button
-					class="h-20 flex-2 rounded-2xl bg-red-500 text-xl font-bold text-white shadow-lg active:scale-95"
-					onclick={start}
-				>
-					GO
-				</button>
+			<div class="row">
+				<button class="btn btn-secondary" onclick={cancel}>Cancel</button>
+				<button class="btn btn-record" onclick={startDive}>● Start dive</button>
 			</div>
-			<p class="mt-3 text-center text-xs text-slate-400">
-				Press GO when the diver leaves the wall.
-			</p>
-		{:else if phase === 'recording'}
-			<div class="flex items-stretch gap-3">
+			<p class="hint">Press <strong>Start dive</strong> when the diver leaves the wall.</p>
+		{:else if phase === 'diving'}
+			<div class="row">
 				<button
-					class="h-20 w-24 rounded-2xl bg-slate-800 text-sm font-semibold text-slate-200 active:scale-95 disabled:opacity-40"
-					onclick={undoLap}
-					disabled={lapCount === 0}
+					class="btn btn-secondary small"
+					onclick={undoWaypoint}
+					disabled={waypointCount === 0}
 				>
 					Undo
 				</button>
-				<button
-					class="h-20 flex-1 rounded-2xl bg-teal-400 text-2xl font-bold text-slate-900 shadow-lg active:scale-95"
-					onclick={markLap}
-				>
-					LAP
+				<button class="btn btn-primary big" onclick={markWaypoint}>
+					<span class="btn-main">Waypoint {waypointCount + 1}</span>
+					<span class="btn-sub">at {formatMeters(nextWaypointDistanceM)} m</span>
 				</button>
-				<button
-					class="h-20 w-24 rounded-2xl bg-red-500 text-base font-semibold text-white active:scale-95"
-					onclick={stop}
-				>
-					STOP
-				</button>
+				<button class="btn btn-danger small" onclick={stopDive}>Stop dive</button>
 			</div>
+		{:else if phase === 'surface'}
+			<div class="row">
+				<button class="btn btn-danger big" onclick={stopRecording}>■ Stop recording</button>
+			</div>
+			<p class="hint">
+				Dive clock stopped at <strong>{formatMs(diveElapsedMs)}</strong>. Keep the camera on
+				the diver for the surface protocol, then tap <strong>Stop recording</strong>.
+			</p>
 		{:else if phase === 'stopping'}
-			<div class="py-4 text-center text-slate-300">Finalising recording…</div>
+			<div class="center-msg">Finalising recording…</div>
 		{:else}
-			<div class="py-4 text-center text-slate-400">Preparing camera…</div>
+			<div class="center-msg">Preparing camera…</div>
 		{/if}
 
-		{#if phase === 'recording'}
-			{@const summary = summariseTimeline({ ...timeline, diveEndMs: elapsedMs })}
-			<div class="mt-3 text-center text-xs text-slate-400">
+		{#if phase === 'diving' || phase === 'surface'}
+			{@const summary = summariseTimeline({ ...timeline, diveEndMs: diveElapsedMs })}
+			<div class="summary-line">
 				Avg split {summary.avgSplitSeconds.toFixed(1)}s · Avg speed
 				{summary.averageSpeedMs.toFixed(2)} m/s
 			</div>
@@ -386,5 +352,205 @@
 </div>
 
 <style>
-	/* (styles reserved for future tweaks) */
+	.recorder {
+		position: fixed;
+		inset: 0;
+		z-index: 50;
+		display: flex;
+		flex-direction: column;
+		background: #000;
+		color: var(--color-text);
+	}
+
+	.preview {
+		position: relative;
+		flex: 1 1 auto;
+		overflow: hidden;
+		background: #000;
+	}
+	.preview video {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		display: block;
+	}
+
+	.hud {
+		position: absolute;
+		left: 0.75rem;
+		right: 0.75rem;
+		padding: 0.65rem 0.9rem;
+		border-radius: 14px;
+		background: rgba(15, 23, 42, 0.55);
+		backdrop-filter: blur(8px);
+		-webkit-backdrop-filter: blur(8px);
+		color: #f1f5f9;
+		pointer-events: none;
+	}
+	.hud-top {
+		top: max(0.75rem, env(safe-area-inset-top));
+	}
+	.hud-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 1rem;
+	}
+	.hud-cell.right {
+		text-align: right;
+	}
+	.hud-label {
+		font-size: 0.7rem;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: #cbd5e1;
+	}
+	.hud-value {
+		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+		font-size: 1.75rem;
+		font-variant-numeric: tabular-nums;
+		line-height: 1.1;
+	}
+	.hud-sub {
+		display: flex;
+		justify-content: space-between;
+		color: #cbd5e1;
+		font-size: 0.8rem;
+		margin-top: 0.25rem;
+	}
+
+	.overlay {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 1rem;
+		padding: 1.5rem;
+		background: rgba(15, 23, 42, 0.75);
+		color: var(--color-text);
+	}
+	.overlay.error p {
+		color: #fca5a5;
+		text-align: center;
+	}
+
+	.controls {
+		flex: 0 0 auto;
+		background: rgba(15, 23, 42, 0.95);
+		border-top: 1px solid rgba(148, 163, 184, 0.15);
+		padding: 0.9rem 0.9rem calc(1.25rem + env(safe-area-inset-bottom));
+	}
+	.row {
+		display: flex;
+		align-items: stretch;
+		gap: 0.6rem;
+	}
+
+	.btn {
+		font: inherit;
+		border: 1px solid transparent;
+		border-radius: 14px;
+		padding: 0.95rem 1rem;
+		cursor: pointer;
+		transition:
+			transform 0.06s ease,
+			filter 0.12s ease;
+		min-height: 64px;
+		display: inline-flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.1rem;
+	}
+	.btn:active:not(:disabled) {
+		transform: scale(0.97);
+	}
+	.btn:disabled {
+		opacity: 0.45;
+		cursor: not-allowed;
+	}
+	.btn.small {
+		min-width: 96px;
+		flex: 0 0 auto;
+		padding: 0.85rem 0.6rem;
+		font-size: 0.9rem;
+	}
+	.btn.big {
+		flex: 1 1 auto;
+		min-height: 84px;
+		font-size: 1.15rem;
+		font-weight: 700;
+	}
+
+	.btn-primary {
+		background: var(--color-primary);
+		color: #0f172a;
+		flex: 1 1 auto;
+		font-weight: 700;
+		font-size: 1.1rem;
+	}
+	.btn-primary:hover {
+		filter: brightness(1.05);
+	}
+	.btn-primary .btn-main {
+		font-size: 1.2rem;
+		line-height: 1.1;
+	}
+	.btn-primary .btn-sub {
+		font-size: 0.85rem;
+		font-weight: 500;
+		color: #0f172a;
+		opacity: 0.8;
+	}
+
+	.btn-secondary {
+		background: #1e293b;
+		color: var(--color-text);
+		flex: 1 1 auto;
+		font-weight: 600;
+	}
+	.btn-secondary:hover {
+		background: #273244;
+	}
+
+	.btn-danger {
+		background: #ef4444;
+		color: #fff;
+		font-weight: 700;
+	}
+	.btn-danger:hover {
+		filter: brightness(1.05);
+	}
+
+	.btn-record {
+		background: #ef4444;
+		color: #fff;
+		flex: 2 1 auto;
+		font-size: 1.15rem;
+		font-weight: 700;
+		min-height: 72px;
+	}
+	.btn-record:hover {
+		filter: brightness(1.05);
+	}
+
+	.hint {
+		margin: 0.6rem 0 0;
+		text-align: center;
+		color: var(--color-text-muted);
+		font-size: 0.85rem;
+	}
+	.center-msg {
+		padding: 1rem 0;
+		text-align: center;
+		color: var(--color-text-muted);
+	}
+	.summary-line {
+		margin-top: 0.6rem;
+		text-align: center;
+		color: var(--color-text-muted);
+		font-size: 0.8rem;
+	}
 </style>
