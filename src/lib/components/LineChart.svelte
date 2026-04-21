@@ -41,7 +41,8 @@
 		height = 300,
 		yTickFormatter,
 		tooltipValueFormatter,
-		seasonBands = []
+		seasonBands = [],
+		onPointClick
 	}: {
 		data: { labels: string[]; datasets: any[] };
 		title?: string;
@@ -49,6 +50,7 @@
 		yTickFormatter?: (value: number) => string;
 		tooltipValueFormatter?: (value: number) => string;
 		seasonBands?: SeasonBand[];
+		onPointClick?: (datasetIndex: number, index: number) => void;
 	} = $props();
 
 	let canvas: HTMLCanvasElement;
@@ -152,6 +154,16 @@
 			options: {
 				responsive: true,
 				maintainAspectRatio: false,
+				onHover: (event, elements) => {
+					if (!onPointClick) return;
+					const target = event.native?.target as HTMLElement | undefined;
+					if (target) target.style.cursor = elements.length > 0 ? 'pointer' : 'default';
+				},
+				onClick: (_evt, elements) => {
+					if (!onPointClick || elements.length === 0) return;
+					const { datasetIndex, index } = elements[0];
+					onPointClick(datasetIndex, index);
+				},
 				plugins: {
 					title: {
 						display: !!title,

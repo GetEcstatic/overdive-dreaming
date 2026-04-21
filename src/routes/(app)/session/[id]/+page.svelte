@@ -16,6 +16,7 @@
 	import { parseBiometricCsv } from '$lib/utils/biometricCsvParser';
 	import type { RoutineLog, Discipline, BiometricReading } from '$lib/types';
 	import CommentSection from '$lib/components/CommentSection.svelte';
+	import SessionDiveVideos from '$lib/components/SessionDiveVideos.svelte';
 
 	let { data } = $props();
 	let { log, routine, showMenstrualCycleTracking } = $derived(data);
@@ -115,7 +116,7 @@
 	}
 
 	function handleViewAnalytics() {
-		goto(`/analytics?routine=${routine.id}&discipline=${log.disciplineUsed}`);
+		goto(`/routines/${routine.id}/analytics?discipline=${log.disciplineUsed}`);
 	}
 
 	function handleBack() {
@@ -671,6 +672,13 @@
 			{/if}
 		</section>
 	{/if}
+
+	<!-- Dive Videos (dynamic-only) -->
+	<SessionDiveVideos
+		routineLogId={log.id}
+		discipline={log.disciplineUsed}
+		{isOwner}
+	/>
 
 	<!-- Media -->
 	{#if log.thumbnailImageUrl || log.performanceVideoUrl}

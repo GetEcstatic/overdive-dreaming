@@ -33,6 +33,7 @@
 	let defaultSessionVisibility = $state<SessionVisibility>('private');
 	let showMenstrualCycleTracking = $state<boolean>(false);
 	let gender = $state<Gender | undefined>(undefined);
+	let defaultVideoResolution = $state<'720p' | '1080p'>('720p');
 	let settingsSaving = $state(false);
 	let settingsError = $state<string | null>(null);
 
@@ -105,6 +106,36 @@
 		if (settings?.gender) {
 			gender = settings.gender;
 		}
+		if (settings?.defaultVideoResolution) {
+			defaultVideoResolution = settings.defaultVideoResolution;
+		}
+	}
+
+	function buildNextSettings(): UserSettings {
+		return {
+			defaultAnalyticsFilter: defaultFilterKey,
+			defaultTimeframe: defaultTimeframeFallback,
+			defaultSessionVisibility,
+			showMenstrualCycleTracking,
+			gender,
+			defaultVideoResolution
+		};
+	}
+
+	async function handleDefaultVideoResolutionChange() {
+		if (!$user) return;
+		try {
+			settingsSaving = true;
+			settingsError = null;
+			const nextSettings = buildNextSettings();
+			await updateUserSettings($user.uid, nextSettings);
+			updateProfileCache($user.uid, { settings: nextSettings });
+		} catch (error) {
+			console.error('Failed to update settings:', error);
+			settingsError = 'Failed to save settings.';
+		} finally {
+			settingsSaving = false;
+		}
 	}
 
 	function applyProfileCache(entry: { settings?: UserSettings; seasons?: Season[] }) {
@@ -156,7 +187,8 @@
 				defaultTimeframe: defaultTimeframeFallback,
 				defaultSessionVisibility,
 				showMenstrualCycleTracking,
-				gender
+				gender,
+				defaultVideoResolution
 			};
 			await updateUserSettings($user.uid, nextSettings);
 			updateProfileCache($user.uid, { settings: nextSettings });
@@ -178,7 +210,8 @@
 				defaultTimeframe: defaultTimeframeFallback,
 				defaultSessionVisibility,
 				showMenstrualCycleTracking,
-				gender
+				gender,
+				defaultVideoResolution
 			};
 			await updateUserSettings($user.uid, nextSettings);
 			updateProfileCache($user.uid, { settings: nextSettings });
@@ -200,7 +233,8 @@
 				defaultTimeframe: defaultTimeframeFallback,
 				defaultSessionVisibility,
 				showMenstrualCycleTracking,
-				gender
+				gender,
+				defaultVideoResolution
 			};
 			await updateUserSettings($user.uid, nextSettings);
 			updateProfileCache($user.uid, { settings: nextSettings });
@@ -222,7 +256,8 @@
 				defaultTimeframe: defaultTimeframeFallback,
 				defaultSessionVisibility,
 				showMenstrualCycleTracking,
-				gender
+				gender,
+				defaultVideoResolution
 			};
 			await updateUserSettings($user.uid, nextSettings);
 			updateProfileCache($user.uid, { settings: nextSettings });
@@ -503,6 +538,20 @@
 						{/each}
 					</select>
 					<p class="form-hint">Optional. May be used for future analytics and comparisons.</p>
+				</div>
+				<div class="form-group">
+					<label class="form-label" for="video-resolution-select">Dive video resolution</label>
+					<select
+						id="video-resolution-select"
+						class="form-select"
+						bind:value={defaultVideoResolution}
+						onchange={handleDefaultVideoResolutionChange}
+						disabled={settingsSaving}
+					>
+						<option value="720p">720p · smaller files (~22 MB/min)</option>
+						<option value="1080p">1080p · higher quality (~37 MB/min)</option>
+					</select>
+					<p class="form-hint">Used when recording dynamic dive videos. 720p keeps uploads small and is plenty for coaching review.</p>
 				</div>
 			</section>
 		</div>

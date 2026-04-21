@@ -99,6 +99,12 @@ export interface UserSettings {
 	defaultSessionVisibility?: SessionVisibility;
 	showMenstrualCycleTracking?: boolean; // Opt-in to show menstrual cycle day tracking
 	gender?: Gender; // User's gender for analytics/filtering
+	/**
+	 * Default capture resolution for the Dynamic Video feature.
+	 * 720p ≈ 22 MB/min (recommended default); 1080p ≈ 37 MB/min.
+	 * See docs/Dynamic video feature.md §7.
+	 */
+	defaultVideoResolution?: '720p' | '1080p';
 }
 
 export interface User {
@@ -736,3 +742,107 @@ export interface ProcessedRepBiometrics {
 	// Raw readings for this rep (for detailed charts)
 	readings: BiometricReading[];
 }
+
+// ============================================================================
+// DIVE VIDEO (Dynamic video capture feature - see docs/Dynamic video feature.md)
+// ============================================================================
+
+/**
+ * One captured lap event during a dive (a wall-touch tap by the coach).
+ * Times are milliseconds offset from the START of the recording.
+ */
+export interface LapEvent {
+	lapNumber: number;
+	atMs: number;              // ms offset from recording start
+	cumulativeDistanceM: number; // laps * poolLength
+	splitMs: number;           // ms since previous wall tap (or diveStartMs if lap 1)
+}
+
+/**
+ * Free-form event marker on the dive timeline (e.g. turn, SP, note).
+ */
+export interface OverlayEvent {
+	atMs: number;
+	kind: 'marker' | 'note';
+	label?: string;
+}
+
+/**
+ * Structured timeline of a dive recording.
+ * All times are ms offsets from the start of the recording, using a single
+ * monotonic clock (`performance.now()`) to stay in sync with the video track.
+ */
+export interface DiveTimeline {
+	diveStartMs: number;      // when "GO" was pressed (diver left wall)
+	diveEndMs: number;        // when STOP was pressed
+	laps: LapEvent[];
+	events?: OverlayEvent[];
+}
+
+export type DiveVideoOrientation = 'portrait';
+export type DiveVideoAspectRatio = '9:16';
+export type DiveVideoResolution = '720p' | '1080p';
+export type DiveVideoRetentionTier = 'keep-last-5' | 'pinned';
+export type DiveVideoGiftStatus = 'pending' | 'accepted' | 'declined';
+export type DiveVideoDiscipline = 'DYN' | 'DYNB' | 'DNF';
+
+/**
+ * Upload lifecycle state of the video blob itself.
+ * - 'pending': blob lives in IndexedDB, not yet uploaded
+ * - 'uploading': resumable upload in progress
+ * - 'uploaded': available in Firebase Storage
+ * - 'failed': upload failed after retries; user can retry manually
+ */
+export type DiveVideoUploadStatus = 'pending' | 'uploading' | 'uploaded' | 'failed';
+
+/**
+ * A dive video captured in-app. Stored under
+ * `sessions/{sessionId}/videos/{videoId}` with the media blobs in Firebase
+ * Storage. See docs/Dynamic video feature.md.
+ */
+export interface DiveVideo {
+	id: string;
+	sessionId: string;
+	userId: string;            // denormalised owner id (same as ownerId)
+	ownerId: string;           // user who recorded (coach or self-recording athlete)
+	athleteId?: string;        // recipient; equals ownerId when self-recorded
+	giftStatus?: DiveVideoGiftStatus; // only set when ownerId !== athleteId
+
+	routineLogId?: string;
+	diveId?: string;
+	discipline: DiveVideoDiscipline;
+
+	// Storage
+	storagePathClean: string;   // path in Firebase Storage for the raw clip
+	storagePathBurned?: string; // optional overlay-burned export
+	thumbnailPath?: string;
+
+	// Media metadata
+	durationSeconds: number;
+	widthPx: number;
+	heightPx: number;
+	mimeType: string;           // 'video/mp4' | 'video/webm'
+	sizeBytes: number;
+
+	// Recording metadata
+	recordedAt: Timestamp;
+	poolLength: number;         // meters (used to derive distance)
+	deviceLabel?: string;
+	orientation: DiveVideoOrientation;
+	aspectRatio: DiveVideoAspectRatio;
+	resolutionPreset: DiveVideoResolution; // 720p default, 1080p opt-in
+
+	// Retention
+	retentionTier: DiveVideoRetentionTier; // 'pinned' survives the 5-video reaper
+
+	// Upload lifecycle
+	uploadStatus: DiveVideoUploadStatus;
+
+	// Timeline — the key analytics artifact
+	timeline: DiveTimeline;
+
+	createdAt: Timestamp;
+	updatedAt: Timestamp;
+}
+
+export type DiveVideoFormData = Omit<DiveVideo, 'id' | 'createdAt' | 'updatedAt'>;

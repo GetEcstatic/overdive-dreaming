@@ -28,7 +28,8 @@
 		showLegend = true,
 		xTitle,
 		xSecondaryTitle,
-		yTitle
+		yTitle,
+		onPointClick
 	}: {
 		data: { datasets: any[] };
 		height?: number;
@@ -44,6 +45,7 @@
 		xTitle?: string;
 		xSecondaryTitle?: string;
 		yTitle?: string;
+		onPointClick?: (datasetIndex: number, index: number) => void;
 	} = $props();
 
 	let canvas: HTMLCanvasElement;
@@ -119,6 +121,16 @@
 	const applyChartOptions = () => ({
 		responsive: true,
 		maintainAspectRatio: false,
+		onHover: (event: any, elements: any[]) => {
+			if (!onPointClick) return;
+			const target = event.native?.target as HTMLElement | undefined;
+			if (target) target.style.cursor = elements.length > 0 ? 'pointer' : 'default';
+		},
+		onClick: (_evt: any, elements: any[]) => {
+			if (!onPointClick || elements.length === 0) return;
+			const { datasetIndex, index } = elements[0];
+			onPointClick(datasetIndex, index);
+		},
 		plugins: {
 			legend: {
 				display: showLegend,

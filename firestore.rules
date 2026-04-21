@@ -87,5 +87,38 @@ service cloud.firestore {
       allow read: if request.auth != null;
       // TODO: Add admin role check for write access
     }
+
+    // Dive videos (dynamic video capture feature — see docs/Dynamic video feature.md)
+    // Readable by the coach who recorded (ownerId) and by the athlete who is
+    // the intended recipient (athleteId). Writable only by ownerId.
+    match /diveVideos/{videoId} {
+      function isOwner() {
+        return request.auth != null && request.auth.uid == resource.data.ownerId;
+      }
+      function isAthlete() {
+        return request.auth != null &&
+          resource.data.athleteId != null &&
+          request.auth.uid == resource.data.athleteId;
+      }
+
+      // List queries are filtered client-side by ownerId or athleteId.
+      allow list: if request.auth != null;
+      allow get: if isOwner() || isAthlete();
+
+      // Only the owner (coach / self-recording athlete) may create.
+      allow create: if request.auth != null &&
+        request.auth.uid == request.resource.data.ownerId &&
+        request.auth.uid == request.resource.data.userId;
+
+      // Owner can update any field. Athlete can only update `giftStatus`
+      // (accept / decline the gift) and nothing else.
+      allow update: if isOwner() ||
+        (isAthlete() &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['giftStatus', 'updatedAt']));
+
+      // Only the owner can delete. (The retention-reaper Cloud Function runs
+      // with admin privileges and is not constrained by these rules.)
+      allow delete: if isOwner();
+    }
   }
 }

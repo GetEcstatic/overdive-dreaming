@@ -6,7 +6,9 @@
         "git add": true,
         "npx tsc": true,
         "npx firebase": true,
-        "npx tsx": true
+        "npx tsx": true,
+        "lsof": true,
+        "npx svelte-check": true
     },
     "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python"
 }

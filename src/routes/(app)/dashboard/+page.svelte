@@ -5,8 +5,8 @@
 	import { db } from '$lib/firebase';
 	import type { RoutineLog, RoutineTemplate, PersonalBests, Discipline } from '$lib/types';
 	import SessionCard from '$lib/components/SessionCard.svelte';
-	import { getUserPBs, updateUserPB, checkIsPB } from '$lib/utils/personalBests';
-	import { onMount } from 'svelte';
+	import PendingGifts from '$lib/components/PendingGifts.svelte';
+	import { getUserPBs, updateUserPB, checkIsPB } from '$lib/utils/personalBests';	import { onMount } from 'svelte';
 	import { getDashboardCache, updateDashboardCache, type LogWithRoutine } from '$lib/utils/dashboardCache';
 
 	type FeedMode = 'mine' | 'community';
@@ -383,6 +383,9 @@
 	<div class="content-wrapper" bind:this={feedContainer}>
 		<!-- Page Header -->
 		<h1 class="page-heading">Your Freediving Journey</h1>
+
+		<!-- Pending dive-video gifts -->
+		<PendingGifts />
 
 		<!-- Summary Stats Card -->
 		<div class="summary-card">
