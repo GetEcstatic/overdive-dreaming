@@ -33,11 +33,12 @@
 		timeline: DiveTimeline;
 	}
 
-	type Stage = 'record' | 'review' | 'saving' | 'done';
-	let stage = $state<Stage>('record');
+	type Stage = 'setup' | 'record' | 'review' | 'saving' | 'done';
+	let stage = $state<Stage>('setup');
 
 	let poolLength = $state(25);
 	let discipline = $state<DiveVideoDiscipline>('DYN');
+	let plannedReps = $state(0); // 0 = open-ended; >0 shows "Lap X of N" during recording
 	let resolution = $state<DiveVideoResolution>('720p');
 	let resolutionLoaded = $state(false);
 	let pinned = $state(false);
@@ -126,12 +127,90 @@
 	<title>Record dive</title>
 </svelte:head>
 
-{#if stage === 'record'}
+{#if stage === 'setup'}
+	<div class="min-h-screen bg-slate-950 text-white">
+		<div class="mx-auto max-w-md p-4">
+			<h1 class="mb-1 text-2xl font-bold">Record dive</h1>
+			<p class="mb-6 text-sm text-slate-400">
+				Set up the dive, then tap <strong>Start camera</strong> to frame the diver.
+			</p>
+
+			<div class="space-y-5">
+				<label class="block">
+					<span class="text-sm font-medium text-slate-300">Discipline</span>
+					<select
+						bind:value={discipline}
+						class="mt-1 w-full rounded-lg bg-slate-900 p-3 text-base"
+					>
+						<option value="DYN">DYN (with fins)</option>
+						<option value="DYNB">DYNB (bifins)</option>
+						<option value="DNF">DNF (no fins)</option>
+					</select>
+				</label>
+
+				<label class="block">
+					<span class="text-sm font-medium text-slate-300">Pool length (m)</span>
+					<input
+						type="number"
+						min="10"
+						max="100"
+						step="5"
+						bind:value={poolLength}
+						class="mt-1 w-full rounded-lg bg-slate-900 p-3 text-base"
+					/>
+					<span class="mt-1 block text-xs text-slate-500">
+						Each LAP tap adds one pool length to the distance counter.
+					</span>
+				</label>
+
+				<label class="block">
+					<span class="text-sm font-medium text-slate-300">
+						Planned laps (waypoints)
+					</span>
+					<input
+						type="number"
+						min="0"
+						max="99"
+						step="1"
+						bind:value={plannedReps}
+						class="mt-1 w-full rounded-lg bg-slate-900 p-3 text-base"
+					/>
+					<span class="mt-1 block text-xs text-slate-500">
+						Optional. Set the number of laps you expect so the HUD shows
+						"Lap X of N". Leave at 0 to keep it open-ended.
+					</span>
+					{#if plannedReps > 0 && poolLength > 0}
+						<span class="mt-1 block text-xs text-teal-300">
+							Target distance: {plannedReps * poolLength} m
+						</span>
+					{/if}
+				</label>
+			</div>
+
+			<div class="mt-8 flex items-center gap-3">
+				<button
+					class="flex-1 rounded-xl bg-slate-800 py-4 text-base font-semibold text-slate-200 active:scale-95"
+					onclick={() => history.back()}
+				>
+					Cancel
+				</button>
+				<button
+					class="flex-2 rounded-xl bg-teal-400 py-4 text-base font-bold text-slate-900 shadow-lg active:scale-95"
+					onclick={() => (stage = 'record')}
+				>
+					Start camera →
+				</button>
+			</div>
+		</div>
+	</div>
+{:else if stage === 'record'}
 	<DiveRecorder
 		{poolLength}
 		{resolution}
+		{plannedReps}
+		{discipline}
 		onCapture={onCaptured}
-		onCancel={() => history.back()}
+		onCancel={() => (stage = 'setup')}
 	/>
 {:else}
 	<div class="min-h-screen bg-slate-950 text-white">
