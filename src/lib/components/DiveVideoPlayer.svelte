@@ -39,12 +39,18 @@
 	const poolLength: number = $derived(video.poolLength);
 
 	// Live overlay values.
-	const elapsedMs = $derived(Math.max(0, currentMs));
-	const distance = $derived(distanceAt(timeline, elapsedMs, poolLength));
-	const speed = $derived(speedAt(timeline, elapsedMs, poolLength));
+	// `currentMs` is mediaTime relative to the start of the recording. The
+	// recording may include breathe-up footage before the dive begins, so
+	// the HUD Time is offset by `timeline.diveStartMs` and clamped to 0
+	// until the diver has "left the wall".
+	const elapsedMs = $derived(Math.max(0, currentMs - (timeline.diveStartMs ?? 0)));
+	// Distance/speed helpers still key off recording-relative offsets so we
+	// pass the raw `currentMs` through.
+	const distance = $derived(distanceAt(timeline, Math.max(0, currentMs), poolLength));
+	const speed = $derived(speedAt(timeline, Math.max(0, currentMs), poolLength));
 
-	// Lap count shown = laps already completed by this time.
-	const lapsCompleted = $derived(timeline.laps.filter((l) => l.atMs <= elapsedMs).length);
+	// Lap count shown = laps already completed by this point in the recording.
+	const lapsCompleted = $derived(timeline.laps.filter((l) => l.atMs <= currentMs).length);
 
 	const totalDurationMs = $derived(totalTimeMs(timeline) || video.durationSeconds * 1000);
 	const summary = $derived(summariseTimeline(timeline));
@@ -328,7 +334,8 @@
 		ctx.fillStyle = '#f8fafc';
 		ctx.font = `700 ${valueSize}px ui-monospace, SFMono-Regular, Menlo, monospace`;
 		ctx.textAlign = 'left';
-		ctx.fillText(formatMs(atMs), innerX, innerY + labelSize + Math.round(boxH * 0.03));
+		const diveTimeMs = Math.max(0, atMs - (timeline.diveStartMs ?? 0));
+		ctx.fillText(formatMs(diveTimeMs), innerX, innerY + labelSize + Math.round(boxH * 0.03));
 		ctx.textAlign = 'right';
 		ctx.fillText(
 			`${dist.toFixed(1)} m`,

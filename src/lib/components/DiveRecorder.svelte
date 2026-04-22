@@ -3,13 +3,16 @@
   One-screen capture UI for a dynamic dive. See docs/Dynamic video feature.md.
 
   Flow:
-    arming  → camera acquisition
-    ready   → preview shown; "Start dive" arms the clock (recording starts too)
-    diving  → waypoint button advances the timeline by one waypoint-spacing
-              (= poolLength / waypointsPerLap); "Stop dive" ends the dive clock
-              but keeps recording for the surface protocol.
-    surface → dive is over but the MediaRecorder keeps running. "Stop recording"
-              finalises and emits the capture result.
+    arming   → camera acquisition
+    ready    → preview shown; "● Record" starts MediaRecorder so the diver
+               can capture the tail end of their breathe-up.
+    prepping → recording is running, dive clock hasn't started yet.
+               "Start dive" begins the dive (diver leaves the wall).
+    diving   → waypoint button advances the timeline by one waypoint-spacing
+               (= poolLength / waypointsPerLap); "Stop dive" ends the dive
+               clock but keeps recording for the surface protocol.
+    surface  → dive is over but the MediaRecorder keeps running.
+               "Stop recording" finalises and emits the capture result.
 -->
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
@@ -58,7 +61,14 @@
 		onCancel
 	}: Props = $props();
 
-	type Phase = 'arming' | 'ready' | 'diving' | 'surface' | 'stopping' | 'error';
+	type Phase =
+		| 'arming'
+		| 'ready'
+		| 'prepping'
+		| 'diving'
+		| 'surface'
+		| 'stopping'
+		| 'error';
 
 	let phase = $state<Phase>('arming');
 	let errorMessage = $state<string | null>(null);
@@ -82,6 +92,7 @@
 
 	// Clocks — monotonic, relative to the MediaRecorder start.
 	let recordingStartedAtPerfMs = 0;
+	let diveStartedAtPerfMs = 0; // set when the user taps Start dive
 	let diveEndPerfMs = 0; // set when the user taps Stop dive
 
 	let timeline = $state<DiveTimeline>(createEmptyTimeline(0));
@@ -91,9 +102,9 @@
 	let tickHandle: number | null = null;
 
 	const diveElapsedMs = $derived.by(() => {
-		if (phase === 'diving') return Math.max(0, nowMs - recordingStartedAtPerfMs);
+		if (phase === 'diving') return Math.max(0, nowMs - diveStartedAtPerfMs);
 		if (phase === 'surface' || phase === 'stopping')
-			return Math.max(0, diveEndPerfMs - recordingStartedAtPerfMs);
+			return Math.max(0, diveEndPerfMs - diveStartedAtPerfMs);
 		return 0;
 	});
 	const waypointCount = $derived(timeline.laps.length);
@@ -121,9 +132,17 @@
 		}
 		if (phase !== 'diving') return 0;
 		const lastLap = waypointCount === 0 ? null : timeline.laps[waypointCount - 1];
+		// `atMs` is recording-relative; translate to dive-relative using
+		// diveStartedAtPerfMs so the interpolation tracks the dive clock.
+		const baseAtMs =
+			lastLap === null
+				? diveStartedAtPerfMs - recordingStartedAtPerfMs
+				: lastLap.atMs;
 		const baseDistance = lastLap?.cumulativeDistanceM ?? 0;
-		const baseAtMs = lastLap?.atMs ?? 0;
-		const elapsedSinceBaseMs = Math.max(0, nowMs - recordingStartedAtPerfMs - baseAtMs);
+		const elapsedSinceBaseMs = Math.max(
+			0,
+			nowMs - recordingStartedAtPerfMs - baseAtMs
+		);
 		const speed = liveSpeedMs > 0 ? liveSpeedMs : 1;
 		const interpolated = baseDistance + (elapsedSinceBaseMs / 1000) * speed;
 		return Math.min(interpolated, nextWaypointDistanceM);
@@ -174,8 +193,11 @@
 		}
 	}
 
-	/** "Start dive": begin MediaRecorder AND the dive clock at the same instant. */
-	async function startDive(): Promise<void> {
+	/**
+	 * "● Record": begin MediaRecorder so the diver can capture the tail of
+	 * their breathe-up. The dive clock is NOT started yet.
+	 */
+	async function startRecording(): Promise<void> {
 		if (phase !== 'ready' || !acquired) return;
 		try {
 			wakeLock = await requestWakeLock();
@@ -185,14 +207,27 @@
 				timesliceMs: 2000
 			});
 			recordingStartedAtPerfMs = performance.now();
+			// Provisional timeline; diveStartMs will be set when the user
+			// taps "Start dive".
 			timeline = createEmptyTimeline(0);
 			recorder.start();
-			phase = 'diving';
+			phase = 'prepping';
 			startTicking();
 		} catch (err) {
 			errorMessage = err instanceof Error ? err.message : String(err);
 			phase = 'error';
 		}
+	}
+
+	/** "Start dive": the diver has left the wall. Begin the dive clock. */
+	function startDive(): void {
+		if (phase !== 'prepping') return;
+		diveStartedAtPerfMs = performance.now();
+		// Record dive start as an offset from recording start so the
+		// timeline stays in sync with the video's playback clock.
+		const diveStartOffsetMs = diveStartedAtPerfMs - recordingStartedAtPerfMs;
+		timeline = createEmptyTimeline(diveStartOffsetMs);
+		phase = 'diving';
 	}
 
 	function markWaypoint(): void {
@@ -216,11 +251,21 @@
 
 	/** Stop recording: finalise MediaRecorder and emit capture. */
 	async function stopRecording(): Promise<void> {
-		if (phase !== 'diving' && phase !== 'surface') return;
+		if (phase !== 'prepping' && phase !== 'diving' && phase !== 'surface') return;
 		if (!recorder) return;
 		if (phase === 'diving') {
 			diveEndPerfMs = performance.now();
 			timeline = finalizeTimeline(timeline, diveEndPerfMs - recordingStartedAtPerfMs);
+		} else if (phase === 'prepping') {
+			// User bailed before tapping "Start dive". Treat it as a zero-length
+			// dive at the current recording offset so downstream code has sane
+			// diveStart/diveEnd values.
+			diveEndPerfMs = performance.now();
+			const nowOffset = diveEndPerfMs - recordingStartedAtPerfMs;
+			timeline = finalizeTimeline(
+				{ ...timeline, diveStartMs: nowOffset },
+				nowOffset
+			);
 		}
 
 		phase = 'stopping';
@@ -312,6 +357,8 @@
 				<span>
 					{#if phase === 'diving' || phase === 'surface' || phase === 'stopping'}
 						Waypoint {waypointCount}
+					{:else if phase === 'prepping'}
+						● Recording — breathe-up
 					{:else}
 						{discipline} · Pool {poolLength} m
 					{/if}
@@ -321,6 +368,8 @@
 						{liveSpeedMs.toFixed(2)} m/s
 					{:else if phase === 'surface'}
 						Surface protocol
+					{:else if phase === 'prepping'}
+						Tap “Start dive” when leaving the wall
 					{:else}
 						{waypointsPerLap} waypoints/lap · step {formatMeters(waypointSpacing)} m
 					{/if}
@@ -354,7 +403,15 @@
 		{#if phase === 'ready'}
 			<div class="row">
 				<button class="btn btn-secondary" onclick={cancel}>Cancel</button>
-				<button class="btn btn-record" onclick={startDive}>● Start dive</button>
+				<button class="btn btn-record" onclick={startRecording}>● Record</button>
+			</div>
+			<p class="hint">
+				Press <strong>● Record</strong> to start capturing the breathe-up.
+			</p>
+		{:else if phase === 'prepping'}
+			<div class="row">
+				<button class="btn btn-danger small" onclick={stopRecording}>■ Stop</button>
+				<button class="btn btn-record big" onclick={startDive}>▶ Start dive</button>
 			</div>
 			<p class="hint">Press <strong>Start dive</strong> when the diver leaves the wall.</p>
 		{:else if phase === 'diving'}
@@ -387,7 +444,10 @@
 		{/if}
 
 		{#if phase === 'diving' || phase === 'surface'}
-			{@const summary = summariseTimeline({ ...timeline, diveEndMs: diveElapsedMs })}
+			{@const summary = summariseTimeline({
+				...timeline,
+				diveEndMs: timeline.diveStartMs + diveElapsedMs
+			})}
 			<div class="summary-line">
 				Avg split {summary.avgSplitSeconds.toFixed(1)}s · Avg speed
 				{summary.averageSpeedMs.toFixed(2)} m/s
