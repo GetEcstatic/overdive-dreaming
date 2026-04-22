@@ -437,23 +437,21 @@
 	></video>
 
 	{#if showOverlay}
-		<!-- HUD overlay: mirrored layout of the recording HUD for consistency. -->
-		<div
-			class="pointer-events-none absolute inset-x-3 top-3 z-10 rounded-xl bg-slate-900/70 px-4 py-3 text-white shadow-lg ring-1 ring-white/10 backdrop-blur-sm"
-		>
-			<div class="flex items-center justify-between gap-4">
-				<div>
-					<div class="text-[10px] font-semibold uppercase tracking-wider text-slate-300">Time</div>
-					<div class="font-mono text-2xl font-bold leading-tight tabular-nums">{formatMs(elapsedMs)}</div>
+		<!-- HUD overlay: mirrors the recording HUD styling exactly. -->
+		<div class="hud hud-top">
+			<div class="hud-row">
+				<div class="hud-cell">
+					<div class="hud-label">Time</div>
+					<div class="hud-value">{formatMs(elapsedMs)}</div>
 				</div>
-				<div class="text-right">
-					<div class="text-[10px] font-semibold uppercase tracking-wider text-slate-300">Distance</div>
-					<div class="font-mono text-2xl font-bold leading-tight tabular-nums">{distance.toFixed(1)} m</div>
+				<div class="hud-cell right">
+					<div class="hud-label">Distance</div>
+					<div class="hud-value">{distance.toFixed(1)} m</div>
 				</div>
 			</div>
-			<div class="mt-1 flex items-center justify-between text-xs text-slate-300">
+			<div class="hud-sub">
 				<span>Lap {lapsCompleted}/{timeline.laps.length}</span>
-				<span class="font-mono tabular-nums">{speed.toFixed(2)} m/s</span>
+				<span class="hud-speed">{speed.toFixed(2)} m/s</span>
 			</div>
 		</div>
 	{/if}
@@ -528,3 +526,56 @@
 		<p class="mt-2 rounded-md bg-red-500/15 px-3 py-2 text-center text-xs text-red-300">{downloadError}</p>
 	{/if}
 </div>
+
+<style>
+	/* HUD overlay styling mirrors DiveRecorder.svelte so replay matches the
+	   in-camera recording view exactly. */
+	.hud {
+		position: absolute;
+		left: 0.75rem;
+		right: 0.75rem;
+		padding: 0.65rem 0.9rem;
+		border-radius: 14px;
+		background: rgba(15, 23, 42, 0.55);
+		backdrop-filter: blur(8px);
+		-webkit-backdrop-filter: blur(8px);
+		color: #f1f5f9;
+		pointer-events: none;
+		z-index: 10;
+	}
+	.hud-top {
+		top: 0.75rem;
+	}
+	.hud-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 1rem;
+	}
+	.hud-cell.right {
+		text-align: right;
+	}
+	.hud-label {
+		font-size: 0.7rem;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: #cbd5e1;
+	}
+	.hud-value {
+		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+		font-size: 1.75rem;
+		font-variant-numeric: tabular-nums;
+		line-height: 1.1;
+	}
+	.hud-sub {
+		display: flex;
+		justify-content: space-between;
+		color: #cbd5e1;
+		font-size: 0.8rem;
+		margin-top: 0.25rem;
+	}
+	.hud-speed {
+		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+		font-variant-numeric: tabular-nums;
+	}
+</style>
