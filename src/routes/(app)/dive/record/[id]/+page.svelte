@@ -147,7 +147,11 @@
 			}
 
 			stage = 'done';
-			await goto(`/session/${sessionId}?fromVideo=1`);
+			// /session/[id] expects a routineLog id, which doesn't exist yet
+			// for an ad-hoc dynamic dive. Land the user on the feed where the
+			// freshly-uploaded diveVideo shows up; the sessionStorage seed
+			// remains available for a future pre-filled log-form consumer.
+			await goto(`/dashboard?fromVideo=1&session=${sessionId}`);
 		} catch (err) {
 			saveError = err instanceof Error ? err.message : String(err);
 			stage = 'review';

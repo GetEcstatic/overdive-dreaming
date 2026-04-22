@@ -54,6 +54,9 @@ export function liveSpeedMs(state: RecorderState): number {
  * 1 m/s until the first waypoint; thereafter interpolates from the last
  * waypoint using the most recent measured pace. Capped at the next waypoint
  * target so the UI doesn't visibly "jump back" on a late tap.
+ *
+ * Once the dive has ended, the cap is removed and the distance is frozen at
+ * whatever the diver had covered when End-dive was tapped (uncapped).
  */
 export function cumulativeDistanceM(
 	state: RecorderState,
@@ -61,6 +64,22 @@ export function cumulativeDistanceM(
 ): number {
 	const { phase, timeline, clocks } = state;
 	const count = timeline.laps.length;
+
+	if (phase === 'ended' || phase === 'stopping') {
+		// Freeze at dive-end time, interpolated from the last waypoint
+		// without capping — otherwise the reading visibly reverts to the
+		// last waypoint distance when the diver surfaced mid-lap.
+		const lastLap = count === 0 ? null : timeline.laps[count - 1];
+		const baseAtMs =
+			lastLap === null
+				? clocks.diveStartedPerfMs - clocks.recordingStartedPerfMs
+				: lastLap.atMs;
+		const baseDistance = lastLap?.cumulativeDistanceM ?? 0;
+		const endAtMs = clocks.diveEndedPerfMs - clocks.recordingStartedPerfMs;
+		const elapsedSinceBaseMs = Math.max(0, endAtMs - baseAtMs);
+		const speed = liveSpeedMs(state) > 0 ? liveSpeedMs(state) : 1;
+		return baseDistance + (elapsedSinceBaseMs / 1000) * speed;
+	}
 
 	if (phase !== 'diving') {
 		return count === 0 ? 0 : timeline.laps[count - 1].cumulativeDistanceM;

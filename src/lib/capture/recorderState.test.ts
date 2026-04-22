@@ -179,6 +179,20 @@ describe('selectors', () => {
 		expect(cumulativeDistanceM(diving, 1_000_000)).toBeCloseTo(12.5, 5);
 	});
 
+	it('cumulativeDistanceM freezes uncapped at dive-end (no revert to last waypoint)', () => {
+		// Dive-start at 5s, first waypoint at 15s (12.5m at 1.25m/s), end at 18s.
+		// Expected: 12.5 + 1.25 * 3 = 16.25m (NOT 12.5m).
+		const afterWaypoint = recorderReducer(diving, {
+			type: 'waypoint/tapped',
+			atPerfMs: 15000
+		});
+		const ended = recorderReducer(afterWaypoint, {
+			type: 'dive/ended',
+			atPerfMs: 18000
+		});
+		expect(cumulativeDistanceM(ended, 99999)).toBeCloseTo(16.25, 5);
+	});
+
 	it('nextWaypointM steps by spacing after each tap', () => {
 		const s = recorderReducer(diving, {
 			type: 'waypoint/tapped',
