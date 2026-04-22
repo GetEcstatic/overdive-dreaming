@@ -148,18 +148,21 @@
 						{#if isOwner}
 							<div class="video-actions">
 								<button
-									class="btn btn-ghost"
+									class="btn btn-action"
+									class:pinned={video.retentionTier === 'pinned'}
 									disabled={busyVideoId === video.id}
 									onclick={() => handleTogglePin(video)}
 								>
-									{video.retentionTier === 'pinned' ? '📌 Unpin' : '📍 Pin'}
+									<span class="btn-icon">{video.retentionTier === 'pinned' ? '📌' : '📍'}</span>
+									<span class="btn-label">{video.retentionTier === 'pinned' ? 'Unpin' : 'Pin'}</span>
 								</button>
 								<button
-									class="btn btn-ghost danger"
+									class="btn btn-action danger"
 									disabled={busyVideoId === video.id}
 									onclick={() => handleDelete(video)}
 								>
-									Delete
+									<span class="btn-icon">🗑</span>
+									<span class="btn-label">Delete</span>
 								</button>
 							</div>
 						{/if}
@@ -174,7 +177,7 @@
 	.dive-videos-section {
 		background: var(--color-bg-card);
 		border: 1px solid rgba(148, 163, 184, 0.15);
-		border-radius: 12px;
+		border-radius: 16px;
 		padding: 1.25rem;
 		margin-bottom: 1.5rem;
 	}
@@ -184,42 +187,74 @@
 		justify-content: space-between;
 		align-items: center;
 		margin-bottom: 1rem;
-		gap: 0.5rem;
+		gap: 0.75rem;
 	}
 
 	.section-head h2 {
 		margin: 0;
-		font-size: 1.1rem;
+		font-size: 1.15rem;
+		font-weight: 700;
 		color: var(--color-text);
 	}
 
 	.btn {
 		font: inherit;
-		padding: 0.5rem 0.9rem;
-		border-radius: 8px;
+		padding: 0.6rem 1rem;
+		border-radius: 10px;
 		border: 1px solid transparent;
 		cursor: pointer;
+		transition:
+			transform 0.06s ease,
+			filter 0.12s ease,
+			background-color 0.15s ease;
+	}
+	.btn:active:not(:disabled) {
+		transform: scale(0.97);
 	}
 
 	.btn-primary {
 		background: var(--color-primary);
 		color: #0f172a;
-		font-weight: 600;
+		font-weight: 700;
+		padding: 0.7rem 1.1rem;
+		font-size: 0.95rem;
 	}
 
 	.btn-primary:hover {
 		filter: brightness(1.05);
 	}
 
-	.btn-ghost {
-		background: transparent;
-		border-color: rgba(148, 163, 184, 0.25);
-		color: var(--color-text-muted);
+	.btn-action {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		background: rgba(30, 41, 59, 0.85);
+		border-color: rgba(148, 163, 184, 0.2);
+		color: var(--color-text);
+		font-weight: 600;
+		font-size: 0.9rem;
+		padding: 0.65rem 1rem;
+		min-height: 44px;
 	}
-
-	.btn-ghost.danger:hover {
-		color: #ef4444;
+	.btn-action:hover {
+		background: rgba(51, 65, 85, 0.9);
+	}
+	.btn-action.pinned {
+		background: rgba(250, 204, 21, 0.15);
+		border-color: rgba(250, 204, 21, 0.4);
+		color: #fde68a;
+	}
+	.btn-action.danger:hover {
+		background: rgba(239, 68, 68, 0.2);
 		border-color: rgba(239, 68, 68, 0.5);
+		color: #fecaca;
+	}
+	.btn-icon {
+		font-size: 1rem;
+		line-height: 1;
+	}
+	.btn-label {
+		letter-spacing: 0.01em;
 	}
 
 	.btn:disabled {
@@ -238,28 +273,29 @@
 	}
 
 	.status.empty {
-		padding: 1rem;
-		border: 1px dashed rgba(148, 163, 184, 0.2);
-		border-radius: 8px;
+		padding: 1.25rem;
+		border: 1px dashed rgba(148, 163, 184, 0.25);
+		border-radius: 10px;
 		text-align: center;
 	}
 
 	.video-list {
 		display: flex;
 		flex-direction: column;
-		gap: 1rem;
+		gap: 1.5rem;
 	}
 
 	.video-card {
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
+		gap: 0.75rem;
 	}
 
 	.video-actions {
 		display: flex;
-		gap: 0.5rem;
+		gap: 0.6rem;
 		justify-content: flex-end;
+		flex-wrap: wrap;
 	}
 
 	.pending-card {
