@@ -139,6 +139,16 @@ export function distanceAt(
 }
 
 /**
+ * Per-waypoint split row used by the pre-filled dive-log form.
+ */
+export interface LapSplit {
+	lapNumber: number;
+	splitSeconds: number;
+	avgSpeedMs: number;
+	cumulativeDistanceM: number;
+}
+
+/**
  * Derived summary used when persisting the dive as a RoutineLog/Dive.
  */
 export interface TimelineSummary {
@@ -149,6 +159,7 @@ export interface TimelineSummary {
 	avgSplitSeconds: number;
 	fastestLapSeconds: number | null;
 	slowestLapSeconds: number | null;
+	perLap: LapSplit[];
 }
 
 export function summariseTimeline(timeline: DiveTimeline): TimelineSummary {
@@ -161,6 +172,18 @@ export function summariseTimeline(timeline: DiveTimeline): TimelineSummary {
 	const fastest = splitSecs.length ? Math.min(...splitSecs) : null;
 	const slowest = splitSecs.length ? Math.max(...splitSecs) : null;
 
+	const perLap: LapSplit[] = timeline.laps.map((lap, i) => {
+		const prevDistance = i === 0 ? 0 : timeline.laps[i - 1].cumulativeDistanceM;
+		const lapDistance = lap.cumulativeDistanceM - prevDistance;
+		const splitSeconds = lap.splitMs / 1000;
+		return {
+			lapNumber: lap.lapNumber,
+			splitSeconds,
+			avgSpeedMs: splitSeconds > 0 ? lapDistance / splitSeconds : 0,
+			cumulativeDistanceM: lap.cumulativeDistanceM
+		};
+	});
+
 	return {
 		totalTimeSeconds: totalMs / 1000,
 		totalDistanceM: distance,
@@ -168,6 +191,7 @@ export function summariseTimeline(timeline: DiveTimeline): TimelineSummary {
 		lapCount,
 		avgSplitSeconds: avgSplit,
 		fastestLapSeconds: fastest,
-		slowestLapSeconds: slowest
+		slowestLapSeconds: slowest,
+		perLap
 	};
 }

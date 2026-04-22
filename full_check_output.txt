@@ -1,0 +1,919 @@
+
+> overdive-dreaming@1.0.0 check
+> svelte-kit sync && svelte-check --tsconfig ./tsconfig.json
+
+Loading svelte-check in workspace: /Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming
+Getting Svelte diagnostics...
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/firestore.ts:130:4
+Error: Object literal may only specify known properties, and 'trackJoy' does not exist in type 'TrackingConfig'. 
+			trackRPE: false,
+			trackJoy: false,
+			trackSpO2: false,
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/firestore.ts:135:4
+Error: Type '"date"' is not assignable to type 'MetricType'. 
+		displayConfig: {
+			heroMetric: 'date',
+			heroMetricLabel: 'Date',
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/QuickLogForm.svelte:118:42
+Warn: This reference only captures the initial value of `routine`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally (svelte)
+	// Form state - use effect to sync initial value from routine prop
+	let disciplineUsed = $state<Discipline>(routine.disciplines[0]);
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/QuickLogForm.svelte:147:45
+Warn: This reference only captures the initial value of `defaultVisibility`. Did you mean to reference it inside a closure instead?
+https://svelte.dev/e/state_referenced_locally (svelte)
+	let recordTag = $state<RecordTag | undefined>(undefined);
+	let visibility = $state<SessionVisibility>(defaultVisibility);
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/QuickLogForm.svelte:157:37
+Warn: This reference only captures the initial value of `routine`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally (svelte)
+	let supportsBiometrics = $derived(routine.trackingConfig.trackPerRepSpO2 || routine.trackingConfig.trackPerRepHR || routine.trackingConfig.isDryTraining);
+	let isDrySession = $state<boolean>(routine.trackingConfig.isDryTraining ?? false);
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/QuickLogForm.svelte:181:49
+Warn: This reference only captures the initial value of `defaultRepsCompleted`. Did you mean to reference it inside a closure instead?
+https://svelte.dev/e/state_referenced_locally (svelte)
+	let totalTimeSeconds = $state<number | undefined>(undefined); // in seconds
+	let repsCompleted = $state<number | undefined>(defaultRepsCompleted);
+	let repDurationSeconds = $state<number | undefined>(avgRepDuration); // in seconds
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/QuickLogForm.svelte:182:54
+Warn: This reference only captures the initial value of `avgRepDuration`. Did you mean to reference it inside a closure instead?
+https://svelte.dev/e/state_referenced_locally (svelte)
+	let repsCompleted = $state<number | undefined>(defaultRepsCompleted);
+	let repDurationSeconds = $state<number | undefined>(avgRepDuration); // in seconds
+	let repDistance = $state<number | undefined>(undefined);
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/QuickLogForm.svelte:659:5
+Warn: A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control (svelte)
+			<div class="field-group">
+				<label class="field-label">Session Tags</label>
+				<div class="tag-row">
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/QuickLogForm.svelte:725:4
+Warn: A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control (svelte)
+		<div class="field-group">
+			<label class="field-label">Visibility</label>
+			<div class="tag-row">
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/QuickLogForm.svelte:751:4
+Warn: A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control (svelte)
+		<div class="form-section">
+			<label class="section-label">Discipline *</label>
+			<div class="discipline-buttons">
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/QuickLogForm.svelte:770:4
+Warn: A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control (svelte)
+		<div class="form-section">
+			<label class="section-label">Tags</label>
+			<p class="section-hint">Select any that apply to this session</p>
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/QuickLogForm.svelte:1229:6
+Warn: A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control (svelte)
+				<div class="field-group">
+					<label class="field-label">Facial Gear Used</label>
+					<div class="checkbox-group">
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/QuickLogForm.svelte:1555:4
+Warn: A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control (svelte)
+		<div class="field-group">
+			<label class="field-label">Session Photo</label>
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/QuickLogForm.svelte:1805:2
+Warn: Unused CSS selector ".time-input"
+https://svelte.dev/e/css_unused_selector (svelte)
+	/* Time Input (mm:ss) */
+	.time-input {
+		display: flex;
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/QuickLogForm.svelte:1811:2
+Warn: Unused CSS selector ".time-part"
+https://svelte.dev/e/css_unused_selector (svelte)
+
+	.time-part {
+		flex: 1;
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/QuickLogForm.svelte:1815:2
+Warn: Unused CSS selector ".time-separator"
+https://svelte.dev/e/css_unused_selector (svelte)
+
+	.time-separator {
+		color: var(--color-text-muted);
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/QuickLogForm.svelte:2134:2
+Warn: Unused CSS selector ".field-hint-inline"
+https://svelte.dev/e/css_unused_selector (svelte)
+
+	.field-hint-inline {
+		font-size: 0.75rem;
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/QuickLogForm.svelte:2264:2
+Warn: Unused CSS selector ".spo2-value.critical"
+https://svelte.dev/e/css_unused_selector (svelte)
+
+	.spo2-value.critical {
+		color: #ef4444;
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/QuickLogForm.svelte:2268:2
+Warn: Unused CSS selector ".spo2-value.extreme"
+https://svelte.dev/e/css_unused_selector (svelte)
+
+	.spo2-value.extreme {
+		color: #d946ef;
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/MediaManager.svelte:18:51
+Warn: This reference only captures the initial value of `existingPhotoUrl`. Did you mean to reference it inside a closure instead?
+https://svelte.dev/e/state_referenced_locally (svelte)
+	let sourcePhotoFile = $state<File | undefined>(undefined);
+	let photoPreviewUrl = $state<string | undefined>(existingPhotoUrl);
+	let showPhotoUpload = $state(!existingPhotoUrl);
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/MediaManager.svelte:19:32
+Warn: This reference only captures the initial value of `existingPhotoUrl`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally (svelte)
+	let photoPreviewUrl = $state<string | undefined>(existingPhotoUrl);
+	let showPhotoUpload = $state(!existingPhotoUrl);
+	let showCropper = $state(false);
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/MediaManager.svelte:34:34
+Warn: This reference only captures the initial value of `existingYoutubeUrl`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally (svelte)
+	// YouTube state
+	let youtubeUrl = $state<string>(existingYoutubeUrl || '');
+	let youtubeError = $state<string | null>(null);
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/MediaManager.svelte:36:33
+Warn: This reference only captures the initial value of `existingYoutubeUrl`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally (svelte)
+	let youtubeError = $state<string | null>(null);
+	let showYoutubeInput = $state(!existingYoutubeUrl);
+	let isEditingYoutube = $state(false);
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/MediaManager.svelte:148:3
+Warn: A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control (svelte)
+	<div class="field-group">
+		<label class="field-label">Session Photo (Optional)</label>
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/MediaManager.svelte:159:5
+Warn: Screenreaders already announce `<img>` elements as an image
+https://svelte.dev/e/a11y_img_redundant_alt (svelte)
+			<div class="photo-preview">
+				<img src={photoPreviewUrl} alt="Session photo" class="preview-image" />
+				<div class="photo-actions">
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/MediaManager.svelte:185:3
+Warn: A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control (svelte)
+	<div class="field-group">
+		<label class="field-label">YouTube Video URL (Optional)</label>
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/EditableLogForm.svelte:41:40
+Warn: This reference only captures the initial value of `initialData`. Did you mean to reference it inside a closure instead?
+https://svelte.dev/e/state_referenced_locally (svelte)
+	// Pre-populate from initialData
+	const formData = routineLogToFormData(initialData);
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/EditableLogForm.svelte:69:23
+Warn: This reference only captures the initial value of `routine`. Did you mean to reference it inside a closure instead?
+https://svelte.dev/e/state_referenced_locally (svelte)
+	// Check if this is an STA routine - show wet/dry toggle for all STA routines
+	const isSTARoutine = routine.disciplines.includes('STA');
+	// Initialize from existing log data or routine default
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/EditableLogForm.svelte:71:37
+Warn: This reference only captures the initial value of `initialData`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally (svelte)
+	// Initialize from existing log data or routine default
+	let isDrySession = $state<boolean>(initialData.isDrySession ?? routine.trackingConfig.isDryTraining ?? false);
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/EditableLogForm.svelte:71:65
+Warn: This reference only captures the initial value of `routine`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally (svelte)
+	// Initialize from existing log data or routine default
+	let isDrySession = $state<boolean>(initialData.isDrySession ?? routine.trackingConfig.isDryTraining ?? false);
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/EditableLogForm.svelte:365:17
+Warn: This reference only captures the initial value of `routine`. Did you mean to reference it inside a closure instead?
+https://svelte.dev/e/state_referenced_locally (svelte)
+
+	const config = routine.trackingConfig;
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/EditableLogForm.svelte:475:4
+Warn: A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control (svelte)
+		<div class="field-group">
+			<label class="field-label">Session Tags</label>
+			<div class="tag-row">
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/EditableLogForm.svelte:540:4
+Warn: A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control (svelte)
+		<div class="field-group">
+			<label class="field-label">Visibility</label>
+			<div class="tag-row">
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/EditableLogForm.svelte:568:5
+Warn: A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control (svelte)
+				<!-- Locked discipline display -->
+				<label class="section-label">Discipline (locked)</label>
+				<div class="discipline-locked">
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/EditableLogForm.svelte:575:5
+Warn: A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control (svelte)
+				<!-- Editable discipline selector -->
+				<label class="section-label">Discipline *</label>
+				<div class="discipline-buttons">
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/EditableLogForm.svelte:593:4
+Warn: A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control (svelte)
+		<div class="form-section">
+			<label class="section-label">Discipline (locked)</label>
+			<div class="discipline-locked">
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/EditableLogForm.svelte:621:6
+Warn: A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control (svelte)
+				<div class="field-group">
+					<label class="field-label">Initial Breathe-Up</label>
+					<DurationInput
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/EditableLogForm.svelte:652:6
+Warn: A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control (svelte)
+				<div class="field-group">
+					<label class="field-label">Total Time</label>
+					<DurationInput
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/EditableLogForm.svelte:674:6
+Warn: A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control (svelte)
+				<div class="field-group">
+					<label class="field-label">Rep Duration (target: 1:30)</label>
+					<DurationInput
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/EditableLogForm.svelte:799:6
+Warn: A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control (svelte)
+				<div class="field-group">
+					<label class="field-label">Contractions Onset Time</label>
+					<DurationInput
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/EditableLogForm.svelte:908:6
+Warn: A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control (svelte)
+				<div class="field-group">
+					<label class="field-label">Facial Gear Used</label>
+					<div class="checkbox-group">
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/EditableLogForm.svelte:1674:2
+Warn: Unused CSS selector ".summary-value.spo2-value.critical"
+https://svelte.dev/e/css_unused_selector (svelte)
+
+	.summary-value.spo2-value.critical {
+		color: #ef4444;
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/EditableLogForm.svelte:1678:2
+Warn: Unused CSS selector ".summary-value.spo2-value.extreme"
+https://svelte.dev/e/css_unused_selector (svelte)
+
+	.summary-value.spo2-value.extreme {
+		color: #d946ef;
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/EditRoutineLogModal.svelte:251:3
+Warn: Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events (svelte)
+	<div class="modal-backdrop" onclick={handleBackdropClick} role="presentation">
+		<div
+			bind:this={modalElement}
+			class="modal-content"
+			onclick={(e) => e.stopPropagation()}
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="modal-title"
+			tabindex="-1"
+		>
+			<!-- Header -->
+			<div class="modal-header">
+				<h2 id="modal-title" class="modal-title">Edit {routine.name}</h2>
+				<button
+					type="button"
+					onclick={handleCloseClick}
+					class="close-button"
+					aria-label="Close modal"
+					disabled={isSaving}
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						width="24"
+						height="24"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					>
+						<line x1="18" y1="6" x2="6" y2="18"></line>
+						<line x1="6" y1="6" x2="18" y2="18"></line>
+					</svg>
+				</button>
+			</div>
+
+			<!-- Error Banner -->
+			{#if saveError}
+				<div class="error-banner">
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						width="20"
+						height="20"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					>
+						<circle cx="12" cy="12" r="10"></circle>
+						<line x1="12" y1="8" x2="12" y2="12"></line>
+						<line x1="12" y1="16" x2="12.01" y2="16"></line>
+					</svg>
+					<span>{saveError}</span>
+				</div>
+			{/if}
+
+			<!-- Scrollable Content -->
+			<div class="modal-body">
+				<EditableLogForm
+					{routine}
+					initialData={log}
+					mode="edit"
+					{showMenstrualCycleTracking}
+					onSubmit={handleSubmit}
+					onCancel={handleCloseClick}
+				/>
+			</div>
+
+			<!-- Loading Overlay -->
+			{#if isSaving}
+				<div class="loading-overlay">
+					<div class="loading-spinner"></div>
+					<p class="loading-text">Saving changes...</p>
+				</div>
+			{/if}
+		</div>
+	</div>
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/LineChart.svelte:246:2
+Warn: Using `on:pointermove` to listen to the pointermove event is deprecated. Use the event attribute `onpointermove` instead
+https://svelte.dev/e/event_directive_deprecated (svelte)
+	style="height: {height}px;"
+	on:pointermove={handlePointerMove}
+	on:pointerdown={handlePointerMove}
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/LineChart.svelte:247:2
+Warn: Using `on:pointerdown` to listen to the pointerdown event is deprecated. Use the event attribute `onpointerdown` instead
+https://svelte.dev/e/event_directive_deprecated (svelte)
+	on:pointermove={handlePointerMove}
+	on:pointerdown={handlePointerMove}
+	on:pointerleave={handlePointerLeave}
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/LineChart.svelte:248:2
+Warn: Using `on:pointerleave` to listen to the pointerleave event is deprecated. Use the event attribute `onpointerleave` instead
+https://svelte.dev/e/event_directive_deprecated (svelte)
+	on:pointerdown={handlePointerMove}
+	on:pointerleave={handlePointerLeave}
+>
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/RoutineSelector.svelte:186:3
+Warn: Also define the standard property 'line-clamp' for compatibility (css)
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		-webkit-box-orient: vertical;
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/SessionCard.svelte:216:28
+Warn: This reference only captures the initial value of `log`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally (svelte)
+	let showComments = $state(false);
+	let commentCount = $state(log.commentCount ?? 0);
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/SessionCard.svelte:369:4
+Warn: Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events (svelte)
+		{#if showFlowList}
+			<div class="flow-popover" onclick={(event) => event.stopPropagation()}>
+				<div class="flow-popover-header">
+					<span>Flows</span>
+					<button type="button" class="flow-close" onclick={closeFlowList}>×</button>
+				</div>
+				{#if flowLoading}
+					<div class="flow-status">Loading...</div>
+				{:else if flowError}
+					<div class="flow-status error">{flowError}</div>
+				{:else if flowProfiles.length === 0}
+					<div class="flow-status">No flows yet</div>
+				{:else}
+					<div class="flow-list">
+						{#each flowProfiles as profile}
+							<div class="flow-item">{profile.displayName}</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
+		{/if}
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/SessionCard.svelte:369:4
+Warn: `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions (svelte)
+		{#if showFlowList}
+			<div class="flow-popover" onclick={(event) => event.stopPropagation()}>
+				<div class="flow-popover-header">
+					<span>Flows</span>
+					<button type="button" class="flow-close" onclick={closeFlowList}>×</button>
+				</div>
+				{#if flowLoading}
+					<div class="flow-status">Loading...</div>
+				{:else if flowError}
+					<div class="flow-status error">{flowError}</div>
+				{:else if flowProfiles.length === 0}
+					<div class="flow-status">No flows yet</div>
+				{:else}
+					<div class="flow-list">
+						{#each flowProfiles as profile}
+							<div class="flow-item">{profile.displayName}</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
+		{/if}
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/analytics/RPEZoneChart.svelte:26:6
+Warn: `canvas` is updated, but is not declared with `$state(...)`. Changing its value will not correctly trigger updates
+https://svelte.dev/e/non_reactive_update (svelte)
+	let selectedMetric = $state<'distance' | 'time'>('distance');
+	let canvas: HTMLCanvasElement;
+	let chart: Chart | null = null;
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/routine-builder/simplified/HybridConfig.svelte:466:2
+Warn: Unused CSS selector ".position-grid"
+https://svelte.dev/e/css_unused_selector (svelte)
+	/* Position Grid */
+	.position-grid {
+		display: grid;
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/routine-builder/simplified/HybridConfig.svelte:472:2
+Warn: Unused CSS selector ".position-btn"
+https://svelte.dev/e/css_unused_selector (svelte)
+
+	.position-btn {
+		display: flex;
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/routine-builder/simplified/HybridConfig.svelte:484:2
+Warn: Unused CSS selector ".position-btn:hover"
+https://svelte.dev/e/css_unused_selector (svelte)
+
+	.position-btn:hover {
+		border-color: rgba(20, 184, 166, 0.4);
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/routine-builder/simplified/HybridConfig.svelte:488:2
+Warn: Unused CSS selector ".position-btn.active"
+https://svelte.dev/e/css_unused_selector (svelte)
+
+	.position-btn.active {
+		border-color: var(--color-primary);
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/routine-builder/simplified/HybridConfig.svelte:493:2
+Warn: Unused CSS selector ".pos-icon"
+https://svelte.dev/e/css_unused_selector (svelte)
+
+	.pos-icon {
+		font-size: 1.5rem;
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/routine-builder/simplified/HybridConfig.svelte:498:2
+Warn: Unused CSS selector ".pos-label"
+https://svelte.dev/e/css_unused_selector (svelte)
+
+	.pos-label {
+		font-size: 0.9rem;
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/routine-builder/simplified/HybridConfig.svelte:504:2
+Warn: Unused CSS selector ".pos-desc"
+https://svelte.dev/e/css_unused_selector (svelte)
+
+	.pos-desc {
+		font-size: 0.65rem;
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/routine-builder/simplified/ReviewStep.svelte:599:2
+Warn: Unused CSS selector ".preset-badge"
+https://svelte.dev/e/css_unused_selector (svelte)
+
+	.preset-badge {
+		font-size: 0.85rem;
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/routine-builder/SimplifiedRoutineBuilder.svelte:55:22
+Warn: This reference only captures the initial value of `duplicateFrom`. Did you mean to reference it inside a closure instead?
+https://svelte.dev/e/state_referenced_locally (svelte)
+	// These are intentionally captured once - the component creates a new routine from this data
+	const _sourceData = duplicateFrom || initialData;
+	const _isEditing = !!routineId && !!initialData;
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/routine-builder/SimplifiedRoutineBuilder.svelte:55:39
+Warn: This reference only captures the initial value of `initialData`. Did you mean to reference it inside a closure instead?
+https://svelte.dev/e/state_referenced_locally (svelte)
+	// These are intentionally captured once - the component creates a new routine from this data
+	const _sourceData = duplicateFrom || initialData;
+	const _isEditing = !!routineId && !!initialData;
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/routine-builder/SimplifiedRoutineBuilder.svelte:56:23
+Warn: This reference only captures the initial value of `routineId`. Did you mean to reference it inside a closure instead?
+https://svelte.dev/e/state_referenced_locally (svelte)
+	const _sourceData = duplicateFrom || initialData;
+	const _isEditing = !!routineId && !!initialData;
+	const _isDuplicating = !!duplicateFrom;
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/routine-builder/SimplifiedRoutineBuilder.svelte:56:38
+Warn: This reference only captures the initial value of `initialData`. Did you mean to reference it inside a closure instead?
+https://svelte.dev/e/state_referenced_locally (svelte)
+	const _sourceData = duplicateFrom || initialData;
+	const _isEditing = !!routineId && !!initialData;
+	const _isDuplicating = !!duplicateFrom;
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/lib/components/routine-builder/SimplifiedRoutineBuilder.svelte:57:27
+Warn: This reference only captures the initial value of `duplicateFrom`. Did you mean to reference it inside a closure instead?
+https://svelte.dev/e/state_referenced_locally (svelte)
+	const _isEditing = !!routineId && !!initialData;
+	const _isDuplicating = !!duplicateFrom;
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/routes/(app)/+layout.svelte:67:4
+Warn: Using `<slot>` to render parent content is deprecated. Use `{@render ...}` tags instead
+https://svelte.dev/e/slot_element_deprecated (svelte)
+		<div class="pb-16">
+			<slot />
+		</div>
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/routes/(app)/analytics/+page.svelte:926:2
+Warn: Unused CSS selector ".card-header"
+https://svelte.dev/e/css_unused_selector (svelte)
+
+	.card-header {
+		display: flex;
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/routes/(app)/analytics/+page.svelte:935:2
+Warn: Unused CSS selector ".card-header h2"
+https://svelte.dev/e/css_unused_selector (svelte)
+
+	.card-header h2 {
+		margin-bottom: 0;
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/routes/(app)/analytics/+page.svelte:939:2
+Warn: Unused CSS selector ".card-header .metric-toggle-row"
+https://svelte.dev/e/css_unused_selector (svelte)
+
+	.card-header .metric-toggle-row {
+		margin-top: 0;
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/routes/(app)/routines/+page.svelte:340:2
+Warn: Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events (svelte)
+{#if sendModalOpen}
+	<div class="modal-backdrop" onclick={closeSendModal}>
+		<div class="modal-panel" onclick={(event) => event.stopPropagation()}>
+			<h3 class="modal-title">Send routine</h3>
+			<p class="modal-subtitle">
+				{sendingRoutine ? `Send "${sendingRoutine.name}" to a user.` : 'Choose a user to send this routine.'}
+			</p>
+
+			<div class="modal-field">
+				<label class="field-label" for="sendSearch">Search by display name</label>
+				<input
+					id="sendSearch"
+					class="field-input"
+					type="text"
+					placeholder="Start typing a name..."
+					bind:value={sendQuery}
+					oninput={handleSearchInput}
+				/>
+				{#if searchLoading}
+					<p class="field-hint">Searching...</p>
+				{:else if searchError}
+					<p class="field-error">{searchError}</p>
+				{/if}
+			</div>
+
+			<div class="results-list">
+				{#if sendQuery.trim().length < 2}
+					<p class="results-empty">Type at least 2 characters to search.</p>
+				{:else if !searchLoading && searchResults.length === 0}
+					<p class="results-empty">No users found.</p>
+				{:else}
+					{#each searchResults as profile}
+						<button
+							type="button"
+							class="result-row"
+							class:selected={selectedRecipient?.userId === profile.userId}
+							onclick={() => (selectedRecipient = profile)}
+						>
+							{#if profile.photoURL}
+								<img src={profile.photoURL} alt={profile.displayName} class="result-avatar" />
+							{:else}
+								<div class="result-avatar placeholder">
+									{profile.displayName.charAt(0)}
+								</div>
+							{/if}
+							<span class="result-name">{profile.displayName}</span>
+						</button>
+					{/each}
+				{/if}
+			</div>
+
+			<div class="modal-actions">
+				<button type="button" class="btn-secondary" onclick={closeSendModal}>Cancel</button>
+				<button
+					type="button"
+					class="btn-primary"
+					onclick={handleSendRoutine}
+					disabled={!selectedRecipient || isSending}
+				>
+					{isSending ? 'Sending...' : 'Send routine'}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/routes/(app)/routines/+page.svelte:340:2
+Warn: `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions (svelte)
+{#if sendModalOpen}
+	<div class="modal-backdrop" onclick={closeSendModal}>
+		<div class="modal-panel" onclick={(event) => event.stopPropagation()}>
+			<h3 class="modal-title">Send routine</h3>
+			<p class="modal-subtitle">
+				{sendingRoutine ? `Send "${sendingRoutine.name}" to a user.` : 'Choose a user to send this routine.'}
+			</p>
+
+			<div class="modal-field">
+				<label class="field-label" for="sendSearch">Search by display name</label>
+				<input
+					id="sendSearch"
+					class="field-input"
+					type="text"
+					placeholder="Start typing a name..."
+					bind:value={sendQuery}
+					oninput={handleSearchInput}
+				/>
+				{#if searchLoading}
+					<p class="field-hint">Searching...</p>
+				{:else if searchError}
+					<p class="field-error">{searchError}</p>
+				{/if}
+			</div>
+
+			<div class="results-list">
+				{#if sendQuery.trim().length < 2}
+					<p class="results-empty">Type at least 2 characters to search.</p>
+				{:else if !searchLoading && searchResults.length === 0}
+					<p class="results-empty">No users found.</p>
+				{:else}
+					{#each searchResults as profile}
+						<button
+							type="button"
+							class="result-row"
+							class:selected={selectedRecipient?.userId === profile.userId}
+							onclick={() => (selectedRecipient = profile)}
+						>
+							{#if profile.photoURL}
+								<img src={profile.photoURL} alt={profile.displayName} class="result-avatar" />
+							{:else}
+								<div class="result-avatar placeholder">
+									{profile.displayName.charAt(0)}
+								</div>
+							{/if}
+							<span class="result-name">{profile.displayName}</span>
+						</button>
+					{/each}
+				{/if}
+			</div>
+
+			<div class="modal-actions">
+				<button type="button" class="btn-secondary" onclick={closeSendModal}>Cancel</button>
+				<button
+					type="button"
+					class="btn-primary"
+					onclick={handleSendRoutine}
+					disabled={!selectedRecipient || isSending}
+				>
+					{isSending ? 'Sending...' : 'Send routine'}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/routes/(app)/routines/+page.svelte:341:3
+Warn: Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events (svelte)
+	<div class="modal-backdrop" onclick={closeSendModal}>
+		<div class="modal-panel" onclick={(event) => event.stopPropagation()}>
+			<h3 class="modal-title">Send routine</h3>
+			<p class="modal-subtitle">
+				{sendingRoutine ? `Send "${sendingRoutine.name}" to a user.` : 'Choose a user to send this routine.'}
+			</p>
+
+			<div class="modal-field">
+				<label class="field-label" for="sendSearch">Search by display name</label>
+				<input
+					id="sendSearch"
+					class="field-input"
+					type="text"
+					placeholder="Start typing a name..."
+					bind:value={sendQuery}
+					oninput={handleSearchInput}
+				/>
+				{#if searchLoading}
+					<p class="field-hint">Searching...</p>
+				{:else if searchError}
+					<p class="field-error">{searchError}</p>
+				{/if}
+			</div>
+
+			<div class="results-list">
+				{#if sendQuery.trim().length < 2}
+					<p class="results-empty">Type at least 2 characters to search.</p>
+				{:else if !searchLoading && searchResults.length === 0}
+					<p class="results-empty">No users found.</p>
+				{:else}
+					{#each searchResults as profile}
+						<button
+							type="button"
+							class="result-row"
+							class:selected={selectedRecipient?.userId === profile.userId}
+							onclick={() => (selectedRecipient = profile)}
+						>
+							{#if profile.photoURL}
+								<img src={profile.photoURL} alt={profile.displayName} class="result-avatar" />
+							{:else}
+								<div class="result-avatar placeholder">
+									{profile.displayName.charAt(0)}
+								</div>
+							{/if}
+							<span class="result-name">{profile.displayName}</span>
+						</button>
+					{/each}
+				{/if}
+			</div>
+
+			<div class="modal-actions">
+				<button type="button" class="btn-secondary" onclick={closeSendModal}>Cancel</button>
+				<button
+					type="button"
+					class="btn-primary"
+					onclick={handleSendRoutine}
+					disabled={!selectedRecipient || isSending}
+				>
+					{isSending ? 'Sending...' : 'Send routine'}
+				</button>
+			</div>
+		</div>
+	</div>
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/routes/(app)/routines/+page.svelte:341:3
+Warn: `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions (svelte)
+	<div class="modal-backdrop" onclick={closeSendModal}>
+		<div class="modal-panel" onclick={(event) => event.stopPropagation()}>
+			<h3 class="modal-title">Send routine</h3>
+			<p class="modal-subtitle">
+				{sendingRoutine ? `Send "${sendingRoutine.name}" to a user.` : 'Choose a user to send this routine.'}
+			</p>
+
+			<div class="modal-field">
+				<label class="field-label" for="sendSearch">Search by display name</label>
+				<input
+					id="sendSearch"
+					class="field-input"
+					type="text"
+					placeholder="Start typing a name..."
+					bind:value={sendQuery}
+					oninput={handleSearchInput}
+				/>
+				{#if searchLoading}
+					<p class="field-hint">Searching...</p>
+				{:else if searchError}
+					<p class="field-error">{searchError}</p>
+				{/if}
+			</div>
+
+			<div class="results-list">
+				{#if sendQuery.trim().length < 2}
+					<p class="results-empty">Type at least 2 characters to search.</p>
+				{:else if !searchLoading && searchResults.length === 0}
+					<p class="results-empty">No users found.</p>
+				{:else}
+					{#each searchResults as profile}
+						<button
+							type="button"
+							class="result-row"
+							class:selected={selectedRecipient?.userId === profile.userId}
+							onclick={() => (selectedRecipient = profile)}
+						>
+							{#if profile.photoURL}
+								<img src={profile.photoURL} alt={profile.displayName} class="result-avatar" />
+							{:else}
+								<div class="result-avatar placeholder">
+									{profile.displayName.charAt(0)}
+								</div>
+							{/if}
+							<span class="result-name">{profile.displayName}</span>
+						</button>
+					{/each}
+				{/if}
+			</div>
+
+			<div class="modal-actions">
+				<button type="button" class="btn-secondary" onclick={closeSendModal}>Cancel</button>
+				<button
+					type="button"
+					class="btn-primary"
+					onclick={handleSendRoutine}
+					disabled={!selectedRecipient || isSending}
+				>
+					{isSending ? 'Sending...' : 'Send routine'}
+				</button>
+			</div>
+		</div>
+	</div>
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/routes/(app)/session/[id]/+page.svelte:689:6
+Warn: Screenreaders already announce `<img>` elements as an image
+https://svelte.dev/e/a11y_img_redundant_alt (svelte)
+				<div class="session-photo">
+					<img src={log.thumbnailImageUrl} alt="Session photo" />
+				</div>
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/routes/(app)/session/[id]/+page.svelte:750:3
+Warn: Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events (svelte)
+	>
+		<div class="modal-content" onclick={(e) => e.stopPropagation()}>
+			<h2 class="modal-title" id="delete-dialog-title">Delete Session?</h2>
+			<p class="modal-message">
+				This will permanently delete this session and all associated data. This action cannot be undone.
+			</p>
+
+			{#if deleteError}
+				<div class="error-message">{deleteError}</div>
+			{/if}
+
+			<div class="modal-actions">
+				<button class="btn btn-secondary" onclick={handleCancelDelete} disabled={isDeleting}>
+					Cancel
+				</button>
+				<button class="btn btn-danger" onclick={handleConfirmDelete} disabled={isDeleting}>
+					{isDeleting ? 'Deleting...' : 'Delete Permanently'}
+				</button>
+			</div>
+		</div>
+	</div>
+
+/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/src/routes/(app)/session/[id]/+page.svelte:750:3
+Warn: `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions (svelte)
+	>
+		<div class="modal-content" onclick={(e) => e.stopPropagation()}>
+			<h2 class="modal-title" id="delete-dialog-title">Delete Session?</h2>
+			<p class="modal-message">
+				This will permanently delete this session and all associated data. This action cannot be undone.
+			</p>
+
+			{#if deleteError}
+				<div class="error-message">{deleteError}</div>
+			{/if}
+
+			<div class="modal-actions">
+				<button class="btn btn-secondary" onclick={handleCancelDelete} disabled={isDeleting}>
+					Cancel
+				</button>
+				<button class="btn btn-danger" onclick={handleConfirmDelete} disabled={isDeleting}>
+					{isDeleting ? 'Deleting...' : 'Delete Permanently'}
+				</button>
+			</div>
+		</div>
+	</div>
+
+====================================
+svelte-check found 2 errors and 74 warnings in 16 files

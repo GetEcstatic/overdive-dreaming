@@ -1,3 +1,29 @@
+
+# Updates
+## UX flow
+
+These are the steps the user should move through in order to have a better experience with the dive recorder.
+
+1. Selects a menu option for the menu bar for record (record button added to the top/bottom bar to signal this is the recording feature)
+2. Select dynamic discipline
+3. Select pool length and number of waypoints per lap
+4. Hit a next button. The video recording screen opens up in landscape mode and the user is prompted to rotate the phone. The camera is full screen (think normal phone camera apps where the image fills the screen). The page is frozen to full screen during the recording process. It cannot be scrolled up or down.
+5. A start recording button (could be a red button like on a camera app) is presented to start recording. The user presses record
+6. A start dive button is presented. When depressed, this starts the timer and distance counter (defaulting to 1m/s to start)
+7. A waypoint button is presented with distance of first waypoint indicated in the button. An "End dive" button is also presented. Important: if the cumulative distance exceeds the waypoint by 10m, the app should assume the user forgot to depress the waypoint button and should present the next waypoint button in the series
+8. When the diver surfaces, the user presses the end dive button. The video continues recording, but the distance and time counters end. A "Stop recording" button is presented.
+9. When the stop recording button is pressed the dive ends and the user is presented with an option to save the video of cancel.
+10. If the video is saved, then a dynamic max attempt dive log is automatically opened. Metrics that can be parsed from the dive video are added to the dive log. These include:
+	1. Discipline
+	2. Total distance
+	3. Time per lap
+	4. Average speed for each lap
+	5. Average speed for the dive
+11. Other metrics can then be added by the user
+12. Once saved the session is viewable from the dashboard feed and the video can be played from the feed also. 
+13. The video can be downloaded from the session detail modal.
+
+
 # Recording a Dynamic Dive
 
 A step-by-step user guide for coaches and athletes using the in-app dynamic dive video recorder (DYN / DYNB / DNF).
