@@ -27,6 +27,19 @@
 		defaultVisibility?: SessionVisibility;
 		showMenstrualCycleTracking?: boolean;
 		saving?: boolean;
+		/**
+		 * Optional seed values used to pre-fill the form — e.g. after a
+		 * dynamic dive video is saved, the recorder writes a
+		 * TimelineSummary-derived seed into sessionStorage and the
+		 * /dives page passes it in here.
+		 */
+		initialValues?: {
+			discipline?: Discipline;
+			totalDistance?: number;
+			totalTimeSeconds?: number;
+			poolLength?: number;
+			notes?: string;
+		};
 	}
 
 	export interface LogFormData {
@@ -112,10 +125,10 @@
 		selectedTags?: string[];
 	}
 
-	let { routine, onSubmit, onCancel, defaultVisibility = 'private', showMenstrualCycleTracking = false, saving = false }: Props = $props();
+	let { routine, onSubmit, onCancel, defaultVisibility = 'private', showMenstrualCycleTracking = false, saving = false, initialValues = undefined }: Props = $props();
 
 	// Form state - use effect to sync initial value from routine prop
-	let disciplineUsed = $state<Discipline>(routine.disciplines[0]);
+	let disciplineUsed = $state<Discipline>(initialValues?.discipline ?? routine.disciplines[0]);
 	
 	// Keep discipline in sync if routine changes
 	$effect(() => {
@@ -172,12 +185,12 @@
 	);
 
 	// Session context
-	let poolLength = $state<number | undefined>(undefined);
+	let poolLength = $state<number | undefined>(initialValues?.poolLength);
 	let initialBreatheUpTime = $state<number | undefined>(undefined); // in seconds
 
 	// Performance metrics
-	let totalDistance = $state<number | undefined>(undefined);
-	let totalTimeSeconds = $state<number | undefined>(undefined); // in seconds
+	let totalDistance = $state<number | undefined>(initialValues?.totalDistance);
+	let totalTimeSeconds = $state<number | undefined>(initialValues?.totalTimeSeconds); // in seconds
 	let repsCompleted = $state<number | undefined>(defaultRepsCompleted);
 	let repDurationSeconds = $state<number | undefined>(avgRepDuration); // in seconds
 	let repDistance = $state<number | undefined>(undefined);
@@ -187,7 +200,7 @@
 	let rpe = $state<number | undefined>(undefined);
 	let joyScale = $state<number | undefined>(undefined);
 	let hoursSinceLastMeal = $state<number | undefined>(undefined);
-	let notes = $state<string>('');
+	let notes = $state<string>(initialValues?.notes ?? '');
 
 	// NEW METRICS
 	let waterTemperature = $state<number | undefined>(undefined);

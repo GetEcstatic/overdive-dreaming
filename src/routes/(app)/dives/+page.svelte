@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { Timestamp } from 'firebase/firestore';
+	import { page } from '$app/stores';
 	import { user } from '$lib/stores/auth';
 	import { getRoutinesForUser, createRoutineLog, updateRoutineLog, getUserSettings, upsertPublicUserProfile } from '$lib/firestore';
 	import { uploadSessionPhoto, uploadBiometricCsv } from '$lib/storage';
@@ -9,7 +10,7 @@
 	import { clearDashboardCache } from '$lib/utils/dashboardCache';
 	import RoutineSelector from '$lib/components/RoutineSelector.svelte';
 	import QuickLogForm, { type LogFormData } from '$lib/components/QuickLogForm.svelte';
-	import type { RoutineTemplate, SessionVisibility } from '$lib/types';
+	import type { Discipline, RoutineTemplate, SessionVisibility } from '$lib/types';
 
 	let routines = $state<RoutineTemplate[]>([]);
 	let selectedRoutine = $state<RoutineTemplate | null>(null);
@@ -20,6 +21,16 @@
 	let success = $state<string | null>(null);
 	let defaultSessionVisibility = $state<SessionVisibility>('private');
 	let showMenstrualCycleTracking = $state<boolean>(false);
+
+	// Seed values passed in by the dynamic dive recorder via ?seed=<sessionId>
+	// and a sessionStorage bundle at `dive-log-seed:<sessionId>`.
+	let seedInitialValues = $state<{
+		discipline?: Discipline;
+		totalDistance?: number;
+		totalTimeSeconds?: number;
+		poolLength?: number;
+		notes?: string;
+	} | undefined>(undefined);
 
 	onMount(async () => {
 		if (!$user) return;
@@ -33,6 +44,48 @@
 			if (settings?.showMenstrualCycleTracking) {
 				showMenstrualCycleTracking = settings.showMenstrualCycleTracking;
 			}
+
+			// Auto-select a routine + seed the form if we were sent here
+			// from the dynamic dive recorder.
+			const searchParams = $page.url.searchParams;
+			const routineParam = searchParams.get('routine');
+			const seedParam = searchParams.get('seed');
+			if (routineParam) {
+				const match = routines.find((r) => r.id === routineParam);
+				if (match) {
+					if (seedParam && typeof sessionStorage !== 'undefined') {
+						try {
+							const raw = sessionStorage.getItem(`dive-log-seed:${seedParam}`);
+							if (raw) {
+								const parsed = JSON.parse(raw) as {
+									discipline?: Discipline;
+									poolLength?: number;
+									summary?: {
+										totalDistanceM?: number;
+										totalTimeSeconds?: number;
+									};
+								};
+								seedInitialValues = {
+									discipline: parsed.discipline,
+									poolLength: parsed.poolLength,
+									totalDistance: parsed.summary?.totalDistanceM
+										? Math.round(parsed.summary.totalDistanceM)
+										: undefined,
+									totalTimeSeconds: parsed.summary?.totalTimeSeconds
+										? Math.round(parsed.summary.totalTimeSeconds)
+										: undefined
+								};
+								sessionStorage.removeItem(`dive-log-seed:${seedParam}`);
+							}
+						} catch (seedErr) {
+							console.warn('Failed to read dive-log-seed:', seedErr);
+						}
+					}
+					selectedRoutine = match;
+					selectedRoutineId = match.id;
+				}
+			}
+
 			loading = false;
 		} catch (err) {
 			console.error('Error loading routines:', err);
@@ -320,6 +373,7 @@
 					defaultVisibility={defaultSessionVisibility}
 					{showMenstrualCycleTracking}
 					{saving}
+					initialValues={seedInitialValues}
 				/>
 			{/if}
 		</div>

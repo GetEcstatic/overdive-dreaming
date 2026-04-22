@@ -147,11 +147,14 @@
 			}
 
 			stage = 'done';
-			// /session/[id] expects a routineLog id, which doesn't exist yet
-			// for an ad-hoc dynamic dive. Land the user on the feed where the
-			// freshly-uploaded diveVideo shows up; the sessionStorage seed
-			// remains available for a future pre-filled log-form consumer.
-			await goto(`/dashboard?fromVideo=1&session=${sessionId}`);
+			// After save, open a new dynamic-max dive log pre-filled with
+			// the metrics parsed from the video (discipline, pool length,
+			// total distance, total time). The /dives page reads the
+			// `dive-log-seed:{sessionId}` sessionStorage bundle and auto-
+			// selects the system-dynamic-max routine.
+			await goto(
+				`/dives?routine=system-dynamic-max&seed=${encodeURIComponent(sessionId)}`
+			);
 		} catch (err) {
 			saveError = err instanceof Error ? err.message : String(err);
 			stage = 'review';
