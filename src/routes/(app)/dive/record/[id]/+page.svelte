@@ -86,6 +86,7 @@
 		}
 		stage = 'saving';
 		saveError = null;
+		uploadProgress = 0;
 		try {
 			const metadata = buildDiveVideoFormData({
 				sessionId,
@@ -106,12 +107,21 @@
 			if (pinned) metadata.retentionTier = 'pinned';
 			await enqueueUpload(capture.blob, metadata);
 
-			drainUploadQueue((p) => {
+			// Drive the upload to completion here so the user gets real
+			// progress + clear error surfacing. The queue is still durable
+			// across app reloads (see `installOnlineDrainer`), but keeping the
+			// user on this screen while the blob uploads avoids the "stuck at
+			// Uploading…" experience on the session page.
+			const result = await drainUploadQueue((p) => {
 				uploadProgress = p.fraction;
-			}).catch((err) => {
-				// eslint-disable-next-line no-console
-				console.warn('[dive-record] drain failed', err);
 			});
+
+			if (result.failed > 0 && result.uploaded === 0) {
+				const detail = result.errors[0] ?? 'unknown error';
+				throw new Error(
+					`Upload failed: ${detail}. The dive is saved locally and will retry when you reopen the app.`
+				);
+			}
 
 			stage = 'done';
 			await goto(`/session/${sessionId}`);

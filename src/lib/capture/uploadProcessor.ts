@@ -98,11 +98,12 @@ async function uploadOne(
  */
 export async function drainUploadQueue(
 	onProgress?: UploadProgressListener
-): Promise<{ uploaded: number; failed: number; skipped: number }> {
+): Promise<{ uploaded: number; failed: number; skipped: number; errors: string[] }> {
 	const items = await listPendingUploads();
 	let uploaded = 0;
 	let failed = 0;
 	let skipped = 0;
+	const errors: string[] = [];
 
 	for (const entry of items) {
 		if (entry.attempts >= MAX_ATTEMPTS) {
@@ -114,13 +115,16 @@ export async function drainUploadQueue(
 			uploaded += 1;
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
+			// eslint-disable-next-line no-console
+			console.error('[uploadProcessor] upload failed', entry.localId, err);
 			await markAttempt(entry.localId, message);
 			failed += 1;
+			errors.push(message);
 			// Continue with next entry; we try again on the next drain.
 		}
 	}
 
-	return { uploaded, failed, skipped };
+	return { uploaded, failed, skipped, errors };
 }
 
 /**

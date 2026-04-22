@@ -91,19 +91,36 @@
 		return 0;
 	});
 	const waypointCount = $derived(timeline.laps.length);
-	const cumulativeDistanceM = $derived(
-		waypointCount === 0 ? 0 : timeline.laps[waypointCount - 1].cumulativeDistanceM
-	);
 	const nextWaypointDistanceM = $derived((waypointCount + 1) * waypointSpacing);
 
 	// Live speed. Defaults to 1 m/s before the first waypoint so the HUD isn't
 	// stuck at 0 m/s while the diver is still accelerating.
 	const liveSpeedMs = $derived.by(() => {
-		if (phase !== 'diving') return 0;
+		if (phase !== 'diving' && phase !== 'surface' && phase !== 'stopping') return 0;
 		if (waypointCount === 0) return 1;
 		const last = timeline.laps[waypointCount - 1];
 		if (last.splitMs <= 0) return 0;
 		return waypointSpacing / (last.splitMs / 1000);
+	});
+
+	// Interpolated cumulative distance. Starts incrementing from dive-start at the
+	// live speed (default 1 m/s) so the HUD doesn't sit at 0 m until the first
+	// waypoint tap. After a waypoint, we snap to the exact waypoint distance and
+	// continue interpolating from there using the last measured split speed.
+	// Capped at the next waypoint target so the diver's distance doesn't
+	// visibly "jump back" when they tap a late waypoint.
+	const cumulativeDistanceM = $derived.by(() => {
+		if (waypointCount > 0 && phase !== 'diving') {
+			return timeline.laps[waypointCount - 1].cumulativeDistanceM;
+		}
+		if (phase !== 'diving') return 0;
+		const lastLap = waypointCount === 0 ? null : timeline.laps[waypointCount - 1];
+		const baseDistance = lastLap?.cumulativeDistanceM ?? 0;
+		const baseAtMs = lastLap?.atMs ?? 0;
+		const elapsedSinceBaseMs = Math.max(0, nowMs - recordingStartedAtPerfMs - baseAtMs);
+		const speed = liveSpeedMs > 0 ? liveSpeedMs : 1;
+		const interpolated = baseDistance + (elapsedSinceBaseMs / 1000) * speed;
+		return Math.min(interpolated, nextWaypointDistanceM);
 	});
 
 	function formatMs(ms: number): string {
