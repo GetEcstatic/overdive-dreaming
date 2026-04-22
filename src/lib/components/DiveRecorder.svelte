@@ -616,4 +616,61 @@
 		color: var(--color-text-muted);
 		font-size: 0.8rem;
 	}
+
+	/*
+	 * Landscape layout: arrange preview + controls side-by-side so the camera
+	 * preview fills as much of the short axis as possible. Controls become a
+	 * fixed-width rail on the right; HUD sits compactly at the top of the
+	 * preview.
+	 */
+	@media (orientation: landscape) {
+		.recorder {
+			flex-direction: row;
+		}
+		.controls {
+			width: min(32vw, 280px);
+			border-top: none;
+			border-left: 1px solid rgba(148, 163, 184, 0.15);
+			padding: calc(0.9rem + env(safe-area-inset-top)) 0.9rem
+				calc(0.9rem + env(safe-area-inset-bottom))
+				calc(0.9rem + env(safe-area-inset-right));
+			overflow-y: auto;
+		}
+		.row {
+			flex-direction: column;
+		}
+		.btn,
+		.btn.big,
+		.btn.small,
+		.btn-record {
+			min-height: 56px;
+			width: 100%;
+			padding: 0.65rem 0.75rem;
+			font-size: 1rem;
+		}
+		.btn.big {
+			min-height: 68px;
+			font-size: 1.05rem;
+		}
+		.hud {
+			left: 0.5rem;
+			right: auto;
+			max-width: 60%;
+			padding: 0.45rem 0.7rem;
+		}
+		.hud-value {
+			font-size: 1.25rem;
+		}
+		.hud-label {
+			font-size: 0.6rem;
+		}
+		.hud-sub {
+			font-size: 0.7rem;
+		}
+		.hint,
+		.summary-line,
+		.center-msg {
+			font-size: 0.75rem;
+		}
+	}
 </style>
