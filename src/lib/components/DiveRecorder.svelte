@@ -15,8 +15,10 @@
 	import { onDestroy, onMount } from 'svelte';
 	import {
 		acquireCameraStream,
+		ensurePortraitStream,
 		stopStream,
-		type AcquiredStream
+		type AcquiredStream,
+		type EnsuredPortraitStream
 	} from '$lib/capture/cameraStream';
 	import { createRecorder, type RecorderHandle } from '$lib/capture/recorder';
 	import { requestWakeLock, type WakeLockHandle } from '$lib/capture/wakeLock';
@@ -65,6 +67,7 @@
 
 	let videoEl: HTMLVideoElement;
 	let acquired: AcquiredStream | null = null;
+	let portraitStream: EnsuredPortraitStream | null = null;
 	let recorder: RecorderHandle | null = null;
 	let wakeLock: WakeLockHandle | null = null;
 
@@ -173,8 +176,13 @@
 		if (phase !== 'ready' || !acquired) return;
 		try {
 			wakeLock = await requestWakeLock();
+			// Ensure the stream we hand to MediaRecorder is portrait, even if
+			// the browser gave us a landscape stream from getUserMedia. This
+			// means the saved file is natively portrait — no playback-side
+			// rotation or container-side cropping required.
+			portraitStream = await ensurePortraitStream(acquired);
 			const bitrate = resolution === '1080p' ? 5_000_000 : 3_000_000;
-			recorder = createRecorder(acquired.stream, {
+			recorder = createRecorder(portraitStream.stream, {
 				videoBitsPerSecond: bitrate,
 				timesliceMs: 2000
 			});
@@ -225,12 +233,24 @@
 			const durationSeconds = (recordingEndPerfMs - recordingStartedAtPerfMs) / 1000;
 			const settings = acquired?.stream.getVideoTracks()[0]?.getSettings() ?? {};
 
+			// Prefer the portrait pipeline's dimensions when it rotated the
+			// source; otherwise use the raw track settings (which are already
+			// portrait).
+			const widthPx =
+				portraitStream?.rotated && portraitStream.portraitWidth > 0
+					? portraitStream.portraitWidth
+					: (settings.width ?? acquired?.actualWidth ?? 0);
+			const heightPx =
+				portraitStream?.rotated && portraitStream.portraitHeight > 0
+					? portraitStream.portraitHeight
+					: (settings.height ?? acquired?.actualHeight ?? 0);
+
 			onCapture({
 				blob: result.blob,
 				mimeType: result.mimeType,
 				sizeBytes: result.sizeBytes,
-				widthPx: settings.width ?? acquired?.actualWidth ?? 0,
-				heightPx: settings.height ?? acquired?.actualHeight ?? 0,
+				widthPx,
+				heightPx,
 				durationSeconds,
 				deviceLabel: acquired?.deviceLabel,
 				timeline
@@ -247,6 +267,10 @@
 		if (wakeLock) {
 			wakeLock.release().catch(() => undefined);
 			wakeLock = null;
+		}
+		if (portraitStream) {
+			portraitStream.release();
+			portraitStream = null;
 		}
 		if (acquired) {
 			stopStream(acquired.stream);

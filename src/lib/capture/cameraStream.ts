@@ -29,6 +29,13 @@ export interface AcquiredStream {
 
 /**
  * 720p and 1080p in **portrait** — width < height.
+ *
+ * We specify width/height in portrait orientation AND an explicit
+ * `aspectRatio: 9/16` hint because some browsers (notably iOS Safari on
+ * iPad and some Android Chrome builds) prefer the `aspectRatio` constraint
+ * over width/height when deciding how to orient the stream. Providing both
+ * makes it much more likely we get a genuinely portrait stream straight
+ * from `getUserMedia`, avoiding the need to canvas-rotate later.
  */
 export function constraintsFor(
 	options: CameraStreamOptions
@@ -42,6 +49,7 @@ export function constraintsFor(
 		video: {
 			facingMode: { ideal: options.facingMode ?? 'environment' },
 			frameRate: { ideal: 30, max: 30 },
+			aspectRatio: { ideal: 9 / 16 },
 			...portraitFrame
 		},
 		audio: options.withAudio ?? true
@@ -76,4 +84,98 @@ export function stopStream(stream: MediaStream | null | undefined): void {
 			/* ignore */
 		}
 	});
+}
+
+/**
+ * Wrap a source stream in a canvas-backed portrait pipeline when the
+ * browser hands us a landscape stream despite our portrait constraints
+ * (seen on some Android Chrome builds and older iPad Safari). The source
+ * video frames are drawn 90° rotated onto a canvas sized to the desired
+ * portrait dimensions, and `canvas.captureStream` exposes that as a new
+ * MediaStream that can be fed into MediaRecorder.
+ *
+ * The original audio track is carried through so coach narration is
+ * preserved. Returns an `EnsuredPortraitStream` that callers must
+ * `release()` when done so the canvas draw loop and the source video
+ * element are torn down.
+ */
+export interface EnsuredPortraitStream {
+	stream: MediaStream;
+	portraitWidth: number;
+	portraitHeight: number;
+	/** True if we had to canvas-rotate to reach portrait. */
+	rotated: boolean;
+	release(): void;
+}
+
+export async function ensurePortraitStream(
+	source: AcquiredStream
+): Promise<EnsuredPortraitStream> {
+	const w = source.actualWidth;
+	const h = source.actualHeight;
+	// Already portrait (or unknown) — use the source stream directly.
+	if (!(w > 0 && h > 0) || h >= w) {
+		return {
+			stream: source.stream,
+			portraitWidth: w,
+			portraitHeight: h,
+			rotated: false,
+			release: () => undefined
+		};
+	}
+
+	// Landscape source — build a portrait canvas pipeline.
+	const portraitWidth = h;
+	const portraitHeight = w;
+
+	const srcVideo = document.createElement('video');
+	srcVideo.muted = true;
+	srcVideo.playsInline = true;
+	srcVideo.srcObject = source.stream;
+	await srcVideo.play().catch(() => undefined);
+
+	const canvas = document.createElement('canvas');
+	canvas.width = portraitWidth;
+	canvas.height = portraitHeight;
+	const ctx = canvas.getContext('2d');
+	if (!ctx) {
+		throw new Error('2D canvas context is not available for portrait rotation.');
+	}
+
+	let rafHandle: number | null = null;
+	let disposed = false;
+	const draw = (): void => {
+		if (disposed) return;
+		// Rotate 90° CW around the canvas centre so the landscape source
+		// fills the portrait canvas exactly.
+		ctx.save();
+		ctx.translate(portraitWidth / 2, portraitHeight / 2);
+		ctx.rotate(Math.PI / 2);
+		ctx.drawImage(srcVideo, -w / 2, -h / 2, w, h);
+		ctx.restore();
+		rafHandle = requestAnimationFrame(draw);
+	};
+	rafHandle = requestAnimationFrame(draw);
+
+	const canvasStream = canvas.captureStream(30);
+	// Carry over the audio track(s) from the original stream.
+	source.stream.getAudioTracks().forEach((t) => canvasStream.addTrack(t));
+
+	return {
+		stream: canvasStream,
+		portraitWidth,
+		portraitHeight,
+		rotated: true,
+		release: () => {
+			disposed = true;
+			if (rafHandle !== null) cancelAnimationFrame(rafHandle);
+			try {
+				srcVideo.pause();
+				srcVideo.srcObject = null;
+			} catch {
+				/* ignore */
+			}
+			canvasStream.getVideoTracks().forEach((t) => t.stop());
+		}
+	};
 }

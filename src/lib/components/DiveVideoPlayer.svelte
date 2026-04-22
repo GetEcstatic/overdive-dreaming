@@ -28,11 +28,11 @@
 	let currentMs = $state(0);
 	let rvfcHandle: number | null = null;
 
-	// Some devices (notably certain Android phones and older iOS Safari) hand
-	// us a landscape stream even when we request portrait constraints. The
-	// stored widthPx/heightPx reflect the *actual* encoded dimensions, so if
-	// they are landscape we rotate the <video> 90° so every surface always
-	// presents the dive in a 9:16 portrait frame.
+	// Legacy / defensive: new recordings are always saved portrait by the
+	// capture pipeline (which canvas-rotates landscape getUserMedia streams
+	// before handing them to MediaRecorder). Older clips recorded before
+	// that pipeline landed may still be landscape on disk, so we keep this
+	// rotation fallback to present them in the same 9:16 portrait frame.
 	const isLandscapeSource = $derived(
 		video.widthPx > 0 && video.heightPx > 0 && video.widthPx > video.heightPx
 	);	const timeline: DiveTimeline = $derived(video.timeline);
