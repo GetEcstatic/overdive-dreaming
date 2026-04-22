@@ -28,6 +28,13 @@
 	let currentMs = $state(0);
 	let rvfcHandle: number | null = null;
 
+	// Actual decoded pixel dimensions of the loaded file. Filled in on
+	// `loadedmetadata`. Used as ground-truth for the debug badge — the
+	// stored widthPx/heightPx metadata may lie on some codepaths, but
+	// these numbers are what the browser actually decodes.
+	let actualVideoW = $state(0);
+	let actualVideoH = $state(0);
+
 	// Legacy / defensive: new recordings are always saved portrait by the
 	// capture pipeline (which canvas-rotates landscape getUserMedia streams
 	// before handing them to MediaRecorder). Older clips recorded before
@@ -173,7 +180,13 @@
 			controls
 			playsinline
 			ontimeupdate={onTimeUpdate}
-			onloadedmetadata={() => videoEl && scheduleRvfc(videoEl as VideoWithRvfc)}
+			onloadedmetadata={() => {
+				if (videoEl) {
+					actualVideoW = videoEl.videoWidth;
+					actualVideoH = videoEl.videoHeight;
+					scheduleRvfc(videoEl as VideoWithRvfc);
+				}
+			}}
 		></video>
 	{:else}
 		<video
@@ -183,7 +196,13 @@
 			controls
 			playsinline
 			ontimeupdate={onTimeUpdate}
-			onloadedmetadata={() => videoEl && scheduleRvfc(videoEl as VideoWithRvfc)}
+			onloadedmetadata={() => {
+				if (videoEl) {
+					actualVideoW = videoEl.videoWidth;
+					actualVideoH = videoEl.videoHeight;
+					scheduleRvfc(videoEl as VideoWithRvfc);
+				}
+			}}
 		></video>
 	{/if}
 
@@ -192,6 +211,7 @@
 		class="pointer-events-none absolute right-2 top-2 z-20 rounded-md bg-black/65 px-2 py-1 text-right font-mono text-[11px] font-semibold leading-tight text-amber-100"
 	>
 		<div>saved {video.widthPx}×{video.heightPx}</div>
+		<div>real {actualVideoW}×{actualVideoH}</div>
 		<div>landscape={isLandscapeSource ? 'Y' : 'N'}</div>
 	</div>
 
