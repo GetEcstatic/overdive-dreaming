@@ -112,44 +112,36 @@ export async function ensurePortraitStream(
 	source: AcquiredStream,
 	previewVideo?: HTMLVideoElement | null
 ): Promise<EnsuredPortraitStream> {
-	// Figure out the REAL orientation of the source. We cannot trust
-	// `source.actualWidth/Height` alone — iOS WebKit is known to report
-	// portrait dimensions from `getSettings()` momentarily after
-	// getUserMedia resolves and then flip the track to its native
-	// landscape orientation a few hundred ms later, which means we
-	// silently bypass the canvas rotation path even though the
-	// MediaRecorder ends up recording landscape.
+	// iOS WebKit (every iPhone browser — Safari, Chrome, Arc, Firefox on
+	// iOS all use WebKit under the hood) reports portrait dimensions from
+	// getSettings() for a brief window after getUserMedia resolves, then
+	// flips the track to its native landscape orientation. It can also
+	// flip the orientation again mid-recording if the device rotates.
 	//
-	// The preview `<video>` element (if provided and already playing the
-	// stream) exposes the ACTUAL decoded frame size via videoWidth /
-	// videoHeight, and that doesn't lie. We prefer it. We also re-read
-	// live track settings as a fallback.
+	// Rather than try to detect the "correct" orientation once up front
+	// and commit to a pass-through or rotate path, we ALWAYS build a
+	// canvas-backed pipeline and decide rotation per-frame based on the
+	// source video element's live videoWidth / videoHeight. That is the
+	// actual decoded frame size and it's the only reading we can trust.
+	// The canvas captureStream is what MediaRecorder receives, so the
+	// saved file is guaranteed to be portrait pixels.
+
+	// Pick a stable portrait canvas size. Prefer the preview's tallest
+	// dimension as height (so it matches source quality), fall back to
+	// getSettings(), fall back to the cached acquired dims, fall back
+	// to a 720x1280 default.
 	const liveTrack = source.stream.getVideoTracks()[0];
 	const liveSettings = liveTrack?.getSettings() ?? {};
 	const previewW = previewVideo?.videoWidth ?? 0;
 	const previewH = previewVideo?.videoHeight ?? 0;
-	const w =
-		previewW > 0
-			? previewW
-			: (liveSettings.width ?? source.actualWidth);
-	const h =
-		previewH > 0
-			? previewH
-			: (liveSettings.height ?? source.actualHeight);
-	// Already portrait (or unknown) — use the source stream directly.
-	if (!(w > 0 && h > 0) || h >= w) {
-		return {
-			stream: source.stream,
-			portraitWidth: w,
-			portraitHeight: h,
-			rotated: false,
-			release: () => undefined
-		};
-	}
-
-	// Landscape source — build a portrait canvas pipeline.
-	const portraitWidth = h;
-	const portraitHeight = w;
+	const sourceW =
+		previewW > 0 ? previewW : (liveSettings.width ?? source.actualWidth ?? 0);
+	const sourceH =
+		previewH > 0 ? previewH : (liveSettings.height ?? source.actualHeight ?? 0);
+	const longSide = Math.max(sourceW, sourceH) || 1280;
+	const shortSide = Math.min(sourceW, sourceH) || 720;
+	const portraitWidth = shortSide;
+	const portraitHeight = longSide;
 
 	const srcVideo = document.createElement('video');
 	srcVideo.muted = true;
@@ -167,15 +159,25 @@ export async function ensurePortraitStream(
 
 	let rafHandle: number | null = null;
 	let disposed = false;
+	let didRotate = false;
 	const draw = (): void => {
 		if (disposed) return;
-		// Rotate 90° CW around the canvas centre so the landscape source
-		// fills the portrait canvas exactly.
-		ctx.save();
-		ctx.translate(portraitWidth / 2, portraitHeight / 2);
-		ctx.rotate(Math.PI / 2);
-		ctx.drawImage(srcVideo, -w / 2, -h / 2, w, h);
-		ctx.restore();
+		const vw = srcVideo.videoWidth;
+		const vh = srcVideo.videoHeight;
+		if (vw > 0 && vh > 0) {
+			ctx.save();
+			if (vw > vh) {
+				// Landscape frame — rotate 90° CW so it fills the portrait canvas.
+				didRotate = true;
+				ctx.translate(portraitWidth / 2, portraitHeight / 2);
+				ctx.rotate(Math.PI / 2);
+				ctx.drawImage(srcVideo, -vw / 2, -vh / 2, vw, vh);
+			} else {
+				// Already portrait — draw straight into the canvas.
+				ctx.drawImage(srcVideo, 0, 0, portraitWidth, portraitHeight);
+			}
+			ctx.restore();
+		}
 		rafHandle = requestAnimationFrame(draw);
 	};
 	rafHandle = requestAnimationFrame(draw);
@@ -188,7 +190,12 @@ export async function ensurePortraitStream(
 		stream: canvasStream,
 		portraitWidth,
 		portraitHeight,
-		rotated: true,
+		// `rotated` now reflects whether any frame required rotation.
+		// Read lazily via a getter so it stays accurate if the source
+		// orientation flips mid-recording.
+		get rotated(): boolean {
+			return didRotate;
+		},
 		release: () => {
 			disposed = true;
 			if (rafHandle !== null) cancelAnimationFrame(rafHandle);

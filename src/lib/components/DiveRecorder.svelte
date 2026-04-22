@@ -173,6 +173,8 @@
 	function startTicking(): void {
 		const tick = () => {
 			nowMs = performance.now();
+			// Reflect the per-frame rotation decision from the canvas pipeline.
+			if (portraitStream) debugRotated = portraitStream.rotated;
 			tickHandle = requestAnimationFrame(tick);
 		};
 		tickHandle = requestAnimationFrame(tick);
@@ -256,15 +258,14 @@
 			const durationSeconds = (recordingEndPerfMs - recordingStartedAtPerfMs) / 1000;
 			const settings = acquired?.stream.getVideoTracks()[0]?.getSettings() ?? {};
 
-			// Prefer the portrait pipeline's dimensions when it rotated the
-			// source; otherwise use the raw track settings (which are already
-			// portrait).
+			// The canvas-backed portrait pipeline is always active now, so
+			// its dimensions are the ground truth for the saved file.
 			const widthPx =
-				portraitStream?.rotated && portraitStream.portraitWidth > 0
+				portraitStream?.portraitWidth && portraitStream.portraitWidth > 0
 					? portraitStream.portraitWidth
 					: (settings.width ?? acquired?.actualWidth ?? 0);
 			const heightPx =
-				portraitStream?.rotated && portraitStream.portraitHeight > 0
+				portraitStream?.portraitHeight && portraitStream.portraitHeight > 0
 					? portraitStream.portraitHeight
 					: (settings.height ?? acquired?.actualHeight ?? 0);
 
