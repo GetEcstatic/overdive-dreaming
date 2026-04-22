@@ -75,6 +75,8 @@
 	// handling without needing DevTools).
 	let debugSourceW = $state(0);
 	let debugSourceH = $state(0);
+	let debugPreviewW = $state(0);
+	let debugPreviewH = $state(0);
 	let debugPortraitW = $state(0);
 	let debugPortraitH = $state(0);
 	let debugRotated = $state(false);
@@ -192,7 +194,9 @@
 			// the browser gave us a landscape stream from getUserMedia. This
 			// means the saved file is natively portrait — no playback-side
 			// rotation or container-side cropping required.
-			portraitStream = await ensurePortraitStream(acquired);
+			portraitStream = await ensurePortraitStream(acquired, videoEl);
+			debugPreviewW = videoEl?.videoWidth ?? 0;
+			debugPreviewH = videoEl?.videoHeight ?? 0;
 			debugPortraitW = portraitStream.portraitWidth;
 			debugPortraitH = portraitStream.portraitHeight;
 			debugRotated = portraitStream.rotated;
@@ -361,6 +365,7 @@
 			<div class="debug-overlay">
 				<div>src {debugSourceW}×{debugSourceH}</div>
 				{#if debugPortraitW > 0}
+					<div>prv {debugPreviewW}×{debugPreviewH}</div>
 					<div>rec {debugPortraitW}×{debugPortraitH} rot={debugRotated ? 'Y' : 'N'}</div>
 					<div>trk {debugRecorderTrackW}×{debugRecorderTrackH}</div>
 				{/if}

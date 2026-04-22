@@ -109,10 +109,33 @@ export interface EnsuredPortraitStream {
 }
 
 export async function ensurePortraitStream(
-	source: AcquiredStream
+	source: AcquiredStream,
+	previewVideo?: HTMLVideoElement | null
 ): Promise<EnsuredPortraitStream> {
-	const w = source.actualWidth;
-	const h = source.actualHeight;
+	// Figure out the REAL orientation of the source. We cannot trust
+	// `source.actualWidth/Height` alone — iOS WebKit is known to report
+	// portrait dimensions from `getSettings()` momentarily after
+	// getUserMedia resolves and then flip the track to its native
+	// landscape orientation a few hundred ms later, which means we
+	// silently bypass the canvas rotation path even though the
+	// MediaRecorder ends up recording landscape.
+	//
+	// The preview `<video>` element (if provided and already playing the
+	// stream) exposes the ACTUAL decoded frame size via videoWidth /
+	// videoHeight, and that doesn't lie. We prefer it. We also re-read
+	// live track settings as a fallback.
+	const liveTrack = source.stream.getVideoTracks()[0];
+	const liveSettings = liveTrack?.getSettings() ?? {};
+	const previewW = previewVideo?.videoWidth ?? 0;
+	const previewH = previewVideo?.videoHeight ?? 0;
+	const w =
+		previewW > 0
+			? previewW
+			: (liveSettings.width ?? source.actualWidth);
+	const h =
+		previewH > 0
+			? previewH
+			: (liveSettings.height ?? source.actualHeight);
 	// Already portrait (or unknown) — use the source stream directly.
 	if (!(w > 0 && h > 0) || h >= w) {
 		return {
