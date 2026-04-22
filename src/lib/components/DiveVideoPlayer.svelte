@@ -437,7 +437,10 @@
 		}
 	}</script>
 
-<div class="relative aspect-video w-full overflow-hidden rounded-2xl bg-black shadow-lg">
+<div
+	class="relative aspect-video w-full overflow-hidden rounded-2xl bg-black shadow-lg"
+	style="position: relative;"
+>
 	<!-- svelte-ignore a11y_media_has_caption -->
 	<video
 		bind:this={videoEl}
