@@ -28,21 +28,7 @@
 	let currentMs = $state(0);
 	let rvfcHandle: number | null = null;
 
-	// Actual decoded pixel dimensions of the loaded file. Filled in on
-	// `loadedmetadata`. Used as ground-truth for the debug badge — the
-	// stored widthPx/heightPx metadata may lie on some codepaths, but
-	// these numbers are what the browser actually decodes.
-	let actualVideoW = $state(0);
-	let actualVideoH = $state(0);
-
-	// Legacy / defensive: new recordings are always saved portrait by the
-	// capture pipeline (which canvas-rotates landscape getUserMedia streams
-	// before handing them to MediaRecorder). Older clips recorded before
-	// that pipeline landed may still be landscape on disk, so we keep this
-	// rotation fallback to present them in the same 9:16 portrait frame.
-	const isLandscapeSource = $derived(
-		video.widthPx > 0 && video.heightPx > 0 && video.widthPx > video.heightPx
-	);	const timeline: DiveTimeline = $derived(video.timeline);
+	const timeline: DiveTimeline = $derived(video.timeline);
 	const poolLength: number = $derived(video.poolLength);
 
 	// Live overlay values.
@@ -163,57 +149,17 @@
 		}
 	}</script>
 
-<div class="relative aspect-9/16 w-full overflow-hidden rounded-2xl bg-black">
+<div class="relative aspect-video w-full overflow-hidden rounded-2xl bg-black">
 	<!-- svelte-ignore a11y_media_has_caption -->
-	{#if isLandscapeSource}
-		<!--
-		  Landscape source rotated 90° CW to fit the portrait container.
-		  Pre-rotation the <video> is sized 16/9 × containerWidth wide and
-		  containerWidth tall (= 177.78% × 56.25% of the container), centered
-		  so after rotation it exactly fills the 9:16 frame.
-		-->
-		<video
-			bind:this={videoEl}
-			src={srcUrl}
-			class="absolute left-1/2 top-1/2 origin-center object-cover"
-			style="width: calc(100% * 16 / 9); height: calc(100% * 9 / 16); transform: translate(-50%, -50%) rotate(90deg);"
-			controls
-			playsinline
-			ontimeupdate={onTimeUpdate}
-			onloadedmetadata={() => {
-				if (videoEl) {
-					actualVideoW = videoEl.videoWidth;
-					actualVideoH = videoEl.videoHeight;
-					scheduleRvfc(videoEl as VideoWithRvfc);
-				}
-			}}
-		></video>
-	{:else}
-		<video
-			bind:this={videoEl}
-			src={srcUrl}
-			class="h-full w-full object-cover"
-			controls
-			playsinline
-			ontimeupdate={onTimeUpdate}
-			onloadedmetadata={() => {
-				if (videoEl) {
-					actualVideoW = videoEl.videoWidth;
-					actualVideoH = videoEl.videoHeight;
-					scheduleRvfc(videoEl as VideoWithRvfc);
-				}
-			}}
-		></video>
-	{/if}
-
-	<!-- Orientation debug badge (temporary). -->
-	<div
-		class="pointer-events-none absolute right-2 top-2 z-20 rounded-md bg-black/65 px-2 py-1 text-right font-mono text-[11px] font-semibold leading-tight text-amber-100"
-	>
-		<div>saved {video.widthPx}×{video.heightPx}</div>
-		<div>real {actualVideoW}×{actualVideoH}</div>
-		<div>landscape={isLandscapeSource ? 'Y' : 'N'}</div>
-	</div>
+	<video
+		bind:this={videoEl}
+		src={srcUrl}
+		class="h-full w-full object-contain"
+		controls
+		playsinline
+		ontimeupdate={onTimeUpdate}
+		onloadedmetadata={() => videoEl && scheduleRvfc(videoEl as VideoWithRvfc)}
+	></video>
 
 	<!-- HUD overlay: mirrored layout of the recording HUD for consistency. -->
 	<div

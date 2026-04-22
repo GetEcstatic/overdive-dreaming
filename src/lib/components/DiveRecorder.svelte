@@ -15,10 +15,8 @@
 	import { onDestroy, onMount } from 'svelte';
 	import {
 		acquireCameraStream,
-		ensurePortraitStream,
 		stopStream,
-		type AcquiredStream,
-		type EnsuredPortraitStream
+		type AcquiredStream
 	} from '$lib/capture/cameraStream';
 	import { createRecorder, type RecorderHandle } from '$lib/capture/recorder';
 	import { requestWakeLock, type WakeLockHandle } from '$lib/capture/wakeLock';
@@ -67,21 +65,14 @@
 
 	let videoEl: HTMLVideoElement;
 	let acquired: AcquiredStream | null = null;
-	let portraitStream: EnsuredPortraitStream | null = null;
 	let recorder: RecorderHandle | null = null;
 	let wakeLock: WakeLockHandle | null = null;
 
-	// Debug overlay state (visible on-device so we can verify orientation
-	// handling without needing DevTools).
-	let debugSourceW = $state(0);
-	let debugSourceH = $state(0);
-	let debugPreviewW = $state(0);
-	let debugPreviewH = $state(0);
-	let debugPortraitW = $state(0);
-	let debugPortraitH = $state(0);
-	let debugRotated = $state(false);
-	let debugRecorderTrackW = $state(0);
-	let debugRecorderTrackH = $state(0);
+	// Landscape-orientation gate. The dive recorder + player are
+	// landscape-native (matches the phone camera sensor and avoids iOS
+	// WebKit canvas.captureStream/MediaRecorder portrait quirks). We ask
+	// the user to rotate their phone to landscape before recording.
+	let isLandscape = $state(true);
 
 	// Meters added per waypoint tap. For a 50 m pool with 2 waypoints per lap
 	// this is 25 m; for a 25 m pool with 2 waypoints per lap this is 12.5 m.
@@ -157,8 +148,6 @@
 		errorMessage = null;
 		try {
 			acquired = await acquireCameraStream({ resolution, facingMode: 'environment' });
-			debugSourceW = acquired.actualWidth;
-			debugSourceH = acquired.actualHeight;
 			if (videoEl) {
 				videoEl.srcObject = acquired.stream;
 				await videoEl.play().catch(() => undefined);
@@ -173,8 +162,6 @@
 	function startTicking(): void {
 		const tick = () => {
 			nowMs = performance.now();
-			// Reflect the per-frame rotation decision from the canvas pipeline.
-			if (portraitStream) debugRotated = portraitStream.rotated;
 			tickHandle = requestAnimationFrame(tick);
 		};
 		tickHandle = requestAnimationFrame(tick);
@@ -192,22 +179,8 @@
 		if (phase !== 'ready' || !acquired) return;
 		try {
 			wakeLock = await requestWakeLock();
-			// Ensure the stream we hand to MediaRecorder is portrait, even if
-			// the browser gave us a landscape stream from getUserMedia. This
-			// means the saved file is natively portrait — no playback-side
-			// rotation or container-side cropping required.
-			portraitStream = await ensurePortraitStream(acquired, videoEl);
-			debugPreviewW = videoEl?.videoWidth ?? 0;
-			debugPreviewH = videoEl?.videoHeight ?? 0;
-			debugPortraitW = portraitStream.portraitWidth;
-			debugPortraitH = portraitStream.portraitHeight;
-			debugRotated = portraitStream.rotated;
-			const recTrack = portraitStream.stream.getVideoTracks()[0];
-			const recSettings = recTrack?.getSettings() ?? {};
-			debugRecorderTrackW = recSettings.width ?? 0;
-			debugRecorderTrackH = recSettings.height ?? 0;
 			const bitrate = resolution === '1080p' ? 5_000_000 : 3_000_000;
-			recorder = createRecorder(portraitStream.stream, {
+			recorder = createRecorder(acquired.stream, {
 				videoBitsPerSecond: bitrate,
 				timesliceMs: 2000
 			});
@@ -258,16 +231,8 @@
 			const durationSeconds = (recordingEndPerfMs - recordingStartedAtPerfMs) / 1000;
 			const settings = acquired?.stream.getVideoTracks()[0]?.getSettings() ?? {};
 
-			// The canvas-backed portrait pipeline is always active now, so
-			// its dimensions are the ground truth for the saved file.
-			const widthPx =
-				portraitStream?.portraitWidth && portraitStream.portraitWidth > 0
-					? portraitStream.portraitWidth
-					: (settings.width ?? acquired?.actualWidth ?? 0);
-			const heightPx =
-				portraitStream?.portraitHeight && portraitStream.portraitHeight > 0
-					? portraitStream.portraitHeight
-					: (settings.height ?? acquired?.actualHeight ?? 0);
+			const widthPx = settings.width ?? acquired?.actualWidth ?? 0;
+			const heightPx = settings.height ?? acquired?.actualHeight ?? 0;
 
 			onCapture({
 				blob: result.blob,
@@ -292,10 +257,6 @@
 			wakeLock.release().catch(() => undefined);
 			wakeLock = null;
 		}
-		if (portraitStream) {
-			portraitStream.release();
-			portraitStream = null;
-		}
 		if (acquired) {
 			stopStream(acquired.stream);
 			acquired = null;
@@ -304,7 +265,19 @@
 	}
 
 	onMount(() => {
+		// Track landscape orientation so we can prompt the user to rotate.
+		const updateOrientation = () => {
+			if (typeof window === 'undefined') return;
+			isLandscape = window.innerWidth >= window.innerHeight;
+		};
+		updateOrientation();
+		window.addEventListener('resize', updateOrientation);
+		window.addEventListener('orientationchange', updateOrientation);
 		void arm();
+		return () => {
+			window.removeEventListener('resize', updateOrientation);
+			window.removeEventListener('orientationchange', updateOrientation);
+		};
 	});
 
 	onDestroy(() => {
@@ -361,15 +334,10 @@
 			</div>
 		{/if}
 
-		<!-- Orientation debug overlay (temporary — remove once verified). -->
-		{#if phase !== 'arming' && phase !== 'error'}
-			<div class="debug-overlay">
-				<div>src {debugSourceW}×{debugSourceH}</div>
-				{#if debugPortraitW > 0}
-					<div>prv {debugPreviewW}×{debugPreviewH}</div>
-					<div>rec {debugPortraitW}×{debugPortraitH} rot={debugRotated ? 'Y' : 'N'}</div>
-					<div>trk {debugRecorderTrackW}×{debugRecorderTrackH}</div>
-				{/if}
+		{#if !isLandscape && phase !== 'arming' && phase !== 'error'}
+			<div class="overlay orientation">
+				<span class="rotate-icon" aria-hidden="true">⟳</span>
+				<p>Rotate your phone to landscape to record.</p>
 			</div>
 		{/if}
 
@@ -512,20 +480,25 @@
 		color: #fca5a5;
 		text-align: center;
 	}
-
-	.debug-overlay {
-		position: absolute;
-		top: 0.5rem;
-		right: 0.5rem;
-		z-index: 20;
-		padding: 0.35rem 0.5rem;
-		border-radius: 8px;
-		background: rgba(0, 0, 0, 0.6);
-		color: #fef3c7;
-		font: 600 0.7rem/1.15 ui-monospace, SFMono-Regular, Menlo, monospace;
-		text-align: right;
-		pointer-events: none;
+	.overlay.orientation {
+		background: rgba(15, 23, 42, 0.92);
+		gap: 0.75rem;
 	}
+	.overlay.orientation p {
+		text-align: center;
+		max-width: 28ch;
+	}
+	.rotate-icon {
+		font-size: 2.5rem;
+		line-height: 1;
+		animation: rotateHint 1.8s ease-in-out infinite;
+		display: inline-block;
+	}
+	@keyframes rotateHint {
+		0%, 100% { transform: rotate(0deg); }
+		50% { transform: rotate(-90deg); }
+	}
+
 	.controls {
 		flex: 0 0 auto;
 		background: rgba(15, 23, 42, 0.95);
