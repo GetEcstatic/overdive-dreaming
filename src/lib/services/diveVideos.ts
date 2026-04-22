@@ -145,6 +145,33 @@ export async function pinDiveVideo(videoId: string, pinned: boolean): Promise<vo
 	});
 }
 
+/**
+ * Re-link every diveVideo created against `fromSessionId` to a new
+ * `toSessionId`. Used by the dynamic dive recorder flow: videos are first
+ * saved with an ad-hoc recorder session id, then re-linked onto the
+ * freshly-created routineLog id so session detail / feed cards can find
+ * them via `listDiveVideosForSession(routineLogId)`.
+ */
+export async function reassignDiveVideoSession(
+	fromSessionId: string,
+	toSessionId: string
+): Promise<number> {
+	const q = query(
+		collection(db, COLLECTION),
+		where('sessionId', '==', fromSessionId)
+	);
+	const snap = await getDocs(q);
+	await Promise.all(
+		snap.docs.map((d) =>
+			updateDoc(d.ref, {
+				sessionId: toSessionId,
+				updatedAt: serverTimestamp()
+			})
+		)
+	);
+	return snap.size;
+}
+
 export async function getDiveVideo(videoId: string): Promise<DiveVideo | null> {
 	const snap = await getDoc(doc(db, COLLECTION, videoId));
 	if (!snap.exists()) return null;

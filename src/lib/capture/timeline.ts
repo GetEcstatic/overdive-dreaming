@@ -75,11 +75,31 @@ export function totalTimeMs(timeline: DiveTimeline): number {
 }
 
 /**
- * Total distance covered in meters, based on the laps tapped.
+ * Total distance covered in meters.
+ *
+ * Includes a "tail" past the last waypoint: if the dive ended mid-lap, the
+ * diver covered additional distance between the last waypoint tap and
+ * End-dive. We estimate that tail using the most recent lap's measured
+ * speed (metres per second) and the elapsed time from the last waypoint
+ * to `diveEndMs`. Without this, the summary would under-report total
+ * distance by snapping to the last waypoint value.
  */
 export function totalDistanceM(timeline: DiveTimeline): number {
 	if (timeline.laps.length === 0) return 0;
-	return timeline.laps[timeline.laps.length - 1].cumulativeDistanceM;
+	const lastLap = timeline.laps[timeline.laps.length - 1];
+	const base = lastLap.cumulativeDistanceM;
+	const tailMs = Math.max(0, timeline.diveEndMs - lastLap.atMs);
+	if (tailMs <= 0) return base;
+
+	// Estimate speed from the last lap: (lap distance) / (lap split).
+	const prevCumulative =
+		timeline.laps.length === 1
+			? 0
+			: timeline.laps[timeline.laps.length - 2].cumulativeDistanceM;
+	const lapDistance = base - prevCumulative;
+	const speedMs =
+		lastLap.splitMs > 0 ? lapDistance / (lastLap.splitMs / 1000) : 0;
+	return base + speedMs * (tailMs / 1000);
 }
 
 /**

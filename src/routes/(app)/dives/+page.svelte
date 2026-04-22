@@ -31,6 +31,9 @@
 		poolLength?: number;
 		notes?: string;
 	} | undefined>(undefined);
+	// Recorder's ad-hoc session id carried through from ?seed=… — used
+	// after save to re-link diveVideo docs onto the new routineLog id.
+	let seedSessionId = $state<string | null>(null);
 
 	onMount(async () => {
 		if (!$user) return;
@@ -54,6 +57,7 @@
 				const match = routines.find((r) => r.id === routineParam);
 				if (match) {
 					if (seedParam && typeof sessionStorage !== 'undefined') {
+						seedSessionId = seedParam;
 						try {
 							const raw = sessionStorage.getItem(`dive-log-seed:${seedParam}`);
 							if (raw) {
@@ -272,6 +276,21 @@
 
 			// 4. Create routine log (get the ID for photo and CSV upload)
 			const routineLogId = await createRoutineLog(routineLogData);
+
+			// 4b. If this log was opened from the dynamic dive recorder,
+			// re-link the freshly-uploaded diveVideo(s) from the ad-hoc
+			// recorder session id onto the new routineLog id so session
+			// detail and feed cards can find them.
+			if (seedSessionId && seedSessionId !== routineLogId) {
+				try {
+					const { reassignDiveVideoSession } = await import(
+						'$lib/services/diveVideos'
+					);
+					await reassignDiveVideoSession(seedSessionId, routineLogId);
+				} catch (reassignErr) {
+					console.warn('Failed to re-link dive video session:', reassignErr);
+				}
+			}
 
 			// 5. Upload photo if provided and update routine log
 			if (logData.photoFile) {
