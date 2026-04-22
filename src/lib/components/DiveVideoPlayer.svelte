@@ -454,56 +454,55 @@
 
 	{#if showOverlay}
 		<!--
-		  HUD overlay: mirrors DiveRecorder.svelte exactly. Uses inline
-		  styles so visibility is independent of Tailwind JIT ordering or
-		  scoped-CSS resolution.
+		  HUD overlay: compact variant of the recording HUD, sized to stay
+		  out of the way in both portrait and landscape replay.
 		-->
 		<div
 			style="
 				position: absolute;
-				left: 0.75rem;
-				right: 0.75rem;
-				top: 0.75rem;
+				left: 0.5rem;
+				right: 0.5rem;
+				top: 0.5rem;
 				z-index: 10;
 				pointer-events: none;
-				padding: 0.65rem 0.9rem;
-				border-radius: 14px;
-				background: rgba(15, 23, 42, 0.55);
-				backdrop-filter: blur(8px);
-				-webkit-backdrop-filter: blur(8px);
+				padding: 0.4rem 0.6rem;
+				border-radius: 10px;
+				background: rgba(15, 23, 42, 0.4);
+				backdrop-filter: blur(6px);
+				-webkit-backdrop-filter: blur(6px);
 				color: #f1f5f9;
 			"
 		>
 			<div
-				style="display: flex; justify-content: space-between; align-items: baseline; gap: 1rem;"
+				style="display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem;"
 			>
 				<div>
 					<div
-						style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: #cbd5e1;"
+						style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.06em; color: #cbd5e1; line-height: 1;"
 					>
 						Time
 					</div>
 					<div
-						style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1.75rem; font-variant-numeric: tabular-nums; line-height: 1.1;"
+						style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1.1rem; font-variant-numeric: tabular-nums; line-height: 1.1;"
 					>
 						{formatMs(elapsedMs)}
 					</div>
 				</div>
 				<div style="text-align: right;">
 					<div
-						style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: #cbd5e1;"
+						style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.06em; color: #cbd5e1; line-height: 1;"
 					>
 						Distance
 					</div>
 					<div
-						style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1.75rem; font-variant-numeric: tabular-nums; line-height: 1.1;"
+						style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1.1rem; font-variant-numeric: tabular-nums; line-height: 1.1;"
 					>
 						{distance.toFixed(1)} m
 					</div>
 				</div>
 			</div>
 			<div
-				style="display: flex; justify-content: space-between; color: #cbd5e1; font-size: 0.8rem; margin-top: 0.25rem;"
+				style="display: flex; justify-content: space-between; color: #cbd5e1; font-size: 0.65rem; margin-top: 0.15rem;"
 			>
 				<span>Lap {lapsCompleted}/{timeline.laps.length}</span>
 				<span
