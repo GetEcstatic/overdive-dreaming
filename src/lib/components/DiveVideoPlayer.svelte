@@ -26,7 +26,16 @@
 
 	let videoEl: HTMLVideoElement | undefined = $state();
 	let currentMs = $state(0);
-	let rvfcHandle: number | null = null;	const timeline: DiveTimeline = $derived(video.timeline);
+	let rvfcHandle: number | null = null;
+
+	// Some devices (notably certain Android phones and older iOS Safari) hand
+	// us a landscape stream even when we request portrait constraints. The
+	// stored widthPx/heightPx reflect the *actual* encoded dimensions, so if
+	// they are landscape we rotate the <video> 90° so every surface always
+	// presents the dive in a 9:16 portrait frame.
+	const isLandscapeSource = $derived(
+		video.widthPx > 0 && video.heightPx > 0 && video.widthPx > video.heightPx
+	);	const timeline: DiveTimeline = $derived(video.timeline);
 	const poolLength: number = $derived(video.poolLength);
 
 	// Live overlay values.
@@ -149,15 +158,34 @@
 
 <div class="relative aspect-9/16 w-full overflow-hidden rounded-2xl bg-black">
 	<!-- svelte-ignore a11y_media_has_caption -->
-	<video
-		bind:this={videoEl}
-		src={srcUrl}
-		class="h-full w-full object-cover"
-		controls
-		playsinline
-		ontimeupdate={onTimeUpdate}
-		onloadedmetadata={() => videoEl && scheduleRvfc(videoEl as VideoWithRvfc)}
-	></video>
+	{#if isLandscapeSource}
+		<!--
+		  Landscape source rotated 90° CW to fit the portrait container.
+		  Pre-rotation the <video> is sized 16/9 × containerWidth wide and
+		  containerWidth tall (= 177.78% × 56.25% of the container), centered
+		  so after rotation it exactly fills the 9:16 frame.
+		-->
+		<video
+			bind:this={videoEl}
+			src={srcUrl}
+			class="absolute left-1/2 top-1/2 origin-center object-cover"
+			style="width: calc(100% * 16 / 9); height: calc(100% * 9 / 16); transform: translate(-50%, -50%) rotate(90deg);"
+			controls
+			playsinline
+			ontimeupdate={onTimeUpdate}
+			onloadedmetadata={() => videoEl && scheduleRvfc(videoEl as VideoWithRvfc)}
+		></video>
+	{:else}
+		<video
+			bind:this={videoEl}
+			src={srcUrl}
+			class="h-full w-full object-cover"
+			controls
+			playsinline
+			ontimeupdate={onTimeUpdate}
+			onloadedmetadata={() => videoEl && scheduleRvfc(videoEl as VideoWithRvfc)}
+		></video>
+	{/if}
 
 	<!-- HUD overlay: mirrored layout of the recording HUD for consistency. -->
 	<div
