@@ -8,11 +8,47 @@
  * See docs/Dynamic video feature.md §7.
  */
 
+import { Timestamp } from 'firebase/firestore';
 import type { DiveVideoFormData } from '$lib/types';
 
 const DB_NAME = 'overdive-upload-queue';
 const DB_VERSION = 1;
 const STORE = 'pending-videos';
+
+/**
+ * Convert metadata into a structured-clone-safe plain object before writing
+ * to IndexedDB. Firestore `Timestamp` instances and Svelte 5 `$state`
+ * reactive proxies both trip up `structuredClone`, so we flatten to plain
+ * JSON-shaped data here and reconstruct on read.
+ */
+function serializeMetadata(metadata: DiveVideoFormData): Record<string, unknown> {
+	const plain = JSON.parse(
+		JSON.stringify(metadata, (_key, value) => {
+			if (value instanceof Timestamp) {
+				return { __ts: true, seconds: value.seconds, nanoseconds: value.nanoseconds };
+			}
+			return value;
+		})
+	);
+	return plain;
+}
+
+function deserializeMetadata(plain: Record<string, unknown>): DiveVideoFormData {
+	const revive = (val: unknown): unknown => {
+		if (val && typeof val === 'object') {
+			const obj = val as Record<string, unknown>;
+			if (obj.__ts === true && typeof obj.seconds === 'number' && typeof obj.nanoseconds === 'number') {
+				return new Timestamp(obj.seconds, obj.nanoseconds);
+			}
+			if (Array.isArray(val)) return val.map(revive);
+			const out: Record<string, unknown> = {};
+			for (const [k, v] of Object.entries(obj)) out[k] = revive(v);
+			return out;
+		}
+		return val;
+	};
+	return revive(plain) as DiveVideoFormData;
+}
 
 export interface PendingUpload {
 	/** Local id (uuid-like). NOT the Firestore doc id — that's assigned at upload time. */
@@ -59,33 +95,48 @@ export async function enqueueUpload(
 	metadata: DiveVideoFormData
 ): Promise<PendingUpload> {
 	const db = await openDb();
-	const entry: PendingUpload = {
+	// IndexedDB uses structuredClone, which rejects class instances (Firestore
+	// `Timestamp`) and some reactive proxies. Store a plain-JSON shape.
+	const storedEntry = {
 		localId: generateLocalId(),
 		createdAt: Date.now(),
 		blob,
 		mimeType: metadata.mimeType,
 		sizeBytes: blob.size,
-		metadata,
+		metadata: serializeMetadata(metadata),
 		attempts: 0
 	};
 	await new Promise<void>((resolve, reject) => {
-		const req = tx(db, 'readwrite').add(entry);
+		const req = tx(db, 'readwrite').add(storedEntry);
 		req.onsuccess = () => resolve();
 		req.onerror = () => reject(req.error);
 	});
 	db.close();
-	return entry;
+	return {
+		localId: storedEntry.localId,
+		createdAt: storedEntry.createdAt,
+		blob: storedEntry.blob,
+		mimeType: storedEntry.mimeType,
+		sizeBytes: storedEntry.sizeBytes,
+		metadata,
+		attempts: 0
+	};
 }
 
 export async function listPendingUploads(): Promise<PendingUpload[]> {
 	const db = await openDb();
-	const entries = await new Promise<PendingUpload[]>((resolve, reject) => {
-		const req = tx(db, 'readonly').getAll();
-		req.onsuccess = () => resolve(req.result as PendingUpload[]);
-		req.onerror = () => reject(req.error);
-	});
+	const entries = await new Promise<Array<PendingUpload & { metadata: Record<string, unknown> }>>(
+		(resolve, reject) => {
+			const req = tx(db, 'readonly').getAll();
+			req.onsuccess = () =>
+				resolve(req.result as Array<PendingUpload & { metadata: Record<string, unknown> }>);
+			req.onerror = () => reject(req.error);
+		}
+	);
 	db.close();
-	return entries.sort((a, b) => a.createdAt - b.createdAt);
+	return entries
+		.map((e) => ({ ...e, metadata: deserializeMetadata(e.metadata) }))
+		.sort((a, b) => a.createdAt - b.createdAt);
 }
 
 export async function removePendingUpload(localId: string): Promise<void> {
