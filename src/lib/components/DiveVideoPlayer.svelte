@@ -397,12 +397,25 @@
 				typeof nav.canShare === 'function' &&
 				nav.canShare({ files: [file] })
 			) {
-				await nav.share({
-					files: [file],
-					title: 'Dive video',
-					text: `${video.discipline} dive`
-				});
-				return;
+				try {
+					await nav.share({
+						files: [file],
+						title: 'Dive video',
+						text: `${video.discipline} dive`
+					});
+					return;
+				} catch (err) {
+					// iOS Safari throws NotAllowedError when the original user
+					// gesture has expired during the bake. Fall through to the
+					// anchor-download path instead of surfacing a scary error.
+					const msg = err instanceof Error ? err.message : String(err);
+					const name = (err as { name?: string } | null)?.name ?? '';
+					if (/abort/i.test(msg) || name === 'AbortError') return;
+					if (name !== 'NotAllowedError' && !/not allowed/i.test(msg)) {
+						throw err;
+					}
+					// else: fall through to anchor download below.
+				}
 			}
 
 			// Fallback: anchor download.
@@ -438,27 +451,62 @@
 
 	{#if showOverlay}
 		<!--
-		  HUD overlay: mirrors DiveRecorder.svelte exactly
-		  (rgba(15,23,42,0.55) bg, 14px radius, 8px backdrop blur,
-		   1.75rem mono Time/Distance values).
+		  HUD overlay: mirrors DiveRecorder.svelte exactly. Uses inline
+		  styles so visibility is independent of Tailwind JIT ordering or
+		  scoped-CSS resolution.
 		-->
 		<div
-			class="pointer-events-none absolute left-3 right-3 top-3 z-10 rounded-[14px] px-[0.9rem] py-[0.65rem] text-slate-100 shadow-lg"
-			style="background: rgba(15, 23, 42, 0.55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);"
+			style="
+				position: absolute;
+				left: 0.75rem;
+				right: 0.75rem;
+				top: 0.75rem;
+				z-index: 10;
+				pointer-events: none;
+				padding: 0.65rem 0.9rem;
+				border-radius: 14px;
+				background: rgba(15, 23, 42, 0.55);
+				backdrop-filter: blur(8px);
+				-webkit-backdrop-filter: blur(8px);
+				color: #f1f5f9;
+			"
 		>
-			<div class="flex items-baseline justify-between gap-4">
+			<div
+				style="display: flex; justify-content: space-between; align-items: baseline; gap: 1rem;"
+			>
 				<div>
-					<div class="text-[0.7rem] uppercase tracking-[0.08em] text-slate-300">Time</div>
-					<div class="font-mono text-[1.75rem] leading-[1.1] tabular-nums">{formatMs(elapsedMs)}</div>
+					<div
+						style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: #cbd5e1;"
+					>
+						Time
+					</div>
+					<div
+						style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1.75rem; font-variant-numeric: tabular-nums; line-height: 1.1;"
+					>
+						{formatMs(elapsedMs)}
+					</div>
 				</div>
-				<div class="text-right">
-					<div class="text-[0.7rem] uppercase tracking-[0.08em] text-slate-300">Distance</div>
-					<div class="font-mono text-[1.75rem] leading-[1.1] tabular-nums">{distance.toFixed(1)} m</div>
+				<div style="text-align: right;">
+					<div
+						style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: #cbd5e1;"
+					>
+						Distance
+					</div>
+					<div
+						style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1.75rem; font-variant-numeric: tabular-nums; line-height: 1.1;"
+					>
+						{distance.toFixed(1)} m
+					</div>
 				</div>
 			</div>
-			<div class="mt-1 flex justify-between text-[0.8rem] text-slate-300">
+			<div
+				style="display: flex; justify-content: space-between; color: #cbd5e1; font-size: 0.8rem; margin-top: 0.25rem;"
+			>
 				<span>Lap {lapsCompleted}/{timeline.laps.length}</span>
-				<span class="font-mono tabular-nums">{speed.toFixed(2)} m/s</span>
+				<span
+					style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums;"
+					>{speed.toFixed(2)} m/s</span
+				>
 			</div>
 		</div>
 	{/if}
