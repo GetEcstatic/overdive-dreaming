@@ -11,6 +11,11 @@
 	import { shareCard } from '$lib/utils/shareCard';
 	import { onMount } from 'svelte';
 	import CommentSection from '$lib/components/CommentSection.svelte';
+	import {
+		listDiveVideosForSession,
+		getDiveVideoDownloadUrl
+	} from '$lib/services/diveVideos';
+	import type { DiveVideo } from '$lib/types';
 
 	let {
 		log,
@@ -239,6 +244,43 @@
 		}
 	}
 
+	// Dive video preview (dynamic disciplines only). Loads any DiveVideo
+	// doc linked to this routineLog id and, if uploaded, resolves a download
+	// URL so we can render an inline <video> in the feed card. See
+	// docs/Dynamic video feature.md — feed-level preview complements the
+	// full HUD playback on the session detail page.
+	const isDynamicDiscipline = $derived(
+		log.disciplineUsed === 'DYN' ||
+			log.disciplineUsed === 'DYNB' ||
+			log.disciplineUsed === 'DNF'
+	);
+	let diveVideo = $state<DiveVideo | null>(null);
+	let diveVideoUrl = $state<string | null>(null);
+
+	onMount(() => {
+		if (!isDynamicDiscipline) return;
+		let cancelled = false;
+		(async () => {
+			try {
+				const videos = await listDiveVideosForSession(log.id);
+				if (cancelled || videos.length === 0) return;
+				// Prefer the pinned one, else newest.
+				const pick =
+					videos.find((v) => v.retentionTier === 'pinned') ?? videos[0];
+				diveVideo = pick;
+				if (pick.uploadStatus === 'uploaded') {
+					const url = await getDiveVideoDownloadUrl(pick.storagePathClean);
+					if (!cancelled) diveVideoUrl = url;
+				}
+			} catch (err) {
+				console.warn('[SessionCard] failed to load dive video preview', err);
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	});
+
 </script>
 
 <div class="card-wrapper">
@@ -323,8 +365,22 @@
 	</div>
 
 	<!-- Media Section -->
-	{#if log.photoUrl || log.youtubeUrl}
+	{#if log.photoUrl || log.youtubeUrl || diveVideoUrl}
 		<div class="media-section">
+			{#if diveVideoUrl}
+				<div class="dive-video">
+					<!-- svelte-ignore a11y_media_has_caption -->
+					<video
+						src={diveVideoUrl}
+						class="dive-video-player"
+						controls
+						playsinline
+						preload="metadata"
+						onclick={(e) => e.stopPropagation()}
+					></video>
+				</div>
+			{/if}
+
 			{#if log.photoUrl}
 				<div class="session-photo">
 					<img src={log.photoUrl} alt="Session" class="photo-image" />
@@ -933,6 +989,20 @@
 		width: 100%;
 		height: 100%;
 		border: none;
+	}
+
+	.dive-video {
+		border-radius: 8px;
+		overflow: hidden;
+		background: rgba(15, 23, 42, 0.6);
+		border: 1px solid rgba(148, 163, 184, 0.1);
+	}
+
+	.dive-video-player {
+		width: 100%;
+		height: auto;
+		display: block;
+		background: black;
 	}
 
 	/* Desktop enhancements */
