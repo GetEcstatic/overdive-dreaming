@@ -2,7 +2,7 @@
 	import { page } from '$app/stores';
 	import { user } from '$lib/stores/auth';
 	import { onMount } from 'svelte';
-	import { Home, Plus, List, TrendingUp } from 'lucide-svelte';
+	import { Home, Plus, List, TrendingUp, Video } from 'lucide-svelte';
 
 	let visible = $state(true);
 	let lastScrollY = $state(0);
@@ -65,6 +65,15 @@
 			class:active={$page.url.pathname === '/dives'}
 		>
 			<Plus size={28} strokeWidth={2} />
+		</a>
+
+		<!-- Record dive -->
+		<a
+			href="/record"
+			class="nav-item"
+			class:active={$page.url.pathname.startsWith('/record') || $page.url.pathname.startsWith('/dive/record')}
+		>
+			<Video size={24} strokeWidth={2} />
 		</a>
 
 		<!-- Routines -->

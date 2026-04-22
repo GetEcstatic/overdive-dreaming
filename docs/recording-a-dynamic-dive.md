@@ -83,3 +83,32 @@ Open the session; the video appears under the routine log / dive entry. In-app p
 | Playback | `src/lib/components/DiveVideoPlayer.svelte` |
 | Resolution setting | `src/routes/(app)/profile/+page.svelte` |
 | Design docs | `docs/Dynamic video feature.md`, `docs/dynamic-video-qa-checklist.md` |
+
+---
+
+## Implementation status
+
+The UX Flow above is implemented behind the data-oriented architecture
+documented in [`docs/DYNAMIC_RECORDER_UX_PLAN.md`](DYNAMIC_RECORDER_UX_PLAN.md).
+
+- **Record tab** (`src/lib/components/BottomNav.svelte`) → `/record` auto-creates
+  an ad-hoc session and forwards to the setup screen.
+- **Setup** — discipline, pool length, waypoints per lap. Wheel inputs unchanged.
+- **Recorder** — `src/lib/components/DiveRecorder.svelte` is a thin view over
+  the pure reducer in `src/lib/capture/recorderState.ts` +
+  `src/lib/capture/recorderSelectors.ts`. Side-effects (camera, MediaRecorder,
+  wake lock, scroll-lock, RAF ticks) live at the component edge.
+- **Scroll / pinch lock** — `src/routes/(app)/dive/record/[id]/+page.svelte`
+  pins `html/body` overflow and blocks iOS `gesturestart` while in `record` stage.
+- **Phases** — `arming → ready → prepping → diving → ended → stopping`.
+  `prepping` captures the tail of the breathe-up; `ended` keeps recording for
+  the surface protocol.
+- **Auto-advance waypoint** — if the interpolated cumulative distance exceeds
+  the next waypoint by ≥10 m, the reducer auto-appends a lap and shows a
+  toast. Configurable via `autoAdvanceThresholdM`. Undo removes it.
+- **Pre-fill bundle** — on save, the record page stashes a
+  `TimelineSummary` (total time, total distance, per-lap splits, avg speeds)
+  into `sessionStorage` under `dive-log-seed:{sessionId}` so the dive-log
+  form can seed a dynamic-max entry from the captured timeline.
+- **Tests** — 31 unit tests in `src/lib/capture/recorderState.test.ts` cover
+  every reducer transition, selectors, and the 10 m auto-advance threshold.

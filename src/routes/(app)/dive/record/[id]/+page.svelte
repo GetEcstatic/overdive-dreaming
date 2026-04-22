@@ -10,6 +10,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { onMount } from 'svelte';
 	import { user } from '$lib/stores/auth';
 	import DiveRecorder from '$lib/components/DiveRecorder.svelte';
 	import AthletePicker from '$lib/components/AthletePicker.svelte';
@@ -17,6 +18,7 @@
 	import { buildDiveVideoFormData } from '$lib/services/diveVideos';
 	import { enqueueUpload } from '$lib/capture/uploadQueue';
 	import { drainUploadQueue } from '$lib/capture/uploadProcessor';
+	import { summariseTimeline } from '$lib/capture/timeline';
 	import { getUserSettings } from '$lib/firestore';
 	import type { DiveTimeline, DiveVideoDiscipline, DiveVideoResolution } from '$lib/types';
 
@@ -123,8 +125,29 @@
 				);
 			}
 
+			// Stash a pre-fill bundle for the dive-log form on the
+			// session page. This is pure data — the form picks it up by
+			// session id. Kept on sessionStorage so a full reload still
+			// finds it; cleared after one read by the consumer.
+			if (capture) {
+				const summary = summariseTimeline(capture.timeline);
+				try {
+					sessionStorage.setItem(
+						`dive-log-seed:${sessionId}`,
+						JSON.stringify({
+							discipline,
+							poolLength: poolLength ?? 25,
+							summary,
+							capturedAt: Date.now()
+						})
+					);
+				} catch {
+					// storage quota / private mode — non-fatal
+				}
+			}
+
 			stage = 'done';
-			await goto(`/session/${sessionId}`);
+			await goto(`/session/${sessionId}?fromVideo=1`);
 		} catch (err) {
 			saveError = err instanceof Error ? err.message : String(err);
 			stage = 'review';
@@ -135,6 +158,42 @@
 		capture = null;
 		stage = 'record';
 	}
+
+	// While the recorder is active, lock scroll + iOS rubber-banding + pinch
+	// zoom. The full-bleed capture UI is fixed-positioned so normal scrolling
+	// is meaningless and only causes visual jank.
+	$effect(() => {
+		if (typeof document === 'undefined') return;
+		const html = document.documentElement;
+		const body = document.body;
+		if (stage === 'record') {
+			const prevHtmlOverflow = html.style.overflow;
+			const prevBodyOverflow = body.style.overflow;
+			const prevHtmlOverscroll = html.style.overscrollBehavior;
+			const prevBodyTouch = body.style.touchAction;
+			html.style.overflow = 'hidden';
+			body.style.overflow = 'hidden';
+			html.style.overscrollBehavior = 'none';
+			body.style.touchAction = 'none';
+			return () => {
+				html.style.overflow = prevHtmlOverflow;
+				body.style.overflow = prevBodyOverflow;
+				html.style.overscrollBehavior = prevHtmlOverscroll;
+				body.style.touchAction = prevBodyTouch;
+			};
+		}
+	});
+
+	onMount(() => {
+		// Block iOS pinch-zoom for the whole record route.
+		const prevent = (e: Event) => e.preventDefault();
+		document.addEventListener('gesturestart', prevent);
+		document.addEventListener('gesturechange', prevent);
+		return () => {
+			document.removeEventListener('gesturestart', prevent);
+			document.removeEventListener('gesturechange', prevent);
+		};
+	});
 </script>
 
 <svelte:head>
@@ -204,7 +263,7 @@
 					disabled={!poolLength || !waypointsPerLap}
 					onclick={() => (stage = 'record')}
 				>
-					Start camera →
+					Next →
 				</button>
 			</div>
 		</div>
