@@ -187,6 +187,14 @@
 		></video>
 	{/if}
 
+	<!-- Orientation debug badge (temporary). -->
+	<div
+		class="pointer-events-none absolute right-2 top-2 z-20 rounded-md bg-black/65 px-2 py-1 text-right font-mono text-[11px] font-semibold leading-tight text-amber-100"
+	>
+		<div>saved {video.widthPx}×{video.heightPx}</div>
+		<div>landscape={isLandscapeSource ? 'Y' : 'N'}</div>
+	</div>
+
 	<!-- HUD overlay: mirrored layout of the recording HUD for consistency. -->
 	<div
 		class="pointer-events-none absolute inset-x-0 top-4 mx-4 rounded-xl bg-black/55 px-4 py-3 text-white backdrop-blur-sm"

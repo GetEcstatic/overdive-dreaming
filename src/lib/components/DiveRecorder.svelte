@@ -71,6 +71,16 @@
 	let recorder: RecorderHandle | null = null;
 	let wakeLock: WakeLockHandle | null = null;
 
+	// Debug overlay state (visible on-device so we can verify orientation
+	// handling without needing DevTools).
+	let debugSourceW = $state(0);
+	let debugSourceH = $state(0);
+	let debugPortraitW = $state(0);
+	let debugPortraitH = $state(0);
+	let debugRotated = $state(false);
+	let debugRecorderTrackW = $state(0);
+	let debugRecorderTrackH = $state(0);
+
 	// Meters added per waypoint tap. For a 50 m pool with 2 waypoints per lap
 	// this is 25 m; for a 25 m pool with 2 waypoints per lap this is 12.5 m.
 	const waypointSpacing = $derived(
@@ -145,6 +155,8 @@
 		errorMessage = null;
 		try {
 			acquired = await acquireCameraStream({ resolution, facingMode: 'environment' });
+			debugSourceW = acquired.actualWidth;
+			debugSourceH = acquired.actualHeight;
 			if (videoEl) {
 				videoEl.srcObject = acquired.stream;
 				await videoEl.play().catch(() => undefined);
@@ -181,6 +193,13 @@
 			// means the saved file is natively portrait — no playback-side
 			// rotation or container-side cropping required.
 			portraitStream = await ensurePortraitStream(acquired);
+			debugPortraitW = portraitStream.portraitWidth;
+			debugPortraitH = portraitStream.portraitHeight;
+			debugRotated = portraitStream.rotated;
+			const recTrack = portraitStream.stream.getVideoTracks()[0];
+			const recSettings = recTrack?.getSettings() ?? {};
+			debugRecorderTrackW = recSettings.width ?? 0;
+			debugRecorderTrackH = recSettings.height ?? 0;
 			const bitrate = resolution === '1080p' ? 5_000_000 : 3_000_000;
 			recorder = createRecorder(portraitStream.stream, {
 				videoBitsPerSecond: bitrate,
@@ -337,6 +356,17 @@
 			</div>
 		{/if}
 
+		<!-- Orientation debug overlay (temporary — remove once verified). -->
+		{#if phase !== 'arming' && phase !== 'error'}
+			<div class="debug-overlay">
+				<div>src {debugSourceW}×{debugSourceH}</div>
+				{#if debugPortraitW > 0}
+					<div>rec {debugPortraitW}×{debugPortraitH} rot={debugRotated ? 'Y' : 'N'}</div>
+					<div>trk {debugRecorderTrackW}×{debugRecorderTrackH}</div>
+				{/if}
+			</div>
+		{/if}
+
 		{#if phase === 'error' && errorMessage}
 			<div class="overlay error">
 				<p>{errorMessage}</p>
@@ -477,6 +507,19 @@
 		text-align: center;
 	}
 
+	.debug-overlay {
+		position: absolute;
+		top: 0.5rem;
+		right: 0.5rem;
+		z-index: 20;
+		padding: 0.35rem 0.5rem;
+		border-radius: 8px;
+		background: rgba(0, 0, 0, 0.6);
+		color: #fef3c7;
+		font: 600 0.7rem/1.15 ui-monospace, SFMono-Regular, Menlo, monospace;
+		text-align: right;
+		pointer-events: none;
+	}
 	.controls {
 		flex: 0 0 auto;
 		background: rgba(15, 23, 42, 0.95);
