@@ -628,6 +628,6 @@ Status legend: [ ] pending · [~] in progress · [x] done (commit hash).
 - [x] Step 9.F — one-smart-button UI: single Waypoint button with
       classification rule from §9.4.1b, tap-and-hold 500 ms End-dive,
       haptics; on-device QA.
-- [ ] Step 9.G — docs pass: update
+- [x] Step 9.G — docs pass: update
       [`docs/recording-a-dynamic-dive.md`](recording-a-dynamic-dive.md)
       to describe the wall/split distinction and the new button layout.
