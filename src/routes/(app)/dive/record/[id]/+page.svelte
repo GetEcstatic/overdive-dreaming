@@ -18,7 +18,7 @@
 	import { buildDiveVideoFormData } from '$lib/services/diveVideos';
 	import { enqueueUpload } from '$lib/capture/uploadQueue';
 	import { drainUploadQueue } from '$lib/capture/uploadProcessor';
-	import { summariseTimeline } from '$lib/capture/timeline';
+	import { summariseTimeline, totalDistanceM } from '$lib/capture/timeline';
 	import { getUserSettings } from '$lib/firestore';
 	import { diveRecording } from '$lib/stores/videoPlayback';
 	import type { DiveTimeline, DiveVideoDiscipline, DiveVideoResolution } from '$lib/types';
@@ -309,14 +309,15 @@
 					<div><span>Waypoints tapped</span><strong>{capture.timeline.laps.length}</strong></div>
 					<div>
 						<span>Distance</span>
-						<strong>
-							{capture.timeline.laps.length > 0
-								? formatMeters(
-										capture.timeline.laps[capture.timeline.laps.length - 1]
-											.cumulativeDistanceM
-									)
-								: 0} m
-						</strong>
+						<!--
+						  Distance includes a best-effort estimate for:
+						   • dives that ended before the first waypoint tap
+						     (estimated from the default 1 m/s pace), and
+						   • dives that ended mid-lap (last waypoint + tail
+						     estimated from the most recent measured pace).
+						  See `totalDistanceM` in src/lib/capture/timeline.ts.
+						-->
+						<strong>{formatMeters(totalDistanceM(capture.timeline))} m</strong>
 					</div>
 					<div><span>Size</span><strong>{(capture.sizeBytes / (1024 * 1024)).toFixed(1)} MB</strong></div>
 				</div>

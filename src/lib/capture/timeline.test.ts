@@ -90,6 +90,31 @@ describe('timeline — totals', () => {
 		expect(totalDistanceM(t)).toBe(200);
 	});
 
+	it('totalDistanceM estimates distance when the dive ends before the first waypoint', () => {
+		// 8s dive, no waypoint taps. Use the 1 m/s default → 8m.
+		const t = finalizeTimeline(createEmptyTimeline(0), 8_000);
+		expect(totalDistanceM(t)).toBe(8);
+	});
+
+	it('totalDistanceM adds a tail estimate when the dive ends mid-lap', () => {
+		// 25m pool. First waypoint at 20s (1.25 m/s). Dive ends at 30s —
+		// 10s after the last waypoint → expected 25m + 10 * 1.25 = 37.5m.
+		let t = createEmptyTimeline(0);
+		t = appendLap(t, 20_000, 25);
+		t = finalizeTimeline(t, 30_000);
+		expect(totalDistanceM(t)).toBeCloseTo(37.5, 5);
+	});
+
+	it('totalDistanceM uses the most recent lap pace for the tail (between waypoints)', () => {
+		// Two waypoints @ 50m each: 0→20s (2.5 m/s), 20→30s (5 m/s).
+		// Dive ends 10s after 2nd waypoint → expected 100m + 10 * 5 = 150m.
+		let t = createEmptyTimeline(0);
+		t = appendLap(t, 20_000, 50);
+		t = appendLap(t, 30_000, 50);
+		t = finalizeTimeline(t, 40_000);
+		expect(totalDistanceM(t)).toBeCloseTo(150, 5);
+	});
+
 	it('averageSpeedMs matches distance / time', () => {
 		const t = buildFourLap50s();
 		expect(averageSpeedMs(t)).toBeCloseTo(200 / 120, 5);
