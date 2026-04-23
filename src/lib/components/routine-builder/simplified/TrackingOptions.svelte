@@ -8,7 +8,8 @@
 		TrackingConfig, 
 		SimplifiedRoutineType,
 		Discipline,
-		TrainingEnvironment
+		TrainingEnvironment,
+		CaptureSource
 	} from '$lib/types';
 
 	let {
@@ -42,11 +43,13 @@
 			fields: [
 				{ key: 'trackTotalDistance', label: 'Total Distance', hint: 'Distance covered in meters' },
 				{ key: 'trackTotalTime', label: 'Total Time', hint: 'Total dive duration' },
+				{ key: 'trackAvgSpeed', label: 'Avg Speed', hint: 'Average speed across the dive (m/s)' },
 				{ key: 'trackRepsCompleted', label: 'Reps Completed', hint: 'Number of repetitions completed' },
 				{ key: 'trackRepDuration', label: 'Rep Duration', hint: 'Time per rep (for intervals)' },
 				{ key: 'trackRepDistance', label: 'Rep Distance', hint: 'Distance per rep (for intervals)' },
 				{ key: 'trackRestBetweenLaps', label: 'Rest Between Reps', hint: 'Recovery time between reps' },
 				{ key: 'trackTimePerLap', label: 'Time Per Lap', hint: 'Detailed lap-by-lap times' },
+				{ key: 'trackSpeedPerLap', label: 'Speed Per Lap', hint: 'Lap-by-lap speed (m/s)' },
 				{ key: 'trackKicksPerLap', label: 'Kicks Per Lap', hint: 'Count kicks (dynamic disciplines)' },
 				{ key: 'trackArmPullsPerLap', label: 'Arm Pulls Per Lap', hint: 'Count arm pulls (DNF)' }
 			]
@@ -119,6 +122,36 @@
 
 	function toggleSection(sectionId: string) {
 		expandedSections[sectionId] = !expandedSections[sectionId];
+	}
+
+	// Map of tracking-toggle key -> capture-source key. Only metrics that the
+	// in-app dynamic dive recorder can auto-fill have a capture source.
+	const SOURCE_KEY_FOR: Record<string, keyof TrackingConfig | undefined> = {
+		trackTotalDistance: 'totalDistanceSource',
+		trackTotalTime: 'totalTimeSource',
+		trackTimePerLap: 'timePerLapSource',
+		trackSpeedPerLap: 'speedPerLapSource',
+		trackAvgSpeed: 'avgSpeedSource'
+	};
+
+	function getSourceKey(fieldKey: string): keyof TrackingConfig | undefined {
+		return SOURCE_KEY_FOR[fieldKey];
+	}
+
+	function getCaptureSource(fieldKey: string): CaptureSource {
+		const sourceKey = getSourceKey(fieldKey);
+		if (!sourceKey) return 'either';
+		const value = (trackingConfig as unknown as Record<string, unknown>)[sourceKey];
+		return (value as CaptureSource) ?? 'either';
+	}
+
+	function setCaptureSource(fieldKey: string, source: CaptureSource) {
+		const sourceKey = getSourceKey(fieldKey);
+		if (!sourceKey) return;
+		trackingConfig = {
+			...trackingConfig,
+			[sourceKey]: source
+		} as TrackingConfig;
 	}
 
 	function toggleField(key: string) {
@@ -201,17 +234,47 @@
 						</div>
 						<div class="field-list">
 							{#each category.fields as field}
-								<label class="field-toggle">
-									<input
-										type="checkbox"
-										checked={(trackingConfig as unknown as Record<string, unknown>)[field.key] === true}
-										onchange={() => toggleField(field.key)}
-									/>
-									<span class="field-info">
-										<span class="field-label">{field.label}</span>
-										<span class="field-hint">{field.hint}</span>
-									</span>
-								</label>
+								{@const isOn = (trackingConfig as unknown as Record<string, unknown>)[field.key] === true}
+								{@const hasSource = !!getSourceKey(field.key)}
+								<div class="field-row">
+									<label class="field-toggle">
+										<input
+											type="checkbox"
+											checked={isOn}
+											onchange={() => toggleField(field.key)}
+										/>
+										<span class="field-info">
+											<span class="field-label">{field.label}</span>
+											<span class="field-hint">{field.hint}</span>
+										</span>
+									</label>
+									{#if isOn && hasSource}
+										{@const current = getCaptureSource(field.key)}
+										<div class="source-segmented" role="radiogroup" aria-label="Capture source for {field.label}">
+											<button
+												type="button"
+												class="seg-btn"
+												class:active={current === 'manual'}
+												onclick={() => setCaptureSource(field.key, 'manual')}
+												aria-pressed={current === 'manual'}
+											>Manual</button>
+											<button
+												type="button"
+												class="seg-btn"
+												class:active={current === 'recorder'}
+												onclick={() => setCaptureSource(field.key, 'recorder')}
+												aria-pressed={current === 'recorder'}
+											>From recorder</button>
+											<button
+												type="button"
+												class="seg-btn"
+												class:active={current === 'either'}
+												onclick={() => setCaptureSource(field.key, 'either')}
+												aria-pressed={current === 'either'}
+											>Either</button>
+										</div>
+									{/if}
+								</div>
 							{/each}
 						</div>
 					</div>
@@ -469,5 +532,45 @@
 	.field-hint {
 		font-size: 0.75rem;
 		color: var(--color-text-muted);
+	}
+
+	/* Capture-source segmented control */
+	.field-row {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+	}
+
+	.source-segmented {
+		display: inline-flex;
+		margin-left: 2rem;
+		background: rgba(148, 163, 184, 0.08);
+		border-radius: 8px;
+		padding: 0.125rem;
+		gap: 0.125rem;
+		align-self: flex-start;
+	}
+
+	.seg-btn {
+		appearance: none;
+		border: none;
+		background: transparent;
+		color: var(--color-text-muted);
+		font-size: 0.75rem;
+		font-weight: 500;
+		padding: 0.3rem 0.65rem;
+		border-radius: 6px;
+		cursor: pointer;
+		transition: background 0.15s ease, color 0.15s ease;
+	}
+
+	.seg-btn:hover {
+		color: var(--color-text);
+	}
+
+	.seg-btn.active {
+		background: var(--color-bg-card);
+		color: var(--color-primary);
+		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 	}
 </style>

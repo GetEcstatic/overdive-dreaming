@@ -45,6 +45,15 @@ const dynamicMaxTracking: TrackingConfig = {
 	trackRestBetweenLaps: false,
 	trackKicksPerLap: true,
 	trackArmPullsPerLap: true,
+	// Speed metrics
+	trackAvgSpeed: true,
+	trackSpeedPerLap: true,
+	// Capture sources for recorder-capable metrics
+	totalDistanceSource: 'either',
+	totalTimeSource: 'either',
+	timePerLapSource: 'recorder',
+	speedPerLapSource: 'recorder',
+	avgSpeedSource: 'either',
 	// Training context
 	trackBreathingTechnique: true,
 	trackRPE: true,
@@ -141,6 +150,14 @@ const intervalTracking: TrackingConfig = {
 	trackRestBetweenLaps: true,
 	trackKicksPerLap: false,
 	trackArmPullsPerLap: false,
+	// Speed metrics
+	trackAvgSpeed: true,
+	trackSpeedPerLap: true,
+	// Capture sources for recorder-capable metrics
+	totalTimeSource: 'either',
+	timePerLapSource: 'recorder',
+	speedPerLapSource: 'recorder',
+	avgSpeedSource: 'either',
 	// Training context
 	trackBreathingTechnique: false,
 	trackRPE: true,

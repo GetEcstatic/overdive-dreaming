@@ -307,8 +307,8 @@ Phases 1 and 4 can be done in parallel. Phase 3 depends on Phase 2.
 
 ## 7. TODO list (placeholder — do not start until approved)
 
-- [ ] Answer open questions above.
-- [ ] Phase 1: per-lap table on session detail.
+- [x] Answer open questions above.
+- [x] Phase 1: per-lap table on session detail.
 - [ ] Phase 2: `TrackingConfig` additions + routine builder UI.
 - [ ] Phase 2b: seed-data update for default dynamic routines.
 - [ ] Phase 3: `QuickLogForm` capture-source wiring + `resolveMetricInput`
