@@ -677,6 +677,22 @@
 	}
 
 	/*
+	 * Landscape phones: the inline player (feed card + session detail modal)
+	 * uses aspect-video + w-full, which at 100vw × 9/16 easily overflows the
+	 * short landscape viewport and looks "way oversized". Cap the container
+	 * to the available viewport height and drop the fixed aspect-ratio so the
+	 * <video>'s own object-contain handles letterboxing. Scoped to phone-like
+	 * viewports (max-height: 600px) so desktop landscape is unaffected.
+	 */
+	@media (orientation: landscape) and (max-height: 600px) {
+		[data-fullscreen-root]:not(:fullscreen):not(:-webkit-full-screen) {
+			aspect-ratio: auto;
+			height: calc(100dvh - 1rem);
+			max-height: calc(100dvh - 1rem);
+		}
+	}
+
+	/*
 	 * Pill-styled action buttons beneath the video (Hide/Show overlay,
 	 * Save to Photos). Plain CSS so they render correctly regardless of
 	 * whether Tailwind utilities are compiled for this file.
