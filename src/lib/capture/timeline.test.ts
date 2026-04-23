@@ -217,3 +217,58 @@ describe('timeline — summariseTimeline', () => {
 		expect(s.avgSplitSeconds).toBeCloseTo((20 + 35 + 25) / 3, 5);
 	});
 });
+
+describe('timeline — samples-preferred replay (v2)', () => {
+	function sampleTimeline() {
+		return {
+			diveStartMs: 0,
+			diveEndMs: 30_000,
+			laps: [
+				// Two walls that happen to disagree with the samples (e.g.
+				// miss-tap recovery): samples should win during replay.
+				{ lapNumber: 1, atMs: 10_000, splitMs: 10_000, cumulativeDistanceM: 25 }
+			],
+			samples: [
+				{ atMs: 0, distanceM: 0, speedMs: 1 },
+				{ atMs: 10_000, distanceM: 15, speedMs: 1.5 },
+				{ atMs: 20_000, distanceM: 30, speedMs: 1.5 }
+			]
+		};
+	}
+
+	it('distanceAt interpolates linearly between samples (not lap-based)', () => {
+		const t = sampleTimeline();
+		// Half-way between sample[0]=0m and sample[1]=15m at t=5000ms → 7.5m.
+		// Lap-based would say ~12.5m (half of first lap).
+		expect(distanceAt(t, 5000, 25)).toBeCloseTo(7.5, 5);
+	});
+
+	it('speedAt linearly interpolates sample speeds', () => {
+		const t = sampleTimeline();
+		// t=5000 lies between speed 1 and speed 1.5 → 1.25 m/s.
+		expect(speedAt(t, 5000, 25)).toBeCloseTo(1.25, 5);
+	});
+
+	it('distanceAt projects past the last sample at its speed, up to diveEndMs', () => {
+		const t = sampleTimeline();
+		// Last sample at t=20000, distance=30, speed=1.5 → at t=25000 → 37.5m.
+		expect(distanceAt(t, 25_000, 25)).toBeCloseTo(37.5, 5);
+	});
+
+	it('totalDistanceM uses samples tail estimate when samples exist', () => {
+		const t = sampleTimeline();
+		// dive ends at 30000, last sample at 20000, speed 1.5 → 30 + 10s*1.5 = 45m.
+		expect(totalDistanceM(t)).toBeCloseTo(45, 5);
+	});
+
+	it('falls back to lap-based interp when samples are absent (legacy clips)', () => {
+		let t = createEmptyTimeline(0);
+		t = appendLap(t, 20_000, 25); // wall at t=20s, distance=25m
+		t = appendLap(t, 40_000, 25); // wall at t=40s, distance=50m
+		t = finalizeTimeline(t, 40_000);
+		// Legacy stepwise model: at t=30000 (mid-lap 2), last lap ended at
+		// 20s with 25m base, splitMs=20000, progress=(30000-20000)/20000=0.5
+		// → 25 + 0.5*25 = 37.5m.
+		expect(distanceAt(t, 30_000, 25)).toBeCloseTo(37.5, 5);
+	});
+});

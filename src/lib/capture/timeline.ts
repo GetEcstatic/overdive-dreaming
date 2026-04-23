@@ -190,10 +190,18 @@ export function totalTimeMs(timeline: DiveTimeline): number {
 export function totalDistanceM(timeline: DiveTimeline): number {
 	const diveDurationMs = Math.max(0, timeline.diveEndMs - timeline.diveStartMs);
 
+	// v2: prefer the dense sample stream when present. It reflects the
+	// uncapped HUD distance the diver actually covered, including any
+	// drift past missed walls that were later snapped back by a real tap.
+	const samples = timeline.samples;
+	if (samples && samples.length > 0) {
+		const last = samples[samples.length - 1];
+		const tailMs = Math.max(0, timeline.diveEndMs - last.atMs);
+		return last.distanceM + (tailMs / 1000) * last.speedMs;
+	}
+
 	if (timeline.laps.length === 0) {
 		// No waypoints tapped — fall back to the HUD's default pace of 1 m/s.
-		// diveStartMs / diveEndMs are offsets from recording start, so the
-		// delta is the dive's elapsed time.
 		return (diveDurationMs / 1000) * 1;
 	}
 
@@ -224,17 +232,55 @@ export function averageSpeedMs(timeline: DiveTimeline): number {
 }
 
 /**
+ * Bisect a sorted samples array: return the index of the last entry with
+ * `atMs <= target`, or -1 if none exists. O(log n).
+ */
+function bisectSamples(
+	samples: ReadonlyArray<{ atMs: number }>,
+	targetMs: number
+): number {
+	let lo = 0;
+	let hi = samples.length;
+	while (lo < hi) {
+		const mid = (lo + hi) >>> 1;
+		if (samples[mid].atMs <= targetMs) lo = mid + 1;
+		else hi = mid;
+	}
+	return lo - 1;
+}
+
+/**
  * Instantaneous (windowed) speed at a given point in time, used by the HUD.
  *
- * Strategy: take the most recent completed lap before `atMs` and use its
- * split as the basis. Before the first waypoint — but after the dive has
- * started — fall back to the live-HUD default of 1 m/s (mirrors
- * `liveSpeedMs` in recorderSelectors.ts and the tail-estimate in
- * `totalDistanceM`) so replays of short dives that ended before the first
- * waypoint show a plausible running speed instead of 0.
+ * v2 precedence:
+ *   1. If the timeline has a `samples` stream, look up the nearest sample
+ *      via binary search and linearly interpolate between the two bracketing
+ *      samples.
+ *   2. Otherwise fall back to the v1 lap-based estimate (1 m/s before the
+ *      first waypoint, last-lap pace thereafter).
  */
 export function speedAt(timeline: DiveTimeline, atMs: number, poolLengthM: number): number {
-	// Find laps that happened at or before atMs.
+	const samples = timeline.samples;
+	if (samples && samples.length > 0) {
+		const i = bisectSamples(samples, atMs);
+		if (i < 0) {
+			// Before the first sample — use the first sample's speed if the
+			// dive is in progress, else 0.
+			if (atMs > timeline.diveStartMs && atMs <= timeline.diveEndMs) {
+				return samples[0].speedMs;
+			}
+			return 0;
+		}
+		if (i >= samples.length - 1) return samples[samples.length - 1].speedMs;
+		const a = samples[i];
+		const b = samples[i + 1];
+		const dt = b.atMs - a.atMs;
+		if (dt <= 0) return a.speedMs;
+		const t = (atMs - a.atMs) / dt;
+		return a.speedMs + (b.speedMs - a.speedMs) * t;
+	}
+
+	// Legacy (pre-v2) lap-based estimate.
 	const completedLaps = timeline.laps.filter((l) => l.atMs <= atMs);
 	if (completedLaps.length === 0) {
 		// Before any waypoint: 1 m/s default while the dive is in progress.
@@ -250,28 +296,49 @@ export function speedAt(timeline: DiveTimeline, atMs: number, poolLengthM: numbe
 /**
  * Distance covered at a given moment in time (for HUD display while diving).
  *
- * We use a stepwise model: distance jumps by `poolLengthM` on each wall tap.
- * Between taps we linearly interpolate based on the current-lap pace estimate
- * so the on-screen number rises smoothly rather than in hard jumps.
- *
- * Before the first waypoint — but after the dive has started — we fall back
- * to a default pace of 1 m/s so the HUD shows a running distance for dives
- * that ended before the first tap. This mirrors the recorder's live HUD
- * (`cumulativeDistanceM` in recorderSelectors.ts) and the finalized
- * `totalDistanceM`, so a replay of a short dive matches the recorded
- * distance instead of reading 0m.
+ * v2 precedence:
+ *   1. If the timeline has a `samples` stream, bisect + linearly interpolate
+ *      between the two bracketing samples. This gives a smooth, accurate
+ *      HUD even when the diver missed a wall tap — because the samples
+ *      were recorded against the uncapped HUD distance during capture.
+ *   2. Otherwise fall back to the v1 stepwise lap-based model.
  */
 export function distanceAt(
 	timeline: DiveTimeline,
 	atMs: number,
 	poolLengthM: number
 ): number {
+	const samples = timeline.samples;
+	if (samples && samples.length > 0) {
+		const i = bisectSamples(samples, atMs);
+		if (i < 0) {
+			// Before the first sample: interpolate from dive start at the
+			// first sample's speed (matches the capture-time behaviour).
+			if (atMs <= timeline.diveStartMs) return 0;
+			const effectiveAtMs = Math.min(atMs, samples[0].atMs);
+			const elapsedMs = Math.max(0, effectiveAtMs - timeline.diveStartMs);
+			return (elapsedMs / 1000) * samples[0].speedMs;
+		}
+		if (i >= samples.length - 1) {
+			// Past the last sample: project forward at the last sample's speed
+			// up to diveEndMs.
+			const last = samples[samples.length - 1];
+			const effectiveAtMs = Math.min(atMs, timeline.diveEndMs);
+			const tailMs = Math.max(0, effectiveAtMs - last.atMs);
+			return last.distanceM + (tailMs / 1000) * last.speedMs;
+		}
+		const a = samples[i];
+		const b = samples[i + 1];
+		const dt = b.atMs - a.atMs;
+		if (dt <= 0) return a.distanceM;
+		const t = (atMs - a.atMs) / dt;
+		return a.distanceM + (b.distanceM - a.distanceM) * t;
+	}
+
+	// Legacy (pre-v2) stepwise lap-based model.
 	const completedLaps = timeline.laps.filter((l) => l.atMs <= atMs);
 
 	if (completedLaps.length === 0) {
-		// No waypoints yet. Before dive start → 0. After dive start → 1 m/s
-		// running estimate, clamped to the dive's end so we don't keep
-		// growing after the diver stopped.
 		if (atMs <= timeline.diveStartMs) return 0;
 		const effectiveAtMs = Math.min(atMs, timeline.diveEndMs);
 		const elapsedSinceDiveStartMs = Math.max(0, effectiveAtMs - timeline.diveStartMs);
