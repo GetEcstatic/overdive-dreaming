@@ -12,14 +12,18 @@
   sheets.
 -->
 <script lang="ts">
-	import { onDestroy } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import type { DiveTimeline, DiveVideo } from '$lib/types';
 	import {
 		distanceAt,
 		speedAt,
 		totalTimeMs
 	} from '$lib/capture/timeline';
-	import { diveVideoBehavior } from '$lib/stores/videoPlayback';
+	import {
+		diveVideoBehavior,
+		exitDiveFullscreen,
+		DIVE_FS_EVENT
+	} from '$lib/stores/videoPlayback';
 
 	interface Props {
 		video: DiveVideo;
@@ -36,10 +40,84 @@
 	let { video, srcUrl, compact = false }: Props = $props();
 
 	let videoEl: HTMLVideoElement | undefined = $state();
+	let containerEl: HTMLDivElement | undefined = $state();
 	let currentMs = $state(0);
+	let isPlaying = $state(false);
 	let rvfcHandle: number | null = null;
 
 	let showOverlay = $state(true);
+
+	/**
+	 * Pseudo-fullscreen state, driven by the `diveVideoBehavior` action via
+	 * the `divefullscreenchange` CustomEvent on the container. Used to swap
+	 * native <video> controls for a custom landscape control bar that won't
+	 * collide with the HUD.
+	 */
+	let isFullscreen = $state(false);
+
+	/**
+	 * User-configurable fit mode: `cover` fills the screen with no black bars
+	 * (crops ~10 % of the video), `contain` letterboxes and shows every pixel.
+	 * Persisted in localStorage so the preference sticks across sessions.
+	 */
+	const FIT_KEY = 'overdive.videoFitMode';
+	let fitMode = $state<'cover' | 'contain'>('cover');
+
+	onMount(() => {
+		try {
+			const saved = localStorage.getItem(FIT_KEY);
+			if (saved === 'cover' || saved === 'contain') fitMode = saved;
+		} catch {
+			/* storage unavailable — fall back to default */
+		}
+	});
+
+	$effect(() => {
+		// Keep the CSS custom property in sync so the pseudo-fullscreen rule
+		// (see src/app.css) picks up the latest fit mode. Also persist.
+		if (containerEl) {
+			containerEl.style.setProperty('--dive-video-fit', fitMode);
+		}
+		try {
+			localStorage.setItem(FIT_KEY, fitMode);
+		} catch {
+			/* ignore */
+		}
+	});
+
+	function onFullscreenEvent(e: Event) {
+		const ce = e as CustomEvent<{ fullscreen: boolean }>;
+		isFullscreen = !!ce.detail?.fullscreen;
+	}
+
+	$effect(() => {
+		// Listen for the custom fullscreen event dispatched by diveVideoBehavior
+		// on the container. We wire it imperatively because the event name is
+		// custom and Svelte's attribute-based event binding doesn't recognise it.
+		if (!containerEl) return;
+		containerEl.addEventListener('divefullscreenchange', onFullscreenEvent);
+		return () => {
+			containerEl?.removeEventListener('divefullscreenchange', onFullscreenEvent);
+		};
+	});
+
+	function onPlayStateChange() {
+		isPlaying = !!videoEl && !videoEl.paused && !videoEl.ended;
+	}
+
+	function togglePlay() {
+		if (!videoEl) return;
+		if (videoEl.paused || videoEl.ended) videoEl.play().catch(() => {});
+		else videoEl.pause();
+	}
+
+	function toggleFit() {
+		fitMode = fitMode === 'cover' ? 'contain' : 'cover';
+	}
+
+	function exitFullscreen() {
+		exitDiveFullscreen(containerEl ?? null);
+	}
 
 	const timeline: DiveTimeline = $derived(video.timeline);
 	const poolLength: number = $derived(video.poolLength);
@@ -525,80 +603,97 @@
 	}</script>
 
 <div
+	bind:this={containerEl}
 	class="relative aspect-video w-full overflow-hidden rounded-2xl bg-black shadow-lg"
-	style="position: relative;"
+	style="position: relative; --dive-video-fit: {fitMode};"
 	data-fullscreen-root
 >
 	<!-- svelte-ignore a11y_media_has_caption -->
 	<video
 		bind:this={videoEl}
 		src={srcUrl}
-		class="h-full w-full object-contain"
-		controls
+		class="h-full w-full"
+		style="object-fit: {isFullscreen ? 'var(--dive-video-fit, cover)' : 'contain'};"
+		controls={!isFullscreen}
 		playsinline
 		ontimeupdate={onTimeUpdate}
+		onplay={onPlayStateChange}
+		onpause={onPlayStateChange}
+		onended={onPlayStateChange}
 		onloadedmetadata={() => videoEl && scheduleRvfc(videoEl as VideoWithRvfc)}
-		use:diveVideoBehavior
+		use:diveVideoBehavior={{ allowAutoFullscreen: !compact }}
 	></video>
 
 	{#if showOverlay}
 		<!--
 		  HUD overlay: compact variant of the recording HUD, sized to stay
-		  out of the way in both portrait and landscape replay.
+		  out of the way in both portrait and landscape replay. In fullscreen
+		  landscape, shift to the top-center and respect safe-area insets so
+		  the overlay clears notches / Dynamic Island on iPhones.
 		-->
 		<div
-			style="
-				position: absolute;
-				left: 0.5rem;
-				right: 0.5rem;
-				top: 0.5rem;
-				z-index: 10;
-				pointer-events: none;
-				padding: 0.4rem 0.6rem;
-				border-radius: 10px;
-				background: rgba(15, 23, 42, 0.4);
-				backdrop-filter: blur(6px);
-				-webkit-backdrop-filter: blur(6px);
-				color: #f1f5f9;
-			"
+			class="dive-hud"
+			class:dive-hud-fullscreen={isFullscreen}
 		>
-			<div
-				style="display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem;"
-			>
+			<div class="dive-hud-row">
 				<div>
-					<div
-						style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.06em; color: #cbd5e1; line-height: 1;"
-					>
-						Time
-					</div>
-					<div
-						style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1.1rem; font-variant-numeric: tabular-nums; line-height: 1.1;"
-					>
-						{formatMs(elapsedMs)}
-					</div>
+					<div class="dive-hud-label">Time</div>
+					<div class="dive-hud-value">{formatMs(elapsedMs)}</div>
 				</div>
 				<div style="text-align: right;">
-					<div
-						style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.06em; color: #cbd5e1; line-height: 1;"
-					>
-						Distance
-					</div>
-					<div
-						style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1.1rem; font-variant-numeric: tabular-nums; line-height: 1.1;"
-					>
-						{distance.toFixed(1)} m
-					</div>
+					<div class="dive-hud-label">Distance</div>
+					<div class="dive-hud-value">{distance.toFixed(1)} m</div>
 				</div>
 			</div>
-			<div
-				style="display: flex; justify-content: space-between; color: #cbd5e1; font-size: 0.65rem; margin-top: 0.15rem;"
-			>
+			<div class="dive-hud-sub">
 				<span>Lap {lapsCompleted}/{timeline.laps.length}</span>
-				<span
-					style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums;"
-					>{speed.toFixed(2)} m/s</span
-				>
+				<span class="dive-hud-mono">{speed.toFixed(2)} m/s</span>
 			</div>
+		</div>
+	{/if}
+
+	{#if isFullscreen}
+		<!--
+		  Custom landscape control bar. Replaces the native <video> controls
+		  (hidden above) so they don't visually fight the HUD. Positioned at
+		  the bottom with safe-area padding.
+		-->
+		<div class="fs-controls">
+			<button
+				type="button"
+				class="fs-btn"
+				aria-label={isPlaying ? 'Pause' : 'Play'}
+				onclick={togglePlay}
+			>
+				{isPlaying ? '❚❚' : '▶'}
+			</button>
+			<button
+				type="button"
+				class="fs-btn"
+				aria-label={fitMode === 'cover' ? 'Switch to fit (letterbox)' : 'Switch to fill'}
+				aria-pressed={fitMode === 'cover'}
+				onclick={toggleFit}
+				title={fitMode === 'cover' ? 'Fill' : 'Fit'}
+			>
+				{fitMode === 'cover' ? '▣' : '▢'}
+			</button>
+			<button
+				type="button"
+				class="fs-btn"
+				aria-label={showOverlay ? 'Hide overlay' : 'Show overlay'}
+				aria-pressed={showOverlay}
+				onclick={() => (showOverlay = !showOverlay)}
+			>
+				HUD
+			</button>
+			<button
+				type="button"
+				class="fs-btn fs-btn-exit"
+				aria-label="Exit fullscreen"
+				onclick={exitFullscreen}
+			>
+				✕
+			</button>
 		</div>
 	{/if}
 </div>
@@ -643,6 +738,132 @@
 {/if}
 
 <style>
+	/*
+	 * HUD overlay. In the inline (non-fullscreen) player it sits at the
+	 * top-left; in fullscreen it shifts to top-center with safe-area padding
+	 * so it clears the notch / Dynamic Island in landscape.
+	 */
+	.dive-hud {
+		position: absolute;
+		left: 0.5rem;
+		right: 0.5rem;
+		top: 0.5rem;
+		z-index: 10;
+		pointer-events: none;
+		padding: 0.4rem 0.6rem;
+		border-radius: 10px;
+		background: rgba(15, 23, 42, 0.4);
+		backdrop-filter: blur(6px);
+		-webkit-backdrop-filter: blur(6px);
+		color: #f1f5f9;
+	}
+	.dive-hud-fullscreen {
+		/* Top-center, narrower, with safe-area-inset padding. */
+		left: 50%;
+		right: auto;
+		transform: translateX(-50%);
+		top: max(0.5rem, env(safe-area-inset-top));
+		margin-left: env(safe-area-inset-left);
+		margin-right: env(safe-area-inset-right);
+		min-width: min(70vw, 28rem);
+		max-width: calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 1rem);
+		background: rgba(15, 23, 42, 0.55);
+	}
+	.dive-hud-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 0.75rem;
+	}
+	.dive-hud-label {
+		font-size: 0.6rem;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: #cbd5e1;
+		line-height: 1;
+	}
+	.dive-hud-value {
+		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+		font-size: 1.1rem;
+		font-variant-numeric: tabular-nums;
+		line-height: 1.1;
+	}
+	.dive-hud-sub {
+		display: flex;
+		justify-content: space-between;
+		color: #cbd5e1;
+		font-size: 0.65rem;
+		margin-top: 0.15rem;
+	}
+	.dive-hud-mono {
+		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+		font-variant-numeric: tabular-nums;
+	}
+
+	/*
+	 * Landscape fullscreen control bar. Only rendered while in pseudo-
+	 * fullscreen (see isFullscreen in the script). Anchored to the bottom
+	 * with safe-area padding so it clears the iPhone home-indicator.
+	 */
+	.fs-controls {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 11;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		gap: 0.6rem;
+		padding:
+			0.5rem
+			max(0.75rem, env(safe-area-inset-right))
+			max(0.5rem, env(safe-area-inset-bottom))
+			max(0.75rem, env(safe-area-inset-left));
+		background: linear-gradient(
+			to top,
+			rgba(0, 0, 0, 0.55) 0%,
+			rgba(0, 0, 0, 0) 100%
+		);
+	}
+	.fs-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 44px;
+		min-height: 44px;
+		padding: 0.5rem 0.85rem;
+		border-radius: 9999px;
+		border: 1px solid rgba(255, 255, 255, 0.22);
+		background: rgba(15, 23, 42, 0.55);
+		color: #f1f5f9;
+		font-size: 1rem;
+		font-weight: 700;
+		line-height: 1;
+		cursor: pointer;
+		backdrop-filter: blur(6px);
+		-webkit-backdrop-filter: blur(6px);
+		-webkit-tap-highlight-color: transparent;
+		transition:
+			background-color 0.15s ease,
+			transform 0.06s ease;
+	}
+	.fs-btn:hover {
+		background: rgba(30, 41, 59, 0.7);
+	}
+	.fs-btn:active {
+		transform: scale(0.95);
+	}
+	.fs-btn[aria-pressed='true'] {
+		background: var(--color-primary);
+		color: #0f172a;
+		border-color: var(--color-primary);
+	}
+	.fs-btn-exit {
+		margin-left: auto;
+		background: rgba(15, 23, 42, 0.75);
+	}
+
 	/*
 	 * When the wrapping container is placed into fullscreen (via the
 	 * Fullscreen API), the browser removes our Tailwind aspect-video/rounded

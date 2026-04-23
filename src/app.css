@@ -53,27 +53,35 @@ body::before {
  * Pseudo-fullscreen for the dive video player. Used in place of the native
  * Fullscreen API so the HTML HUD overlay stays visible on iOS Safari iPhone
  * (which only supports webkitEnterFullscreen on <video> and strips overlays).
- * Toggled from src/lib/stores/videoPlayback.ts on orientationchange while
- * a dive video is actively playing.
+ * Toggled from src/lib/stores/videoPlayback.ts on orientation change.
+ *
+ * The `--dive-video-fit` custom property lets the component swap between
+ *   cover  (fill the screen, crops ~10 % — "no black bars", default)
+ *   contain (letterbox — shows every pixel)
+ * without re-rendering the element.
  */
 .dive-video-pseudo-fullscreen {
 	position: fixed !important;
 	inset: 0 !important;
 	width: 100vw !important;
-	height: 100vh !important;
 	height: 100dvh !important;
 	max-width: none !important;
 	z-index: 9999 !important;
 	border-radius: 0 !important;
 	background: #000 !important;
 	aspect-ratio: auto !important;
+	/* Default fit = cover so landscape playback fills the screen with no
+	   black bars. The component may override via inline style. */
+	--dive-video-fit: cover;
 }
 .dive-video-pseudo-fullscreen video {
 	width: 100% !important;
 	height: 100% !important;
-	object-fit: contain !important;
+	object-fit: var(--dive-video-fit, cover) !important;
 }
 body.dive-video-fs-lock {
 	overflow: hidden !important;
 	touch-action: none;
+	/* Prevent iOS rubber-band scroll leaking through the fullscreen overlay. */
+	overscroll-behavior: none;
 }
