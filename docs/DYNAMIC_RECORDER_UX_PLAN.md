@@ -619,7 +619,8 @@ Status legend: [ ] pending · [~] in progress · [x] done (commit hash).
       `wall/tapped`); update tests.  *(commit cb241e5)*
 - [x] Step 9.C — uncap `cumulativeDistanceM`; add snap-on-wall-tap
       seeding; change `shouldAutoAdvance` semantics to banner-only.
-- [ ] Step 9.D — add `sample/recorded` event + 1 Hz sampling loop in
+      *(commit 096f494)*
+- [x] Step 9.D — add `sample/recorded` event + 1 Hz sampling loop in
       `DiveRecorder.svelte`; persist in finalized timeline.
 - [ ] Step 9.E — replay HUD prefers `samples` when present; fallback
       to lap-based interp for legacy clips.

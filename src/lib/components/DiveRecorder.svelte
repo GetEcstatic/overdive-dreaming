@@ -306,6 +306,25 @@
 		}
 	});
 
+	// 1 Hz sample recorder — writes a (atMs, distanceM, speedMs) point
+	// every ~1000 ms while diving so analytics can draw a smooth speed
+	// curve without relying on wall/split taps alone.
+	let lastSampleAtMs = 0;
+	$effect(() => {
+		if (rs.phase !== 'diving') {
+			lastSampleAtMs = 0;
+			return;
+		}
+		if (nowMs - lastSampleAtMs < 1000) return;
+		lastSampleAtMs = nowMs;
+		dispatch({
+			type: 'sample/recorded',
+			atPerfMs: nowMs,
+			distanceM: cumulativeDistanceM(rs, nowMs),
+			speedMs: liveSpeedMs(rs)
+		});
+	});
+
 	$effect(() => {
 		if (rs.autoAdvance && !bannerClearHandle) {
 			bannerClearHandle = setTimeout(() => {
