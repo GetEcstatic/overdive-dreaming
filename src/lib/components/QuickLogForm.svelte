@@ -19,6 +19,7 @@
 	import { isValidYouTubeUrl } from '$lib/storage';
 	import { biometricsToLapData, calculateSessionBiometricSummary } from '$lib/utils/biometricCsvParser';
 	import { getTagByValue } from '$lib/config/tagConfig';
+	import { resolveMetricInput } from '$lib/utils/resolveMetricInput';
 
 	interface Props {
 		routine: RoutineTemplate;
@@ -205,6 +206,9 @@
 	// have to retype numbers that the recorder already measured.
 	const seededAvgSpeed = initialValues?.avgSpeed;
 	const seededLaps = initialValues?.laps;
+	// avgSpeed is editable (unless source === 'recorder'), so keep it in state
+	// seeded from the recorder output.
+	let avgSpeed = $state<number | undefined>(seededAvgSpeed);
 
 	// Training context
 	let breathingTechnique = $state<BreathingTechnique | undefined>(undefined);
@@ -497,7 +501,7 @@
 			repsCompleted,
 			repDuration: repDurationSeconds,
 			repDistance,
-			avgSpeed: seededAvgSpeed,
+			avgSpeed: avgSpeed,
 			// Training context
 			breathingTechnique,
 			rpe,
@@ -581,6 +585,25 @@
 	// Use derived for tracking config to ensure reactivity
 	let config = $derived(routine.trackingConfig);
 
+	// Per-metric capture-source decisions. Each decision tells the template
+	// whether to render an editable input, a read-only "From recording" view,
+	// or a disabled CTA prompting the user to record a dive first.
+	const totalDistanceDecision = $derived(
+		resolveMetricInput(config, 'totalDistance', seededLaps !== undefined || initialValues?.totalDistance !== undefined)
+	);
+	const totalTimeDecision = $derived(
+		resolveMetricInput(config, 'totalTime', initialValues?.totalTimeSeconds !== undefined || (seededLaps?.length ?? 0) > 0)
+	);
+	const avgSpeedDecision = $derived(
+		resolveMetricInput(config, 'avgSpeed', seededAvgSpeed !== undefined)
+	);
+	const timePerLapDecision = $derived(
+		resolveMetricInput(config, 'timePerLap', (seededLaps?.length ?? 0) > 0)
+	);
+	const speedPerLapDecision = $derived(
+		resolveMetricInput(config, 'speedPerLap', (seededLaps?.length ?? 0) > 0)
+	);
+
 	// Check if any fields exist in each section
 	const hasSessionContext = $derived(config.trackPoolLength || config.trackInitialBreatheUpTime);
 	const hasPerformanceMetrics = $derived(
@@ -588,7 +611,8 @@
 			config.trackTotalTime ||
 			config.trackRepsCompleted ||
 			config.trackRepDuration ||
-			config.trackRepDistance
+			config.trackRepDistance ||
+			config.trackAvgSpeed
 	);
 	const hasTrainingContext = $derived(
 		config.trackBreathingTechnique ||
@@ -855,26 +879,90 @@
 
 			{#if config.trackTotalDistance}
 				<div class="field-group">
-					<label for="totalDistance" class="field-label">Total Distance (m)</label>
-					<input
-						id="totalDistance"
-						type="number"
-						bind:value={totalDistance}
-						min="0"
-						class="field-input"
-						placeholder="e.g., 175"
-					/>
+					<label for="totalDistance" class="field-label">
+						Total Distance (m)
+						{#if totalDistanceDecision.mode === 'readonly-from-recorder'}
+							<span class="from-recorder-badge">From recording</span>
+						{/if}
+					</label>
+					{#if totalDistanceDecision.mode === 'disabled-needs-recorder'}
+						<a class="recorder-cta" href="/record">Record a dive to capture this automatically</a>
+					{:else}
+						<input
+							id="totalDistance"
+							type="number"
+							bind:value={totalDistance}
+							min="0"
+							class="field-input"
+							placeholder="e.g., 175"
+							readonly={totalDistanceDecision.mode === 'readonly-from-recorder'}
+						/>
+					{/if}
 				</div>
 			{/if}
 
 			{#if config.trackTotalTime}
 				<div class="field-group">
-					<DurationInput
-						bind:value={totalTimeSeconds}
-						label="Total Time"
-						hint={routine.table ? '(auto-calculated from table)' : ''}
-						compact={true}
-					/>
+					{#if totalTimeDecision.mode === 'readonly-from-recorder'}
+						<label class="field-label">
+							Total Time
+							<span class="from-recorder-badge">From recording</span>
+						</label>
+						<div class="readonly-display">{totalTimeSeconds ?? '—'} s</div>
+					{:else if totalTimeDecision.mode === 'disabled-needs-recorder'}
+						<label class="field-label">Total Time</label>
+						<a class="recorder-cta" href="/record">Record a dive to capture this automatically</a>
+					{:else}
+						<DurationInput
+							bind:value={totalTimeSeconds}
+							label="Total Time"
+							hint={routine.table ? '(auto-calculated from table)' : ''}
+							compact={true}
+						/>
+					{/if}
+				</div>
+			{/if}
+
+			{#if config.trackAvgSpeed}
+				<div class="field-group">
+					<label for="avgSpeed" class="field-label">
+						Avg Speed (m/s)
+						{#if avgSpeedDecision.mode === 'readonly-from-recorder'}
+							<span class="from-recorder-badge">From recording</span>
+						{/if}
+					</label>
+					{#if avgSpeedDecision.mode === 'disabled-needs-recorder'}
+						<a class="recorder-cta" href="/record">Record a dive to capture this automatically</a>
+					{:else}
+						<input
+							id="avgSpeed"
+							type="number"
+							bind:value={avgSpeed}
+							min="0"
+							step="0.01"
+							class="field-input"
+							placeholder="e.g., 1.25"
+							readonly={avgSpeedDecision.mode === 'readonly-from-recorder'}
+						/>
+					{/if}
+				</div>
+			{/if}
+
+			{#if config.trackSpeedPerLap || config.trackTimePerLap}
+				<div class="field-group">
+					<label class="field-label">
+						Per-Lap Data
+						{#if (speedPerLapDecision.mode === 'readonly-from-recorder' || timePerLapDecision.mode === 'readonly-from-recorder')}
+							<span class="from-recorder-badge">From recording</span>
+						{/if}
+					</label>
+					{#if speedPerLapDecision.mode === 'disabled-needs-recorder' && timePerLapDecision.mode === 'disabled-needs-recorder'}
+						<a class="recorder-cta" href="/record">Record a dive to capture per-lap splits automatically</a>
+					{:else if seededLaps && seededLaps.length > 0}
+						<div class="readonly-display">{seededLaps.length} lap{seededLaps.length === 1 ? '' : 's'} captured from recording</div>
+					{:else}
+						<div class="field-hint">Per-lap splits are optional — add them later from video review.</div>
+					{/if}
 				</div>
 			{/if}
 
@@ -2445,5 +2533,46 @@
 	.btn-cancel:disabled {
 		opacity: 0.7;
 		cursor: not-allowed;
+	}
+
+	/* Capture-source UI — "From recording" badge, readonly value, recorder CTA */
+	.from-recorder-badge {
+		display: inline-block;
+		margin-left: 0.5rem;
+		padding: 0.1rem 0.45rem;
+		font-size: 0.65rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		color: var(--color-primary);
+		background: rgba(20, 184, 166, 0.12);
+		border: 1px solid rgba(20, 184, 166, 0.4);
+		border-radius: 999px;
+		vertical-align: middle;
+	}
+
+	.readonly-display {
+		padding: 0.6rem 0.75rem;
+		border-radius: 6px;
+		background: rgba(148, 163, 184, 0.08);
+		color: var(--color-text);
+		font-variant-numeric: tabular-nums;
+	}
+
+	.recorder-cta {
+		display: block;
+		padding: 0.75rem;
+		border-radius: 6px;
+		background: rgba(20, 184, 166, 0.08);
+		border: 1px dashed rgba(20, 184, 166, 0.4);
+		color: var(--color-primary);
+		font-size: 0.85rem;
+		text-align: center;
+		text-decoration: none;
+		font-weight: 500;
+	}
+
+	.recorder-cta:hover {
+		background: rgba(20, 184, 166, 0.14);
 	}
 </style>
