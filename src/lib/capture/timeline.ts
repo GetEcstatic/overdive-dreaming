@@ -130,13 +130,20 @@ export function averageSpeedMs(timeline: DiveTimeline): number {
  * Instantaneous (windowed) speed at a given point in time, used by the HUD.
  *
  * Strategy: take the most recent completed lap before `atMs` and use its
- * split as the basis. If no lap yet, fall back to the running average from
- * diveStart → atMs (which will read 0 until the first lap).
+ * split as the basis. Before the first waypoint — but after the dive has
+ * started — fall back to the live-HUD default of 1 m/s (mirrors
+ * `liveSpeedMs` in recorderSelectors.ts and the tail-estimate in
+ * `totalDistanceM`) so replays of short dives that ended before the first
+ * waypoint show a plausible running speed instead of 0.
  */
 export function speedAt(timeline: DiveTimeline, atMs: number, poolLengthM: number): number {
 	// Find laps that happened at or before atMs.
 	const completedLaps = timeline.laps.filter((l) => l.atMs <= atMs);
-	if (completedLaps.length === 0) return 0;
+	if (completedLaps.length === 0) {
+		// Before any waypoint: 1 m/s default while the dive is in progress.
+		if (atMs > timeline.diveStartMs && atMs <= timeline.diveEndMs) return 1;
+		return 0;
+	}
 
 	const lastLap = completedLaps[completedLaps.length - 1];
 	if (lastLap.splitMs <= 0) return 0;
@@ -149,6 +156,13 @@ export function speedAt(timeline: DiveTimeline, atMs: number, poolLengthM: numbe
  * We use a stepwise model: distance jumps by `poolLengthM` on each wall tap.
  * Between taps we linearly interpolate based on the current-lap pace estimate
  * so the on-screen number rises smoothly rather than in hard jumps.
+ *
+ * Before the first waypoint — but after the dive has started — we fall back
+ * to a default pace of 1 m/s so the HUD shows a running distance for dives
+ * that ended before the first tap. This mirrors the recorder's live HUD
+ * (`cumulativeDistanceM` in recorderSelectors.ts) and the finalized
+ * `totalDistanceM`, so a replay of a short dive matches the recorded
+ * distance instead of reading 0m.
  */
 export function distanceAt(
 	timeline: DiveTimeline,
@@ -156,16 +170,19 @@ export function distanceAt(
 	poolLengthM: number
 ): number {
 	const completedLaps = timeline.laps.filter((l) => l.atMs <= atMs);
-	const baseDistance =
-		completedLaps.length === 0 ? 0 : completedLaps[completedLaps.length - 1].cumulativeDistanceM;
 
-	// Interpolate toward the next wall using the pace of the last completed lap.
 	if (completedLaps.length === 0) {
-		// Before the first lap: we don't know pace yet.
-		return baseDistance;
+		// No waypoints yet. Before dive start → 0. After dive start → 1 m/s
+		// running estimate, clamped to the dive's end so we don't keep
+		// growing after the diver stopped.
+		if (atMs <= timeline.diveStartMs) return 0;
+		const effectiveAtMs = Math.min(atMs, timeline.diveEndMs);
+		const elapsedSinceDiveStartMs = Math.max(0, effectiveAtMs - timeline.diveStartMs);
+		return (elapsedSinceDiveStartMs / 1000) * 1;
 	}
 
 	const lastLap = completedLaps[completedLaps.length - 1];
+	const baseDistance = lastLap.cumulativeDistanceM;
 	if (lastLap.splitMs <= 0) return baseDistance;
 
 	const timeSinceLastWallMs = atMs - lastLap.atMs;

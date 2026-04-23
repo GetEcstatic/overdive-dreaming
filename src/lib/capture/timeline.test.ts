@@ -129,8 +129,15 @@ describe('timeline — totals', () => {
 describe('timeline — speedAt / distanceAt', () => {
 	const t = buildFourLap50s();
 
-	it('speedAt returns 0 before the first lap', () => {
-		expect(speedAt(t, 5_000, 50)).toBe(0);
+	it('speedAt falls back to 1 m/s before the first lap during the dive', () => {
+		// Mirrors liveSpeedMs in recorderSelectors.ts — the HUD shows 1 m/s
+		// until the first waypoint is tapped, so replay stays consistent.
+		expect(speedAt(t, 5_000, 50)).toBe(1);
+	});
+
+	it('speedAt returns 0 before dive start', () => {
+		const late = finalizeTimeline(createEmptyTimeline(10_000), 20_000);
+		expect(speedAt(late, 5_000, 50)).toBe(0);
 	});
 
 	it('speedAt uses the most recent completed lap split', () => {
@@ -139,8 +146,30 @@ describe('timeline — speedAt / distanceAt', () => {
 		expect(speedAt(t, 45_000, 50)).toBeCloseTo(50 / 30, 5);
 	});
 
-	it('distanceAt is 0 before the first lap', () => {
-		expect(distanceAt(t, 5_000, 50)).toBe(0);
+	it('distanceAt shows a running 1 m/s estimate before the first lap', () => {
+		// At 5s into a dive with no waypoints yet, the HUD should read 5m,
+		// matching the live recorder HUD and the finalized totalDistanceM.
+		expect(distanceAt(t, 5_000, 50)).toBeCloseTo(5, 5);
+	});
+
+	it('distanceAt is 0 before dive start', () => {
+		const late = finalizeTimeline(createEmptyTimeline(10_000), 20_000);
+		expect(distanceAt(late, 5_000, 50)).toBe(0);
+	});
+
+	it('distanceAt for a dive that ended before the first waypoint matches totalDistanceM', () => {
+		// 8s dive, no waypoints. Regression test: HUD used to read 0m during
+		// playback while the recorded total was 8m.
+		const short = finalizeTimeline(createEmptyTimeline(0), 8_000);
+		expect(distanceAt(short, 8_000, 25)).toBeCloseTo(totalDistanceM(short), 5);
+		expect(distanceAt(short, 8_000, 25)).toBeCloseTo(8, 5);
+	});
+
+	it('distanceAt clamps to the dive end when no waypoints were tapped', () => {
+		// After End-dive, the HUD should freeze at the recorded distance rather
+		// than keep growing for frames past diveEndMs.
+		const short = finalizeTimeline(createEmptyTimeline(0), 8_000);
+		expect(distanceAt(short, 12_000, 25)).toBeCloseTo(8, 5);
 	});
 
 	it('distanceAt interpolates linearly between wall taps', () => {
