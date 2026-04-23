@@ -25,6 +25,12 @@
 	import { formatTime } from '$lib/utils/time';
 	import { format, intervalToDuration, type Duration } from 'date-fns';
 	import { getUserSettings, getSeasonsForUser } from '$lib/firestore';
+	import {
+		buildAvgSpeedSeries,
+		buildFastestLapScatter,
+		buildSpeedVsDistance,
+		buildPacingProfile
+	} from '$lib/utils/dynamicAnalytics';
 
 	let filterKey = $state<string>('tf:1month');
 	let allLogs = $state<RoutineLog[]>([]);
@@ -144,6 +150,12 @@
 
 	const breathingImpactDisciplines: Discipline[] = ['DYN', 'DNF', 'DYNB', 'STA'];
 	let breathingImpactSelection = $state<Discipline[]>(['DYN', 'DNF', 'DYNB']);
+
+	// Dynamic analytics — speed-focused charts for DYN/DYNB/DNF
+	const dynamicAvgSpeedChart = $derived(buildAvgSpeedSeries(filteredLogs));
+	const dynamicFastestLapChart = $derived(buildFastestLapScatter(filteredLogs));
+	const dynamicSpeedVsDistanceChart = $derived(buildSpeedVsDistance(filteredLogs));
+	const dynamicPacingProfileChart = $derived(buildPacingProfile(filteredLogs, 10));
 
 	const breathingImpactData = $derived.by(() => {
 		const hasDynamic = breathingImpactSelection.some((disc) =>
@@ -700,6 +712,92 @@
 
 			<!-- Training Intensity by RPE Zone -->
 			<RPEZoneChart logs={filteredLogs} />
+
+			<!-- Dynamic Training (Speed) -->
+			<div class="chart-card">
+				<div class="chart-header">
+					<h2>Dynamic — Avg Speed Over Time</h2>
+				</div>
+				{#if !dynamicAvgSpeedChart.hasData}
+					<div class="stat-list">
+						<div class="stat-item">
+							<span class="stat-label">No dynamic speed data yet</span>
+							<span class="stat-value">—</span>
+						</div>
+					</div>
+				{:else}
+					<LineChart
+						data={dynamicAvgSpeedChart}
+						height={280}
+						tooltipValueFormatter={(v) => `${v.toFixed(2)} m/s`}
+					/>
+				{/if}
+			</div>
+
+			<div class="chart-card">
+				<div class="chart-header">
+					<h2>Dynamic — Fastest Lap Speed</h2>
+				</div>
+				{#if !dynamicFastestLapChart.hasData}
+					<div class="stat-list">
+						<div class="stat-item">
+							<span class="stat-label">No per-lap data yet</span>
+							<span class="stat-value">—</span>
+						</div>
+					</div>
+				{:else}
+					<ScatterChart
+						data={dynamicFastestLapChart}
+						height={280}
+						yTickFormatter={(v) => `${v.toFixed(2)}`}
+						xTickFormatter={(v) => new Date(v).toLocaleDateString()}
+						yTitle="Speed (m/s)"
+						xTitle="Date"
+					/>
+				{/if}
+			</div>
+
+			<div class="chart-card">
+				<div class="chart-header">
+					<h2>Dynamic — Pacing Profile (last 10 dives)</h2>
+				</div>
+				{#if !dynamicPacingProfileChart.hasData}
+					<div class="stat-list">
+						<div class="stat-item">
+							<span class="stat-label">No per-lap splits yet</span>
+							<span class="stat-value">—</span>
+						</div>
+					</div>
+				{:else}
+					<LineChart
+						data={dynamicPacingProfileChart}
+						height={280}
+						tooltipValueFormatter={(v) => `${v.toFixed(2)} m/s`}
+					/>
+				{/if}
+			</div>
+
+			<div class="chart-card">
+				<div class="chart-header">
+					<h2>Dynamic — Speed vs Distance</h2>
+				</div>
+				{#if !dynamicSpeedVsDistanceChart.hasData}
+					<div class="stat-list">
+						<div class="stat-item">
+							<span class="stat-label">Need avg speed + distance on at least one dive</span>
+							<span class="stat-value">—</span>
+						</div>
+					</div>
+				{:else}
+					<ScatterChart
+						data={dynamicSpeedVsDistanceChart}
+						height={280}
+						xTitle="Distance (m)"
+						yTitle="Avg Speed (m/s)"
+						yTickFormatter={(v) => `${v.toFixed(2)}`}
+					/>
+				{/if}
+			</div>
 
 			<!-- Performance by Time of Day -->
 	<TimeOfDayAnalysis logs={filteredLogs} />
