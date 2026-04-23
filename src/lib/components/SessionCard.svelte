@@ -409,11 +409,15 @@
 				<div class="dive-video">
 					{#if diveVideo}
 						<!--
-						  Render the full HUD-overlay player even in the feed,
-						  but use the compact variant so the summary / action
-						  card is hidden — just the video + HUD on top.
+						  Render the full DiveVideoPlayer in the feed so the
+						  landscape-rotation fullscreen behavior matches the
+						  session detail page exactly (same component, same
+						  props). Rotating the phone to landscape promotes
+						  this card's video to pseudo-fullscreen, gated by
+						  the IntersectionObserver so only the on-screen
+						  card takes over.
 						-->
-						<DiveVideoPlayer video={diveVideo} srcUrl={diveVideoUrl} compact />
+						<DiveVideoPlayer video={diveVideo} srcUrl={diveVideoUrl} />
 					{:else}
 						<!-- svelte-ignore a11y_media_has_caption -->
 						<video
