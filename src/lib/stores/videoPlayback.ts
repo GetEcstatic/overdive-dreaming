@@ -117,6 +117,15 @@ export const diveVideoBehavior: Action<HTMLVideoElement, DiveVideoBehaviorOption
 	let userEscaped = false;
 	let savedScrollY = 0;
 
+	// When we enter pseudo-fullscreen we portal the container to document.body
+	// so that ancestor CSS properties which create a "containing block" for
+	// fixed-positioned descendants (backdrop-filter, filter, transform,
+	// perspective, contain, will-change) cannot trap the fullscreen element
+	// inside a feed-card-sized box. Saved here so `exitPseudoFullscreen` can
+	// restore the node to its original position in the DOM.
+	let originalParent: Node | null = null;
+	let originalNextSibling: Node | null = null;
+
 	const container = (): HTMLElement | null =>
 		(node.closest('[data-fullscreen-root]') as HTMLElement | null) ?? null;
 
@@ -161,6 +170,17 @@ export const diveVideoBehavior: Action<HTMLVideoElement, DiveVideoBehaviorOption
 		if (!el) return;
 		pseudoFs = true;
 		savedScrollY = window.scrollY;
+
+		// Portal the container to <body> so ancestor CSS (backdrop-filter on
+		// .session-card, transform on hover, etc.) can't create a containing
+		// block that traps our `position: fixed` rule inside the feed card.
+		// Save the original DOM location so we can restore on exit.
+		originalParent = el.parentNode;
+		originalNextSibling = el.nextSibling;
+		if (originalParent && el.parentNode !== document.body) {
+			document.body.appendChild(el);
+		}
+
 		el.classList.add(CLASS_PSEUDO_FS);
 		document.body.classList.add(CLASS_BODY_LOCK);
 		// Try Android orientation lock (ignored on iOS).
@@ -179,6 +199,20 @@ export const diveVideoBehavior: Action<HTMLVideoElement, DiveVideoBehaviorOption
 		pseudoFs = false;
 		el?.classList.remove(CLASS_PSEUDO_FS);
 		document.body.classList.remove(CLASS_BODY_LOCK);
+
+		// Restore the container to its original DOM location. Guarded so we
+		// don't reparent into a node that no longer exists (e.g. the card
+		// was unmounted while fullscreen — rare but possible on navigation).
+		if (el && originalParent && originalParent.isConnected) {
+			if (originalNextSibling && originalNextSibling.parentNode === originalParent) {
+				originalParent.insertBefore(el, originalNextSibling);
+			} else {
+				originalParent.appendChild(el);
+			}
+		}
+		originalParent = null;
+		originalNextSibling = null;
+
 		// Restore scroll position (the lock uses overflow:hidden which can
 		// reset it on some browsers).
 		if (typeof window !== 'undefined') {
