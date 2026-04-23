@@ -183,6 +183,7 @@
 		// self-heals from a missed split.
 		const kind = nextTapKind(rs);
 		const atPerfMs = performance.now();
+		vibrate(kind === 'wall' ? 30 : 15);
 		if (kind === 'wall') {
 			dispatch({ type: 'wall/tapped', atPerfMs });
 		} else {
@@ -207,6 +208,61 @@
 
 	function onPressEndDive(): void {
 		dispatch({ type: 'dive/ended', atPerfMs: performance.now() });
+	}
+
+	// ---- Haptics -----------------------------------------------------------
+	// Tiny helper around navigator.vibrate. No-op on browsers without the
+	// Vibration API (desktop, iOS Safari).
+	function vibrate(pattern: number | number[]): void {
+		if (typeof navigator === 'undefined') return;
+		const nav = navigator as Navigator & {
+			vibrate?: (p: number | number[]) => boolean;
+		};
+		if (typeof nav.vibrate !== 'function') return;
+		try {
+			if (Array.isArray(pattern)) nav.vibrate(pattern);
+			else nav.vibrate(pattern);
+		} catch {
+			/* ignore */
+		}
+	}
+
+	// ---- Tap-and-hold End-dive ---------------------------------------------
+	// End-dive is destructive (commits the dive's duration), so we require
+	// the coach to press-and-hold for 500 ms before it fires. A short tap
+	// does nothing. Haptics: short pulse on hold-start, long pattern on
+	// confirm.
+	const END_DIVE_HOLD_MS = 500;
+	let endDiveHoldHandle: ReturnType<typeof setTimeout> | null = null;
+	let endDiveHeld = $state(false);
+
+	function onEndDiveHoldStart(ev: PointerEvent): void {
+		if (rs.phase !== 'diving') return;
+		ev.preventDefault();
+		const target = ev.currentTarget as HTMLElement | null;
+		if (target && typeof target.setPointerCapture === 'function') {
+			try {
+				target.setPointerCapture(ev.pointerId);
+			} catch {
+				/* ignore — some browsers reject */
+			}
+		}
+		endDiveHeld = true;
+		vibrate(20);
+		endDiveHoldHandle = setTimeout(() => {
+			endDiveHoldHandle = null;
+			endDiveHeld = false;
+			vibrate([50, 60, 150]);
+			onPressEndDive();
+		}, END_DIVE_HOLD_MS);
+	}
+
+	function onEndDiveHoldEnd(): void {
+		if (endDiveHoldHandle !== null) {
+			clearTimeout(endDiveHoldHandle);
+			endDiveHoldHandle = null;
+		}
+		endDiveHeld = false;
 	}
 
 	async function onPressStopRecording(): Promise<void> {
@@ -399,7 +455,8 @@
 
 		{#if rs.autoAdvance}
 			<div class="toast" role="status">
-				Auto-advanced waypoint — tap Undo if that's wrong
+				Looks like the diver passed a wall — tap Waypoint to snap to the
+				next wall.
 			</div>
 		{/if}
 
@@ -432,17 +489,41 @@
 		{:else}
 			<div class="row">
 				{#each layout.buttons as btn (btn.kind)}
-					<button
-						class="btn btn-{btn.kind} w-{btn.weight}"
-						class:is-disabled={btn.disabled}
-						disabled={btn.disabled}
-						onclick={() => handleButton(btn)}
-					>
-						<span class="btn-main">{btn.label}</span>
-						{#if btn.sub}
-							<span class="btn-sub">{btn.sub}</span>
-						{/if}
-					</button>
+					{#if btn.kind === 'endDive' && rs.phase === 'diving'}
+						<button
+							class="btn btn-{btn.kind} w-{btn.weight}"
+							class:is-held={endDiveHeld}
+							class:is-disabled={btn.disabled}
+							disabled={btn.disabled}
+							onpointerdown={onEndDiveHoldStart}
+							onpointerup={onEndDiveHoldEnd}
+							onpointercancel={onEndDiveHoldEnd}
+							onpointerleave={onEndDiveHoldEnd}
+							aria-label="Hold to end dive"
+						>
+							<span class="btn-main">
+								{endDiveHeld ? 'Hold…' : btn.label}
+							</span>
+							<span class="btn-sub">
+								{endDiveHeld ? 'keep holding' : 'hold 0.5s'}
+							</span>
+							{#if endDiveHeld}
+								<span class="hold-progress" aria-hidden="true"></span>
+							{/if}
+						</button>
+					{:else}
+						<button
+							class="btn btn-{btn.kind} w-{btn.weight}"
+							class:is-disabled={btn.disabled}
+							disabled={btn.disabled}
+							onclick={() => handleButton(btn)}
+						>
+							<span class="btn-main">{btn.label}</span>
+							{#if btn.sub}
+								<span class="btn-sub">{btn.sub}</span>
+							{/if}
+						</button>
+					{/if}
 				{/each}
 			</div>
 			{#if layout.hint}
@@ -647,6 +728,30 @@
 		background: var(--color-primary);
 		color: #0f172a;
 		font-weight: 700;
+	}
+	/* Hold-to-end-dive progress affordance. */
+	.btn.btn-endDive {
+		position: relative;
+		overflow: hidden;
+	}
+	.btn.btn-endDive.is-held {
+		background: #b91c1c;
+	}
+	.btn.btn-endDive .hold-progress {
+		position: absolute;
+		inset: 0;
+		background: rgba(255, 255, 255, 0.18);
+		transform-origin: left center;
+		animation: hold-fill 500ms linear forwards;
+		pointer-events: none;
+	}
+	@keyframes hold-fill {
+		from {
+			transform: scaleX(0);
+		}
+		to {
+			transform: scaleX(1);
+		}
 	}
 	.btn-main {
 		font-size: 1.1rem;

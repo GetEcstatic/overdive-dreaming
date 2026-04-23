@@ -625,7 +625,7 @@ Status legend: [ ] pending · [~] in progress · [x] done (commit hash).
       *(commit 53e6692)*
 - [x] Step 9.E — replay HUD prefers `samples` when present; fallback
       to lap-based interp for legacy clips.
-- [ ] Step 9.F — one-smart-button UI: single Waypoint button with
+- [x] Step 9.F — one-smart-button UI: single Waypoint button with
       classification rule from §9.4.1b, tap-and-hold 500 ms End-dive,
       haptics; on-device QA.
 - [ ] Step 9.G — docs pass: update
