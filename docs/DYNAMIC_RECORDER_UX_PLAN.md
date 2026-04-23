@@ -616,8 +616,8 @@ Status legend: [ ] pending · [~] in progress · [x] done (commit hash).
       `subSplits`; no behaviour change.  *(commit 0a4f039)*
 - [x] Step 9.B — add `wall/tapped` + `split/tapped` reducer events
       (keep `waypoint/tapped` as a back-compat alias that routes to
-      `wall/tapped`); update tests.
-- [ ] Step 9.C — uncap `cumulativeDistanceM`; add snap-on-wall-tap
+      `wall/tapped`); update tests.  *(commit cb241e5)*
+- [x] Step 9.C — uncap `cumulativeDistanceM`; add snap-on-wall-tap
       seeding; change `shouldAutoAdvance` semantics to banner-only.
 - [ ] Step 9.D — add `sample/recorded` event + 1 Hz sampling loop in
       `DiveRecorder.svelte`; persist in finalized timeline.

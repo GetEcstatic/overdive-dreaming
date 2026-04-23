@@ -32,6 +32,7 @@
 		cumulativeDistanceM,
 		diveElapsedMs,
 		liveSpeedMs,
+		nextTapKind,
 		nextWaypointM,
 		shouldAutoAdvance,
 		waypointCount,
@@ -175,7 +176,29 @@
 	}
 
 	function onPressWaypoint(): void {
-		dispatch({ type: 'waypoint/tapped', atPerfMs: performance.now() });
+		// Smart-button classification (§9.4.1b): route to wall/tapped or
+		// split/tapped based on the next expected tap. Wall beats split
+		// whenever the live interpolation has already reached the next
+		// wall minus half-a-split tolerance — this is how the system
+		// self-heals from a missed split.
+		const kind = nextTapKind(rs);
+		const atPerfMs = performance.now();
+		if (kind === 'wall') {
+			dispatch({ type: 'wall/tapped', atPerfMs });
+		} else {
+			// Split expected — but if the diver has already drifted past
+			// the next wall (indicated by the auto-advance banner), snap
+			// to the wall instead.
+			const interp = cumulativeDistanceM(rs, atPerfMs);
+			const wallM =
+				(rs.timeline.laps.length + 1) * rs.config.poolLengthM;
+			const spacing = waypointSpacingM(rs.config);
+			if (interp >= wallM - spacing / 2) {
+				dispatch({ type: 'wall/tapped', atPerfMs });
+			} else {
+				dispatch({ type: 'split/tapped', atPerfMs });
+			}
+		}
 	}
 
 	function onPressUndo(): void {

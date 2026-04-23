@@ -272,9 +272,12 @@ describe('selectors', () => {
 		expect(cumulativeDistanceM(diving, 8000)).toBeCloseTo(3, 5);
 	});
 
-	it('cumulativeDistanceM is capped at the next waypoint target', () => {
-		// Huge elapsed time → clamp at nextWaypointM (12.5).
-		expect(cumulativeDistanceM(diving, 1_000_000)).toBeCloseTo(12.5, 5);
+	it('cumulativeDistanceM is uncapped in v2 — keeps advancing past the next target', () => {
+		// Huge elapsed time → the HUD keeps advancing linearly instead of
+		// pinning at nextWaypointM. The reducer snaps to the correct
+		// integer distance on the next real wall tap.
+		// 1_000_000 ms - 5000 ms (dive start) = 995 s × 1 m/s = 995 m.
+		expect(cumulativeDistanceM(diving, 1_000_000)).toBeCloseTo(995, 5);
 	});
 
 	it('cumulativeDistanceM freezes uncapped at dive-end (no revert to last waypoint)', () => {
@@ -291,12 +294,21 @@ describe('selectors', () => {
 		expect(cumulativeDistanceM(ended, 99999)).toBeCloseTo(16.25, 5);
 	});
 
-	it('nextWaypointM steps by spacing after each tap', () => {
-		const s = recorderReducer(diving, {
-			type: 'waypoint/tapped',
-			atPerfMs: 15000
+	it('nextWaypointM targets split then wall (wpl=2)', () => {
+		// Fresh dive, no taps: next expected is a split at 12.5m.
+		expect(nextWaypointM(diving)).toBeCloseTo(12.5, 5);
+		// After a split, next expected is the wall at 25m.
+		const afterSplit = recorderReducer(diving, {
+			type: 'split/tapped',
+			atPerfMs: 12000
 		});
-		expect(nextWaypointM(s)).toBeCloseTo(25, 5);
+		expect(nextWaypointM(afterSplit)).toBeCloseTo(25, 5);
+		// After a wall, next expected is the next split at 37.5m.
+		const afterWall = recorderReducer(afterSplit, {
+			type: 'wall/tapped',
+			atPerfMs: 20000
+		});
+		expect(nextWaypointM(afterWall)).toBeCloseTo(37.5, 5);
 	});
 
 	it('liveSpeedMs defaults to 1 before first lap', () => {
@@ -325,21 +337,21 @@ describe('selectors', () => {
 	});
 });
 
-describe('shouldAutoAdvance (10 m threshold)', () => {
+describe('shouldAutoAdvance (10 m threshold, v2 compares to next wall)', () => {
 	const diving = startDiveAt(
 		startRecordingAt(arm(initialRecorderState(CONFIG)), 0),
 		0
 	);
 
-	it('does not trigger at 9.99 m over target', () => {
-		// Target is 12.5 m. Over by ~9.99 → raw distance ≈ 22.49.
-		// At 1 m/s, elapsed = 22.49 s → perf = 22490.
-		expect(shouldAutoAdvance(diving, 22_490)).toBe(false);
+	it('does not trigger at 9.99 m over the next wall', () => {
+		// Next wall is 25 m. Over by ~9.99 → raw ≈ 34.99. At 1 m/s the
+		// dive has been underway for 34.99 s → perf = 34990.
+		expect(shouldAutoAdvance(diving, 34_990)).toBe(false);
 	});
 
-	it('triggers at 10.01 m over target', () => {
-		// raw ≈ 22.51 m → over by 10.01.
-		expect(shouldAutoAdvance(diving, 22_510)).toBe(true);
+	it('triggers at 10.01 m over the next wall', () => {
+		// raw ≈ 35.01 m → over by 10.01.
+		expect(shouldAutoAdvance(diving, 35_010)).toBe(true);
 	});
 
 	it('does not trigger outside diving phase', () => {

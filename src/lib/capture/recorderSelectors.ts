@@ -6,6 +6,7 @@
 
 import type { RecorderState } from './recorderState';
 import { waypointSpacingM } from './recorderState';
+import type { LapEvent } from '../types';
 
 /** ms elapsed since Start-dive. 0 before the dive begins. */
 export function diveElapsedMs(state: RecorderState, nowPerfMs: number): number {
@@ -28,53 +29,112 @@ export function recordingElapsedMs(
 	return Math.max(0, nowPerfMs - state.clocks.recordingStartedPerfMs);
 }
 
-/** Waypoints tapped so far. */
+/** Wall taps so far (completed lengths). */
 export function waypointCount(state: RecorderState): number {
 	return state.timeline.laps.length;
 }
 
-/** Cumulative distance of the next waypoint target (metres). */
-export function nextWaypointM(state: RecorderState): number {
-	return (waypointCount(state) + 1) * waypointSpacingM(state.config);
+// ---------------------------------------------------------------------------
+// v2 helpers — unified wall+split view
+// ---------------------------------------------------------------------------
+
+/**
+ * The most recent tap on the timeline — wall or split — whichever has the
+ * later `atMs`. Null if the diver hasn't tapped anything yet.
+ */
+function lastTap(state: RecorderState): LapEvent | null {
+	const { laps, subSplits } = state.timeline;
+	const lastWall = laps.length > 0 ? laps[laps.length - 1] : null;
+	const subs = subSplits ?? [];
+	const lastSub = subs.length > 0 ? subs[subs.length - 1] : null;
+	if (!lastWall && !lastSub) return null;
+	if (lastWall && (!lastSub || lastWall.atMs >= lastSub.atMs)) return lastWall;
+	return lastSub;
 }
 
-/** Live speed in m/s. Defaults to 1 m/s before the first waypoint. */
-export function liveSpeedMs(state: RecorderState): number {
-	const { phase, timeline, config } = state;
-	if (phase !== 'diving' && phase !== 'ended' && phase !== 'stopping') return 0;
-	const count = timeline.laps.length;
-	if (count === 0) return 1;
-	const last = timeline.laps[count - 1];
-	if (last.splitMs <= 0) return 0;
-	return waypointSpacingM(config) / (last.splitMs / 1000);
+/** Number of sub-splits that belong to the current (incomplete) lap. */
+function inLapSubSplitCount(state: RecorderState): number {
+	const completedWalls = state.timeline.laps.length;
+	const thresholdM = completedWalls * state.config.poolLengthM;
+	return (state.timeline.subSplits ?? []).filter(
+		(s) => s.cumulativeDistanceM > thresholdM
+	).length;
+}
+
+/** What kind of tap is next expected under the smart-button rule? */
+export function nextTapKind(state: RecorderState): 'wall' | 'split' {
+	const wpl = state.config.waypointsPerLap;
+	if (wpl <= 1) return 'wall';
+	return inLapSubSplitCount(state) + 1 < wpl ? 'split' : 'wall';
+}
+
+/** Cumulative distance (m) of the next expected tap. */
+export function nextWaypointM(state: RecorderState): number {
+	const completedWalls = state.timeline.laps.length;
+	const wallBaseM = completedWalls * state.config.poolLengthM;
+	if (nextTapKind(state) === 'wall') {
+		return wallBaseM + state.config.poolLengthM;
+	}
+	const spacing = waypointSpacingM(state.config);
+	return wallBaseM + (inLapSubSplitCount(state) + 1) * spacing;
+}
+
+/** Cumulative distance (m) of the next WALL — the next integer length. */
+export function nextWallM(state: RecorderState): number {
+	return (state.timeline.laps.length + 1) * state.config.poolLengthM;
 }
 
 /**
- * Interpolated cumulative distance at `nowPerfMs`. Starts from dive-start at
- * 1 m/s until the first waypoint; thereafter interpolates from the last
- * waypoint using the most recent measured pace. Capped at the next waypoint
- * target so the UI doesn't visibly "jump back" on a late tap.
- *
- * Once the dive has ended, the cap is removed and the distance is frozen at
- * whatever the diver had covered when End-dive was tapped (uncapped).
+ * Live speed in m/s. Derived from the gap between the two most recent taps
+ * (of any kind), or from the single tap's split (time since dive start)
+ * if there is only one. Defaults to 1 m/s before the first tap.
+ */
+export function liveSpeedMs(state: RecorderState): number {
+	const { phase, timeline, config } = state;
+	if (phase !== 'diving' && phase !== 'ended' && phase !== 'stopping') return 0;
+
+	// Merge walls + subSplits by atMs.
+	const subs = timeline.subSplits ?? [];
+	const merged = [...timeline.laps, ...subs].sort((a, b) => a.atMs - b.atMs);
+	if (merged.length === 0) return 1;
+
+	if (merged.length === 1) {
+		const only = merged[0];
+		if (only.splitMs <= 0) return 0;
+		return only.cumulativeDistanceM / (only.splitMs / 1000);
+	}
+
+	const last = merged[merged.length - 1];
+	const prev = merged[merged.length - 2];
+	const dt = (last.atMs - prev.atMs) / 1000;
+	const dx = last.cumulativeDistanceM - prev.cumulativeDistanceM;
+	if (dt <= 0) return 1;
+	// Negative dx shouldn't happen (events are append-only with monotonic
+	// cumulative distance) but guard just in case.
+	if (dx < 0) return waypointSpacingM(config) / Math.max(dt, 0.001);
+	return dx / dt;
+}
+
+/**
+ * Interpolated cumulative distance at `nowPerfMs`. UNCAPPED in v2 — the HUD
+ * keeps advancing past the next expected waypoint when the diver misses a
+ * tap, instead of pinning. The reducer corrects the base on the next real
+ * wall tap (snap-to-integer). Starts from dive-start at 1 m/s until the
+ * first tap.
  */
 export function cumulativeDistanceM(
 	state: RecorderState,
 	nowPerfMs: number
 ): number {
 	const { phase, timeline, clocks } = state;
-	const count = timeline.laps.length;
 
 	if (phase === 'ended' || phase === 'stopping') {
-		// Freeze at dive-end time, interpolated from the last waypoint
-		// without capping — otherwise the reading visibly reverts to the
-		// last waypoint distance when the diver surfaced mid-lap.
-		const lastLap = count === 0 ? null : timeline.laps[count - 1];
+		const anchor = lastTap(state);
 		const baseAtMs =
-			lastLap === null
+			anchor === null
 				? clocks.diveStartedPerfMs - clocks.recordingStartedPerfMs
-				: lastLap.atMs;
-		const baseDistance = lastLap?.cumulativeDistanceM ?? 0;
+				: anchor.atMs;
+		const baseDistance = anchor?.cumulativeDistanceM ?? 0;
 		const endAtMs = clocks.diveEndedPerfMs - clocks.recordingStartedPerfMs;
 		const elapsedSinceBaseMs = Math.max(0, endAtMs - baseAtMs);
 		const speed = liveSpeedMs(state) > 0 ? liveSpeedMs(state) : 1;
@@ -82,54 +142,50 @@ export function cumulativeDistanceM(
 	}
 
 	if (phase !== 'diving') {
-		return count === 0 ? 0 : timeline.laps[count - 1].cumulativeDistanceM;
+		const anchor = lastTap(state);
+		return anchor?.cumulativeDistanceM ?? 0;
 	}
 
-	const lastLap = count === 0 ? null : timeline.laps[count - 1];
+	const anchor = lastTap(state);
 	const baseAtMs =
-		lastLap === null
+		anchor === null
 			? clocks.diveStartedPerfMs - clocks.recordingStartedPerfMs
-			: lastLap.atMs;
-	const baseDistance = lastLap?.cumulativeDistanceM ?? 0;
+			: anchor.atMs;
+	const baseDistance = anchor?.cumulativeDistanceM ?? 0;
 	const elapsedSinceBaseMs = Math.max(
 		0,
 		nowPerfMs - clocks.recordingStartedPerfMs - baseAtMs
 	);
 	const speed = liveSpeedMs(state) > 0 ? liveSpeedMs(state) : 1;
-	const interpolated = baseDistance + (elapsedSinceBaseMs / 1000) * speed;
-	return Math.min(interpolated, nextWaypointM(state));
+	// v2: UNCAPPED — no Math.min against the next-waypoint target. A missed
+	// tap lets the HUD drift past the target so the coach can see it; the
+	// diver's next wall tap will snap the base back to the correct integer.
+	return baseDistance + (elapsedSinceBaseMs / 1000) * speed;
+	void timeline; // referenced for consistency with earlier signature
 }
 
 /**
- * True when the interpolated distance exceeds the next waypoint by at least
- * the configured threshold — i.e. the user likely missed a tap.
+ * True when the interpolated distance exceeds the NEXT WALL by at least the
+ * configured threshold — i.e. the coach likely missed a wall tap entirely.
+ * In v2 this is signal-only: raising the banner is all that happens. The
+ * next real wall tap is ground truth.
  */
 export function shouldAutoAdvance(
 	state: RecorderState,
 	nowPerfMs: number
 ): boolean {
 	if (state.phase !== 'diving') return false;
-	// Raw (uncapped) interpolated distance:
-	const count = state.timeline.laps.length;
-	const lastLap = count === 0 ? null : state.timeline.laps[count - 1];
-	const baseAtMs =
-		lastLap === null
-			? state.clocks.diveStartedPerfMs - state.clocks.recordingStartedPerfMs
-			: lastLap.atMs;
-	const baseDistance = lastLap?.cumulativeDistanceM ?? 0;
-	const elapsedSinceBaseMs = Math.max(
-		0,
-		nowPerfMs - state.clocks.recordingStartedPerfMs - baseAtMs
-	);
-	const speed = liveSpeedMs(state) > 0 ? liveSpeedMs(state) : 1;
-	const raw = baseDistance + (elapsedSinceBaseMs / 1000) * speed;
-	const target = nextWaypointM(state);
+	const raw = cumulativeDistanceM(state, nowPerfMs);
+	const target = nextWallM(state);
 	return raw - target >= state.config.autoAdvanceThresholdM;
 }
 
-/** Can the user undo the last waypoint? */
+/** Can the user undo the last tap (wall or split)? */
 export function canUndo(state: RecorderState): boolean {
-	return state.phase === 'diving' && state.timeline.laps.length > 0;
+	if (state.phase !== 'diving') return false;
+	const hasWall = state.timeline.laps.length > 0;
+	const hasSub = (state.timeline.subSplits?.length ?? 0) > 0;
+	return hasWall || hasSub;
 }
 
 // ---------------------------------------------------------------------------
@@ -180,8 +236,17 @@ export function buttonLayout(state: RecorderState): ButtonLayout {
 			};
 
 		case 'diving': {
-			const target = nextWaypointM(state);
-			const n = waypointCount(state);
+			const kind = nextTapKind(state);
+			const targetM = nextWaypointM(state);
+			const completedWalls = state.timeline.laps.length;
+			const label =
+				kind === 'wall'
+					? `Wall ${completedWalls + 1}`
+					: `Split`;
+			const sub =
+				kind === 'wall'
+					? `at ${formatMetersPlain(targetM)} m`
+					: `mid-lap · ${formatMetersPlain(targetM)} m`;
 			return {
 				buttons: [
 					{
@@ -190,12 +255,7 @@ export function buttonLayout(state: RecorderState): ButtonLayout {
 						weight: 1,
 						disabled: !canUndo(state)
 					},
-					{
-						kind: 'waypoint',
-						label: `Waypoint ${n + 1}`,
-						sub: `at ${formatMetersPlain(target)} m`,
-						weight: 3
-					},
+					{ kind: 'waypoint', label, sub, weight: 3 },
 					{ kind: 'endDive', label: 'End dive', weight: 1 }
 				],
 				hint: null
