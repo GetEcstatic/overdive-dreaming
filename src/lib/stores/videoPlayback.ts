@@ -30,61 +30,72 @@ export const videoPlayback = createVideoPlaybackStore();
 /**
  * Svelte action bound to a `<video>` element. Wires up:
  *   - play/pause/ended → videoPlayback counter (drives bottom-nav visibility)
- *   - `orientationchange` / screen-orientation → request fullscreen when the
- *     device rotates to landscape while the video is actively playing.
- *     Falls back to iOS Safari's `webkitEnterFullscreen` on the video element
- *     since standard Fullscreen API isn't fully supported there.
+ *   - `orientationchange` / screen-orientation → when the device rotates to
+ *     landscape while the video is actively playing, put the *wrapping
+ *     container* (the nearest `[data-fullscreen-root]`) into a
+ *     CSS-based pseudo-fullscreen by toggling the
+ *     `dive-video-pseudo-fullscreen` class. We intentionally do NOT use
+ *     the native Fullscreen API because iOS Safari on iPhone only supports
+ *     `webkitEnterFullscreen` on the `<video>` element itself, which
+ *     strips any HTML overlay (the HUD). CSS fullscreen keeps the HUD
+ *     on every platform.
  */
 export function diveVideoBehavior(node: HTMLVideoElement) {
 	let playing = false;
+	let pseudoFs = false;
+
+	const container = (): HTMLElement | null =>
+		(node.closest('[data-fullscreen-root]') as HTMLElement | null) ?? null;
 
 	const onPlay = () => {
 		if (!playing) {
 			playing = true;
 			videoPlayback.begin();
 		}
+		// If the user started playback while already in landscape, snap
+		// straight into pseudo-fullscreen too.
+		if (isLandscape()) enterPseudoFullscreen();
 	};
 	const onPause = () => {
 		if (playing) {
 			playing = false;
 			videoPlayback.end();
 		}
+		exitPseudoFullscreen();
 	};
 	const onEnded = onPause;
 
-	const isLandscape = () => {
+	function isLandscape() {
 		if (typeof window === 'undefined') return false;
 		const o = window.screen?.orientation?.type;
 		if (o) return o.startsWith('landscape');
 		return window.innerWidth > window.innerHeight;
-	};
+	}
 
-	const enterFullscreen = () => {
-		const anyNode = node as HTMLVideoElement & {
-			webkitEnterFullscreen?: () => void;
-		};
-		if (document.fullscreenElement) return;
-		// Prefer fullscreening the wrapping container (marked with
-		// `data-fullscreen-root`) so any HUD overlay DOM siblings of the
-		// <video> remain visible. Only fall back to the <video> element
-		// itself when no such container exists or the browser rejects the
-		// request — typically iOS Safari on iPhone, which only exposes
-		// `webkitEnterFullscreen` on <video> and will strip the HUD.
-		const container =
-			(node.closest('[data-fullscreen-root]') as HTMLElement | null) ?? null;
-		const target: HTMLElement = container ?? node;
-		if (typeof target.requestFullscreen === 'function') {
-			target.requestFullscreen().catch(() => {
-				anyNode.webkitEnterFullscreen?.();
-			});
-		} else {
-			anyNode.webkitEnterFullscreen?.();
-		}
-	};
+	function enterPseudoFullscreen() {
+		if (pseudoFs) return;
+		const el = container();
+		if (!el) return;
+		pseudoFs = true;
+		el.classList.add('dive-video-pseudo-fullscreen');
+		// Lock page scroll behind the fullscreen overlay.
+		document.body.classList.add('dive-video-fs-lock');
+	}
+
+	function exitPseudoFullscreen() {
+		if (!pseudoFs) return;
+		const el = container();
+		pseudoFs = false;
+		el?.classList.remove('dive-video-pseudo-fullscreen');
+		document.body.classList.remove('dive-video-fs-lock');
+	}
 
 	const onOrientation = () => {
-		if (!playing) return;
-		if (isLandscape()) enterFullscreen();
+		if (playing && isLandscape()) {
+			enterPseudoFullscreen();
+		} else {
+			exitPseudoFullscreen();
+		}
 	};
 
 	node.addEventListener('play', onPlay);
@@ -100,6 +111,7 @@ export function diveVideoBehavior(node: HTMLVideoElement) {
 			node.removeEventListener('ended', onEnded);
 			window.removeEventListener('orientationchange', onOrientation);
 			window.screen?.orientation?.removeEventListener?.('change', onOrientation);
+			exitPseudoFullscreen();
 			if (playing) {
 				playing = false;
 				videoPlayback.end();
