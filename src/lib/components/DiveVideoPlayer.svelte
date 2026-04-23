@@ -114,6 +114,54 @@
 		return 'bin';
 	}
 
+	/**
+	 * Sniff the real container of a video blob by inspecting magic bytes.
+	 * The MIME stored on the DiveVideo record (or reported by fetch) can
+	 * disagree with the actual bytes — that mismatch makes iOS refuse to
+	 * expose the "Save Video" (Photos) option in the share sheet. We
+	 * normalise to the real type so the share sheet behaves.
+	 *
+	 *  - MP4 (ISO BMFF): bytes 4..7 == "ftyp"
+	 *  - WebM/Matroska:  starts with 0x1A 0x45 0xDF 0xA3 (EBML header)
+	 */
+	async function sniffVideoContainer(
+		blob: Blob
+	): Promise<{ mime: 'video/mp4' | 'video/webm' | null }> {
+		try {
+			const head = new Uint8Array(await blob.slice(0, 16).arrayBuffer());
+			if (
+				head.length >= 8 &&
+				head[4] === 0x66 /* f */ &&
+				head[5] === 0x74 /* t */ &&
+				head[6] === 0x79 /* y */ &&
+				head[7] === 0x70 /* p */
+			) {
+				return { mime: 'video/mp4' };
+			}
+			if (
+				head.length >= 4 &&
+				head[0] === 0x1a &&
+				head[1] === 0x45 &&
+				head[2] === 0xdf &&
+				head[3] === 0xa3
+			) {
+				return { mime: 'video/webm' };
+			}
+		} catch {
+			/* fall through */
+		}
+		return { mime: null };
+	}
+
+	function isIOS(): boolean {
+		if (typeof navigator === 'undefined') return false;
+		const ua = navigator.userAgent || '';
+		// iPhone, iPad (iPadOS ≥13 reports as Mac but has touch), iPod.
+		if (/iPad|iPhone|iPod/.test(ua)) return true;
+		const nav = navigator as Navigator & { maxTouchPoints?: number };
+		return /Macintosh/.test(ua) && (nav.maxTouchPoints ?? 0) > 1;
+	}
+
 	function suggestedFileName(mime: string, withOverlay: boolean): string {
 		const stamp = video.recordedAt?.toDate?.().toISOString?.().replace(/[:.]/g, '-') ?? 'dive';
 		const tag = withOverlay ? 'overlay' : 'clean';
@@ -396,8 +444,31 @@
 				blob = await fetchBlob();
 				mime = video.mimeType;
 			}
+
+			// Trust the bytes, not the metadata. iOS only exposes "Save Video"
+			// (→ Photos) in the share sheet when the File.type matches the real
+			// container (video/mp4 with .mp4 extension). Mismatches force the
+			// user down the "Save to Files" path.
+			const sniffed = await sniffVideoContainer(blob);
+			if (sniffed.mime) {
+				mime = sniffed.mime;
+			} else if (!/mp4|webm/.test(mime)) {
+				// Unknown container — best effort fallback.
+				mime = 'application/octet-stream';
+			}
+
+			// Re-wrap the blob so its .type matches what we're advertising.
+			if (blob.type !== mime) {
+				blob = new Blob([blob], { type: mime });
+			}
+
 			const fileName = suggestedFileName(mime, showOverlay);
 			const file = new File([blob], fileName, { type: mime });
+
+			// If we're on iOS and the container isn't mp4, iOS Photos can't
+			// accept the file — surface a clear message so the user knows why
+			// only "Save to Files" appears in the share sheet.
+			const iosSaveToPhotosBlocked = isIOS() && mime !== 'video/mp4';
 
 			const nav = navigator as Navigator & {
 				canShare?: (data: { files: File[] }) => boolean;
@@ -415,6 +486,10 @@
 						title: 'Dive video',
 						text: `${video.discipline} dive`
 					});
+					if (iosSaveToPhotosBlocked) {
+						downloadError =
+							'iOS Photos only accepts .mp4 — this clip is .webm, so only "Save to Files" is available. Re-record with overlay on to get an .mp4.';
+					}
 					return;
 				} catch (err) {
 					// iOS Safari throws NotAllowedError when the original user
@@ -530,50 +605,39 @@
 
 {#if !compact}
 	<!-- Overlay toggle — standalone pill button directly below the video. -->
-	<div class="mt-3 flex justify-center">
+	<div class="player-actions">
 		<button
 			type="button"
-			class="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold shadow-sm ring-1 transition active:scale-[0.98] disabled:opacity-60"
-			class:bg-teal-400={showOverlay}
-			class:text-slate-900={showOverlay}
-			class:ring-teal-300={showOverlay}
-			class:bg-slate-800={!showOverlay}
-			class:text-slate-100={!showOverlay}
-			class:ring-white-10={!showOverlay}
+			class="pill pill-toggle"
+			class:pill-active={showOverlay}
 			onclick={() => (showOverlay = !showOverlay)}
 			disabled={downloading}
 			aria-pressed={showOverlay}
 		>
-			<span
-				class="inline-flex h-2 w-2 rounded-full"
-				class:bg-slate-900={showOverlay}
-				class:bg-slate-400={!showOverlay}
-			></span>
+			<span class="pill-dot" class:pill-dot-active={showOverlay}></span>
 			<span>{showOverlay ? 'Hide overlay' : 'Show overlay'}</span>
 		</button>
-	</div>
 
-	<!-- Actions card (download) -->
-	<div class="mt-3 rounded-2xl bg-slate-900/70 p-4 ring-1 ring-white/5">
-		<!-- Download button -->
 		<button
 			type="button"
-			class="flex w-full items-center justify-center gap-2 rounded-xl bg-teal-400 py-3.5 text-base font-semibold text-slate-900 shadow-sm transition active:scale-[0.98] disabled:opacity-60"
+			class="pill pill-primary"
 			onclick={downloadToPhotos}
 			disabled={downloading}
 		>
 			{#if downloading && showOverlay}
-				<span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-900/30 border-t-slate-900"></span>
+				<span class="pill-spinner" aria-hidden="true"></span>
 				<span>Baking overlay… {Math.round(exportProgress * 100)}%</span>
 			{:else if downloading}
-				<span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-900/30 border-t-slate-900"></span>
+				<span class="pill-spinner" aria-hidden="true"></span>
 				<span>Preparing…</span>
 			{:else}
-				<span>⬇︎ Save to Photos</span>
+				<span aria-hidden="true">⬇︎</span>
+				<span>Save to Photos</span>
 			{/if}
 		</button>
+
 		{#if downloadError}
-			<p class="mt-2 rounded-md bg-red-500/15 px-3 py-2 text-center text-xs text-red-300">{downloadError}</p>
+			<p class="download-error">{downloadError}</p>
 		{/if}
 	</div>
 {/if}
@@ -610,5 +674,107 @@
 		width: 100%;
 		height: 100%;
 		object-fit: contain;
+	}
+
+	/*
+	 * Pill-styled action buttons beneath the video (Hide/Show overlay,
+	 * Save to Photos). Plain CSS so they render correctly regardless of
+	 * whether Tailwind utilities are compiled for this file.
+	 */
+	.player-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.6rem;
+		justify-content: center;
+		align-items: center;
+		margin-top: 0.9rem;
+	}
+	.pill {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		font: inherit;
+		font-size: 0.9rem;
+		font-weight: 600;
+		line-height: 1;
+		padding: 0.65rem 1.1rem;
+		min-height: 40px;
+		border-radius: 9999px;
+		border: 1px solid transparent;
+		cursor: pointer;
+		transition:
+			transform 0.06s ease,
+			background-color 0.15s ease,
+			border-color 0.15s ease,
+			filter 0.12s ease;
+		-webkit-tap-highlight-color: transparent;
+	}
+	.pill:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+	.pill:active:not(:disabled) {
+		transform: scale(0.97);
+	}
+	.pill-toggle {
+		background: rgba(30, 41, 59, 0.85);
+		border-color: rgba(148, 163, 184, 0.2);
+		color: var(--color-text);
+	}
+	.pill-toggle:hover:not(:disabled) {
+		background: rgba(51, 65, 85, 0.9);
+	}
+	.pill-toggle.pill-active {
+		background: var(--color-primary);
+		border-color: var(--color-primary);
+		color: #0f172a;
+	}
+	.pill-toggle.pill-active:hover:not(:disabled) {
+		filter: brightness(1.05);
+	}
+	.pill-dot {
+		display: inline-block;
+		width: 0.5rem;
+		height: 0.5rem;
+		border-radius: 9999px;
+		background: #94a3b8; /* slate-400 */
+	}
+	.pill-dot.pill-dot-active {
+		background: #0f172a; /* slate-900 */
+	}
+	.pill-primary {
+		background: var(--color-primary);
+		border-color: var(--color-primary);
+		color: #0f172a;
+		font-weight: 700;
+		padding: 0.75rem 1.25rem;
+	}
+	.pill-primary:hover:not(:disabled) {
+		filter: brightness(1.05);
+	}
+	.pill-spinner {
+		display: inline-block;
+		width: 0.9rem;
+		height: 0.9rem;
+		border-radius: 9999px;
+		border: 2px solid rgba(15, 23, 42, 0.25);
+		border-top-color: #0f172a;
+		animation: pill-spin 0.7s linear infinite;
+	}
+	@keyframes pill-spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+	.download-error {
+		flex-basis: 100%;
+		text-align: center;
+		margin: 0;
+		padding: 0.5rem 0.75rem;
+		border-radius: 10px;
+		background: rgba(239, 68, 68, 0.15);
+		color: #fecaca;
+		font-size: 0.8rem;
 	}
 </style>
