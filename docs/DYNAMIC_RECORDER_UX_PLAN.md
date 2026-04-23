@@ -377,3 +377,255 @@ Vercel.
 - [ ] Step E — add Record tab to `BottomNav` + `/record` landing page.
 - [ ] Step F — post-save pre-filled dynamic-max log form route.
 - [ ] Step G — docs + QA pass; update `docs/recording-a-dynamic-dive.md`.
+
+---
+
+## 9. Distance Counter Redesign (v2)
+
+> Added after shipping the v1 recorder. Addresses three in-use bugs plus a
+> latent data-sparsity problem, and hardens the UI against miss-taps.
+
+### 9.1 First principles (user brief)
+
+1. Live HUD: **approximately accurate** during a lap; **absolutely accurate**
+   at every wall (wall = the integer-length boundary, not every mid-pool
+   waypoint).
+2. Waypoints add resolution — more taps → a more faithful speed curve —
+   but the system **must survive missed taps** without corrupting data.
+3. Post-dive analytics need **enough samples to plot a speed curve**.
+4. UI must **not cause miss-taps** (today the End-dive and Waypoint buttons
+   sit next to each other).
+
+### 9.2 What is broken today
+
+**Bug A — "counter stops at the last expected waypoint on a missed tap."**
+`cumulativeDistanceM` in `recorderSelectors.ts` applies
+`Math.min(interpolated, nextWaypointM(state))` during `diving`. When the
+diver overruns a missed tap the HUD pins at `nextWaypointM` until either
+(i) the diver taps (registering the miss as the *next* waypoint, wrongly
+collapsing two laps of time into one split) or (ii) the raw interpolated
+distance exceeds the target by `autoAdvanceThresholdM = 10 m`, which is
+half a pool length — by then the HUD has been lying for seconds.
+
+**Bug B — "resuming with an additional tap creates problems in the data."**
+Every `waypoint/tapped` unconditionally maps
+`cumulativeDistanceM = lapNumber × waypointSpacingM`. If one tap is missed,
+the next real tap is still recorded as the next sequential waypoint — so a
+tap that really happened at (say) 50 m gets stamped **25 m**, and that
+lap's split equals the time for two laps. `liveSpeedMs = spacing / split`
+then reads half the real speed; the miss-tap threshold fires late because
+the depressed pace pushes the raw extrapolation down too. Corruption
+cascades through the rest of the dive.
+
+**Bug C — "HUD on replay is no longer accurate."**
+`distanceAt` / `speedAt` in `timeline.ts` take the saved (corrupted)
+waypoints at face value. Replay HUD inherits Bug B. Additionally: the
+saved timeline has **no samples between waypoints**, so a dynamic clip
+has only a handful of data points — not enough to plot a meaningful
+speed curve.
+
+**Bug D — "Waypoint and End-dive buttons are too close."**
+`buttonLayout.diving` returns `[Undo(weight 1), Waypoint(weight 3),
+EndDive(weight 1)]` rendered side-by-side. The weight-1 End-dive sits
+right next to the wide weight-3 Waypoint — a trivial miss-tap kills the
+dive prematurely.
+
+**Bug E (implicit) — sparse data for analytics.**
+Only wall/waypoint taps are persisted. No continuous samples means no
+per-second speed curve is possible.
+
+### 9.3 Design principles for v2
+
+1. **Walls are ground truth.** Every wall tap stamps a cumulative distance
+   that is a whole multiple of `poolLengthM`, independent of how many
+   mid-pool waypoints were tapped or missed along the way. Non-negotiable.
+2. **Mid-pool waypoints are optional speed hints** — they refine the speed
+   estimate but never define an integer wall count.
+3. **Distinguish wall taps from sub-lap waypoints.** Today they are the
+   same event; this is the root of Bugs A and B.
+4. **Never lie to the user.** The HUD keeps advancing during an overrun —
+   no capping. If it drifts slightly that is OK; we correct on the next
+   wall.
+5. **Record samples continuously.** Persist a lightweight ~1 Hz
+   position/speed stream so analytics can plot a curve.
+6. **Physical button separation.** End-dive is a rare, irreversible action;
+   it belongs in a different zone from the high-frequency waypoint tap.
+
+### 9.4 Proposed redesign
+
+#### 9.4.1 Split event types: wallTap vs splitTap
+- New reducer events: `wall/tapped` (at pool end) and `split/tapped`
+  (mid-pool).
+- `waypointsPerLap = 1` → only `wall/tapped` (single button).
+- `waypointsPerLap > 1` → both buttons visible. Big primary = **Wall**;
+  smaller = **Split**.
+- A wall tap **always** sets
+  `cumulativeDistanceM = completedWallCount × poolLengthM` (integer-correct
+  regardless of missed splits).
+- A split tap writes
+  `cumulativeDistanceM = completedWallCount × poolLengthM
+  + splitIndex × (poolLengthM / waypointsPerLap)`.
+- **Kills Bug B**: a late resume-tap after a miss is now explicitly a Wall
+  tap and stamps the correct integer distance.
+
+#### 9.4.2 Timeline schema (backwards-compatible)
+- Keep `laps: LapEvent[]` (per-wall splits — analytics-friendly).
+- Add `samples: { atMs, distanceM, speedMs }[]` captured at ~1 Hz while
+  diving. Dense enough for a speed curve.
+- Add `subSplits: LapEvent[]` (optional, mid-pool taps). Separate from
+  `laps` so analytics never counts them as whole lengths.
+- All three arrays monotonically non-decreasing in `atMs` and distance.
+- Old clips (no `samples`, no `subSplits`) still work via fallback paths.
+
+#### 9.4.3 Live HUD: uncapped interpolation + wall-snap
+- **Remove** the `Math.min(interpolated, nextWaypointM(state))` cap in
+  `cumulativeDistanceM` during `diving`. Number keeps advancing past a
+  missed tap.
+- On a wall tap: **snap** the displayed distance to the integer wall count
+  and reseed the interpolation base there. Brief visual click is
+  acceptable and honest.
+- Speed estimate: use a rolling window (last completed length OR last
+  5 seconds, whichever is longer). Falls back to 1 m/s default pre-first-lap
+  (already the case).
+
+#### 9.4.4 Auto-advance → auto-snap on strong drift
+- Current auto-advance ADDS a waypoint at 10 m drift — that writes a fake
+  wall time into `laps` and corrupts splits. **Change semantics**: the
+  drift detector only raises a ghost banner ("Looks like you missed a
+  wall — tap now or undo"). It does **not** stamp a lap entry.
+- The next real wall tap snaps to the correct integer distance. No ghost
+  lap is needed; ground truth is preserved.
+- **Kills Bug A**.
+
+#### 9.4.5 Replay HUD
+- Update `distanceAt` / `speedAt` in `timeline.ts` to:
+  - Prefer the `samples` stream when present (O(log n) bisect → linear
+    interp).
+  - Fall back to the current lap-based stepwise interpolation for legacy
+    clips without samples.
+- `totalDistanceM` already prefers lap-based when present; keep but
+  respect samples for the intra-lap tail when samples exist.
+
+#### 9.4.6 Button layout redesign (Bug D)
+Three zones during `diving`:
+
+| Zone | Contents | Size |
+|---|---|---|
+| Primary (right thumb) | **Wall** tap | Full-height, right ~40% of screen |
+| Secondary (left) | **Split** tap (only if `waypointsPerLap > 1`) | Left ~25% |
+| Safety (top-right) | **End dive** — requires tap-and-hold 500 ms (or tap → confirm within 1.5 s) | Small, away from Wall |
+
+- Undo stays in the top strip.
+- **Haptics**: short pulse on wall tap; long pulse on end dive. Tactile
+  distinction makes miss-taps self-evident.
+
+#### 9.4.7 Telemetry sampling
+- Every animation frame we already compute `cumulativeDistanceM` and
+  `liveSpeedMs`. Throttle to 1 Hz (or 2 Hz) and push into a `samples`
+  buffer in reducer state via a new `sample/recorded` event.
+- Include the buffer in `finalizeTimeline` output.
+- Size: ~200 samples per 200 s dive × `(atMs, distanceM, speedMs)`
+  ≈ 5 KB — negligible.
+
+#### 9.4.8 Migration
+- `samples` and `subSplits` are optional → old clips still work.
+- Existing `laps` keep their meaning (one entry per waypoint tap under v1).
+- Either (a) leave legacy clips alone and let them replay via the old
+  sparse-interp fallback, or (b) ship a one-off normaliser that folds old
+  `laps` into `laps + subSplits` based on `waypointsPerLap`. **Recommend
+  (a)** for MVP.
+
+### 9.5 File impact map
+
+- `src/lib/types.ts` — add `samples` and `subSplits` (optional) to
+  `DiveTimeline`.
+- `src/lib/capture/timeline.ts` — split `appendLap` into `appendWall` /
+  `appendSplit`; add `appendSample`; update `distanceAt` / `speedAt` /
+  `totalDistanceM` to consume samples; extend `summariseTimeline` for
+  per-lap data + curve.
+- `src/lib/capture/recorderState.ts` — split `waypoint/tapped` into
+  `wall/tapped` and `split/tapped`; add `sample/recorded`; rework
+  `waypoint/auto` to signal-only (no lap append).
+- `src/lib/capture/recorderSelectors.ts` — uncap `cumulativeDistanceM`
+  during diving; update `shouldAutoAdvance` to trigger the snap-banner
+  instead of auto-waypoint; rework `buttonLayout` for the new 3-zone
+  layout.
+- `src/lib/components/DiveRecorder.svelte` — redo button layout
+  (Wall / Split / End-dive zones); add sampling effect; add end-dive
+  confirm gesture; haptics.
+- `src/lib/capture/timeline.test.ts` — extend with snap-on-wall,
+  sample-based replay, and miss-tap resume regression tests.
+- `src/lib/capture/recorderState.test.ts` — update existing tests + add
+  ones for the split events and uncapped HUD.
+
+### 9.6 Phased rollout
+
+- **Phase A — data integrity.** Split events (wall vs split), uncap HUD,
+  snap on wall tap, replace auto-advance behaviour. Biggest bug-fix,
+  lowest risk, no schema break.
+- **Phase B — analytics depth.** Add `samples` stream + replay-HUD
+  preference for samples. Unlocks speed curves.
+- **Phase C — UI safety.** Three-zone button layout + end-dive confirm
+  + haptics. Behavioural change; requires on-device QA.
+
+### 9.7 Open questions — RESOLVED
+
+1. For `waypointsPerLap = 2` (common case): **one smart Waypoint button**
+   (chosen for UX simplicity). The UI shows a single big button; the data
+   layer still classifies each tap as a Wall or a Split based on the tap
+   position in the lap and the current interpolated distance (see 9.4.1b).
+2. End-dive confirm gesture: **tap-and-hold 500 ms** (chosen).
+3. Legacy clips: **leave as-is** on replay (chosen).
+
+### 9.4.1b One-button classification (replaces 9.4.1)
+
+The reducer still has two event types internally — `wall/tapped` and
+`split/tapped` — because data integrity needs them. The **UI dispatches
+the right one automatically**:
+
+```
+onWaypointTap(nowPerfMs):
+  expectedSlot = (timeline.wallCount * waypointsPerLap + timeline.splitCount)
+                  mod waypointsPerLap    // 0 => wall next, else split
+  interp       = rawCumulativeDistanceM(state, nowPerfMs)  // uncapped
+  nextWallM    = (completedWallCount + 1) * poolLengthM
+
+  if expectedSlot === 0 OR interp >= nextWallM - snapToleranceM:
+    dispatch wall/tapped
+  else:
+    dispatch split/tapped
+```
+
+`snapToleranceM` defaults to `waypointSpacingM / 2` (e.g. 12.5 m for a
+25 m pool with 2 waypoints-per-lap) — if the diver has already
+interpolated past the halfway point of the *final* sub-lap, we assume the
+tap is a wall even if a split was "expected". This is how the system
+self-heals from a missed split: the wall is still recorded at the correct
+integer distance, and the missed split is silently skipped (it can be
+inferred later from the samples stream if needed).
+
+The button label reflects the next expected tap:
+- When the next tap will register as a Wall: `"Wall · {completedWallCount + 1} × {poolLength}m = {(completedWallCount + 1) * poolLength}m"`.
+- When the next tap will register as a Split: `"Waypoint · {nextSplitDistance}m"`.
+
+### 9.8 Step plan (to land) — status
+
+Status legend: [ ] pending · [~] in progress · [x] done (commit hash).
+
+- [ ] Step 9.A — extend `DiveTimeline` with optional `samples` and
+      `subSplits`; no behaviour change.
+- [ ] Step 9.B — add `wall/tapped` + `split/tapped` reducer events
+      (keep `waypoint/tapped` as a back-compat alias that routes to
+      `wall/tapped`); update tests.
+- [ ] Step 9.C — uncap `cumulativeDistanceM`; add snap-on-wall-tap
+      seeding; change `shouldAutoAdvance` semantics to banner-only.
+- [ ] Step 9.D — add `sample/recorded` event + 1 Hz sampling loop in
+      `DiveRecorder.svelte`; persist in finalized timeline.
+- [ ] Step 9.E — replay HUD prefers `samples` when present; fallback
+      to lap-based interp for legacy clips.
+- [ ] Step 9.F — one-smart-button UI: single Waypoint button with
+      classification rule from §9.4.1b, tap-and-hold 500 ms End-dive,
+      haptics; on-device QA.
+- [ ] Step 9.G — docs pass: update
+      [`docs/recording-a-dynamic-dive.md`](recording-a-dynamic-dive.md)
+      to describe the wall/split distinction and the new button layout.

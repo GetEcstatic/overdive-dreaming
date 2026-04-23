@@ -778,11 +778,30 @@ export interface OverlayEvent {
  * Structured timeline of a dive recording.
  * All times are ms offsets from the start of the recording, using a single
  * monotonic clock (`performance.now()`) to stay in sync with the video track.
+ *
+ * v2 additions (optional, backwards-compatible):
+ *   - `subSplits`: mid-pool waypoint taps. Kept SEPARATE from `laps` so
+ *     analytics never accidentally counts them as whole lengths. Each
+ *     entry's `cumulativeDistanceM` is the fractional distance at the tap
+ *     (e.g. 12.5 m for the mid-pool of a 25 m pool). `lapNumber` tracks
+ *     the in-lap sub-split index (1-based).
+ *   - `samples`: dense position/speed samples captured at ~1 Hz while
+ *     diving. Lets analytics draw a smooth speed curve without relying on
+ *     wall/split taps alone. Clips recorded pre-v2 have no samples — the
+ *     replay HUD falls back to lap-based interpolation in that case.
  */
+export interface DiveSample {
+	atMs: number;
+	distanceM: number;
+	speedMs: number;
+}
+
 export interface DiveTimeline {
 	diveStartMs: number;      // when "GO" was pressed (diver left wall)
 	diveEndMs: number;        // when STOP was pressed
 	laps: LapEvent[];
+	subSplits?: LapEvent[];
+	samples?: DiveSample[];
 	events?: OverlayEvent[];
 }
 
