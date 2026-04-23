@@ -16,9 +16,11 @@ import type {
 } from '$lib/types';
 import {
 	appendLap,
+	appendSplit,
+	appendWall,
 	createEmptyTimeline,
 	finalizeTimeline,
-	removeLastLap
+	removeLastTap
 } from './timeline';
 
 // ---------------------------------------------------------------------------
@@ -79,9 +81,15 @@ export type RecorderEvent =
 	| { type: 'arm/failed'; message: string }
 	| { type: 'recording/started'; atPerfMs: number }
 	| { type: 'dive/started'; atPerfMs: number }
+	/** v1 event — now routes to either wall/tapped or split/tapped
+	 *  based on the expected-slot rule in the reducer. Kept for
+	 *  call-sites that haven't migrated yet. */
 	| { type: 'waypoint/tapped'; atPerfMs: number }
+	| { type: 'wall/tapped'; atPerfMs: number }
+	| { type: 'split/tapped'; atPerfMs: number }
 	| { type: 'waypoint/auto'; atPerfMs: number; count: number }
 	| { type: 'waypoint/undone' }
+	| { type: 'sample/recorded'; atPerfMs: number; distanceM: number; speedMs: number }
 	| { type: 'dive/ended'; atPerfMs: number }
 	| { type: 'recording/stopping' }
 	| { type: 'recording/stopped' }
@@ -167,6 +175,11 @@ export function recorderReducer(
 		}
 
 		case 'waypoint/tapped': {
+			// v1 back-compat: treat every tap as a wall under the legacy
+			// model where `laps` == every waypoint at `lapNumber*spacing`.
+			// New call-sites should dispatch wall/tapped or split/tapped
+			// directly. The v2 UI uses the smart-button classifier (see
+			// DiveRecorder.svelte) and will never dispatch this variant.
 			if (state.phase !== 'diving') return state;
 			const atMs = event.atPerfMs - state.clocks.recordingStartedPerfMs;
 			return {
@@ -175,27 +188,99 @@ export function recorderReducer(
 			};
 		}
 
-		case 'waypoint/auto': {
-			if (state.phase !== 'diving' || event.count < 1) return state;
+		case 'wall/tapped': {
+			if (state.phase !== 'diving') return state;
 			const atMs = event.atPerfMs - state.clocks.recordingStartedPerfMs;
-			const spacing = waypointSpacingM(state.config);
-			let next = state.timeline;
-			for (let i = 0; i < event.count; i++) {
-				next = appendLap(next, atMs, spacing);
+			// Clear any mid-lap sub-splits that logically belong to the
+			// just-completed lap — the wall is authoritative. Keeping the
+			// sub-splits is also valid (they still carry a timestamp), but
+			// we prefer a clean "one lap = one wall + N splits within it"
+			// model going forward. Implementation choice: DROP in-lap
+			// splits when the wall is tapped; analytics can reconstruct
+			// speed between walls from `samples` instead. This avoids
+			// ambiguity when a split was tapped slightly AFTER the diver
+			// crossed the wall.
+			const completedWallCount = state.timeline.laps.length;
+			const currentWallM = completedWallCount * state.config.poolLengthM;
+			const prunedSubSplits = (state.timeline.subSplits ?? []).filter(
+				(s) => s.cumulativeDistanceM <= currentWallM
+			);
+			return {
+				...state,
+				timeline: appendWall(
+					{ ...state.timeline, subSplits: prunedSubSplits },
+					atMs,
+					state.config.poolLengthM
+				),
+				autoAdvance: null
+			};
+		}
+
+		case 'split/tapped': {
+			if (state.phase !== 'diving') return state;
+			const atMs = event.atPerfMs - state.clocks.recordingStartedPerfMs;
+			// Count existing in-lap sub-splits to derive splitIndex.
+			const completedWallCount = state.timeline.laps.length;
+			const currentWallM = completedWallCount * state.config.poolLengthM;
+			const inLapSubs = (state.timeline.subSplits ?? []).filter(
+				(s) => s.cumulativeDistanceM > currentWallM
+			);
+			const splitIndex = inLapSubs.length + 1;
+			// waypointsPerLap === 1 is a degenerate config for splits; guard.
+			if (state.config.waypointsPerLap <= 1) return state;
+			// Don't let a split overshoot the wall it's preceding.
+			if (splitIndex >= state.config.waypointsPerLap) return state;
+			return {
+				...state,
+				timeline: appendSplit(
+					state.timeline,
+					atMs,
+					state.config.poolLengthM,
+					state.config.waypointsPerLap,
+					splitIndex
+				)
+			};
+		}
+
+		case 'sample/recorded': {
+			if (state.phase !== 'diving') return state;
+			const atMs = event.atPerfMs - state.clocks.recordingStartedPerfMs;
+			const samples = state.timeline.samples ?? [];
+			// Simple monotonic guard — drop samples that arrive out of order.
+			if (samples.length > 0 && samples[samples.length - 1].atMs >= atMs) {
+				return state;
 			}
 			return {
 				...state,
-				timeline: next,
+				timeline: {
+					...state.timeline,
+					samples: [
+						...samples,
+						{ atMs, distanceM: event.distanceM, speedMs: event.speedMs }
+					]
+				}
+			};
+		}
+
+		case 'waypoint/auto': {
+			// v2 semantics: signal-only. Raise the banner so the UI can
+			// hint "you may have missed a wall" — but do NOT stamp a lap.
+			// Ground truth is preserved for the next real wall tap.
+			if (state.phase !== 'diving' || event.count < 1) return state;
+			return {
+				...state,
 				autoAdvance: { atPerfMs: event.atPerfMs, count: event.count }
 			};
 		}
 
 		case 'waypoint/undone': {
-			if (state.phase !== 'diving' || state.timeline.laps.length === 0)
-				return state;
+			if (state.phase !== 'diving') return state;
+			const hasWall = state.timeline.laps.length > 0;
+			const hasSub = (state.timeline.subSplits?.length ?? 0) > 0;
+			if (!hasWall && !hasSub) return state;
 			return {
 				...state,
-				timeline: removeLastLap(state.timeline),
+				timeline: removeLastTap(state.timeline),
 				autoAdvance: null
 			};
 		}

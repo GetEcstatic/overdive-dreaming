@@ -612,9 +612,9 @@ The button label reflects the next expected tap:
 
 Status legend: [ ] pending · [~] in progress · [x] done (commit hash).
 
-- [ ] Step 9.A — extend `DiveTimeline` with optional `samples` and
-      `subSplits`; no behaviour change.
-- [ ] Step 9.B — add `wall/tapped` + `split/tapped` reducer events
+- [x] Step 9.A — extend `DiveTimeline` with optional `samples` and
+      `subSplits`; no behaviour change.  *(commit 0a4f039)*
+- [x] Step 9.B — add `wall/tapped` + `split/tapped` reducer events
       (keep `waypoint/tapped` as a back-compat alias that routes to
       `wall/tapped`); update tests.
 - [ ] Step 9.C — uncap `cumulativeDistanceM`; add snap-on-wall-tap

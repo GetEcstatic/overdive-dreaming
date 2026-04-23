@@ -53,11 +53,108 @@ export function appendLap(
 }
 
 /**
+ * Append a WALL tap — the diver hit the end of the pool.
+ *
+ * Walls are ground truth: `cumulativeDistanceM` is always a whole
+ * multiple of `poolLengthM`, regardless of how many mid-pool splits were
+ * tapped or missed in between.
+ *
+ * In the v2 model this is a pure rename of `appendLap` — kept as a
+ * distinct export so call-sites make the data-layer semantics explicit.
+ */
+export function appendWall(
+	timeline: DiveTimeline,
+	atMs: number,
+	poolLengthM: number
+): DiveTimeline {
+	return appendLap(timeline, atMs, poolLengthM);
+}
+
+/**
+ * Append a mid-pool SPLIT tap — a waypoint between two walls.
+ *
+ * Splits refine the speed estimate but do NOT count as whole lengths.
+ * They are stored in the optional `subSplits` array so analytics that
+ * only care about wall-based totals can ignore them safely.
+ *
+ * `splitIndex` is 1-based within the current (incomplete) lap. The
+ * distance at the tap is:
+ *   completedWallCount * poolLengthM + splitIndex * (poolLengthM / waypointsPerLap)
+ */
+export function appendSplit(
+	timeline: DiveTimeline,
+	atMs: number,
+	poolLengthM: number,
+	waypointsPerLap: number,
+	splitIndex: number
+): DiveTimeline {
+	const subSplits = timeline.subSplits ?? [];
+	const spacingM = waypointsPerLap > 0 ? poolLengthM / waypointsPerLap : poolLengthM;
+	const completedWallCount = timeline.laps.length;
+	const distanceM = completedWallCount * poolLengthM + splitIndex * spacingM;
+
+	// splitMs = time since the previous "anything" event (wall or split)
+	// inside this lap. If none, use diveStartMs.
+	const lastSubInThisLap = [...subSplits]
+		.reverse()
+		.find((s) => s.lapNumber >= 1 && s.cumulativeDistanceM > completedWallCount * poolLengthM);
+	const previousAtMs = lastSubInThisLap
+		? lastSubInThisLap.atMs
+		: timeline.laps.length === 0
+			? timeline.diveStartMs
+			: timeline.laps[timeline.laps.length - 1].atMs;
+
+	const entry: LapEvent = {
+		lapNumber: splitIndex,
+		atMs,
+		splitMs: Math.max(0, atMs - previousAtMs),
+		cumulativeDistanceM: distanceM
+	};
+
+	return {
+		...timeline,
+		subSplits: [...subSplits, entry]
+	};
+}
+
+/**
+ * Append a dense position/speed sample captured during the dive.
+ * Sampled at ~1 Hz by the recorder to produce a plottable speed curve.
+ */
+export function appendSample(
+	timeline: DiveTimeline,
+	sample: { atMs: number; distanceM: number; speedMs: number }
+): DiveTimeline {
+	const samples = timeline.samples ?? [];
+	return {
+		...timeline,
+		samples: [...samples, sample]
+	};
+}
+
+/**
  * Remove the most recently tapped lap (undo).
  */
 export function removeLastLap(timeline: DiveTimeline): DiveTimeline {
 	if (timeline.laps.length === 0) return timeline;
 	return { ...timeline, laps: timeline.laps.slice(0, -1) };
+}
+
+/**
+ * Remove the most recently tapped event — wall OR sub-split — whichever
+ * came later by `atMs`. This is the v2 undo that is agnostic to which
+ * kind of tap was registered.
+ */
+export function removeLastTap(timeline: DiveTimeline): DiveTimeline {
+	const lastWall = timeline.laps[timeline.laps.length - 1];
+	const subs = timeline.subSplits ?? [];
+	const lastSub = subs[subs.length - 1];
+
+	if (!lastWall && !lastSub) return timeline;
+	if (lastWall && (!lastSub || lastWall.atMs >= lastSub.atMs)) {
+		return { ...timeline, laps: timeline.laps.slice(0, -1) };
+	}
+	return { ...timeline, subSplits: subs.slice(0, -1) };
 }
 
 /**

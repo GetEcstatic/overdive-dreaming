@@ -137,15 +137,113 @@ describe('waypoints', () => {
 		expect(s.timeline.laps).toHaveLength(0);
 	});
 
-	it('auto-advance appends N laps and sets the banner', () => {
+	it('auto-advance raises the banner without appending laps (v2)', () => {
 		const s = recorderReducer(diving, {
 			type: 'waypoint/auto',
 			atPerfMs: 20000,
 			count: 2
 		});
-		expect(s.timeline.laps).toHaveLength(2);
+		// v2: auto-advance is signal-only — the next real wall tap is
+		// ground truth, not an inferred lap stamp.
+		expect(s.timeline.laps).toHaveLength(0);
 		expect(s.autoAdvance).not.toBeNull();
 		expect(s.autoAdvance?.count).toBe(2);
+	});
+});
+
+describe('wall/split (v2)', () => {
+	const diving = startDiveAt(
+		startRecordingAt(arm(initialRecorderState(CONFIG)), 1000),
+		5000
+	);
+
+	it('wall/tapped stamps an integer-multiple of poolLength', () => {
+		const s = recorderReducer(diving, {
+			type: 'wall/tapped',
+			atPerfMs: 20000
+		});
+		expect(s.timeline.laps).toHaveLength(1);
+		expect(s.timeline.laps[0].cumulativeDistanceM).toBe(25);
+		expect((s.timeline.subSplits ?? []).length).toBe(0);
+	});
+
+	it('split/tapped stores a mid-lap waypoint in subSplits (not laps)', () => {
+		const s = recorderReducer(diving, {
+			type: 'split/tapped',
+			atPerfMs: 12000
+		});
+		expect(s.timeline.laps).toHaveLength(0);
+		expect(s.timeline.subSplits).toHaveLength(1);
+		expect(s.timeline.subSplits![0].cumulativeDistanceM).toBe(12.5);
+	});
+
+	it('wall/tapped prunes in-lap sub-splits (wall is authoritative)', () => {
+		let s: RecorderState = diving;
+		s = recorderReducer(s, { type: 'split/tapped', atPerfMs: 12000 });
+		s = recorderReducer(s, { type: 'wall/tapped', atPerfMs: 20000 });
+		// Split was inside lap 1; after wall-1 it's discarded.
+		expect(s.timeline.laps).toHaveLength(1);
+		expect(s.timeline.laps[0].cumulativeDistanceM).toBe(25);
+		expect((s.timeline.subSplits ?? []).length).toBe(0);
+	});
+
+	it('missed-split self-heal: split then wall with no intervening split still yields integer wall', () => {
+		// Diver misses the 12.5 m split entirely, taps only at the 25 m wall.
+		const s = recorderReducer(diving, { type: 'wall/tapped', atPerfMs: 22000 });
+		expect(s.timeline.laps[0].cumulativeDistanceM).toBe(25);
+	});
+
+	it('split/tapped is rejected when there is no room before the next wall', () => {
+		// waypointsPerLap=2 → only 1 split allowed per lap.
+		let s: RecorderState = diving;
+		s = recorderReducer(s, { type: 'split/tapped', atPerfMs: 12000 });
+		s = recorderReducer(s, { type: 'split/tapped', atPerfMs: 14000 });
+		expect(s.timeline.subSplits).toHaveLength(1);
+	});
+
+	it('undo removes the most recent tap — wall or split — whichever came later', () => {
+		let s: RecorderState = diving;
+		s = recorderReducer(s, { type: 'wall/tapped', atPerfMs: 20000 });
+		s = recorderReducer(s, { type: 'split/tapped', atPerfMs: 28000 });
+		s = recorderReducer(s, { type: 'waypoint/undone' });
+		// Removed the split, wall remains.
+		expect(s.timeline.laps).toHaveLength(1);
+		expect((s.timeline.subSplits ?? []).length).toBe(0);
+	});
+
+	it('sample/recorded appends to samples stream in order', () => {
+		let s: RecorderState = diving;
+		s = recorderReducer(s, {
+			type: 'sample/recorded',
+			atPerfMs: 6000,
+			distanceM: 1,
+			speedMs: 1
+		});
+		s = recorderReducer(s, {
+			type: 'sample/recorded',
+			atPerfMs: 7000,
+			distanceM: 2,
+			speedMs: 1
+		});
+		expect(s.timeline.samples).toHaveLength(2);
+		expect(s.timeline.samples![1].distanceM).toBe(2);
+	});
+
+	it('sample/recorded drops out-of-order arrivals', () => {
+		let s: RecorderState = diving;
+		s = recorderReducer(s, {
+			type: 'sample/recorded',
+			atPerfMs: 7000,
+			distanceM: 2,
+			speedMs: 1
+		});
+		s = recorderReducer(s, {
+			type: 'sample/recorded',
+			atPerfMs: 6000,
+			distanceM: 1,
+			speedMs: 1
+		});
+		expect(s.timeline.samples).toHaveLength(1);
 	});
 });
 
