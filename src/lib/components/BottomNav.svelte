@@ -1,10 +1,15 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { user } from '$lib/stores/auth';
+	import { videoPlayback } from '$lib/stores/videoPlayback';
 	import { onMount } from 'svelte';
 	import { Home, Plus, List, TrendingUp, Video } from 'lucide-svelte';
 
 	let visible = $state(true);
+	// Hide the bottom nav entirely while a dive video is playing so the video
+	// isn't obscured on mobile and the landscape fullscreen lock has an
+	// unobstructed stage.
+	let isVideoPlaying = $derived($videoPlayback > 0);
 	let lastScrollY = $state(0);
 	let scrollTimeout: ReturnType<typeof setTimeout>;
 
@@ -46,7 +51,9 @@
 
 <nav
 	class="bottom-nav"
-	class:visible
+	class:visible={visible && !isVideoPlaying}
+	class:playing-hidden={isVideoPlaying}
+	aria-hidden={isVideoPlaying}
 >
 	<div class="nav-container">
 		<!-- Feed -->

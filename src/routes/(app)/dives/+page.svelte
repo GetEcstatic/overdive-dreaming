@@ -10,7 +10,7 @@
 	import { clearDashboardCache } from '$lib/utils/dashboardCache';
 	import RoutineSelector from '$lib/components/RoutineSelector.svelte';
 	import QuickLogForm, { type LogFormData } from '$lib/components/QuickLogForm.svelte';
-	import type { Discipline, RoutineTemplate, SessionVisibility } from '$lib/types';
+	import type { Discipline, LapData, RoutineTemplate, SessionVisibility } from '$lib/types';
 
 	let routines = $state<RoutineTemplate[]>([]);
 	let selectedRoutine = $state<RoutineTemplate | null>(null);
@@ -30,6 +30,8 @@
 		totalTimeSeconds?: number;
 		poolLength?: number;
 		notes?: string;
+		avgSpeed?: number;
+		laps?: LapData[];
 	} | undefined>(undefined);
 	// Recorder's ad-hoc session id carried through from ?seed=… — used
 	// after save to re-link diveVideo docs onto the new routineLog id.
@@ -53,40 +55,83 @@
 			const searchParams = $page.url.searchParams;
 			const routineParam = searchParams.get('routine');
 			const seedParam = searchParams.get('seed');
+
+			// Always capture the seed session id when present — even if the
+			// routine param doesn't match a loaded routine. This ensures the
+			// post-save `reassignDiveVideoSession` step runs so freshly
+			// uploaded diveVideo docs get re-linked to the new routineLog id
+			// (otherwise they stay pinned to the ad-hoc recorder session and
+			// never show up in the feed card or session detail).
+			if (seedParam) {
+				seedSessionId = seedParam;
+				if (typeof sessionStorage !== 'undefined') {
+					try {
+						const raw = sessionStorage.getItem(`dive-log-seed:${seedParam}`);
+						if (raw) {
+							const parsed = JSON.parse(raw) as {
+								discipline?: Discipline;
+								poolLength?: number;
+								summary?: {
+									totalDistanceM?: number;
+									totalTimeSeconds?: number;
+									averageSpeedMs?: number;
+									perLap?: Array<{
+										lapNumber: number;
+										splitSeconds: number;
+										avgSpeedMs: number;
+										cumulativeDistanceM: number;
+									}>;
+								};
+							};
+							const perLap = parsed.summary?.perLap ?? [];
+							const lapsSeed: LapData[] | undefined =
+								perLap.length > 0
+									? perLap.map((lap, idx) => {
+											const prevCumulative =
+												idx === 0 ? 0 : perLap[idx - 1].cumulativeDistanceM;
+											const lapDistance =
+												lap.cumulativeDistanceM - prevCumulative;
+											return {
+												lapNumber: lap.lapNumber,
+												timeSeconds: Number(lap.splitSeconds.toFixed(2)),
+												distanceMeters: Number(lapDistance.toFixed(2)),
+												speedMs: Number(lap.avgSpeedMs.toFixed(3)),
+												completed: true
+											};
+										})
+									: undefined;
+							seedInitialValues = {
+								discipline: parsed.discipline,
+								poolLength: parsed.poolLength,
+								totalDistance: parsed.summary?.totalDistanceM
+									? Math.round(parsed.summary.totalDistanceM)
+									: undefined,
+								totalTimeSeconds: parsed.summary?.totalTimeSeconds
+									? Math.round(parsed.summary.totalTimeSeconds)
+									: undefined,
+								avgSpeed:
+									parsed.summary?.averageSpeedMs !== undefined
+										? Number(parsed.summary.averageSpeedMs.toFixed(3))
+										: undefined,
+								laps: lapsSeed
+							};
+							sessionStorage.removeItem(`dive-log-seed:${seedParam}`);
+						}
+					} catch (seedErr) {
+						console.warn('Failed to read dive-log-seed:', seedErr);
+					}
+				}
+			}
+
 			if (routineParam) {
 				const match = routines.find((r) => r.id === routineParam);
 				if (match) {
-					if (seedParam && typeof sessionStorage !== 'undefined') {
-						seedSessionId = seedParam;
-						try {
-							const raw = sessionStorage.getItem(`dive-log-seed:${seedParam}`);
-							if (raw) {
-								const parsed = JSON.parse(raw) as {
-									discipline?: Discipline;
-									poolLength?: number;
-									summary?: {
-										totalDistanceM?: number;
-										totalTimeSeconds?: number;
-									};
-								};
-								seedInitialValues = {
-									discipline: parsed.discipline,
-									poolLength: parsed.poolLength,
-									totalDistance: parsed.summary?.totalDistanceM
-										? Math.round(parsed.summary.totalDistanceM)
-										: undefined,
-									totalTimeSeconds: parsed.summary?.totalTimeSeconds
-										? Math.round(parsed.summary.totalTimeSeconds)
-										: undefined
-								};
-								sessionStorage.removeItem(`dive-log-seed:${seedParam}`);
-							}
-						} catch (seedErr) {
-							console.warn('Failed to read dive-log-seed:', seedErr);
-						}
-					}
 					selectedRoutine = match;
 					selectedRoutineId = match.id;
+				} else {
+					console.warn(
+						`[dives] routine "${routineParam}" not found for user; skipping auto-select`
+					);
 				}
 			}
 
@@ -200,6 +245,10 @@
 			if (logData.totalTime !== undefined) routineLogData.totalTime = logData.totalTime;
 			if (logData.repDuration !== undefined) routineLogData.repDuration = logData.repDuration;
 			if (logData.repDistance !== undefined) routineLogData.repDistance = logData.repDistance;
+			// Average speed + per-lap splits — either user-entered or seeded
+			// from the dynamic dive recorder. Persisted on the routineLog so
+			// analytics + session detail can show the per-lap breakdown.
+			if (logData.avgSpeed !== undefined) routineLogData.avgSpeed = logData.avgSpeed;
 
 			// Summary (for interval routines)
 			if (logData.repsCompleted !== undefined || logData.totalTime !== undefined) {
@@ -286,10 +335,20 @@
 					const { reassignDiveVideoSession } = await import(
 						'$lib/services/diveVideos'
 					);
-					await reassignDiveVideoSession(seedSessionId, routineLogId);
+					const reassignedCount = await reassignDiveVideoSession(
+						seedSessionId,
+						routineLogId
+					);
+					console.log(
+						`[dives] Re-linked ${reassignedCount} diveVideo(s) from ${seedSessionId} → ${routineLogId}`
+					);
 				} catch (reassignErr) {
 					console.warn('Failed to re-link dive video session:', reassignErr);
 				}
+			} else if (seedSessionId) {
+				console.log(
+					`[dives] seedSessionId === routineLogId (${routineLogId}); no re-link needed`
+				);
 			}
 
 			// 5. Upload photo if provided and update routine log

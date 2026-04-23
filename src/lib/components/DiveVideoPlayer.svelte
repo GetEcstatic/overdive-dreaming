@@ -17,9 +17,9 @@
 	import {
 		distanceAt,
 		speedAt,
-		summariseTimeline,
 		totalTimeMs
 	} from '$lib/capture/timeline';
+	import { diveVideoBehavior } from '$lib/stores/videoPlayback';
 
 	interface Props {
 		video: DiveVideo;
@@ -53,7 +53,6 @@
 	const lapsCompleted = $derived(timeline.laps.filter((l) => l.atMs <= currentMs).length);
 
 	const totalDurationMs = $derived(totalTimeMs(timeline) || video.durationSeconds * 1000);
-	const summary = $derived(summariseTimeline(timeline));
 
 	function formatMs(ms: number): string {
 		const secs = Math.floor(ms / 1000);
@@ -457,6 +456,7 @@
 		playsinline
 		ontimeupdate={onTimeUpdate}
 		onloadedmetadata={() => videoEl && scheduleRvfc(videoEl as VideoWithRvfc)}
+		use:diveVideoBehavior
 	></video>
 
 	{#if showOverlay}
@@ -523,22 +523,6 @@
 
 <!-- Summary and actions card -->
 <div class="mt-3 rounded-2xl bg-slate-900/70 p-4 ring-1 ring-white/5">
-	<!-- Summary row -->
-	<div class="mb-3 grid grid-cols-3 gap-2 text-center">
-		<div>
-			<div class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Distance</div>
-			<div class="font-mono text-lg font-bold tabular-nums text-slate-100">{summary.totalDistanceM} m</div>
-		</div>
-		<div>
-			<div class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Duration</div>
-			<div class="font-mono text-lg font-bold tabular-nums text-slate-100">{(totalDurationMs / 1000).toFixed(1)}s</div>
-		</div>
-		<div>
-			<div class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Avg Speed</div>
-			<div class="font-mono text-lg font-bold tabular-nums text-slate-100">{summary.averageSpeedMs.toFixed(2)}</div>
-		</div>
-	</div>
-
 	<!-- Overlay toggle switch -->
 	<button
 		type="button"

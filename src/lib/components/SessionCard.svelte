@@ -4,12 +4,14 @@
 	import { getYouTubeEmbedUrl } from '$lib/storage';
 	import { formatTimeOfDay } from '$lib/utils/sessions';
 	import { format, formatDistanceToNow } from 'date-fns';
+	import { goto } from '$app/navigation';
 	import { user } from '$lib/stores/auth';
 	import { db } from '$lib/firebase';
 	import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 	import { getPublicUserProfilesByIds } from '$lib/firestore';
 	import { shareCard } from '$lib/utils/shareCard';
 	import { onMount } from 'svelte';
+	import { diveVideoBehavior } from '$lib/stores/videoPlayback';
 	import CommentSection from '$lib/components/CommentSection.svelte';
 	import {
 		listDiveVideosForSession,
@@ -281,10 +283,40 @@
 		};
 	});
 
+	// Card-level navigation. We render the card as a role="link" div (not an
+	// <a>) so the inline dive-video player can receive taps without the
+	// surrounding anchor hijacking the gesture on mobile Safari. Any click
+	// whose target is inside the .dive-video region is ignored here and left
+	// to the native <video controls> to handle.
+	function isInsideVideo(el: EventTarget | null): boolean {
+		if (!(el instanceof Element)) return false;
+		return el.closest('.dive-video') !== null;
+	}
+	function handleCardClick(e: MouseEvent): void {
+		if (isInsideVideo(e.target)) return;
+		// Buttons / popovers inside the card already call stopPropagation, so
+		// if we reach here it's a neutral region of the card → navigate.
+		void goto(`/session/${log.id}`);
+	}
+	function handleCardKey(e: KeyboardEvent): void {
+		if (e.key !== 'Enter' && e.key !== ' ') return;
+		if (isInsideVideo(e.target)) return;
+		e.preventDefault();
+		void goto(`/session/${log.id}`);
+	}
+
 </script>
 
 <div class="card-wrapper">
-<a href="/session/{log.id}" class="card-link" bind:this={cardElement}>
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<div
+	class="card-link"
+	role="link"
+	tabindex="0"
+	bind:this={cardElement}
+	onclick={handleCardClick}
+	onkeydown={handleCardKey}
+>
 	<div class="session-card" class:mobile-focused={isMobileFocused} class:comments-open={showComments}>
 	<!-- Header with profile info -->
 	<div class="card-header">
@@ -368,6 +400,11 @@
 	{#if log.photoUrl || log.youtubeUrl || diveVideoUrl}
 		<div class="media-section">
 			{#if diveVideoUrl}
+				<!--
+				  The `.dive-video` marker class is used by handleCardClick /
+				  handleCardKey to ignore taps in this region so the native
+				  <video controls> stays fully interactive.
+				-->
 				<div class="dive-video">
 					<!-- svelte-ignore a11y_media_has_caption -->
 					<video
@@ -376,7 +413,7 @@
 						controls
 						playsinline
 						preload="metadata"
-						onclick={(e) => e.stopPropagation()}
+						use:diveVideoBehavior
 					></video>
 				</div>
 			{/if}
@@ -474,8 +511,8 @@
 		</button>
 	</div>
 	</div>
-</a>
-<!-- Inline comment panel (outside <a> to allow proper interactive element behavior) -->
+</div>
+<!-- Inline comment panel (outside card-link div to avoid nested interactive elements) -->
 {#if showComments}
 	<div class="comment-panel">
 		<CommentSection

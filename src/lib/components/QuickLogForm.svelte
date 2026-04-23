@@ -39,6 +39,10 @@
 			totalTimeSeconds?: number;
 			poolLength?: number;
 			notes?: string;
+			/** Average speed (m/s) across the whole dive, from video. */
+			avgSpeed?: number;
+			/** Per-lap splits (number, timeSeconds, distanceMeters, speedMs). */
+			laps?: LapData[];
 		};
 	}
 
@@ -61,6 +65,8 @@
 		repsCompleted?: number;
 		repDuration?: number;
 		repDistance?: number;
+		/** Average speed (m/s) for the whole dive — seeded from video recorder. */
+		avgSpeed?: number;
 		// Training context
 		breathingTechnique?: BreathingTechnique;
 		rpe?: number;
@@ -194,6 +200,11 @@
 	let repsCompleted = $state<number | undefined>(defaultRepsCompleted);
 	let repDurationSeconds = $state<number | undefined>(avgRepDuration); // in seconds
 	let repDistance = $state<number | undefined>(undefined);
+	// Pre-seeded per-lap splits + average speed parsed from a dynamic dive
+	// video. These are passed straight through to the log so coaches don't
+	// have to retype numbers that the recorder already measured.
+	const seededAvgSpeed = initialValues?.avgSpeed;
+	const seededLaps = initialValues?.laps;
 
 	// Training context
 	let breathingTechnique = $state<BreathingTechnique | undefined>(undefined);
@@ -486,6 +497,7 @@
 			repsCompleted,
 			repDuration: repDurationSeconds,
 			repDistance,
+			avgSpeed: seededAvgSpeed,
 			// Training context
 			breathingTechnique,
 			rpe,
@@ -541,7 +553,7 @@
 				timeBelow50: r.timeBelow50 || 0,
 				timeBelow40: r.timeBelow40 || 0,
 				readings: []
-			}))) : undefined,
+			}))) : seededLaps,
 			// Biometric session summary
 			hasBiometricData: biometricSummary?.hasBiometricData,
 			longestHold: biometricSummary?.longestHold,

@@ -77,28 +77,43 @@ export function totalTimeMs(timeline: DiveTimeline): number {
 /**
  * Total distance covered in meters.
  *
+ * Mirrors the HUD "Distance" counter (`cumulativeDistanceM` in
+ * `recorderSelectors.ts`) so the post-save summary reports the same
+ * number the diver saw on screen when they tapped End-dive.
+ *
  * Includes a "tail" past the last waypoint: if the dive ended mid-lap, the
  * diver covered additional distance between the last waypoint tap and
  * End-dive. We estimate that tail using the most recent lap's measured
  * speed (metres per second) and the elapsed time from the last waypoint
- * to `diveEndMs`. Without this, the summary would under-report total
- * distance by snapping to the last waypoint value.
+ * to `diveEndMs`. When there are no waypoints yet (diver ended before the
+ * first tap, or coach forgot to tap), we fall back to the same default
+ * speed of 1 m/s used by the live HUD counter so distance is never 0 for
+ * a dive that actually happened.
  */
 export function totalDistanceM(timeline: DiveTimeline): number {
-	if (timeline.laps.length === 0) return 0;
+	const diveDurationMs = Math.max(0, timeline.diveEndMs - timeline.diveStartMs);
+
+	if (timeline.laps.length === 0) {
+		// No waypoints tapped — fall back to the HUD's default pace of 1 m/s.
+		// diveStartMs / diveEndMs are offsets from recording start, so the
+		// delta is the dive's elapsed time.
+		return (diveDurationMs / 1000) * 1;
+	}
+
 	const lastLap = timeline.laps[timeline.laps.length - 1];
 	const base = lastLap.cumulativeDistanceM;
 	const tailMs = Math.max(0, timeline.diveEndMs - lastLap.atMs);
 	if (tailMs <= 0) return base;
 
 	// Estimate speed from the last lap: (lap distance) / (lap split).
+	// Falls back to 1 m/s (same default as the HUD) if the split is zero.
 	const prevCumulative =
 		timeline.laps.length === 1
 			? 0
 			: timeline.laps[timeline.laps.length - 2].cumulativeDistanceM;
 	const lapDistance = base - prevCumulative;
 	const speedMs =
-		lastLap.splitMs > 0 ? lapDistance / (lastLap.splitMs / 1000) : 0;
+		lastLap.splitMs > 0 ? lapDistance / (lastLap.splitMs / 1000) : 1;
 	return base + speedMs * (tailMs / 1000);
 }
 
