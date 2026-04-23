@@ -64,8 +64,17 @@ export function diveVideoBehavior(node: HTMLVideoElement) {
 			webkitEnterFullscreen?: () => void;
 		};
 		if (document.fullscreenElement) return;
-		if (typeof node.requestFullscreen === 'function') {
-			node.requestFullscreen().catch(() => {
+		// Prefer fullscreening the wrapping container (marked with
+		// `data-fullscreen-root`) so any HUD overlay DOM siblings of the
+		// <video> remain visible. Only fall back to the <video> element
+		// itself when no such container exists or the browser rejects the
+		// request — typically iOS Safari on iPhone, which only exposes
+		// `webkitEnterFullscreen` on <video> and will strip the HUD.
+		const container =
+			(node.closest('[data-fullscreen-root]') as HTMLElement | null) ?? null;
+		const target: HTMLElement = container ?? node;
+		if (typeof target.requestFullscreen === 'function') {
+			target.requestFullscreen().catch(() => {
 				anyNode.webkitEnterFullscreen?.();
 			});
 		} else {

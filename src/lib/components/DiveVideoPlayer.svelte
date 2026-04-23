@@ -25,9 +25,15 @@
 		video: DiveVideo;
 		/** Pre-resolved Storage download URL for the clean video. */
 		srcUrl: string;
+		/**
+		 * Compact variant for feed cards: hides the summary + actions card
+		 * (HUD toggle, download button, export progress). The HUD overlay on
+		 * top of the video itself is preserved. Defaults to the full layout.
+		 */
+		compact?: boolean;
 	}
 
-	let { video, srcUrl }: Props = $props();
+	let { video, srcUrl, compact = false }: Props = $props();
 
 	let videoEl: HTMLVideoElement | undefined = $state();
 	let currentMs = $state(0);
@@ -446,6 +452,7 @@
 <div
 	class="relative aspect-video w-full overflow-hidden rounded-2xl bg-black shadow-lg"
 	style="position: relative;"
+	data-fullscreen-root
 >
 	<!-- svelte-ignore a11y_media_has_caption -->
 	<video
@@ -521,56 +528,87 @@
 	{/if}
 </div>
 
-<!-- Summary and actions card -->
-<div class="mt-3 rounded-2xl bg-slate-900/70 p-4 ring-1 ring-white/5">
-	<!-- Overlay toggle switch -->
-	<button
-		type="button"
-		class="flex w-full items-center justify-between rounded-xl bg-slate-800/80 px-4 py-3 text-left transition hover:bg-slate-800 disabled:opacity-60"
-		onclick={() => (showOverlay = !showOverlay)}
-		disabled={downloading}
-	>
-		<div>
-			<div class="text-sm font-semibold text-slate-100">Show overlay</div>
-			<div class="mt-0.5 text-xs text-slate-400">
-				{#if showOverlay}
-					HUD visible in replay and baked into downloads
-				{:else}
-					Clean video — no HUD in replay or downloads
-				{/if}
-			</div>
-		</div>
-		<span
-			class="ml-3 inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors"
+{#if !compact}
+	<!-- Overlay toggle — standalone pill button directly below the video. -->
+	<div class="mt-3 flex justify-center">
+		<button
+			type="button"
+			class="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold shadow-sm ring-1 transition active:scale-[0.98] disabled:opacity-60"
 			class:bg-teal-400={showOverlay}
-			class:bg-slate-600={!showOverlay}
+			class:text-slate-900={showOverlay}
+			class:ring-teal-300={showOverlay}
+			class:bg-slate-800={!showOverlay}
+			class:text-slate-100={!showOverlay}
+			class:ring-white-10={!showOverlay}
+			onclick={() => (showOverlay = !showOverlay)}
+			disabled={downloading}
+			aria-pressed={showOverlay}
 		>
 			<span
-				class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform"
-				class:translate-x-6={showOverlay}
-				class:translate-x-1={!showOverlay}
+				class="inline-flex h-2 w-2 rounded-full"
+				class:bg-slate-900={showOverlay}
+				class:bg-slate-400={!showOverlay}
 			></span>
-		</span>
-	</button>
+			<span>{showOverlay ? 'Hide overlay' : 'Show overlay'}</span>
+		</button>
+	</div>
 
-	<!-- Download button -->
-	<button
-		type="button"
-		class="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-teal-400 py-3.5 text-base font-semibold text-slate-900 shadow-sm transition active:scale-[0.98] disabled:opacity-60"
-		onclick={downloadToPhotos}
-		disabled={downloading}
-	>
-		{#if downloading && showOverlay}
-			<span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-900/30 border-t-slate-900"></span>
-			<span>Baking overlay… {Math.round(exportProgress * 100)}%</span>
-		{:else if downloading}
-			<span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-900/30 border-t-slate-900"></span>
-			<span>Preparing…</span>
-		{:else}
-			<span>⬇︎ Save to Photos</span>
+	<!-- Actions card (download) -->
+	<div class="mt-3 rounded-2xl bg-slate-900/70 p-4 ring-1 ring-white/5">
+		<!-- Download button -->
+		<button
+			type="button"
+			class="flex w-full items-center justify-center gap-2 rounded-xl bg-teal-400 py-3.5 text-base font-semibold text-slate-900 shadow-sm transition active:scale-[0.98] disabled:opacity-60"
+			onclick={downloadToPhotos}
+			disabled={downloading}
+		>
+			{#if downloading && showOverlay}
+				<span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-900/30 border-t-slate-900"></span>
+				<span>Baking overlay… {Math.round(exportProgress * 100)}%</span>
+			{:else if downloading}
+				<span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-900/30 border-t-slate-900"></span>
+				<span>Preparing…</span>
+			{:else}
+				<span>⬇︎ Save to Photos</span>
+			{/if}
+		</button>
+		{#if downloadError}
+			<p class="mt-2 rounded-md bg-red-500/15 px-3 py-2 text-center text-xs text-red-300">{downloadError}</p>
 		{/if}
-	</button>
-	{#if downloadError}
-		<p class="mt-2 rounded-md bg-red-500/15 px-3 py-2 text-center text-xs text-red-300">{downloadError}</p>
-	{/if}
-</div>
+	</div>
+{/if}
+
+<style>
+	/*
+	 * When the wrapping container is placed into fullscreen (via the
+	 * Fullscreen API), the browser removes our Tailwind aspect-video/rounded
+	 * constraints via the :fullscreen pseudo-class. We re-assert sensible
+	 * fullscreen sizing so the HUD overlay keeps its absolute positioning
+	 * relative to a full-viewport container and the <video> fills it.
+	 */
+	[data-fullscreen-root]:fullscreen {
+		width: 100vw;
+		height: 100vh;
+		border-radius: 0;
+		aspect-ratio: auto;
+		background: black;
+	}
+	[data-fullscreen-root]:fullscreen video {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+	}
+	/* Safari still prefixes the pseudo-class on some versions. */
+	[data-fullscreen-root]:-webkit-full-screen {
+		width: 100vw;
+		height: 100vh;
+		border-radius: 0;
+		aspect-ratio: auto;
+		background: black;
+	}
+	[data-fullscreen-root]:-webkit-full-screen video {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+	}
+</style>

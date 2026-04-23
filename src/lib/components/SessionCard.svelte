@@ -13,6 +13,7 @@
 	import { onMount } from 'svelte';
 	import { diveVideoBehavior } from '$lib/stores/videoPlayback';
 	import CommentSection from '$lib/components/CommentSection.svelte';
+	import DiveVideoPlayer from '$lib/components/DiveVideoPlayer.svelte';
 	import {
 		listDiveVideosForSession,
 		getDiveVideoDownloadUrl
@@ -406,15 +407,24 @@
 				  <video controls> stays fully interactive.
 				-->
 				<div class="dive-video">
-					<!-- svelte-ignore a11y_media_has_caption -->
-					<video
-						src={diveVideoUrl}
-						class="dive-video-player"
-						controls
-						playsinline
-						preload="metadata"
-						use:diveVideoBehavior
-					></video>
+					{#if diveVideo}
+						<!--
+						  Render the full HUD-overlay player even in the feed,
+						  but use the compact variant so the summary / action
+						  card is hidden — just the video + HUD on top.
+						-->
+						<DiveVideoPlayer video={diveVideo} srcUrl={diveVideoUrl} compact />
+					{:else}
+						<!-- svelte-ignore a11y_media_has_caption -->
+						<video
+							src={diveVideoUrl}
+							class="dive-video-player"
+							controls
+							playsinline
+							preload="metadata"
+							use:diveVideoBehavior
+						></video>
+					{/if}
 				</div>
 			{/if}
 
