@@ -20,6 +20,7 @@
 	import { drainUploadQueue } from '$lib/capture/uploadProcessor';
 	import { summariseTimeline } from '$lib/capture/timeline';
 	import { getUserSettings } from '$lib/firestore';
+	import { diveRecording } from '$lib/stores/videoPlayback';
 	import type { DiveTimeline, DiveVideoDiscipline, DiveVideoResolution } from '$lib/types';
 
 	const sessionId = $derived($page.params.id ?? '');
@@ -37,6 +38,19 @@
 
 	type Stage = 'setup' | 'record' | 'review' | 'saving' | 'done';
 	let stage = $state<Stage>('setup');
+
+	/**
+	 * Hide the bottom nav while the recorder is active. Increments a global
+	 * counter on entry to the `record` stage and decrements on leaving it,
+	 * covering both the "recording ended" (→ review) and cancel (→ setup)
+	 * transitions. The $effect cleanup runs whenever `stage` changes so the
+	 * counter stays balanced even if the user navigates away mid-record.
+	 */
+	$effect(() => {
+		if (stage !== 'record') return;
+		diveRecording.begin();
+		return () => diveRecording.end();
+	});
 
 	let poolLength = $state<number | undefined>(25);
 	let waypointsPerLap = $state<number | undefined>(2);

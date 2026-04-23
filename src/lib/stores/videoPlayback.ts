@@ -28,6 +28,15 @@ function createVideoPlaybackStore() {
 
 export const videoPlayback = createVideoPlaybackStore();
 
+/**
+ * Tracks whether a dive recording is currently in progress. Hides the bottom
+ * nav (like `videoPlayback` does) so it doesn't obscure the full-screen
+ * recorder UI. Counter-based so nested/overlapping recorders won't race.
+ * Begin when the recorder UI mounts; end when it unmounts (covers both the
+ * recording-ended → review transition and cancel → setup transition).
+ */
+export const diveRecording = createVideoPlaybackStore();
+
 // ---------------------------------------------------------------------------
 // Pure fullscreen-decision helper (unit-tested).
 // ---------------------------------------------------------------------------
