@@ -185,15 +185,18 @@ export function getMetricValue(
 		case 'hrv':
 			return log.hrv || 0;
 
-		// Speed metrics (new)
+		// Speed metrics (new canonical *Ms names preferred; old names kept as aliases)
 		case 'avgSpeed':
-			return log.avgSpeed || calculateAvgSpeed(log);
+		case 'avgSpeedMs':
+			return log.avgSpeedMs ?? log.avgSpeed ?? calculateAvgSpeed(log);
 
 		case 'maxRepSpeed':
-			return log.maxRepSpeed || 0;
+		case 'fastestLapSpeedMs':
+			return log.fastestLapSpeedMs ?? log.maxRepSpeed ?? 0;
 
 		case 'minRepSpeed':
-			return log.minRepSpeed || 0;
+		case 'slowestLapSpeedMs':
+			return log.slowestLapSpeedMs ?? log.minRepSpeed ?? 0;
 
 		case 'breathingTechnique':
 			// String metric - return 0 as placeholder, handled in getFormattedMetric
@@ -253,8 +256,11 @@ export function formatMetricValue(metricType: MetricType, value: number): string
 
 		// Speed metrics (m/s)
 		case 'avgSpeed':
+		case 'avgSpeedMs':
 		case 'maxRepSpeed':
+		case 'fastestLapSpeedMs':
 		case 'minRepSpeed':
+		case 'slowestLapSpeedMs':
 			return `${value.toFixed(2)} m/s`;
 
 		// Temperature

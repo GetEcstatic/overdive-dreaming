@@ -159,6 +159,17 @@ export interface RoutineTable {
 	rows: TableRow[];
 }
 
+/**
+ * How a given metric is captured when logging a dive.
+ *
+ * - `manual`: the user types the value into the log form.
+ * - `recorder`: the value is auto-populated by the in-app dive recorder
+ *   (read-only in the form, shown as "From recording").
+ * - `either`: editable field that is pre-filled from the recorder seed
+ *   when available, otherwise manual entry (default for most metrics).
+ */
+export type CaptureSource = 'manual' | 'recorder' | 'either';
+
 export interface TrackingConfig {
 	// Session context
 	trackPoolLength: boolean; // Pool size in meters
@@ -174,6 +185,19 @@ export interface TrackingConfig {
 	trackRestBetweenLaps: boolean; // Rest between reps
 	trackKicksPerLap: boolean; // Kicks per lap (DYN/DYNB/DNF)
 	trackArmPullsPerLap: boolean; // Arm pulls per lap (DNF only)
+
+	// Speed metrics (dynamic disciplines only)
+	trackAvgSpeed?: boolean; // Overall avg speed (m/s)
+	trackSpeedPerLap?: boolean; // Per-lap speed (m/s)
+
+	// Per-metric capture source (optional; default 'either' when omitted).
+	// Only a handful of metrics need a capture-source annotation today — the
+	// ones that the dynamic dive recorder can auto-fill. Add more as needed.
+	totalDistanceSource?: CaptureSource;
+	totalTimeSource?: CaptureSource;
+	timePerLapSource?: CaptureSource;
+	speedPerLapSource?: CaptureSource;
+	avgSpeedSource?: CaptureSource;
 
 	// Training context
 	trackBreathingTechnique: boolean;
@@ -261,9 +285,12 @@ export type MetricType =
 	| 'sessionDuration'   // Total elapsed time of session
 	| 'longestHold'       // Longest single breath hold (from biometrics)
 	// NEW: Speed metrics (calculated)
-	| 'avgSpeed'          // Average m/s across session
-	| 'maxRepSpeed'       // Fastest rep speed
-	| 'minRepSpeed'      // Slowest rep speed
+	| 'avgSpeed'          // @deprecated use 'avgSpeedMs' — Average m/s across session
+	| 'maxRepSpeed'       // @deprecated use 'fastestLapSpeedMs' — Fastest rep speed
+	| 'minRepSpeed'       // @deprecated use 'slowestLapSpeedMs' — Slowest rep speed
+	| 'avgSpeedMs'        // Average speed (m/s) — new canonical name
+	| 'fastestLapSpeedMs' // Fastest lap/rep speed (m/s) — new canonical name
+	| 'slowestLapSpeedMs' // Slowest lap/rep speed (m/s) — new canonical name
 	| 'breathingTechnique'; // Breathing technique used
 
 export interface DisplayConfig {
@@ -488,9 +515,18 @@ export interface RoutineLog {
 	sessionDuration?: number;   // Total elapsed time of session
 
 	// Performance data - speed metrics (calculated for dynamic intervals)
-	avgSpeed?: number;          // Average m/s across session
-	maxRepSpeed?: number;       // Fastest rep speed (m/s)
-	minRepSpeed?: number;       // Slowest rep speed (m/s)
+	// New canonical names (m/s) — the normalization layer keeps these in sync
+	// with the deprecated aliases below for backward compatibility.
+	avgSpeedMs?: number;        // Average speed across the dive (m/s)
+	fastestLapSpeedMs?: number; // Fastest single-lap speed (m/s)
+	slowestLapSpeedMs?: number; // Slowest single-lap speed (m/s)
+
+	/** @deprecated Use `avgSpeedMs`. Kept in sync by the normalization layer. */
+	avgSpeed?: number;
+	/** @deprecated Use `fastestLapSpeedMs`. Kept in sync by the normalization layer. */
+	maxRepSpeed?: number;
+	/** @deprecated Use `slowestLapSpeedMs`. Kept in sync by the normalization layer. */
+	minRepSpeed?: number;
 
 	// Performance data - interval training metrics
 	repDuration?: number; // seconds - duration per rep (for interval training)

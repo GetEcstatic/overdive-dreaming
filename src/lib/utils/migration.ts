@@ -192,9 +192,18 @@ export function normalizeRoutineLog(log: RoutineLog): RoutineLog {
   normalized.cumulativeHoldTime = log.cumulativeHoldTime ?? calculateCumulativeHoldTime(log);
   normalized.cumulativeDistance = log.cumulativeDistance ?? calculateCumulativeDistance(log);
   
-  // Calculate speed metrics (for dynamic disciplines with time data)
-  if (!normalized.avgSpeed) {
-    normalized.avgSpeed = calculateAvgSpeed(normalized);
+  // Sync new/old speed field names so consumers can read either.
+  // `*Ms` are the new canonical names; the old names are kept for back-compat.
+  normalized.avgSpeedMs = log.avgSpeedMs ?? log.avgSpeed;
+  normalized.fastestLapSpeedMs = log.fastestLapSpeedMs ?? log.maxRepSpeed;
+  normalized.slowestLapSpeedMs = log.slowestLapSpeedMs ?? log.minRepSpeed;
+  
+  // Calculate avg speed if missing (for dynamic disciplines with time data)
+  if (normalized.avgSpeedMs === undefined) {
+    const computed = calculateAvgSpeed(normalized);
+    if (computed !== undefined) {
+      normalized.avgSpeedMs = computed;
+    }
   }
   
   // Calculate per-lap speeds if we have lap data and pool length
@@ -203,9 +212,15 @@ export function normalizeRoutineLog(log: RoutineLog): RoutineLog {
     
     // Calculate speed range
     const speedRange = calculateSpeedRange(normalized.laps);
-    normalized.maxRepSpeed = normalized.maxRepSpeed ?? speedRange.max;
-    normalized.minRepSpeed = normalized.minRepSpeed ?? speedRange.min;
+    normalized.fastestLapSpeedMs = normalized.fastestLapSpeedMs ?? speedRange.max;
+    normalized.slowestLapSpeedMs = normalized.slowestLapSpeedMs ?? speedRange.min;
   }
+
+  // Mirror new canonical names back onto the deprecated aliases so legacy
+  // code paths keep working without refactoring every call-site at once.
+  normalized.avgSpeed = normalized.avgSpeed ?? normalized.avgSpeedMs;
+  normalized.maxRepSpeed = normalized.maxRepSpeed ?? normalized.fastestLapSpeedMs;
+  normalized.minRepSpeed = normalized.minRepSpeed ?? normalized.slowestLapSpeedMs;
   
   return normalized;
 }
@@ -253,16 +268,43 @@ export function prepareLogForWrite(log: Partial<RoutineLog>): Partial<RoutineLog
   if (prepared.totalDistance !== undefined && prepared.diveDistance === undefined) {
     prepared.diveDistance = prepared.totalDistance;
   }
+
+  // Sync speed field names both directions so old readers and new readers
+  // both see the same value regardless of which name was set.
+  if (prepared.avgSpeedMs !== undefined && prepared.avgSpeed === undefined) {
+    prepared.avgSpeed = prepared.avgSpeedMs;
+  } else if (prepared.avgSpeed !== undefined && prepared.avgSpeedMs === undefined) {
+    prepared.avgSpeedMs = prepared.avgSpeed;
+  }
+  if (prepared.fastestLapSpeedMs !== undefined && prepared.maxRepSpeed === undefined) {
+    prepared.maxRepSpeed = prepared.fastestLapSpeedMs;
+  } else if (prepared.maxRepSpeed !== undefined && prepared.fastestLapSpeedMs === undefined) {
+    prepared.fastestLapSpeedMs = prepared.maxRepSpeed;
+  }
+  if (prepared.slowestLapSpeedMs !== undefined && prepared.minRepSpeed === undefined) {
+    prepared.minRepSpeed = prepared.slowestLapSpeedMs;
+  } else if (prepared.minRepSpeed !== undefined && prepared.slowestLapSpeedMs === undefined) {
+    prepared.slowestLapSpeedMs = prepared.minRepSpeed;
+  }
   
   // Calculate speed if we have the data
-  if (!prepared.avgSpeed && prepared.laps && prepared.poolLength) {
+  if (prepared.avgSpeedMs === undefined && prepared.laps && prepared.poolLength) {
     prepared.laps = calculateLapSpeeds(prepared.laps, prepared.poolLength);
     const avgSpeed = calculateAvgSpeed(prepared as RoutineLog);
-    if (avgSpeed) prepared.avgSpeed = avgSpeed;
+    if (avgSpeed) {
+      prepared.avgSpeedMs = avgSpeed;
+      prepared.avgSpeed = avgSpeed;
+    }
     
     const speedRange = calculateSpeedRange(prepared.laps);
-    if (speedRange.max) prepared.maxRepSpeed = speedRange.max;
-    if (speedRange.min) prepared.minRepSpeed = speedRange.min;
+    if (speedRange.max) {
+      prepared.fastestLapSpeedMs = speedRange.max;
+      prepared.maxRepSpeed = speedRange.max;
+    }
+    if (speedRange.min) {
+      prepared.slowestLapSpeedMs = speedRange.min;
+      prepared.minRepSpeed = speedRange.min;
+    }
   }
   
   return prepared;

@@ -122,23 +122,24 @@
 	}
 
 	function toggleField(key: string) {
+		const current = (trackingConfig as unknown as Record<string, unknown>)[key];
 		trackingConfig = {
 			...trackingConfig,
-			[key]: !trackingConfig[key as keyof TrackingConfig]
-		};
+			[key]: !current
+		} as TrackingConfig;
 	}
 
 	function toggleAllInSection(sectionFields: Array<{ key: string }>, enable: boolean) {
-		const updates: Partial<TrackingConfig> = {};
+		const updates: Record<string, boolean> = {};
 		for (const field of sectionFields) {
-			updates[field.key as keyof TrackingConfig] = enable;
+			updates[field.key] = enable;
 		}
-		trackingConfig = { ...trackingConfig, ...updates };
+		trackingConfig = { ...trackingConfig, ...updates } as TrackingConfig;
 	}
 
 	// Count enabled fields per section
 	function getEnabledCount(fields: Array<{ key: string }>): number {
-		return fields.filter(f => trackingConfig[f.key as keyof TrackingConfig] === true).length;
+		return fields.filter(f => (trackingConfig as unknown as Record<string, unknown>)[f.key] === true).length;
 	}
 
 	// Total enabled fields
@@ -203,7 +204,7 @@
 								<label class="field-toggle">
 									<input
 										type="checkbox"
-										checked={trackingConfig[field.key as keyof TrackingConfig] === true}
+										checked={(trackingConfig as unknown as Record<string, unknown>)[field.key] === true}
 										onchange={() => toggleField(field.key)}
 									/>
 									<span class="field-info">
@@ -261,7 +262,7 @@
 								<label class="field-toggle">
 									<input
 										type="checkbox"
-										checked={trackingConfig[field.key as keyof TrackingConfig] === true}
+										checked={(trackingConfig as unknown as Record<string, unknown>)[field.key] === true}
 										onchange={() => toggleField(field.key)}
 									/>
 									<span class="field-info">

@@ -5,6 +5,7 @@
 	import MiniAnalytics from '$lib/components/MiniAnalytics.svelte';
 	import EditRoutineLogModal from '$lib/components/EditRoutineLogModal.svelte';
 	import BiometricTimeChart from '$lib/components/BiometricTimeChart.svelte';
+	import LapTable from '$lib/components/LapTable.svelte';
 	import { getFormattedMetric } from '$lib/utils/metrics';
 	import { formatTime } from '$lib/utils/time';
 	import { getYouTubeEmbedUrl, deleteSessionPhoto, deleteBiometricCsv } from '$lib/storage';
@@ -279,7 +280,10 @@
 	</section>
 
 	<!-- Performance Metrics -->
-	{#if log.totalDistance || log.totalTime || log.summary?.repsCompleted || log.repDuration || log.avgSpeed}
+	{#if log.totalDistance || log.totalTime || log.summary?.repsCompleted || log.repDuration || log.avgSpeedMs || log.avgSpeed}
+		{@const avgSpeedVal = log.avgSpeedMs ?? log.avgSpeed}
+		{@const fastestVal = log.fastestLapSpeedMs ?? log.maxRepSpeed}
+		{@const slowestVal = log.slowestLapSpeedMs ?? log.minRepSpeed}
 		<section class="metrics-section">
 			<h2>Performance Metrics</h2>
 			<div class="metrics-grid">
@@ -295,10 +299,10 @@
 						<span class="value">{formatTime(log.totalTime)}</span>
 					</div>
 				{/if}
-				{#if log.avgSpeed}
+				{#if avgSpeedVal}
 					<div class="metric-item">
 						<span class="label">Avg Speed</span>
-						<span class="value">{log.avgSpeed.toFixed(2)} m/s</span>
+						<span class="value">{avgSpeedVal.toFixed(2)} m/s</span>
 					</div>
 				{/if}
 				{#if log.summary?.repsCompleted}
@@ -319,16 +323,16 @@
 						<span class="value">{formatTime(log.summary.averageTimePerRep)}</span>
 					</div>
 				{/if}
-				{#if log.maxRepSpeed}
+				{#if fastestVal}
 					<div class="metric-item">
-						<span class="label">Max Rep Speed</span>
-						<span class="value">{log.maxRepSpeed.toFixed(2)} m/s</span>
+						<span class="label">Fastest Lap</span>
+						<span class="value">{fastestVal.toFixed(2)} m/s</span>
 					</div>
 				{/if}
-				{#if log.minRepSpeed}
+				{#if slowestVal}
 					<div class="metric-item">
-						<span class="label">Min Rep Speed</span>
-						<span class="value">{log.minRepSpeed.toFixed(2)} m/s</span>
+						<span class="label">Slowest Lap</span>
+						<span class="value">{slowestVal.toFixed(2)} m/s</span>
 					</div>
 				{/if}
 				{#if log.cumulativeHoldTime}
@@ -338,6 +342,14 @@
 					</div>
 				{/if}
 			</div>
+		</section>
+	{/if}
+
+	<!-- Per-lap table for dynamic dives with lap data -->
+	{#if (log.disciplineUsed === 'DYN' || log.disciplineUsed === 'DYNB' || log.disciplineUsed === 'DNF') && log.laps && log.laps.length > 0 && log.laps.some((l) => typeof l.timeSeconds === 'number')}
+		<section class="metrics-section">
+			<h2>Per-lap Splits</h2>
+			<LapTable laps={log.laps} poolLength={log.poolLength} />
 		</section>
 	{/if}
 
