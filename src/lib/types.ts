@@ -239,6 +239,7 @@ export interface TrackingConfig {
 	// ============================================================================
 	trackFVC: boolean; // Forced Vital Capacity (liters)
 	trackFVCWithPacking: boolean; // FVC with packing technique (liters)
+	trackPackingVolume: boolean; // Lung packing percentage at start of hold (0-100%)
 
 	// ============================================================================
 	// O2-ASSISTED STATIC APNEA TRACKING
@@ -275,6 +276,7 @@ export type MetricType =
 	| 'contractionsOnsetTime'
 	| 'restingHeartRate'
 	| 'hrv'
+	| 'packingVolume'
 	// NEW: Clearer metric names (aliases)
 	| 'diveDuration'      // = totalTime (clearer for single dive)
 	| 'diveDistance'      // = totalDistance (clearer for single dive)
@@ -570,6 +572,7 @@ export interface RoutineLog {
 	// Lung capacity
 	fvc?: number; // Forced Vital Capacity in liters (to 1 decimal place)
 	fvcWithPacking?: number; // FVC with packing in liters (to 1 decimal place)
+	packingVolume?: number; // Lung packing volume as percentage (0-100)
 
 	// ============================================================================
 	// O2-ASSISTED STATIC APNEA DATA

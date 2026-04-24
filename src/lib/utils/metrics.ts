@@ -185,6 +185,9 @@ export function getMetricValue(
 		case 'hrv':
 			return log.hrv || 0;
 
+		case 'packingVolume':
+			return log.packingVolume || 0;
+
 		// Speed metrics (new canonical *Ms names preferred; old names kept as aliases)
 		case 'avgSpeed':
 		case 'avgSpeedMs':
@@ -274,6 +277,10 @@ export function formatMetricValue(metricType: MetricType, value: number): string
 		// HRV
 		case 'hrv':
 			return `${value}ms`;
+
+		// Packing volume (percentage)
+		case 'packingVolume':
+			return `${value.toFixed(0)}%`;
 
 		default:
 			return value.toString();

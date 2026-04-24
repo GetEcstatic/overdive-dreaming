@@ -80,6 +80,7 @@
 				{ key: 'trackBodyWeight', label: 'Body Weight', hint: 'Weight on training day' },
 				{ key: 'trackFVC', label: 'FVC', hint: 'Forced Vital Capacity (liters)' },
 				{ key: 'trackFVCWithPacking', label: 'FVC with Packing', hint: 'FVC with packing technique (liters)' },
+				{ key: 'trackPackingVolume', label: 'Packing Volume', hint: 'Lung packing at start of hold (%)' },
 				{ key: 'trackBasalMood', label: 'Mood', hint: 'General mood 1-10' },
 				{ key: 'trackMenstrualCycleDay', label: 'Cycle Day', hint: 'Menstrual cycle tracking' }
 			]

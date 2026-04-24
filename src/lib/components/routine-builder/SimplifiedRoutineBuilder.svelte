@@ -187,6 +187,7 @@
 			trackBodyWeight: false,
 			trackFVC: false,
 			trackFVCWithPacking: false,
+			trackPackingVolume: false,
 			trackPerRepSpO2: false,
 			trackPerRepHR: false,
 			trackSpO2Thresholds: false,

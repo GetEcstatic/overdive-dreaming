@@ -18,7 +18,9 @@
     "backup": "tsx scripts/backup-firestore.ts",
     "audit": "tsx scripts/audit-data.ts",
     "migrate:activity-types": "tsx scripts/migrate-activity-types.ts",
-    "migrate:activity-types:dry": "tsx scripts/migrate-activity-types.ts --dry-run"
+    "migrate:activity-types:dry": "tsx scripts/migrate-activity-types.ts --dry-run",
+    "migrate:packing-volume": "tsx scripts/migrate-add-packing-volume.ts",
+    "migrate:packing-volume:dry": "tsx scripts/migrate-add-packing-volume.ts --dry-run"
   },
   "keywords": [
     "freediving",

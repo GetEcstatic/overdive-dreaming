@@ -95,6 +95,7 @@
 		// Lung capacity
 		fvc?: number;
 		fvcWithPacking?: number;
+		packingVolume?: number;
 		// O2-Assisted Static Apnea
 		lucidity?: number;
 		urgeToBreathe?: number;
@@ -243,6 +244,7 @@
 	// LUNG CAPACITY
 	let fvc = $state<number | undefined>(undefined);
 	let fvcWithPacking = $state<number | undefined>(undefined);
+	let packingVolume = $state<number | undefined>(undefined);
 
 	// O2-ASSISTED STATIC APNEA
 	let lucidity = $state<number | undefined>(undefined);
@@ -529,6 +531,7 @@
 			// Lung capacity
 			fvc,
 			fvcWithPacking,
+			packingVolume,
 			// O2-Assisted Static Apnea
 			lucidity,
 			urgeToBreathe,
@@ -1456,6 +1459,23 @@
 						step="0.1"
 						class="field-input"
 						placeholder="e.g., 7.8"
+					/>
+				</div>
+			{/if}
+
+			{#if config.trackPackingVolume}
+				<div class="field-group">
+					<label for="packingVolume" class="field-label">
+						Packing Volume <span class="field-value-badge">{packingVolume ?? 0}%</span>
+					</label>
+					<input
+						id="packingVolume"
+						type="range"
+						bind:value={packingVolume}
+						min="0"
+						max="100"
+						step="5"
+						class="field-input"
 					/>
 				</div>
 			{/if}
