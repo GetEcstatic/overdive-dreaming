@@ -1,6 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import BubbleBackground from '$lib/components/BubbleBackground.svelte';
+	import NumberWheelSheet from '$lib/components/numberWheel/NumberWheelSheet.svelte';
 	import { onMount } from 'svelte';
 
 	// Prevent scroll wheel from changing number inputs
@@ -26,3 +27,6 @@
 <BubbleBackground />
 
 <slot />
+
+<!-- Global modal wheel picker driven by wheelSheetStore (singleton). -->
+<NumberWheelSheet />

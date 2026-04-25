@@ -16,6 +16,8 @@
 		values as wheelValues
 	} from '$lib/components/numberWheel/wheel';
 	import type { WheelSpec } from '$lib/components/numberWheel/types';
+	import { openWheelSheet } from '$lib/components/numberWheel/wheelSheetStore';
+	import { Minus, Plus } from 'lucide-svelte';
 
 	let {
 		value = $bindable(),
@@ -27,7 +29,9 @@
 		hint = '',
 		showLabel = true,
 		compact = false,
-		placeholder = ''
+		placeholder = '',
+		variant = 'wheel',
+		showNudgeButtons = true
 	}: {
 		value: number | undefined;
 		min?: number;
@@ -39,13 +43,18 @@
 		showLabel?: boolean;
 		compact?: boolean;
 		placeholder?: string;
+		/** "wheel" = inline iOS-style scroll wheel (legacy).
+		 *  "chip"  = collapsed tap-target that opens NumberWheelSheet. */
+		variant?: 'wheel' | 'chip';
+		/** Render ± buttons inline on the chip variant. */
+		showNudgeButtons?: boolean;
 	} = $props();
 
 	// Initialize value if undefined and user hasn't interacted
 	let userHasInteracted = $state(value !== undefined);
 
 	// Internal state
-	let column: HTMLDivElement;
+	let column: HTMLDivElement | undefined = $state();
 	let isScrolling = false;
 	let scrollTimeout: ReturnType<typeof setTimeout>;
 
@@ -73,7 +82,7 @@
 		return formatValue(spec, n);
 	}
 
-	function scrollToIndex(col: HTMLDivElement, idx: number, smooth = false) {
+	function scrollToIndex(col: HTMLDivElement | undefined, idx: number, smooth = false) {
 		if (!col) return;
 		const scrollTop = idx * itemHeight;
 		col.scrollTo({
@@ -82,7 +91,7 @@
 		});
 	}
 
-	function handleScroll(col: HTMLDivElement) {
+	function handleScroll(col: HTMLDivElement | undefined) {
 		if (!col) return;
 
 		clearTimeout(scrollTimeout);
@@ -109,8 +118,41 @@
 		updateValue(idx);
 	}
 
-	// Initialize scroll position on mount
+	// ---- Chip variant -----------------------------------------------------
+	function nudge(delta: number) {
+		const idx = wheelIndexOf(spec, value) + delta;
+		value = valueAt(spec, idx);
+		userHasInteracted = true;
+	}
+
+	let canDecrement = $derived(
+		value !== undefined && wheelIndexOf(spec, value) > 0
+	);
+	let canIncrement = $derived(
+		value !== undefined && wheelIndexOf(spec, value) < count - 1
+	);
+
+	function openSheet() {
+		openWheelSheet({
+			spec,
+			initial: value,
+			placeholder,
+			hint,
+			onConfirm: (v) => {
+				value = v;
+				userHasInteracted = true;
+			}
+		});
+	}
+
+	let displayText = $derived(
+		value !== undefined ? formatValue(spec, value) : placeholder || '—'
+	);
+	let hasValue = $derived(value !== undefined);
+
+	// Initialize scroll position on mount (wheel variant only)
 	onMount(() => {
+		if (variant !== 'wheel') return;
 		tick().then(() => {
 			if (value !== undefined) {
 				scrollToIndex(column, currentIndex);
@@ -118,8 +160,9 @@
 		});
 	});
 
-	// Watch for external value changes
+	// Watch for external value changes (wheel variant only)
 	$effect(() => {
+		if (variant !== 'wheel') return;
 		if (!isScrolling && value !== undefined) {
 			tick().then(() => {
 				scrollToIndex(column, currentIndex);
@@ -128,44 +171,89 @@
 	});
 </script>
 
-<div class="number-input" class:compact>
-	{#if showLabel && label}
-		<span class="number-label">{label}</span>
-	{/if}
-	
-	<div class="wheel-picker">
-		<!-- Value Column -->
-		<div class="picker-column-wrapper">
-			<!-- Selection highlight (behind column) -->
-			<div class="selection-highlight"></div>
-			<div 
-				class="picker-column"
-				bind:this={column}
-				onscroll={() => handleScroll(column)}
+{#if variant === 'chip'}
+	<div class="chip-input" class:compact>
+		{#if showLabel && label}
+			<span class="number-label">{label}</span>
+		{/if}
+		<div class="chip-row">
+			{#if showNudgeButtons}
+				<button
+					type="button"
+					class="nudge-btn"
+					aria-label="Decrease {label || 'value'}"
+					disabled={!canDecrement}
+					onclick={() => nudge(-1)}
+				>
+					<Minus size={18} strokeWidth={2.25} />
+				</button>
+			{/if}
+			<button
+				type="button"
+				class="chip"
+				class:placeholder={!hasValue}
+				aria-haspopup="dialog"
+				onclick={openSheet}
 			>
-				<div class="picker-spacer"></div>
-				{#each valuesArray as val, idx}
-					<button
-						type="button"
-						class="picker-item"
-						class:selected={idx === currentIndex && userHasInteracted}
-						onclick={() => selectValue(idx)}
-					>
-						{formatNumber(val)}
-					</button>
-				{/each}
-				<div class="picker-spacer"></div>
-			</div>
-			{#if unit}
-				<span class="picker-unit">{unit}</span>
+				<span class="chip-value">{displayText}</span>
+				{#if unit}<span class="chip-unit">{unit}</span>{/if}
+			</button>
+			{#if showNudgeButtons}
+				<button
+					type="button"
+					class="nudge-btn"
+					aria-label="Increase {label || 'value'}"
+					disabled={!canIncrement}
+					onclick={() => nudge(1)}
+				>
+					<Plus size={18} strokeWidth={2.25} />
+				</button>
 			{/if}
 		</div>
+		{#if hint}
+			<p class="number-hint">{hint}</p>
+		{/if}
 	</div>
+{:else}
+	<div class="number-input" class:compact>
+		{#if showLabel && label}
+			<span class="number-label">{label}</span>
+		{/if}
 
-	{#if hint}
-		<p class="number-hint">{hint}</p>
-	{/if}
-</div>
+		<div class="wheel-picker">
+			<!-- Value Column -->
+			<div class="picker-column-wrapper">
+				<!-- Selection highlight (behind column) -->
+				<div class="selection-highlight"></div>
+				<div
+					class="picker-column"
+					bind:this={column}
+					onscroll={() => handleScroll(column)}
+				>
+					<div class="picker-spacer"></div>
+					{#each valuesArray as val, idx}
+						<button
+							type="button"
+							class="picker-item"
+							class:selected={idx === currentIndex && userHasInteracted}
+							onclick={() => selectValue(idx)}
+						>
+							{formatNumber(val)}
+						</button>
+					{/each}
+					<div class="picker-spacer"></div>
+				</div>
+				{#if unit}
+					<span class="picker-unit">{unit}</span>
+				{/if}
+			</div>
+		</div>
+
+		{#if hint}
+			<p class="number-hint">{hint}</p>
+		{/if}
+	</div>
+{/if}
 
 <style>
 	.number-input {
@@ -327,5 +415,80 @@
 		.picker-item {
 			font-size: 1.25rem;
 		}
+	}
+
+	/* ---- Chip variant ---------------------------------------------------- */
+	.chip-input {
+		display: flex;
+		flex-direction: column;
+		gap: 0.375rem;
+	}
+	.chip-input.compact {
+		gap: 0.25rem;
+	}
+	.chip-row {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+	}
+	.chip {
+		flex: 1;
+		min-height: 44px;
+		padding: 0.5rem 0.875rem;
+		border-radius: 12px;
+		background: rgba(148, 163, 184, 0.08);
+		border: 1px solid rgba(148, 163, 184, 0.18);
+		color: var(--color-text);
+		font-size: 1.05rem;
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+		display: flex;
+		align-items: baseline;
+		justify-content: center;
+		gap: 0.25rem;
+		cursor: pointer;
+		transition:
+			background 120ms ease-out,
+			border-color 120ms ease-out;
+	}
+	.chip:hover {
+		background: rgba(148, 163, 184, 0.14);
+	}
+	.chip:focus-visible {
+		outline: 2px solid var(--color-primary);
+		outline-offset: 2px;
+	}
+	.chip.placeholder .chip-value {
+		color: var(--color-text-muted);
+		font-weight: 500;
+	}
+	.chip-unit {
+		color: var(--color-text-muted);
+		font-size: 0.85rem;
+		font-weight: 500;
+	}
+	.nudge-btn {
+		flex: 0 0 auto;
+		width: 44px;
+		height: 44px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 12px;
+		background: rgba(148, 163, 184, 0.08);
+		border: 1px solid rgba(148, 163, 184, 0.18);
+		color: var(--color-text);
+		cursor: pointer;
+	}
+	.nudge-btn:hover:not(:disabled) {
+		background: rgba(148, 163, 184, 0.18);
+	}
+	.nudge-btn:disabled {
+		opacity: 0.35;
+		cursor: not-allowed;
+	}
+	.nudge-btn:focus-visible {
+		outline: 2px solid var(--color-primary);
+		outline-offset: 2px;
 	}
 </style>
