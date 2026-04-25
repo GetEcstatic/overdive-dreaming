@@ -343,6 +343,7 @@
 					<div class="field">
 						<NumberWheelInput
 							bind:value={poolLength}
+							variant="chip"
 							label="Pool length"
 							min={10}
 							max={100}
@@ -357,6 +358,7 @@
 					<div class="field">
 						<NumberWheelInput
 							bind:value={waypointsPerLap}
+							variant="chip"
 							label="Waypoints per lap"
 							min={1}
 							max={8}
