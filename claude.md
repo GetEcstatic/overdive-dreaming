@@ -140,6 +140,25 @@ await signInWithPopup(auth, googleProvider);
 // Sign out (profile page)
 await signOut(auth);
 ```
+````Result
+Error: CompilationError: 7 |         export const user = writable<User | null>(null);
+            ^
+error: Unexpected export
+    at /private/var/folders/sc/t9zxwcyd7hl3rcz8mtl5z0nm0000gn/T/zef-ts-e1d937b65836bca5.ts:7:9
+
+Bun v1.3.6 (macOS arm64)
+
+7 |         export const user = writable<User | null>(null);
+            ^
+error: Unexpected export
+    at /private/var/folders/sc/t9zxwcyd7hl3rcz8mtl5z0nm0000gn/T/zef-ts-e1d937b65836bca5.ts:7:9
+
+Bun v1.3.6 (macOS arm64)
+
+````
+````Side Effects
+[]
+````
 
 ### User Flow
 1. User visits `/` → sees landing page
@@ -184,6 +203,12 @@ interface User {
   updatedAt: timestamp;
 }
 ```
+````Result
+# (no result)
+````
+````Side Effects
+[]
+````
 
 ---
 
@@ -577,6 +602,30 @@ PUBLIC_FIREBASE_MEASUREMENT_ID=
 - [ ] Migration path to Zef DB
 
 ## Important Patterns & Conventions
+
+### Data-oriented design (project-wide rule)
+Prefer **plain data structures** and **pure functions** over classes, deep
+hierarchies, and stateful objects. Inspired by the Clojure philosophy:
+
+1. **Data is data.** Model state as readonly records / arrays / discriminated
+   unions in `types.ts` files. Don't bury data inside DOM, stores, or class
+   instances.
+2. **Logic is pure functions.** Anything that can be expressed as
+   `(input data) → output data` belongs in a `.ts` module with no DOM, no
+   stores, no `Date.now()`, no `fetch`. These are the easiest things to test.
+3. **Side-effects live at the edges.** Firestore reads, DOM listeners,
+   `navigator.vibrate`, `setTimeout`, file IO — all isolated in thin
+   adapter layers. UI components subscribe to data and dispatch *intents*;
+   they don't own business logic.
+4. **Reducers > setters.** When state needs to change in response to user
+   actions, prefer a single `reduce(state, intent)` pure function over
+   many imperative mutations sprinkled through components.
+5. **Derive, don't store.** If a value can be computed from other state,
+   compute it (`$derived`, pure helper). Don't keep two sources of truth.
+
+Reference example to copy from: `src/lib/components/numberWheel/wheel.ts`
+(pure data + pure functions) consumed by `NumberWheelInput.svelte`
+(side-effects layer). See [`docs/wheel-selector-redesign.md`](docs/wheel-selector-redesign.md).
 
 ### SvelteKit Routing
 - `+page.svelte` - Page component

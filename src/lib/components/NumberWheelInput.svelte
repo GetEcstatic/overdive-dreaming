@@ -1,9 +1,21 @@
 <script lang="ts">
 	/**
 	 * NumberWheelInput - iOS-style scrolling wheel picker for integer values
-	 * Simpler than DurationInput - just a single column for any integer range
+	 * Simpler than DurationInput - just a single column for any integer range.
+	 *
+	 * The numeric logic lives in the pure {@link ./numberWheel/wheel.ts}
+	 * module. This component only owns side-effects (DOM scrolling,
+	 * timers).
 	 */
 	import { onMount, tick } from 'svelte';
+	import {
+		format as formatValue,
+		indexOf as wheelIndexOf,
+		valueAt,
+		valueCount,
+		values as wheelValues
+	} from '$lib/components/numberWheel/wheel';
+	import type { WheelSpec } from '$lib/components/numberWheel/types';
 
 	let {
 		value = $bindable(),
@@ -28,48 +40,37 @@
 		compact?: boolean;
 		placeholder?: string;
 	} = $props();
-	
+
 	// Initialize value if undefined and user hasn't interacted
 	let userHasInteracted = $state(value !== undefined);
-	
+
 	// Internal state
 	let column: HTMLDivElement;
 	let isScrolling = false;
 	let scrollTimeout: ReturnType<typeof setTimeout>;
-	
+
 	// Item height for scroll calculations
 	const ITEM_HEIGHT_COMPACT = 28;
 	const ITEM_HEIGHT_NORMAL = 32;
 	let itemHeight = $derived(compact ? ITEM_HEIGHT_COMPACT : ITEM_HEIGHT_NORMAL);
-	
-	// Generate array of values based on min, max, step
-	let valuesArray = $derived.by(() => {
-		const arr: number[] = [];
-		for (let i = min; i <= max; i += step) {
-			arr.push(i);
-		}
-		return arr;
-	});
+
+	// Wheel spec derived from props (pure data structure consumed by wheel.ts)
+	let spec = $derived<WheelSpec>({ min, max, step, unit, label });
+
+	// Generate array of values based on spec
+	let valuesArray = $derived(wheelValues(spec));
+	let count = $derived(valueCount(spec));
 
 	// Current index in the array
-	let currentIndex = $derived.by(() => {
-		if (value === undefined) return 0;
-		const idx = valuesArray.findIndex(v => v === value);
-		return idx >= 0 ? idx : 0;
-	});
+	let currentIndex = $derived(value === undefined ? 0 : wheelIndexOf(spec, value));
 
 	function updateValue(index: number) {
-		const clampedIndex = Math.max(0, Math.min(valuesArray.length - 1, index));
-		value = valuesArray[clampedIndex];
+		value = valueAt(spec, index);
 		userHasInteracted = true;
 	}
 
 	function formatNumber(n: number): string {
-		// Show integers without decimals, but allow for decimal steps
-		if (Number.isInteger(step) && Number.isInteger(n)) {
-			return n.toString();
-		}
-		return n.toFixed(1);
+		return formatValue(spec, n);
 	}
 
 	function scrollToIndex(col: HTMLDivElement, idx: number, smooth = false) {
@@ -83,22 +84,22 @@
 
 	function handleScroll(col: HTMLDivElement) {
 		if (!col) return;
-		
+
 		clearTimeout(scrollTimeout);
 		isScrolling = true;
-		
+
 		scrollTimeout = setTimeout(() => {
 			// Snap to nearest item
 			const scrollTop = col.scrollTop;
 			const index = Math.round(scrollTop / itemHeight);
-			const clampedIndex = Math.max(0, Math.min(valuesArray.length - 1, index));
-			
+			const clampedIndex = Math.max(0, Math.min(count - 1, index));
+
 			// Snap scroll position
 			scrollToIndex(col, clampedIndex, true);
-			
+
 			// Update value
 			updateValue(clampedIndex);
-			
+
 			isScrolling = false;
 		}, 100);
 	}
