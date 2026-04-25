@@ -1,4 +1,8 @@
 {
+  "hosting": {
+    "public": "public-auth",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
+  },
   "storage": {
     "rules": "storage.rules"
   },
