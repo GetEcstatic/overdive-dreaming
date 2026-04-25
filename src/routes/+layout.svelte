@@ -2,6 +2,7 @@
 	import '../app.css';
 	import BubbleBackground from '$lib/components/BubbleBackground.svelte';
 	import NumberWheelSheet from '$lib/components/numberWheel/NumberWheelSheet.svelte';
+	import DurationSheet from '$lib/components/numberWheel/DurationSheet.svelte';
 	import { onMount } from 'svelte';
 
 	// Prevent scroll wheel from changing number inputs
@@ -30,3 +31,8 @@
 
 <!-- Global modal wheel picker driven by wheelSheetStore (singleton). -->
 <NumberWheelSheet />
+
+<!-- Global modal duration (mm:ss) picker — dual-column sheet driven by
+     durationSheetStore. Separate store from NumberWheelSheet so each
+     can have its own ergonomics (single vs. minutes+seconds wheels). -->
+<DurationSheet />

@@ -12,13 +12,12 @@
 	 * (`<DurationInput bind:value … />`) continue to work unchanged.
 	 */
 	import {
-		format as formatValue,
 		indexOf as wheelIndexOf,
 		valueAt,
 		valueCount
 	} from '$lib/components/numberWheel/wheel';
 	import type { WheelSpec } from '$lib/components/numberWheel/types';
-	import { openWheelSheet } from '$lib/components/numberWheel/wheelSheetStore';
+	import { openDurationSheet } from '$lib/components/numberWheel/durationSheetStore';
 	import { Minus, Plus } from 'lucide-svelte';
 
 	let {
@@ -52,35 +51,14 @@
 		return `${pad(m)}:${pad(s)}`;
 	}
 
-	function parseMmSs(raw: string): number | undefined {
-		const t = raw.trim();
-		if (t === '') return undefined;
-		// Accept "mm:ss", "m:ss", "ss" (plain seconds), or "1m 30s" style
-		if (t.includes(':')) {
-			const [mm, ss = '0'] = t.split(':');
-			const m = Number(mm);
-			const s = Number(ss);
-			if (Number.isNaN(m) || Number.isNaN(s)) return undefined;
-			return m * 60 + s;
-		}
-		const n = Number(t);
-		return Number.isNaN(n) ? undefined : n;
-	}
-
-	let spec = $derived<WheelSpec>({
-		min,
-		max,
-		step: 1,
-		label,
-		format: formatMmSs,
-		parse: parseMmSs
-	});
+	// Spec used purely for the inline ± nudge buttons (per-second steps).
+	let spec = $derived<WheelSpec>({ min, max, step: 1 });
 	let count = $derived(valueCount(spec));
 
 	let canDecrement = $derived(value !== undefined && wheelIndexOf(spec, value) > 0);
 	let canIncrement = $derived(value !== undefined && wheelIndexOf(spec, value) < count - 1);
 
-	let displayText = $derived(value !== undefined ? formatValue(spec, value) : '—');
+	let displayText = $derived(value !== undefined ? formatMmSs(value) : '—');
 	let hasValue = $derived(value !== undefined);
 
 	function nudge(delta: number) {
@@ -89,10 +67,11 @@
 	}
 
 	function openSheet() {
-		openWheelSheet({
-			spec,
+		openDurationSheet({
 			initial: value,
-			placeholder: 'mm:ss',
+			min,
+			max,
+			label,
 			hint,
 			onConfirm: (v) => {
 				value = v;

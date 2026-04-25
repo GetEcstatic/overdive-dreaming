@@ -13,19 +13,6 @@ export type WheelSpec = Readonly<{
 	precision?: number;
 	unit?: string;
 	label?: string;
-	/**
-	 * Optional custom formatter (e.g. seconds → "mm:ss"). When supplied,
-	 * overrides the default `value.toFixed(precision)` rendering used by
-	 * the wheel chip / sheet for display purposes.
-	 */
-	format?: (value: number) => string;
-	/**
-	 * Optional custom parser, paired with {@link format}. Receives the raw
-	 * user-typed string from the sheet's numeric input and returns the
-	 * parsed numeric value, or `undefined` if the input cannot be parsed.
-	 * Falls back to `Number(raw)` when omitted.
-	 */
-	parse?: (raw: string) => number | undefined;
 }>;
 
 /** Transient state during interaction (no DOM refs, no async handles). */
