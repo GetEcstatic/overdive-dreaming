@@ -145,8 +145,26 @@ export const diveVideoBehavior: Action<HTMLVideoElement, DiveVideoBehaviorOption
 	const onEnded = onPause;
 
 	// --- orientation detection -------------------------------------------
+	/**
+	 * Auto-fullscreen on rotation is a *mobile* affordance: the user
+	 * physically rotates the device to "go big". On desktop, a wide
+	 * window is the default state, not a deliberate signal — so we
+	 * gate landscape detection on the absence of a fine pointer + the
+	 * presence of coarse-pointer / no-hover input. This stops the
+	 * dashboard feed from auto-fullscreening the first card on a
+	 * regular desktop browser.
+	 */
+	function isMobileLikeDevice(): boolean {
+		if (typeof window === 'undefined') return false;
+		if (typeof window.matchMedia !== 'function') return false;
+		const coarse = window.matchMedia('(pointer: coarse)').matches;
+		const noHover = window.matchMedia('(hover: none)').matches;
+		return coarse || noHover;
+	}
+
 	function detectLandscape(): boolean {
 		if (typeof window === 'undefined') return false;
+		if (!isMobileLikeDevice()) return false;
 		const o = window.screen?.orientation?.type;
 		if (o) return o.startsWith('landscape');
 		return window.innerWidth > window.innerHeight;

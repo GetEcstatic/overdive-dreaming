@@ -3,14 +3,39 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { user, loading } from '$lib/stores/auth';
-	import { auth } from '$lib/firebase';
-	import { onAuthStateChanged } from 'firebase/auth';
+	import { auth, authPersistenceReady } from '$lib/firebase';
+	import { onAuthStateChanged, getRedirectResult } from 'firebase/auth';
 	import BottomNav from '$lib/components/BottomNav.svelte';
 
 	let mobileMenuOpen = $state(false);
 
 	onMount(() => {
-		const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+		// On iOS standalone PWAs, Google sign-in uses signInWithRedirect.
+		// When the OAuth callback lands directly on a protected route
+		// (e.g. /dashboard), Firebase needs a tick to consume the redirect
+		// result and rehydrate persistence before onAuthStateChanged emits
+		// the *real* user. Without awaiting both, our listener fires with
+		// `null` first and bounces the user straight back to the login
+		// screen — the symptom users reported on iOS home-screen shortcuts.
+		const redirectReady = authPersistenceReady
+			.then(() => getRedirectResult(auth))
+			.catch((err) => {
+				console.error('Redirect sign-in error (app layout):', err);
+				return null;
+			});
+
+		const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+			if (!firebaseUser) {
+				// Wait for any in-flight redirect result before declaring
+				// the user unauthenticated.
+				await redirectReady;
+				if (auth.currentUser) {
+					user.set(auth.currentUser);
+					loading.set(false);
+					return;
+				}
+			}
+
 			user.set(firebaseUser);
 			loading.set(false);
 

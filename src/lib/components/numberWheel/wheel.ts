@@ -66,8 +66,9 @@ export function snap(spec: WheelSpec, raw: number): number {
 	return valueAt(spec, indexOf(spec, raw));
 }
 
-/** Format a value for display (uses {@link precisionOf}). */
+/** Format a value for display (uses {@link precisionOf} or `spec.format`). */
 export function format(spec: WheelSpec, value: number): string {
+	if (spec.format) return spec.format(value);
 	return value.toFixed(precisionOf(spec));
 }
 
@@ -124,8 +125,8 @@ export function reduce(state: WheelState, intent: WheelIntent, spec: WheelSpec):
 		case 'type': {
 			const trimmed = intent.raw.trim();
 			if (trimmed === '') return { ...state, pending: undefined };
-			const n = Number(trimmed);
-			if (Number.isNaN(n)) return state;
+			const n = spec.parse ? spec.parse(trimmed) : Number(trimmed);
+			if (n === undefined || Number.isNaN(n)) return state;
 			return { ...state, pending: snap(spec, n) };
 		}
 		case 'set':
