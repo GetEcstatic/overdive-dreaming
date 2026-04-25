@@ -607,6 +607,7 @@
 				<div class="field-group">
 					<NumberWheelInput
 						bind:value={poolLength}
+						variant="chip"
 						label="Pool Length"
 						min={15}
 						max={50}
@@ -661,6 +662,7 @@
 				<div class="field-group">
 					<NumberWheelInput
 						bind:value={repsCompleted}
+						variant="chip"
 						label="Reps Completed"
 						min={1}
 						max={50}
@@ -883,6 +885,7 @@
 				<div class="field-group">
 					<NumberWheelInput
 						bind:value={breathsBetweenReps}
+						variant="chip"
 						label="Breaths Between Reps"
 						min={1}
 						max={10}
@@ -895,6 +898,7 @@
 				<div class="field-group">
 					<NumberWheelInput
 						bind:value={menstrualCycleDay}
+						variant="chip"
 						label="Menstrual Cycle Day"
 						min={1}
 						max={40}
