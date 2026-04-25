@@ -16,6 +16,9 @@
 	margin: 0;
 	padding: 0;
 	box-sizing: border-box;
+	/* Hide the grey tap highlight on iOS / Android Chrome — feels more native
+	   when the app is launched from the home screen. */
+	-webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -25,7 +28,11 @@ body {
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 	min-height: 100vh;
+	min-height: 100dvh;
 	position: relative;
+	/* Stop horizontal pull-to-refresh / over-scroll bouncing leaking into
+	   recorder / video swipe gestures. */
+	overscroll-behavior-y: contain;
 }
 
 /* Subtle ambient glow gradients */

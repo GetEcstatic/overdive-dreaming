@@ -1,7 +1,14 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import {
+	getAuth,
+	GoogleAuthProvider,
+	setPersistence,
+	indexedDBLocalPersistence,
+	browserLocalPersistence
+} from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { browser } from '$app/environment';
 import {
 	PUBLIC_FIREBASE_API_KEY,
 	PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -28,3 +35,17 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
+
+// Auth persistence: prefer IndexedDB so installed PWAs survive iOS/Android
+// storage eviction better than the default in-memory/localStorage setup.
+// Falls back to localStorage if IndexedDB isn't available (private browsing,
+// some embedded WebViews).
+export const authPersistenceReady: Promise<void> = browser
+	? setPersistence(auth, indexedDBLocalPersistence)
+			.catch(() => setPersistence(auth, browserLocalPersistence))
+			.catch((err) => {
+				// Last-resort: log and continue with default in-memory persistence
+				console.warn('[firebase] could not set auth persistence', err);
+			})
+	: Promise.resolve();
+

@@ -152,6 +152,10 @@
 		max-width: 896px;
 		margin: 0 auto;
 		padding: 0 1rem;
+		/* Avoid the iOS home indicator / Android gesture bar overlapping nav items
+		   when running as an installed PWA. */
+		padding-bottom: env(safe-area-inset-bottom, 0px);
+		box-sizing: content-box;
 	}
 
 	.nav-item {

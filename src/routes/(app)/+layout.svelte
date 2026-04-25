@@ -63,7 +63,7 @@
 
 		<div class="gradient-divider"></div>
 
-		<div class="pb-16">
+		<div class="content-pad">
 			<slot />
 		</div>
 	</div>
@@ -75,6 +75,16 @@
 		max-width: 896px;
 		margin: 0 auto;
 		padding: 1rem;
+		/* Respect iOS notch / Dynamic Island and Android cutouts in standalone PWA */
+		padding-top: max(1rem, env(safe-area-inset-top));
+		padding-left: max(1rem, env(safe-area-inset-left));
+		padding-right: max(1rem, env(safe-area-inset-right));
+	}
+
+	/* Reserve space at the bottom so content doesn't sit under the fixed
+	   BottomNav (64 px) plus the iOS home indicator / Android gesture bar. */
+	.content-pad {
+		padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
 	}
 
 	/* Tablet */

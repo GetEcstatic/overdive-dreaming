@@ -1,0 +1,48 @@
+{
+  "name": "Overdive — Freedive Training",
+  "short_name": "Overdive",
+  "description": "Track your freedive training and progress for pool disciplines (STA, DYN, DNF, DYNB).",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#000000",
+  "theme_color": "#0a0f14",
+  "categories": ["sports", "health", "fitness"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Record Dive",
+      "short_name": "Record",
+      "description": "Start recording a dive",
+      "url": "/record",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Log Dive",
+      "short_name": "Log",
+      "description": "Log a routine or dive",
+      "url": "/dives",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

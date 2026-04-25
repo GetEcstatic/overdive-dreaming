@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { auth, googleProvider } from '$lib/firebase';
-	import { signInWithPopup } from 'firebase/auth';
+	import { auth, googleProvider, authPersistenceReady } from '$lib/firebase';
+	import { signInWithPopup, signInWithRedirect, getRedirectResult } from 'firebase/auth';
 	import { user, loading } from '$lib/stores/auth';
 	import { onAuthStateChanged } from 'firebase/auth';
+	import { isStandalonePWA } from '$lib/utils/pwa';
 
 	let signingIn = false;
 	let error = '';
@@ -13,6 +14,17 @@
 	let observer: IntersectionObserver | null = null;
 
 	onMount(() => {
+		// If we just came back from a redirect-based Google sign-in
+		// (used in installed PWAs), surface any error here. Successful
+		// sign-ins are picked up by onAuthStateChanged below.
+		authPersistenceReady
+			.then(() => getRedirectResult(auth))
+			.catch((err) => {
+				console.error('Redirect sign-in error:', err);
+				error = err?.message || 'Sign-in failed. Please try again.';
+				signingIn = false;
+			});
+
 		const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
 			user.set(firebaseUser);
 			loading.set(false);
@@ -84,8 +96,16 @@
 		try {
 			signingIn = true;
 			error = '';
-			await signInWithPopup(auth, googleProvider);
-			// User will be redirected by onAuthStateChanged
+			await authPersistenceReady;
+			if (isStandalonePWA()) {
+				// Popups are unreliable inside installed PWAs (iOS standalone
+				// Safari and Android Chrome). Use a full-page redirect; the
+				// result is consumed by getRedirectResult on app boot.
+				await signInWithRedirect(auth, googleProvider);
+			} else {
+				await signInWithPopup(auth, googleProvider);
+				// User will be redirected by onAuthStateChanged
+			}
 		} catch (err: any) {
 			console.error('Error signing in:', err);
 			error = err.message || 'Failed to sign in. Please try again.';
