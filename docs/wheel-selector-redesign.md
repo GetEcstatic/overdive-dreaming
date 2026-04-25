@@ -375,3 +375,84 @@ The collapsed chip API is a drop-in replacement (`bind:value` and `min/max/step/
 1. **Confirm-on-tap or commit-on-snap?** Bottom sheet usually requires explicit ✓ to commit. For dense forms (RepEditor) that means N taps to confirm N values. Alternative: commit on snap, ✗ closes — relies on Undo if the user mis-snaps. Recommendation: **commit on close** (tap outside / scroll-down dismiss / ✓ all do the same thing); ✗ explicitly cancels. *Yes, ;et's run with confirm on tap*
 2. **One sheet at a time globally?** Yes — open a new sheet implicitly closes the previous one via a `wheelSheetStore` singleton. Simpler than per-component state and matches platform expectation. *Yes*
 3. **Should the live recorder use the chip variant?** Probably yes (target taps under stress are easier than scroll), but we should A/B in a recording session before defaulting it. *Yes, use chip*
+
+---
+
+## 11. Implementation log (Option A)
+
+Implemented across 7 commits on `main`. Phased rollout matched §8.1:
+
+- **Phase 0 — pure module (`02837c8`)**
+  Added `numberWheel/types.ts` (readonly `WheelSpec` / `WheelState` /
+  `WheelIntent`) and `numberWheel/wheel.ts` (precisionOf, valueCount,
+  values, indexOf, valueAt, snap, format, initialState, reduce,
+  indexFromOffset, neighbourIndices). Refactored
+  `NumberWheelInput.svelte` to consume the pure module.
+  35 vitest cases in `wheel.test.ts`, all green.
+
+- **Phase 1 — sheet + chip variant (`28d3015`)**
+  - `numberWheel/sheet-effects.ts`: `lockBodyScroll` (ref-counted),
+    `trapFocus`, `prefersReducedMotion`, `vibrate` (Android haptic).
+  - `numberWheel/wheelSheetStore.ts`: singleton store; a new
+    `openWheelSheet` displaces any prior request, firing its
+    `onCancel`.
+  - `numberWheel/NumberWheelSheet.svelte`: BigWheel (64px rows,
+    pointer-drag + wheel events), neighbour ruler, numeric input.
+    `role="dialog"`, focus-trapped, body-scroll-locked,
+    `prefers-reduced-motion` aware. Confirm-on-tap (explicit Done);
+    backdrop tap or Cancel dismisses.
+  - Mounted once in `src/routes/+layout.svelte`.
+  - `NumberWheelInput.svelte` gained `variant="chip"` (and
+    `showNudgeButtons` default true) — default still `wheel` here.
+
+- **Phase 2 — call-site migration (`510b593`, `891c72a`, `6c8967b`,
+  `9375504`)**
+  Switched explicit `variant="chip"` on the wheels in
+  `src/routes/(app)/dive/record/[id]/+page.svelte`,
+  `src/lib/components/RepEditor.svelte` (the two distance pickers),
+  `src/lib/components/QuickLogForm.svelte` (4) and
+  `src/lib/components/EditableLogForm.svelte` (4). Separate commits
+  per file for blast-radius isolation.
+
+- **Phase 3 — flip default + remove legacy** (this commit)
+  `NumberWheelInput.svelte` rewritten as chip-only. The legacy
+  iOS-style inline scroll-wheel markup, scroll-snap CSS, and
+  `onscroll`/`scrollToIndex` plumbing have all been deleted. The
+  `variant` prop is kept (typed `"wheel" | "chip"`, marked
+  `@deprecated`) for back-compat with the two `routine-builder/*`
+  call sites that did not explicitly opt in — they now pick up the
+  chip UI for free.
+
+### Issues encountered & solutions
+
+1. **Naming collision between `$state` rune and a local variable
+   called `state`.** `svelte-check` reported 10 errors of the form
+   *"Cannot use 'state' as a store. 'state' needs to be an object
+   with a subscribe method on it."* — the template was treating
+   `$state` as if it were the auto-subscription prefix on a store
+   named `state`. **Fix:** renamed the local to `wheelState`. There's
+   no real shadowing of the rune, just heuristic confusion in the
+   compiler/template; renaming is the cheapest fix.
+
+2. **`navigator.vibrate(ms)` typed against
+   `Iterable<number>`.** Calling `v.call(navigator, ms)` produced
+   *"Argument of type 'number' is not assignable to parameter of
+   type 'Iterable<number>'"* under strict TS — `Function.prototype.call`
+   was inferring a different overload than the local cast suggested.
+   **Fix:** cast `navigator` itself rather than the method, then
+   invoke directly: `nav.vibrate(ms)`. Cleaner and removes the
+   `.call` indirection.
+
+3. **`bind:this` ref not declared with `$state`.** Svelte 5 warned
+   that `column` (the legacy scroll column ref) was updated without
+   `$state`. **Fix:** declared as `let column: HTMLDivElement | undefined = $state();`
+   and widened the helper signatures to accept `undefined`. The
+   helpers already guarded with `if (!col) return;` so this is
+   purely a typing fix. (Phase 3 deletes the wheel variant and this
+   variable along with it.)
+
+No issues with `sheet-effects.ts` integration, the singleton store
+displacement semantics, body-scroll lock under iOS Safari, or the
+backdrop tap / focus restore. The reducer test suite caught nothing
+because it covers pure logic — but no regressions surfaced from the
+side-effect layer either.
