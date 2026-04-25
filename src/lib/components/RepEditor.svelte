@@ -263,6 +263,7 @@
 							{#if allowEditPlanned}
 								<NumberWheelInput
 									bind:value={rep.plannedDistance}
+									variant="chip"
 									min={5}
 									max={200}
 									step={5}
@@ -273,6 +274,7 @@
 							{:else}
 								<NumberWheelInput
 									bind:value={rep.actualDistance}
+									variant="chip"
 									min={5}
 									max={200}
 									step={5}
