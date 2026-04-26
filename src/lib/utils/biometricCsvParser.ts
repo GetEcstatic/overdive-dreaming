@@ -39,37 +39,185 @@ function parseTimeToSeconds(timeStr: string): number {
 }
 
 /**
- * Parse date string in DD/MM/YYYY HH:mm:ss format
+ * Parse date string in D/M/YYYY [H]H:mm:ss [AM|PM] format.
+ *
+ * Accepts both zero-padded and unpadded day/month/hour values, and an
+ * optional AM/PM marker (case-insensitive). Returns an invalid Date
+ * (`new Date(NaN)`) on unrecognised input so callers can detect failure.
+ *
+ * Examples:
+ *   "23/03/2025 12:27:14"       → 2025-03-23 12:27:14 (24h)
+ *   "26/4/2026 12:00:00 AM"     → 2026-04-26 00:00:00
+ *   "26/4/2026 1:05:09 PM"      → 2026-04-26 13:05:09
  */
-function parseTimestamp(dateStr: string): Date {
-	// Format: DD/MM/YYYY HH:mm:ss
-	const [datePart, timePart] = dateStr.split(' ');
-	const [day, month, year] = datePart.split('/').map(Number);
-	const [hours, minutes, seconds] = timePart.split(':').map(Number);
+export function parseTimestamp(dateStr: string): Date {
+	if (!dateStr) return new Date(NaN);
+	const trimmed = dateStr.trim();
+	const match = trimmed.match(
+		/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})(?:\s*(AM|PM))?$/i
+	);
+	if (!match) return new Date(NaN);
+
+	const day = parseInt(match[1], 10);
+	const month = parseInt(match[2], 10);
+	const year = parseInt(match[3], 10);
+	let hours = parseInt(match[4], 10);
+	const minutes = parseInt(match[5], 10);
+	const seconds = parseInt(match[6], 10);
+	const meridiem = match[7]?.toUpperCase();
+
+	if (meridiem === 'AM') {
+		// 12 AM = midnight (00:xx), 1-11 AM unchanged
+		if (hours === 12) hours = 0;
+	} else if (meridiem === 'PM') {
+		// 12 PM = noon (unchanged), 1-11 PM → +12
+		if (hours !== 12) hours += 12;
+	}
+
 	return new Date(year, month - 1, day, hours, minutes, seconds);
 }
 
 /**
- * Parse the round summaries from CSV header section
+ * Detect which round-summary format a file uses.
+ * The decision is based on the lines BEFORE the `Biometrics,,` divider.
+ *
+ *  - Format B: any line matches `^ROUND \d+,`             (multi-round)
+ *  - Format C: any line matches `^Round \d+,`             (per-round blocks)
+ *  - Format A: a `Recovery,Apnea` header is present       (single-round)
  */
-function parseRoundSummaries(lines: string[]): BiometricRoundSummary[] {
-	const rounds: BiometricRoundSummary[] = [];
-	
+type RoundFormat = 'A' | 'B' | 'C' | 'unknown';
+
+function detectRoundFormat(lines: string[]): RoundFormat {
 	for (const line of lines) {
-		const parts = line.split(',');
-		if (parts[0]?.startsWith('ROUND ')) {
-			const roundNum = parseInt(parts[0].replace('ROUND ', ''), 10);
-			const recoveryTime = parseTimeToSeconds(parts[1]);
-			const apneaTime = parseTimeToSeconds(parts[2]);
-			rounds.push({
-				roundNumber: roundNum,
-				recoveryTime,
-				apneaTime
-			});
+		if (/^ROUND\s+\d+,/.test(line)) return 'B';
+	}
+	for (const line of lines) {
+		if (/^Round\s+\d+,/.test(line)) return 'C';
+	}
+	for (const line of lines) {
+		// Header for Format A is the bare "Recovery,Apnea" pair.
+		if (/^Recovery,\s*Apnea\s*$/i.test(line)) return 'A';
+	}
+	return 'unknown';
+}
+
+/**
+ * Format A: one `Recovery,Apnea` header followed by a `mm:ss,mm:ss` row.
+ * Produces a single round.
+ */
+function parseRoundsFormatA(lines: string[]): BiometricRoundSummary[] {
+	for (let i = 0; i < lines.length; i++) {
+		if (/^Recovery,\s*Apnea\s*$/i.test(lines[i])) {
+			const dataLine = lines[i + 1];
+			if (!dataLine) return [];
+			const parts = dataLine.split(',');
+			if (parts.length < 2) return [];
+			return [
+				{
+					roundNumber: 1,
+					recoveryTime: parseTimeToSeconds(parts[0]),
+					apneaTime: parseTimeToSeconds(parts[1])
+				}
+			];
 		}
 	}
-	
+	return [];
+}
+
+/**
+ * Format B: rows of the shape `ROUND <n>,<recovery>,<apnea>`.
+ * `COOLDOWN,<time>` rows are ignored for the rounds list.
+ */
+function parseRoundsFormatB(lines: string[]): BiometricRoundSummary[] {
+	const rounds: BiometricRoundSummary[] = [];
+	for (const line of lines) {
+		const match = line.match(/^ROUND\s+(\d+),([^,]*),([^,]*)$/);
+		if (!match) continue;
+		rounds.push({
+			roundNumber: parseInt(match[1], 10),
+			recoveryTime: parseTimeToSeconds(match[2]),
+			apneaTime: parseTimeToSeconds(match[3])
+		});
+	}
 	return rounds;
+}
+
+/**
+ * Format C: per-round blocks
+ *   Round <n>,,
+ *   Number,Type,Time
+ *   Interval k,Rest|Apnea|Cooldown,<mm:ss>
+ *   ...
+ *
+ * Multiple Rest/Apnea intervals within a round accumulate.
+ * Rounds whose only intervals are Cooldown are excluded from the list
+ * (they don't represent an apnea attempt).
+ */
+function parseRoundsFormatC(lines: string[]): BiometricRoundSummary[] {
+	const rounds: BiometricRoundSummary[] = [];
+	let current: {
+		roundNumber: number;
+		recoveryTime: number;
+		apneaTime: number;
+		hasApneaOrRecovery: boolean;
+	} | null = null;
+
+	const flush = () => {
+		if (current && current.hasApneaOrRecovery) {
+			rounds.push({
+				roundNumber: current.roundNumber,
+				recoveryTime: current.recoveryTime,
+				apneaTime: current.apneaTime
+			});
+		}
+	};
+
+	for (const line of lines) {
+		const roundHeader = line.match(/^Round\s+(\d+),/i);
+		if (roundHeader) {
+			flush();
+			current = {
+				roundNumber: parseInt(roundHeader[1], 10),
+				recoveryTime: 0,
+				apneaTime: 0,
+				hasApneaOrRecovery: false
+			};
+			continue;
+		}
+
+		const interval = line.match(/^Interval\s+\d+,(Rest|Apnea|Cooldown),(\d{1,2}:\d{2})$/i);
+		if (interval && current) {
+			const type = interval[1].toLowerCase();
+			const seconds = parseTimeToSeconds(interval[2]);
+			if (type === 'rest') {
+				current.recoveryTime += seconds;
+				current.hasApneaOrRecovery = true;
+			} else if (type === 'apnea') {
+				current.apneaTime += seconds;
+				current.hasApneaOrRecovery = true;
+			}
+			// Cooldown intervals are intentionally dropped from the rounds list.
+		}
+	}
+	flush();
+	return rounds;
+}
+
+/**
+ * Parse the round summaries from the CSV header section, dispatching on
+ * the detected format. Public-facing surface is unchanged.
+ */
+function parseRoundSummaries(lines: string[]): BiometricRoundSummary[] {
+	switch (detectRoundFormat(lines)) {
+		case 'A':
+			return parseRoundsFormatA(lines);
+		case 'B':
+			return parseRoundsFormatB(lines);
+		case 'C':
+			return parseRoundsFormatC(lines);
+		default:
+			return [];
+	}
 }
 
 /**
