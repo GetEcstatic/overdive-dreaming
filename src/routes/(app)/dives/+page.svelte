@@ -292,6 +292,7 @@
 			if (logData.fvc !== undefined) routineLogData.fvc = logData.fvc;
 			if (logData.fvcWithPacking !== undefined) routineLogData.fvcWithPacking = logData.fvcWithPacking;
 			if (logData.packingVolume !== undefined) routineLogData.packingVolume = logData.packingVolume;
+			if (logData.defaultLungVolume !== undefined) routineLogData.defaultLungVolume = logData.defaultLungVolume;
 
 			// O2-Assisted Static Apnea
 			if (logData.lucidity !== undefined) routineLogData.lucidity = logData.lucidity;

@@ -66,6 +66,9 @@ export function routineLogToFormData(log: RoutineLog): LogFormData {
 		fvc: log.fvc,
 		fvcWithPacking: log.fvcWithPacking,
 
+		// Session-level default lung volume (FL/RV/FRC)
+		defaultLungVolume: log.defaultLungVolume,
+
 		// Biometric tracking data (from CSV import)
 		laps: log.laps,
 		hasBiometricData: log.hasBiometricData,
