@@ -1,14 +1,14 @@
 <script lang="ts">
 	/**
-	 * NumberWheelInput — collapsed chip + ± nudge buttons. Tapping the
-	 * chip opens the global {@link NumberWheelSheet} via
-	 * {@link openWheelSheet}. The numeric logic lives in the pure
-	 * {@link ./numberWheel/wheel.ts} module; this component only owns
-	 * side-effects (opening the sheet, dispatching nudges).
+	 * NumberWheelInput — collapsed chip. Tapping the chip opens the
+	 * global {@link NumberWheelSheet} via {@link openWheelSheet}. The
+	 * numeric logic lives in the pure {@link ./numberWheel/wheel.ts}
+	 * module; this component only owns side-effects (opening the sheet).
 	 *
 	 * The legacy inline scroll-wheel variant was removed in Phase 3 of
-	 * the wheel selector redesign — see
-	 * {@link ../../../docs/wheel-selector-redesign.md}.
+	 * the wheel selector redesign; the inline ± nudge buttons were
+	 * removed afterwards once the sheet became the canonical input —
+	 * see {@link ../../../docs/wheel-selector-redesign.md}.
 	 */
 	import {
 		format as formatValue,
@@ -18,7 +18,6 @@
 	} from '$lib/components/numberWheel/wheel';
 	import type { WheelSpec } from '$lib/components/numberWheel/types';
 	import { openWheelSheet } from '$lib/components/numberWheel/wheelSheetStore';
-	import { Minus, Plus } from 'lucide-svelte';
 
 	let {
 		value = $bindable(),
@@ -31,7 +30,6 @@
 		showLabel = true,
 		compact = false,
 		placeholder = '',
-		showNudgeButtons = true,
 		// Accepted for back-compat with old call sites; chip is the only
 		// rendering mode now.
 		variant: _variant = 'chip'
@@ -46,26 +44,16 @@
 		showLabel?: boolean;
 		compact?: boolean;
 		placeholder?: string;
-		showNudgeButtons?: boolean;
 		/** @deprecated Only "chip" is supported; prop kept for back-compat. */
 		variant?: 'wheel' | 'chip';
 	} = $props();
 
 	let spec = $derived<WheelSpec>({ min, max, step, unit, label });
-	let count = $derived(valueCount(spec));
-
-	let canDecrement = $derived(value !== undefined && wheelIndexOf(spec, value) > 0);
-	let canIncrement = $derived(value !== undefined && wheelIndexOf(spec, value) < count - 1);
 
 	let displayText = $derived(
 		value !== undefined ? formatValue(spec, value) : placeholder || '—'
 	);
 	let hasValue = $derived(value !== undefined);
-
-	function nudge(delta: number) {
-		const idx = wheelIndexOf(spec, value) + delta;
-		value = valueAt(spec, idx);
-	}
 
 	function openSheet() {
 		openWheelSheet({
@@ -85,17 +73,6 @@
 		<span class="number-label">{label}</span>
 	{/if}
 	<div class="chip-row">
-		{#if showNudgeButtons}
-			<button
-				type="button"
-				class="nudge-btn"
-				aria-label="Decrease {label || 'value'}"
-				disabled={!canDecrement}
-				onclick={() => nudge(-1)}
-			>
-				<Minus size={18} strokeWidth={2.25} />
-			</button>
-		{/if}
 		<button
 			type="button"
 			class="chip"
@@ -106,17 +83,6 @@
 			<span class="chip-value">{displayText}</span>
 			{#if unit}<span class="chip-unit">{unit}</span>{/if}
 		</button>
-		{#if showNudgeButtons}
-			<button
-				type="button"
-				class="nudge-btn"
-				aria-label="Increase {label || 'value'}"
-				disabled={!canIncrement}
-				onclick={() => nudge(1)}
-			>
-				<Plus size={18} strokeWidth={2.25} />
-			</button>
-		{/if}
 	</div>
 	{#if hint}
 		<p class="number-hint">{hint}</p>
@@ -179,30 +145,6 @@
 		color: var(--color-text-muted);
 		font-size: 0.85rem;
 		font-weight: 500;
-	}
-	.nudge-btn {
-		flex: 0 0 auto;
-		width: 44px;
-		height: 44px;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		border-radius: 12px;
-		background: rgba(148, 163, 184, 0.08);
-		border: 1px solid rgba(148, 163, 184, 0.18);
-		color: var(--color-text);
-		cursor: pointer;
-	}
-	.nudge-btn:hover:not(:disabled) {
-		background: rgba(148, 163, 184, 0.18);
-	}
-	.nudge-btn:disabled {
-		opacity: 0.35;
-		cursor: not-allowed;
-	}
-	.nudge-btn:focus-visible {
-		outline: 2px solid var(--color-primary);
-		outline-offset: 2px;
 	}
 	.number-hint {
 		font-size: 0.75rem;
