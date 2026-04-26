@@ -18,11 +18,47 @@
    - One **TXT** record on `auth.overdive.app` (or `@`) for ownership verification.
    - Two **A** records (two IP addresses) once verified.
 
+TXT record: hosting-site=overdive-dreaming-fb
+A record: 172.104.189.224
+
 ### 2. Add DNS records at your registrar (where overdive.app lives)
 - Add the TXT record first. Wait for Firebase to verify (usually < 15 min).
 - Then add the two A records for `auth` (host = `auth`).
 - **Do NOT change** any existing records pointing `overdive.app` / `www` to Vercel — only add the `auth` subdomain.
 - Wait for Firebase to provision SSL (5–60 min). Status visible in Hosting page.
+- 
+1. Log in at cloud.linode.com.  
+2. Left sidebar -> "Domains" (under Networking).  
+3. Click on "overdive.app" in the list. You will see the existing record table (SOA, NS, A/AAAA, MX, TXT, etc).  
+4. Confirm the NS records at top point to ns1.linode.com … ns5.linode.com. If yes, you are in the right place.  
+  
+Add the TXT record Firebase gave you:  
+- Click "Add a TXT Record".  
+- Hostname: whatever Firebase shows. If Firebase displays the host as "auth" or "auth.overdive.app", enter "auth". If it shows "@" or the apex, leave blank or enter "@".  
+- Value: paste the exact string from Firebase (e.g. "google-site-verification=..." or "firebase=..."). No quotes.  
+- TTL: Default (or 5 minutes / 300 for faster propagation while testing).  
+- Save.  
+  
+Wait 5–15 min, click "Verify" in Firebase Console. Once verified Firebase shows two A records (two IPs).  
+  
+Add the A records in Linode:  
+- "Add an A/AAAA Record".  
+- Hostname: auth  
+- IP Address: first IP from Firebase  
+- TTL: Default  
+- Save.  
+- Repeat with the second IP (same hostname "auth").  
+  
+Important: do NOT touch any existing A/CNAME records that point overdive.app or www to Vercel — leave them alone. Only ADD the auth subdomain records.  
+  
+After both A records are saved, go back to Firebase Console -> Hosting -> auth.overdive.app and wait for it to flip from "Pending" to "Connected" (5–60 min for SSL).  
+  
+Tell me when (a) Firebase shows the TXT verification step (paste host+value here), or (b) the domain shows "Connected" in Firebase Hosting and I will continue with the next steps (Authorized domains + OAuth redirect URI + env var swap).'
+
+sleep 120 && yebo next 2>&1 | head -120
+
+Processing
+
 
 ### 3. Add the new domain to Firebase Auth allowlist
 - Open https://console.firebase.google.com/project/overdive-dreaming-fb/authentication/settings
