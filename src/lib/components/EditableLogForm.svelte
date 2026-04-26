@@ -19,6 +19,7 @@
 	import BiometricImportModal from '$lib/components/BiometricImportModal.svelte';
 	import DurationInput from '$lib/components/DurationInput.svelte';
 	import NumberWheelInput from '$lib/components/NumberWheelInput.svelte';
+	import RepEditor from '$lib/components/RepEditor.svelte';
 	import { calculateSessionBiometricSummary } from '$lib/utils/biometricCsvParser';
 	import { applyDefaultLungVolume } from '$lib/utils/lungVolume';
 	import { formatTime } from '$lib/utils/time';
@@ -130,7 +131,27 @@
 
 	// Biometric tracking state (from CSV import)
 	let showBiometricModal = $state(false);
-	let repEditorData = $state<RepEditorData[]>([]);
+	let repEditorData = $state<RepEditorData[]>(
+		// Hydrate from existing log laps so the rep editor round-trips edits.
+		(formData.laps ?? []).map((lap): RepEditorData => ({
+			repNumber: lap.lapNumber,
+			actualDuration: lap.timeSeconds,
+			actualDistance: lap.distanceMeters,
+			actualRest: lap.restAfterSeconds,
+			completed: lap.completed ?? true,
+			notes: lap.notes,
+			lungVolume: lap.lungVolume,
+			spo2Min: lap.spo2Min,
+			spo2Avg: lap.spo2Avg,
+			hrMin: lap.hrMin,
+			hrMax: lap.hrMax,
+			hrAvg: lap.hrAvg,
+			timeBelow70: lap.timeBelow70,
+			timeBelow60: lap.timeBelow60,
+			timeBelow50: lap.timeBelow50,
+			timeBelow40: lap.timeBelow40
+		}))
+	);
 	// Session-level default lung volume (FL/RV/FRC) — carries through to log payload
 	let defaultLungVolume = $state<import('$lib/types').LungVolume | undefined>(formData.defaultLungVolume);
 	let biometricSummary = $state<ReturnType<typeof calculateSessionBiometricSummary>>(
@@ -368,6 +389,13 @@
 	}
 
 	const config = routine.trackingConfig;
+
+	// Routines with more than one rep get the per-rep volume editor.
+	const isMultiRepRoutine = $derived(
+		(routine.numberOfReps ?? 0) > 1
+		|| (routine.table?.rows.length ?? 0) > 1
+		|| repEditorData.length > 1
+	);
 
 	// Check if any fields exist in each section
 	const hasSessionContext = $derived(config.trackPoolLength || config.trackInitialBreatheUpTime);
@@ -701,6 +729,42 @@
 			{/if}
 		</div>
 	{/if}
+
+	<!-- Lung Volume Section — universal: every log carries a default volume.
+	     For multi-rep routines we additionally render the per-rep editor so
+	     individual reps can be tagged FL/RV/FRC. -->
+	<div class="form-section lung-volume-section">
+		<h4 class="section-title">🫁 Lung Volume</h4>
+		<div class="lv-chip-row" role="group" aria-label="Default lung volume">
+			{#each ['FL', 'RV', 'FRC'] as const as vol}
+				<button
+					type="button"
+					class="lv-chip"
+					class:selected={(defaultLungVolume ?? 'FL') === vol}
+					aria-pressed={(defaultLungVolume ?? 'FL') === vol}
+					onclick={() => {
+						defaultLungVolume = vol;
+						repEditorData = applyDefaultLungVolume(repEditorData, vol);
+					}}
+				>
+					{vol}
+				</button>
+			{/each}
+		</div>
+		{#if isMultiRepRoutine}
+			<RepEditor
+				discipline={disciplineUsed}
+				plannedReps={routine.numberOfReps || routine.table?.rows.length || repEditorData.length || 8}
+				routineTable={routine.table}
+				defaultRestSeconds={routine.restBetweenReps || 0}
+				bind:reps={repEditorData}
+				trackSpO2={config.trackPerRepSpO2 ?? false}
+				trackHR={config.trackPerRepHR ?? false}
+				isDryTraining={config.isDryTraining ?? false}
+				bind:defaultLungVolume
+			/>
+		{/if}
+	</div>
 
 	<!-- Training Context Section -->
 	{#if hasTrainingContext}
@@ -1260,6 +1324,43 @@
 		background: rgba(20, 184, 166, 0.03);
 		border: 1px solid rgba(148, 163, 184, 0.1);
 		border-radius: 8px;
+	}
+
+	.lung-volume-section {
+		gap: 0.75rem;
+	}
+
+	.lv-chip-row {
+		display: flex;
+		gap: 0.5rem;
+	}
+
+	.lv-chip {
+		flex: 1;
+		min-height: 2.25rem;
+		padding: 0.375rem 0.75rem;
+		border-radius: 8px;
+		background: rgba(148, 163, 184, 0.08);
+		border: 1px solid rgba(148, 163, 184, 0.25);
+		color: var(--color-text);
+		font-size: 0.8125rem;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		cursor: pointer;
+		transition:
+			background 0.15s,
+			border-color 0.15s,
+			color 0.15s;
+	}
+
+	.lv-chip:hover {
+		background: rgba(148, 163, 184, 0.15);
+	}
+
+	.lv-chip.selected {
+		background: rgba(20, 184, 166, 0.2);
+		border-color: var(--color-primary);
+		color: var(--color-primary);
 	}
 
 	.section-title {

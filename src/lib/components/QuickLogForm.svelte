@@ -1024,6 +1024,27 @@
 		</div>
 	{/if}
 
+	<!-- Lung Volume (single-rep flows) — when RepEditor isn't shown,
+	     the user still needs to tag the session's lung volume. -->
+	{#if !showIntervalRepLogging && !hasBiometricTracking}
+		<div class="form-section lung-volume-section">
+			<label class="field-label" for="qlf-default-lung-volume">Lung volume</label>
+			<div id="qlf-default-lung-volume" class="lv-chip-row" role="group" aria-label="Lung volume">
+				{#each ['FL', 'RV', 'FRC'] as const as vol}
+					<button
+						type="button"
+						class="lv-chip"
+						class:selected={(defaultLungVolume ?? 'FL') === vol}
+						aria-pressed={(defaultLungVolume ?? 'FL') === vol}
+						onclick={() => (defaultLungVolume = vol)}
+					>
+						{vol}
+					</button>
+				{/each}
+			</div>
+		</div>
+	{/if}
+
 	<!-- Interval Rep Logging Section (for routines with variable tables) -->
 	{#if showIntervalRepLogging}
 		<div class="form-section interval-section">
@@ -1045,7 +1066,6 @@
 				trackHR={false}
 				isDryTraining={false}
 				allowEditPlanned={hasVariableTable}
-				trackLungVolume={config.trackLungVolume ?? false}
 				bind:defaultLungVolume
 			/>
 		</div>
@@ -1122,7 +1142,6 @@
 				trackHR={config.trackPerRepHR ?? true}
 				isDryTraining={config.isDryTraining ?? true}
 				allowEditPlanned={hasVariableTable}
-				trackLungVolume={config.trackLungVolume ?? false}
 				bind:defaultLungVolume
 			/>
 
@@ -1826,6 +1845,43 @@
 		background: rgba(20, 184, 166, 0.03);
 		border: 1px solid rgba(148, 163, 184, 0.1);
 		border-radius: 8px;
+	}
+
+	.lung-volume-section {
+		gap: 0.5rem;
+	}
+
+	.lv-chip-row {
+		display: flex;
+		gap: 0.5rem;
+	}
+
+	.lv-chip {
+		flex: 1;
+		min-height: 2.25rem;
+		padding: 0.375rem 0.75rem;
+		border-radius: 8px;
+		background: rgba(148, 163, 184, 0.08);
+		border: 1px solid rgba(148, 163, 184, 0.25);
+		color: var(--color-text);
+		font-size: 0.8125rem;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		cursor: pointer;
+		transition:
+			background 0.15s,
+			border-color 0.15s,
+			color 0.15s;
+	}
+
+	.lv-chip:hover {
+		background: rgba(148, 163, 184, 0.15);
+	}
+
+	.lv-chip.selected {
+		background: rgba(20, 184, 166, 0.2);
+		border-color: var(--color-primary);
+		color: var(--color-primary);
 	}
 
 	.section-title {

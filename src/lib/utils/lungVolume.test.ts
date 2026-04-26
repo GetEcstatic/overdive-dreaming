@@ -2,8 +2,11 @@ import { describe, it, expect } from 'vitest';
 import type { RepEditorData } from '$lib/types';
 import {
 	LUNG_VOLUME_OPTIONS,
+	LUNG_VOLUME_CYCLE,
 	applyDefaultLungVolume,
-	formatLungVolume
+	cycleLungVolume,
+	formatLungVolume,
+	resolveLungVolume
 } from './lungVolume';
 
 const baseRep = (n: number, partial: Partial<RepEditorData> = {}): RepEditorData => ({
@@ -63,6 +66,41 @@ describe('lungVolume', () => {
 			const snapshot = JSON.parse(JSON.stringify(reps));
 			applyDefaultLungVolume(reps, 'FL');
 			expect(reps).toEqual(snapshot);
+		});
+	});
+
+	describe('LUNG_VOLUME_CYCLE', () => {
+		it('cycles FL -> RV -> FRC -> FL', () => {
+			expect(LUNG_VOLUME_CYCLE).toEqual(['FL', 'RV', 'FRC']);
+		});
+	});
+
+	describe('cycleLungVolume', () => {
+		it('advances FL -> RV', () => {
+			expect(cycleLungVolume('FL')).toBe('RV');
+		});
+		it('advances RV -> FRC', () => {
+			expect(cycleLungVolume('RV')).toBe('FRC');
+		});
+		it('wraps FRC -> FL', () => {
+			expect(cycleLungVolume('FRC')).toBe('FL');
+		});
+		it('treats undefined as FL (so first tap goes to RV)', () => {
+			expect(cycleLungVolume(undefined)).toBe('RV');
+		});
+	});
+
+	describe('resolveLungVolume', () => {
+		it('uses the rep override first', () => {
+			expect(resolveLungVolume({ lungVolume: 'RV' }, { defaultLungVolume: 'FRC' })).toBe('RV');
+		});
+		it('falls back to the log default', () => {
+			expect(resolveLungVolume({}, { defaultLungVolume: 'FRC' })).toBe('FRC');
+		});
+		it('falls back to FL when nothing is set', () => {
+			expect(resolveLungVolume({}, {})).toBe('FL');
+			expect(resolveLungVolume(undefined, undefined)).toBe('FL');
+			expect(resolveLungVolume(null, null)).toBe('FL');
 		});
 	});
 });

@@ -10,7 +10,7 @@ Each rep can record the starting lung volume the athlete held the apnea at:
 - **RV** — Reserve Volume (post-exhale, with active expiratory effort)
 - **FRC** — Functional Residual Capacity (passive end-expiration)
 
-Enabled per-routine via `trackingConfig.trackLungVolume`. The `RepEditor` shows a session-level default selector (FL/RV/FRC) above the table that pre-fills any rep without an explicit value, plus a per-row chip group in the `Vol` column. The session default is persisted as `RoutineLog.defaultLungVolume`; per-rep overrides live on `LapData.lungVolume`. Imported reps (CSV biometrics) inherit the session default at import time.
+Lung-volume tagging is **universal** — every log carries a `defaultLungVolume` (FL by default), regardless of `trackingConfig`. The log forms (`QuickLogForm`, `EditableLogForm`) always expose a session-level FL/RV/FRC picker, and the `RepEditor` shows a tap-cycling `LungVolumePill` per row whenever the routine is multi-rep (`numberOfReps > 1` or table rows > 1). The session default is persisted as `RoutineLog.defaultLungVolume`; per-rep overrides live on `LapData.lungVolume`. Imported reps (CSV biometrics) inherit the session default at import time. The legacy `trackingConfig.trackLungVolume` flag no longer gates the UI.
 
 ---
 
@@ -1175,4 +1175,4 @@ For dry static and breath-hold protocols, each rep can be tagged with a starting
 - **RV** — Residual Volume (after maximal exhale)
 - **FRC** — Functional Residual Capacity (relaxed exhale, neutral lungs)
 
-Enable via `trackingConfig.trackLungVolume` on the routine. The log form exposes a session-level **Default volume** picker that pre-fills any rep without an explicit value (`defaultLungVolume` on the log). Per-rep overrides are stored on `LapData.lungVolume`. Biometric CSV imports also seed the chosen default into every imported rep.
+Available on every log (no `trackingConfig` gate). The log form exposes a session-level **Default volume** picker (FL/RV/FRC, default FL) that fills `defaultLungVolume` on the log. On multi-rep routines, each row in the rep editor also shows a `LungVolumePill` that tap-cycles FL → RV → FRC and writes to `LapData.lungVolume`. Biometric CSV imports seed the chosen default into every imported rep.

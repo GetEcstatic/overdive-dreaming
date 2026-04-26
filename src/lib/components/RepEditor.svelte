@@ -20,6 +20,7 @@
 	} from '$lib/utils/lungVolume';
 	import DurationInput from '$lib/components/DurationInput.svelte';
 	import NumberWheelInput from '$lib/components/NumberWheelInput.svelte';
+	import LungVolumePill from '$lib/components/LungVolumePill.svelte';
 
 	let {
 		discipline,
@@ -34,8 +35,8 @@
 		isDryTraining = false,
 		// Allow editing planned values (for variable tables)
 		allowEditPlanned = false,
-		// Lung-volume tracking (FL/RV/FRC) — opt-in per routine
-		trackLungVolume = false,
+		// Lung-volume tag (FL/RV/FRC) — universal: session-default banner is
+		// always shown; per-row pill is gated on multi-rep routines (derived).
 		defaultLungVolume = $bindable<LungVolume | undefined>(undefined)
 	}: {
 		discipline: Discipline;
@@ -48,9 +49,13 @@
 		trackHR?: boolean;
 		isDryTraining?: boolean;
 		allowEditPlanned?: boolean;
-		trackLungVolume?: boolean;
 		defaultLungVolume?: LungVolume;
 	} = $props();
+
+	// Per-rep tagging only makes sense when there's more than one rep.
+	const isMultiRep = $derived(
+		(plannedReps ?? 0) > 1 || (routineTable?.rows.length ?? 0) > 1 || reps.length > 1
+	);
 
 	// Apply the session-level default to any rep with no explicit volume.
 	function applyDefaultToReps(vol: LungVolume | undefined) {
@@ -224,7 +229,7 @@
 		{/if}
 	</div>
 
-	{#if trackLungVolume}
+	{#if isMultiRep}
 		<div class="default-volume-row" role="group" aria-label="Default lung volume">
 			<span class="default-volume-label">Default volume</span>
 			<div class="volume-chip-group">
@@ -232,19 +237,20 @@
 					<button
 						type="button"
 						class="volume-chip"
-						class:selected={defaultLungVolume === vol}
+						class:selected={(defaultLungVolume ?? 'FL') === vol}
 						title={formatLungVolume(vol)}
-						aria-pressed={defaultLungVolume === vol}
+						aria-pressed={(defaultLungVolume ?? 'FL') === vol}
 						onclick={() => setDefaultLungVolume(vol)}
 					>
 						{vol}
 					</button>
 				{/each}
 			</div>
+			<span class="default-volume-hint">Tap a row's pill to override.</span>
 		</div>
 	{/if}
 
-	<div class="reps-table" class:has-biometrics={trackSpO2 || trackHR} class:has-volume={trackLungVolume}>
+	<div class="reps-table" class:has-biometrics={trackSpO2 || trackHR} class:has-volume={isMultiRep}>
 		<div class="table-header">
 			<div class="col-rep">#</div>
 			{#if isStatic}
@@ -254,7 +260,7 @@
 				<div class="col-duration">Time</div>
 			{/if}
 			<div class="col-rest">Rest</div>
-			{#if trackLungVolume}
+			{#if isMultiRep}
 				<div class="col-volume">Vol</div>
 			{/if}
 			{#if trackSpO2}
@@ -386,23 +392,14 @@
 					{/if}
 				</div>
 
-				{#if trackLungVolume}
+				{#if isMultiRep}
 					<div class="col-volume">
 						{#if rep.completed}
-							<div class="volume-chip-group" role="group" aria-label="Lung volume for rep {rep.repNumber}">
-								{#each LUNG_VOLUME_OPTIONS as vol}
-									<button
-										type="button"
-										class="volume-chip mini"
-										class:selected={rep.lungVolume === vol}
-										title={formatLungVolume(vol)}
-										aria-pressed={rep.lungVolume === vol}
-										onclick={() => setRepLungVolume(i, vol)}
-									>
-										{vol}
-									</button>
-								{/each}
-							</div>
+							<LungVolumePill
+								value={rep.lungVolume ?? defaultLungVolume ?? 'FL'}
+								onChange={(v) => setRepLungVolume(i, v)}
+								ariaLabelPrefix={`Rep ${rep.repNumber} lung volume`}
+							/>
 						{:else}
 							<span class="skipped-value">{rep.lungVolume ?? '—'}</span>
 						{/if}
@@ -531,6 +528,13 @@
 		flex-shrink: 0;
 	}
 
+	.default-volume-hint {
+		font-size: 0.6875rem;
+		color: var(--color-text-muted);
+		margin-left: auto;
+		opacity: 0.8;
+	}
+
 	.volume-chip-group {
 		display: flex;
 		gap: 0.25rem;
@@ -559,12 +563,6 @@
 		background: rgba(20, 184, 166, 0.18);
 		border-color: var(--color-primary);
 		color: var(--color-primary);
-	}
-
-	.volume-chip.mini {
-		min-width: 1.75rem;
-		padding: 0.25rem 0.375rem;
-		font-size: 0.6875rem;
 	}
 
 	.reps-table {
@@ -646,9 +644,6 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-	}
-	.col-volume .volume-chip-group {
-		width: 100%;
 	}
 
 	.col-status {
@@ -757,11 +752,6 @@
 	@media (max-width: 480px) {
 		.reps-table.has-volume .col-volume {
 			min-width: 5.5rem;
-		}
-		.volume-chip.mini {
-			min-width: 1.5rem;
-			padding: 0.2rem 0.25rem;
-			font-size: 0.625rem;
 		}
 	}
 
