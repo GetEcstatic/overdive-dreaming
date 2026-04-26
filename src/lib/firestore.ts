@@ -366,6 +366,11 @@ export async function getRoutineLog(routineLogId: string): Promise<RoutineLog | 
  * Recursively remove `undefined` values from an object/array tree.
  * Firestore rejects writes containing `undefined`. We keep `null` (explicit
  * clear) and primitives untouched, and drop undefined keys at every depth.
+ *
+ * IMPORTANT: only descends into plain objects and arrays. Class instances
+ * (Firestore Timestamp, GeoPoint, DocumentReference, FieldValue, Date, etc.)
+ * are passed through untouched — otherwise we would strip their prototype
+ * and Firestore would write them as plain maps, breaking `.toDate()` on read.
  */
 function stripUndefinedDeep<T>(value: T): T {
 	if (Array.isArray(value)) {
@@ -373,7 +378,12 @@ function stripUndefinedDeep<T>(value: T): T {
 			.filter((v) => v !== undefined)
 			.map((v) => stripUndefinedDeep(v)) as unknown as T;
 	}
-	if (value && typeof value === 'object' && !(value instanceof Date)) {
+	if (
+		value !== null &&
+		typeof value === 'object' &&
+		(Object.getPrototypeOf(value) === Object.prototype ||
+			Object.getPrototypeOf(value) === null)
+	) {
 		const out: Record<string, unknown> = {};
 		for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
 			if (v === undefined) continue;

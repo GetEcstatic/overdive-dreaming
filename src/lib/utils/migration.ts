@@ -6,6 +6,25 @@
  */
 
 import type { RoutineLog, RoutineTemplate, ActivityType, LapData } from '$lib/types';
+import { Timestamp } from 'firebase/firestore';
+
+/**
+ * Rehydrate a Firestore Timestamp that was accidentally written as a plain
+ * `{seconds, nanoseconds}` map (e.g. by a buggy deep-clone that stripped the
+ * Timestamp prototype). Returns the value untouched if it is already a real
+ * Timestamp, a JS Date, null, or undefined.
+ */
+function rehydrateTimestamp(value: unknown): unknown {
+  if (value && typeof value === 'object' && !(value instanceof Timestamp) && !(value instanceof Date)) {
+    const v = value as { seconds?: unknown; nanoseconds?: unknown; _seconds?: unknown; _nanoseconds?: unknown };
+    const seconds = typeof v.seconds === 'number' ? v.seconds : (typeof v._seconds === 'number' ? v._seconds : undefined);
+    const nanos = typeof v.nanoseconds === 'number' ? v.nanoseconds : (typeof v._nanoseconds === 'number' ? v._nanoseconds : 0);
+    if (typeof seconds === 'number') {
+      return new Timestamp(seconds, nanos);
+    }
+  }
+  return value;
+}
 
 // ============================================================================
 // ACTIVITY TYPE INFERENCE
@@ -183,6 +202,22 @@ export function calculateCumulativeDistance(log: RoutineLog): number | undefined
 export function normalizeRoutineLog(log: RoutineLog): RoutineLog {
   // Start with the original log
   const normalized: RoutineLog = { ...log };
+
+  // Heal Timestamp-shaped fields that may have been written as plain maps
+  // by an earlier buggy code path. Without this, `.toDate()` calls in the
+  // UI throw "toDate is not a function".
+  normalized.date = rehydrateTimestamp(normalized.date) as RoutineLog['date'];
+  if (normalized.createdAt) {
+    normalized.createdAt = rehydrateTimestamp(normalized.createdAt) as RoutineLog['createdAt'];
+  }
+  if (normalized.updatedAt) {
+    normalized.updatedAt = rehydrateTimestamp(normalized.updatedAt) as RoutineLog['updatedAt'];
+  }
+  if ((normalized as { videoTimestamp?: unknown }).videoTimestamp) {
+    (normalized as { videoTimestamp?: unknown }).videoTimestamp = rehydrateTimestamp(
+      (normalized as { videoTimestamp?: unknown }).videoTimestamp
+    );
+  }
   
   // Populate new field names from old (if not already set)
   normalized.diveDuration = log.diveDuration ?? log.totalTime;
