@@ -11,6 +11,14 @@ export type Discipline = 'STA' | 'DYN' | 'DNF' | 'DYNB';
 
 export type BreathingTechnique = 'tidal' | 'hyperventilation' | 'hypoventilation';
 
+/**
+ * Starting lung volume at the beginning of a breath hold.
+ * - FL  = Full Lung (after maximal inhale, possibly with packing)
+ * - RV  = Residual Volume (after maximal exhale)
+ * - FRC = Functional Residual Capacity (relaxed exhale, neutral lungs)
+ */
+export type LungVolume = 'FL' | 'RV' | 'FRC';
+
 export type UserTier = 'free' | 'premium';
 
 export type PoolType = 'indoor' | 'outdoor';
@@ -240,6 +248,7 @@ export interface TrackingConfig {
 	trackFVC: boolean; // Forced Vital Capacity (liters)
 	trackFVCWithPacking: boolean; // FVC with packing technique (liters)
 	trackPackingVolume: boolean; // Lung packing percentage at start of hold (0-100%)
+	trackLungVolume: boolean; // Per-rep starting lung volume tag (FL/RV/FRC)
 
 	// ============================================================================
 	// O2-ASSISTED STATIC APNEA TRACKING
@@ -424,6 +433,8 @@ export interface LapData {
 	// NEW: Rep status for editable logging
 	completed?: boolean; // false = skipped, default true
 	notes?: string; // Per-rep notes
+	// Starting lung volume for this rep (FL/RV/FRC)
+	lungVolume?: LungVolume;
 
 	// ============================================================================
 	// BIOMETRIC DATA (SpO2/HR for dry static breath hold training)
@@ -452,6 +463,8 @@ export interface RepEditorData {
 	actualRest?: number; // User-entered
 	completed: boolean;
 	notes?: string;
+	// Starting lung volume for this rep (FL/RV/FRC)
+	lungVolume?: LungVolume;
 
 	// ============================================================================
 	// BIOMETRIC DATA (SpO2/HR for dry static breath hold training)
@@ -573,6 +586,9 @@ export interface RoutineLog {
 	fvc?: number; // Forced Vital Capacity in liters (to 1 decimal place)
 	fvcWithPacking?: number; // FVC with packing in liters (to 1 decimal place)
 	packingVolume?: number; // Lung packing volume as percentage (0-100)
+	// Session-level default lung volume — pre-fills any rep that has no
+	// explicit lungVolume set in laps[].
+	defaultLungVolume?: LungVolume;
 
 	// ============================================================================
 	// O2-ASSISTED STATIC APNEA DATA
