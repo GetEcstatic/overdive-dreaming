@@ -188,6 +188,7 @@
 			trackFVC: false,
 			trackFVCWithPacking: false,
 			trackPackingVolume: false,
+			trackLungVolume: false,
 			trackPerRepSpO2: false,
 			trackPerRepHR: false,
 			trackSpO2Thresholds: false,

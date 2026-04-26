@@ -10,9 +10,14 @@
 	 * - Track per-rep SpO2/HR for dry static breath hold training
 	 */
 
-	import type { RepEditorData, Discipline, RoutineTable } from '$lib/types';
+	import type { RepEditorData, Discipline, RoutineTable, LungVolume } from '$lib/types';
 	import { formatTime, parseTimeInput } from '$lib/utils/time';
 	import { getSpO2ColorClass } from '$lib/utils/biometricCsvParser';
+	import {
+		LUNG_VOLUME_OPTIONS,
+		applyDefaultLungVolume,
+		formatLungVolume
+	} from '$lib/utils/lungVolume';
 	import DurationInput from '$lib/components/DurationInput.svelte';
 	import NumberWheelInput from '$lib/components/NumberWheelInput.svelte';
 
@@ -28,7 +33,10 @@
 		trackHR = false,
 		isDryTraining = false,
 		// Allow editing planned values (for variable tables)
-		allowEditPlanned = false
+		allowEditPlanned = false,
+		// Lung-volume tracking (FL/RV/FRC) — opt-in per routine
+		trackLungVolume = false,
+		defaultLungVolume = $bindable<LungVolume | undefined>(undefined)
 	}: {
 		discipline: Discipline;
 		plannedReps?: number;
@@ -40,7 +48,24 @@
 		trackHR?: boolean;
 		isDryTraining?: boolean;
 		allowEditPlanned?: boolean;
+		trackLungVolume?: boolean;
+		defaultLungVolume?: LungVolume;
 	} = $props();
+
+	// Apply the session-level default to any rep with no explicit volume.
+	function applyDefaultToReps(vol: LungVolume | undefined) {
+		reps = applyDefaultLungVolume(reps, vol);
+	}
+
+	function setDefaultLungVolume(vol: LungVolume) {
+		defaultLungVolume = vol;
+		applyDefaultToReps(vol);
+	}
+
+	function setRepLungVolume(index: number, vol: LungVolume) {
+		reps[index].lungVolume = vol;
+		reps = [...reps];
+	}
 
 	// Is this a static discipline (STA)?
 	const isStatic = $derived(discipline === 'STA');
@@ -199,7 +224,27 @@
 		{/if}
 	</div>
 
-	<div class="reps-table" class:has-biometrics={trackSpO2 || trackHR}>
+	{#if trackLungVolume}
+		<div class="default-volume-row" role="group" aria-label="Default lung volume">
+			<span class="default-volume-label">Default volume</span>
+			<div class="volume-chip-group">
+				{#each LUNG_VOLUME_OPTIONS as vol}
+					<button
+						type="button"
+						class="volume-chip"
+						class:selected={defaultLungVolume === vol}
+						title={formatLungVolume(vol)}
+						aria-pressed={defaultLungVolume === vol}
+						onclick={() => setDefaultLungVolume(vol)}
+					>
+						{vol}
+					</button>
+				{/each}
+			</div>
+		</div>
+	{/if}
+
+	<div class="reps-table" class:has-biometrics={trackSpO2 || trackHR} class:has-volume={trackLungVolume}>
 		<div class="table-header">
 			<div class="col-rep">#</div>
 			{#if isStatic}
@@ -209,6 +254,9 @@
 				<div class="col-duration">Time</div>
 			{/if}
 			<div class="col-rest">Rest</div>
+			{#if trackLungVolume}
+				<div class="col-volume">Vol</div>
+			{/if}
 			{#if trackSpO2}
 				<div class="col-spo2">SpO2</div>
 			{/if}
@@ -338,6 +386,29 @@
 					{/if}
 				</div>
 
+				{#if trackLungVolume}
+					<div class="col-volume">
+						{#if rep.completed}
+							<div class="volume-chip-group" role="group" aria-label="Lung volume for rep {rep.repNumber}">
+								{#each LUNG_VOLUME_OPTIONS as vol}
+									<button
+										type="button"
+										class="volume-chip mini"
+										class:selected={rep.lungVolume === vol}
+										title={formatLungVolume(vol)}
+										aria-pressed={rep.lungVolume === vol}
+										onclick={() => setRepLungVolume(i, vol)}
+									>
+										{vol}
+									</button>
+								{/each}
+							</div>
+						{:else}
+							<span class="skipped-value">{rep.lungVolume ?? '—'}</span>
+						{/if}
+					</div>
+				{/if}
+
 				{#if trackSpO2}
 					<div class="col-spo2">
 						{#if rep.completed}
@@ -439,6 +510,63 @@
 		margin-bottom: 1rem;
 	}
 
+	/* Session-level default lung volume */
+	.default-volume-row {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		margin-bottom: 0.75rem;
+		padding: 0.5rem 0.625rem;
+		background: rgba(148, 163, 184, 0.05);
+		border: 1px dashed rgba(148, 163, 184, 0.2);
+		border-radius: 8px;
+	}
+
+	.default-volume-label {
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--color-text-muted);
+		flex-shrink: 0;
+	}
+
+	.volume-chip-group {
+		display: flex;
+		gap: 0.25rem;
+	}
+
+	.volume-chip {
+		flex: 1;
+		min-width: 2.5rem;
+		padding: 0.375rem 0.5rem;
+		border-radius: 8px;
+		background: rgba(148, 163, 184, 0.08);
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		color: var(--color-text);
+		font-size: 0.75rem;
+		font-weight: 600;
+		letter-spacing: 0.04em;
+		cursor: pointer;
+		transition: background 0.15s, border-color 0.15s, color 0.15s;
+	}
+
+	.volume-chip:hover {
+		background: rgba(148, 163, 184, 0.15);
+	}
+
+	.volume-chip.selected {
+		background: rgba(20, 184, 166, 0.18);
+		border-color: var(--color-primary);
+		color: var(--color-primary);
+	}
+
+	.volume-chip.mini {
+		min-width: 1.75rem;
+		padding: 0.25rem 0.375rem;
+		font-size: 0.6875rem;
+	}
+
 	.reps-table {
 		display: flex;
 		flex-direction: column;
@@ -509,6 +637,18 @@
 		display: flex;
 		align-items: center;
 		gap: 0.25rem;
+	}
+
+	/* Lung-volume column — narrow, fits the FL/RV/FRC chip group */
+	.col-volume {
+		flex: 0 0 auto;
+		min-width: 6.5rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+	.col-volume .volume-chip-group {
+		width: 100%;
 	}
 
 	.col-status {
@@ -604,6 +744,25 @@
 
 	.reps-table.has-biometrics .col-rep {
 		width: 32px;
+	}
+
+	/* When lung-volume enabled, give the FL/RV/FRC group a touch more room */
+	.reps-table.has-volume .table-header,
+	.reps-table.has-volume .table-row {
+		gap: 0.375rem;
+	}
+	.reps-table.has-volume .col-volume {
+		min-width: 6.25rem;
+	}
+	@media (max-width: 480px) {
+		.reps-table.has-volume .col-volume {
+			min-width: 5.5rem;
+		}
+		.volume-chip.mini {
+			min-width: 1.5rem;
+			padding: 0.2rem 0.25rem;
+			font-size: 0.625rem;
+		}
 	}
 
 	/* Skipped rep value display */

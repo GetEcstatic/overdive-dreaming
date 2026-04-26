@@ -43,6 +43,7 @@ function cfg(overrides: Partial<TrackingConfig> = {}): TrackingConfig {
 		trackFVC: false,
 		trackFVCWithPacking: false,
 		trackPackingVolume: false,
+		trackLungVolume: false,
 		...overrides
 	};
 }
