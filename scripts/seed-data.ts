@@ -81,6 +81,7 @@ const dynamicMaxTracking: TrackingConfig = {
 	trackFVC: false,
 	trackFVCWithPacking: false,
 	trackPackingVolume: false,
+	trackLungVolume: false,
 	// BIOMETRIC TRACKING
 	trackPerRepSpO2: false,
 	trackPerRepHR: false,
@@ -130,6 +131,7 @@ const staticMaxTracking: TrackingConfig = {
 	trackFVC: false,
 	trackFVCWithPacking: false,
 	trackPackingVolume: false,
+	trackLungVolume: true,
 	// BIOMETRIC TRACKING - Enabled for dry static
 	trackPerRepSpO2: true,
 	trackPerRepHR: true,
@@ -187,6 +189,7 @@ const intervalTracking: TrackingConfig = {
 	trackFVC: false,
 	trackFVCWithPacking: false,
 	trackPackingVolume: false,
+	trackLungVolume: false,
 	// BIOMETRIC TRACKING
 	trackPerRepSpO2: false,
 	trackPerRepHR: false,
@@ -236,6 +239,7 @@ const staticIntervalTracking: TrackingConfig = {
 	trackFVC: false,
 	trackFVCWithPacking: false,
 	trackPackingVolume: false,
+	trackLungVolume: true,
 	// BIOMETRIC TRACKING - Enabled for dry static
 	trackPerRepSpO2: true,
 	trackPerRepHR: true,
@@ -285,6 +289,7 @@ const dryStaticBiometricTracking: TrackingConfig = {
 	trackFVC: false,
 	trackFVCWithPacking: false,
 	trackPackingVolume: false,
+	trackLungVolume: true,
 	// BIOMETRIC TRACKING - Enabled for dry static
 	trackPerRepSpO2: true,
 	trackPerRepHR: true,
@@ -327,6 +332,7 @@ const o2AssistedStaticTracking: TrackingConfig = {
 	trackFVC: true,
 	trackFVCWithPacking: true,
 	trackPackingVolume: true,
+	trackLungVolume: true,
 	trackPerRepSpO2: false,
 	trackPerRepHR: false,
 	trackSpO2Thresholds: false,
