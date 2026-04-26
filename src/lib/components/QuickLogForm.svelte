@@ -9,7 +9,8 @@
 		SessionVisibility,
 		TimeOfDay,
 		RepEditorData,
-		LapData
+		LapData,
+		LungVolume
 	} from '$lib/types';
 	import PhotoCropper from '$lib/components/PhotoCropper.svelte';
 	import RepEditor from '$lib/components/RepEditor.svelte';
@@ -18,6 +19,7 @@
 	import NumberWheelInput from '$lib/components/NumberWheelInput.svelte';
 	import { isValidYouTubeUrl } from '$lib/storage';
 	import { biometricsToLapData, calculateSessionBiometricSummary } from '$lib/utils/biometricCsvParser';
+	import { applyDefaultLungVolume } from '$lib/utils/lungVolume';
 	import { getTagByValue } from '$lib/config/tagConfig';
 	import { resolveMetricInput } from '$lib/utils/resolveMetricInput';
 
@@ -96,6 +98,9 @@
 		fvc?: number;
 		fvcWithPacking?: number;
 		packingVolume?: number;
+		// Session-level default lung volume (FL/RV/FRC) — pre-fills any rep
+		// that has no explicit per-rep value
+		defaultLungVolume?: LungVolume;
 		// O2-Assisted Static Apnea
 		lucidity?: number;
 		urgeToBreathe?: number;
@@ -266,13 +271,16 @@
 	let biometricSummary = $state<ReturnType<typeof calculateSessionBiometricSummary>>(null);
 	let rawBiometricCsv = $state<string>(''); // Raw CSV for storage
 
+	// Per-rep starting lung volume (FL/RV/FRC) — opt-in via trackingConfig
+	let defaultLungVolume = $state<LungVolume | undefined>(undefined);
+
 	// Handle biometric import from CSV
 	function handleBiometricImport(
 		reps: RepEditorData[],
 		summary: ReturnType<typeof calculateSessionBiometricSummary>,
 		rawCsv: string
 	) {
-		repEditorData = reps;
+		repEditorData = applyDefaultLungVolume(reps, defaultLungVolume);
 		biometricSummary = summary;
 		rawBiometricCsv = rawCsv;
 		// Update reps completed from imported data
@@ -560,7 +568,12 @@
 				timeBelow50: r.timeBelow50 || 0,
 				timeBelow40: r.timeBelow40 || 0,
 				readings: []
-			}))) : seededLaps,
+			}))).map((lap, i) => ({
+				...lap,
+				lungVolume: repEditorData[i]?.lungVolume
+			})) : seededLaps,
+			// Session-level default lung volume (FL/RV/FRC)
+			defaultLungVolume,
 			// Biometric session summary
 			hasBiometricData: biometricSummary?.hasBiometricData,
 			longestHold: biometricSummary?.longestHold,
@@ -1032,6 +1045,8 @@
 				trackHR={false}
 				isDryTraining={false}
 				allowEditPlanned={hasVariableTable}
+				trackLungVolume={config.trackLungVolume ?? false}
+				bind:defaultLungVolume
 			/>
 		</div>
 	{/if}
@@ -1107,6 +1122,8 @@
 				trackHR={config.trackPerRepHR ?? true}
 				isDryTraining={config.isDryTraining ?? true}
 				allowEditPlanned={hasVariableTable}
+				trackLungVolume={config.trackLungVolume ?? false}
+				bind:defaultLungVolume
 			/>
 
 			<p class="biometric-hint">

@@ -12,7 +12,7 @@
 	 * Also stores the raw CSV for future reprocessing.
 	 */
 
-	import type { ProcessedRepBiometrics, ParsedBiometricSession, RepEditorData } from '$lib/types';
+	import type { ProcessedRepBiometrics, ParsedBiometricSession, RepEditorData, LungVolume } from '$lib/types';
 	import {
 		parseBiometricCsv,
 		processRepBiometrics,
@@ -27,9 +27,11 @@
 
 	let {
 		isOpen = $bindable(false),
+		defaultLungVolume = undefined as LungVolume | undefined,
 		onImport = (reps: RepEditorData[], summary: ReturnType<typeof calculateSessionBiometricSummary>, rawCsv: string) => {}
 	}: {
 		isOpen: boolean;
+		defaultLungVolume?: LungVolume;
 		onImport: (reps: RepEditorData[], summary: ReturnType<typeof calculateSessionBiometricSummary>, rawCsv: string) => void;
 	} = $props();
 
@@ -121,6 +123,8 @@
 			actualRest: rep.recoveryDuration,
 			completed: true,
 			notes: '',
+			// Pre-fill from session-level default (user can still override per rep).
+			lungVolume: defaultLungVolume,
 			spo2Min: rep.spo2Min,
 			spo2Avg: rep.spo2Avg,
 			hrMin: rep.hrMin,

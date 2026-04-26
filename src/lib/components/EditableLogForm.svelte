@@ -20,6 +20,7 @@
 	import DurationInput from '$lib/components/DurationInput.svelte';
 	import NumberWheelInput from '$lib/components/NumberWheelInput.svelte';
 	import { calculateSessionBiometricSummary } from '$lib/utils/biometricCsvParser';
+	import { applyDefaultLungVolume } from '$lib/utils/lungVolume';
 	import { formatTime } from '$lib/utils/time';
 
 	interface Props {
@@ -130,6 +131,8 @@
 	// Biometric tracking state (from CSV import)
 	let showBiometricModal = $state(false);
 	let repEditorData = $state<RepEditorData[]>([]);
+	// Session-level default lung volume (FL/RV/FRC) — carries through to log payload
+	let defaultLungVolume = $state<import('$lib/types').LungVolume | undefined>(formData.defaultLungVolume);
 	let biometricSummary = $state<ReturnType<typeof calculateSessionBiometricSummary>>(
 		formData.hasBiometricData ? {
 			hasBiometricData: true,
@@ -162,7 +165,7 @@
 		summary: ReturnType<typeof calculateSessionBiometricSummary>,
 		rawCsv: string
 	) {
-		repEditorData = reps;
+		repEditorData = applyDefaultLungVolume(reps, defaultLungVolume);
 		biometricSummary = summary;
 		rawBiometricCsv = rawCsv;
 		// Update reps completed from imported data
@@ -270,6 +273,7 @@
 				restAfterSeconds: r.actualRest || 0,
 				completed: r.completed,
 				notes: r.notes,
+				lungVolume: r.lungVolume,
 				spo2Min: r.spo2Min,
 				spo2Avg: r.spo2Avg,
 				hrMin: r.hrMin,
@@ -327,6 +331,7 @@
 			// Lung capacity
 			fvc: normalizeNumber(fvc),
 			fvcWithPacking: normalizeNumber(fvcWithPacking),
+			defaultLungVolume,
 			// O2-Assisted Static Apnea
 			lucidity: normalizeNumber(lucidity),
 			urgeToBreathe: normalizeNumber(urgeToBreathe),
