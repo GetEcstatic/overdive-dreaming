@@ -389,10 +389,6 @@
 			border-radius: 0;
 			border: none;
 		}
-
-		.modal-header {
-			padding-top: max(1.5rem, env(safe-area-inset-top));
-		}
 	}
 
 	/* Header */
@@ -400,7 +396,10 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 1.5rem;
+		/* Use safe-area-inset-top so the header clears the iPhone notch /
+		   Dynamic Island in standalone PWA mode. env(...) is 0 on
+		   non-notched devices/browsers, so 1.5rem remains the floor. */
+		padding: max(1.5rem, env(safe-area-inset-top)) 1.5rem 1.5rem;
 		border-bottom: 1px solid rgba(148, 163, 184, 0.15);
 		flex-shrink: 0;
 	}
