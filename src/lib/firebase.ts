@@ -1,4 +1,4 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
 	getAuth,
 	GoogleAuthProvider,
@@ -29,8 +29,8 @@ const firebaseConfig = {
 	measurementId: PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
-// Initialize Firebase
-export const app = initializeApp(firebaseConfig);
+// Initialize Firebase (guard against HMR / SSR re-initialization)
+export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);

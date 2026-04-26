@@ -363,6 +363,28 @@ export async function getRoutineLog(routineLogId: string): Promise<RoutineLog | 
 }
 
 /**
+ * Recursively remove `undefined` values from an object/array tree.
+ * Firestore rejects writes containing `undefined`. We keep `null` (explicit
+ * clear) and primitives untouched, and drop undefined keys at every depth.
+ */
+function stripUndefinedDeep<T>(value: T): T {
+	if (Array.isArray(value)) {
+		return value
+			.filter((v) => v !== undefined)
+			.map((v) => stripUndefinedDeep(v)) as unknown as T;
+	}
+	if (value && typeof value === 'object' && !(value instanceof Date)) {
+		const out: Record<string, unknown> = {};
+		for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+			if (v === undefined) continue;
+			out[k] = stripUndefinedDeep(v);
+		}
+		return out as unknown as T;
+	}
+	return value;
+}
+
+/**
  * Create a new routine log
  * Applies prepareLogForWrite to ensure both old and new field names are stored
  */
@@ -372,8 +394,11 @@ export async function createRoutineLog(logData: RoutineLogFormData): Promise<str
 	// Prepare log data with both old and new field names
 	const preparedData = prepareLogForWrite(logData);
 
+	// Firestore rejects undefined values anywhere in the document — strip recursively
+	const cleanedData = stripUndefinedDeep(preparedData);
+
 	const newLog = {
-		...preparedData,
+		...cleanedData,
 		createdAt: serverTimestamp(),
 		updatedAt: serverTimestamp()
 	};
@@ -395,10 +420,8 @@ export async function updateRoutineLog(
 	// Prepare updates with both old and new field names
 	const preparedUpdates = prepareLogForWrite(updates);
 
-	// Remove undefined values - Firestore doesn't accept undefined
-	const cleanedUpdates = Object.fromEntries(
-		Object.entries(preparedUpdates).filter(([_, v]) => v !== undefined)
-	);
+	// Remove undefined values recursively - Firestore doesn't accept undefined at any depth
+	const cleanedUpdates = stripUndefinedDeep(preparedUpdates) as Record<string, unknown>;
 
 	await updateDoc(docRef, {
 		...cleanedUpdates,
