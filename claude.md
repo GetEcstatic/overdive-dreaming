@@ -333,7 +333,12 @@ interface RoutineLog {
     restAfterSeconds?: number;
     kicks?: number;
     armPulls?: number;
+    lungVolume?: 'FL' | 'RV' | 'FRC'; // Per-rep starting lung volume
   }[];
+
+  // Session-level default lung volume (FL/RV/FRC) — pre-fills any rep
+  // that has no explicit lungVolume set in laps[].
+  defaultLungVolume?: 'FL' | 'RV' | 'FRC';
 
   // OR summary metrics (quick poolside entry)
   summary?: {

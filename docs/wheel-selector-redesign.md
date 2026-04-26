@@ -1,7 +1,10 @@
 # NumberWheel Selector — Redesign Plan
 
 > Status: **Proposal / planning**.
+> **Update (2026):** the optional `showNudgeButtons` prop on `NumberWheelInput` and `DurationInput` has been removed. Inline `±` nudge buttons no longer ship — users tap the chip to open the bottom sheet. Any references below to `showNudgeButtons` are historical.
 > Touchpoints: [`NumberWheelInput.svelte`](../src/lib/components/NumberWheelInput.svelte), [`QuickLogForm.svelte`](../src/lib/components/QuickLogForm.svelte), [`EditableLogForm.svelte`](../src/lib/components/EditableLogForm.svelte), [`RepEditor.svelte`](../src/lib/components/RepEditor.svelte), [`+page.svelte` (record)](../src/routes/(app)/dive/record/%5Bid%5D/+page.svelte).
+
+> **2026 update:** the `showNudgeButtons` prop and the inline ± nudge buttons described below were removed from `DurationInput`/`NumberWheelInput`. The bottom-sheet picker is now the single canonical interaction; hosts that need fast +/- bumps should keep their own controls.
 
 ---
 

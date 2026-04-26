@@ -2,6 +2,16 @@
 
 This document catalogs all existing training metrics and tags in Overdive, along with their definitions and calculations. Use this for planning the reconceptualization of how metrics are labelled, grouped, and calculated.
 
+## Lung Volume Tracking (FL / RV / FRC)
+
+Each rep can record the starting lung volume the athlete held the apnea at:
+
+- **FL** — Full Lung (max inhalation, optionally with packing)
+- **RV** — Reserve Volume (post-exhale, with active expiratory effort)
+- **FRC** — Functional Residual Capacity (passive end-expiration)
+
+Enabled per-routine via `trackingConfig.trackLungVolume`. The `RepEditor` shows a session-level default selector (FL/RV/FRC) above the table that pre-fills any rep without an explicit value, plus a per-row chip group in the `Vol` column. The session default is persisted as `RoutineLog.defaultLungVolume`; per-rep overrides live on `LapData.lungVolume`. Imported reps (CSV biometrics) inherit the session default at import time.
+
 ---
 
 ## 🚧 STATUS: Implementation Plan Ready
@@ -1154,3 +1164,15 @@ Two systems coexist:
 6. **New Metrics** - Are there missing metrics users need?
 
 7. **Deprecated Metrics** - Are any current metrics unused or redundant?
+
+---
+
+## Lung Volume Tracking (FL / RV / FRC)
+
+For dry static and breath-hold protocols, each rep can be tagged with a starting lung volume:
+
+- **FL** — Full Lung (after maximal inhale, possibly with packing)
+- **RV** — Residual Volume (after maximal exhale)
+- **FRC** — Functional Residual Capacity (relaxed exhale, neutral lungs)
+
+Enable via `trackingConfig.trackLungVolume` on the routine. The log form exposes a session-level **Default volume** picker that pre-fills any rep without an explicit value (`defaultLungVolume` on the log). Per-rep overrides are stored on `LapData.lungVolume`. Biometric CSV imports also seed the chosen default into every imported rep.
