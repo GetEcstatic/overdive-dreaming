@@ -97,15 +97,9 @@
 			signingIn = true;
 			error = '';
 			await authPersistenceReady;
-			if (isStandalonePWA()) {
-				// Popups are unreliable inside installed PWAs (iOS standalone
-				// Safari and Android Chrome). Use a full-page redirect; the
-				// result is consumed by getRedirectResult on app boot.
-				await signInWithRedirect(auth, googleProvider);
-			} else {
-				await signInWithPopup(auth, googleProvider);
-				// User will be redirected by onAuthStateChanged
-			}
+			// Always use popup; redirect path was breaking iOS standalone PWA login.
+			await signInWithPopup(auth, googleProvider);
+			// User will be redirected by onAuthStateChanged
 		} catch (err: any) {
 			console.error('Error signing in:', err);
 			error = err.message || 'Failed to sign in. Please try again.';
