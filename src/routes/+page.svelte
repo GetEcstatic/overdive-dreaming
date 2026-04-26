@@ -266,7 +266,7 @@
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		padding: 2rem;
+		padding: calc(2rem + env(safe-area-inset-top)) calc(2rem + env(safe-area-inset-right)) calc(2rem + env(safe-area-inset-bottom)) calc(2rem + env(safe-area-inset-left));
 		position: relative;
 		z-index: 1;
 	}
@@ -473,7 +473,7 @@
 		}
 
 		.landing-page {
-			padding: 1rem;
+			padding: calc(1rem + env(safe-area-inset-top)) calc(1rem + env(safe-area-inset-right)) calc(1rem + env(safe-area-inset-bottom)) calc(1rem + env(safe-area-inset-left));
 		}
 
 		.hero-section {
