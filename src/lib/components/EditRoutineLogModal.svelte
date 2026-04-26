@@ -389,6 +389,10 @@
 			border-radius: 0;
 			border: none;
 		}
+
+		.modal-header {
+			padding-top: max(1.5rem, env(safe-area-inset-top));
+		}
 	}
 
 	/* Header */
