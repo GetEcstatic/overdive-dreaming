@@ -3,7 +3,7 @@
 Server-side jobs for Overdive Dreaming. Currently:
 
 - **`onDiveVideoCreated`** (`src/retentionReaper.ts`) — Firestore trigger that
-  enforces the "keep 5 newest non-pinned `DiveVideo`s per owner" policy.
+  enforces the "keep 20 newest non-pinned `DiveVideo`s per owner" policy.
   Writes an audit entry to `reaperAudit/*` every run.
 
 ## Relationship to the client-side reaper
@@ -14,7 +14,7 @@ if a user uploads from one device and never returns to the app, the client
 path never fires. This Cloud Function is the **canonical** enforcement point
 and makes the client-side reaper safe to treat as a "happy-path nicety".
 
-Both implementations share the same semantics (keep 5 newest non-pinned,
+Both implementations share the same semantics (keep 20 newest non-pinned,
 skip pinned, delete Firestore doc + all Storage blobs).
 
 ## First-time setup

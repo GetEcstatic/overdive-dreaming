@@ -18,6 +18,7 @@
 	import { buildDiveVideoFormData, listDiveVideosForSession } from '$lib/services/diveVideos';
 	import { canWriteToIndexedDB, enqueueUpload } from '$lib/capture/uploadQueue';
 	import { drainUploadQueue } from '$lib/capture/uploadProcessor';
+	import { logUploadDiagnostic } from '$lib/capture/uploadDiagnostics';
 	import { summariseTimeline, totalDistanceM } from '$lib/capture/timeline';
 	import { getUserSettings, updateUserSettings } from '$lib/firestore';
 	import { diveRecording } from '$lib/stores/videoPlayback';
@@ -153,6 +154,17 @@
 		saveError = null;
 		uploadProgress = 0;
 		try {
+			logUploadDiagnostic({
+				level: 'info',
+				step: 'record-save:start',
+				message: 'Record page save started',
+				details: {
+					sessionId,
+					hasCapture: Boolean(capture),
+					sizeBytes: capture.sizeBytes,
+					mimeType: capture.mimeType
+				}
+			});
 			const metadata = buildDiveVideoFormData({
 				sessionId,
 				userId: uid,
@@ -170,16 +182,30 @@
 				deviceLabel: capture.deviceLabel
 			});
 			if (pinned) metadata.retentionTier = 'pinned';
-			await enqueueUpload(capture.blob, metadata);
+			const pending = await enqueueUpload(capture.blob, metadata);
+			logUploadDiagnostic({
+				level: 'info',
+				step: 'record-save:queued',
+				message: 'Record page queued capture for upload',
+				localId: pending.localId,
+				details: {
+					sizeBytes: pending.sizeBytes,
+					mimeType: pending.mimeType,
+					sessionId
+				}
+			});
 
 			// Drive the upload to completion here so the user gets real
 			// progress + clear error surfacing. The queue is still durable
 			// across app reloads (see `installOnlineDrainer`), but keeping the
 			// user on this screen while the blob uploads avoids the "stuck at
 			// Uploading…" experience on the session page.
-			const result = await drainUploadQueue((p) => {
-				uploadProgress = p.fraction;
-			});
+			const result = await drainUploadQueue(
+				(p) => {
+					if (p.localId === pending.localId) uploadProgress = p.fraction;
+				},
+				{ localIds: [pending.localId] }
+			);
 
 			// We just enqueued exactly one item, so `uploaded === 0` means our
 			// item didn't make it to Storage — either it failed (counted in
@@ -191,10 +217,24 @@
 					(result.skipped > 0
 						? 'queue items past retry limit — go to Profile › Pending video uploads to retry'
 						: 'upload did not run (browser storage may have rejected the queue write)');
+				logUploadDiagnostic({
+					level: 'error',
+					step: 'record-save:failed',
+					message: 'Record page upload did not complete',
+					localId: pending.localId,
+					details: result
+				});
 				throw new Error(
 					`Upload failed: ${detail}. The dive is saved locally and will retry when you reopen the app.`
 				);
 			}
+			logUploadDiagnostic({
+				level: 'info',
+				step: 'record-save:uploaded',
+				message: 'Record page upload completed',
+				localId: pending.localId,
+				details: result
+			});
 
 			// Stash a pre-fill bundle for the dive-log form on the
 			// session page. This is pure data — the form picks it up by
@@ -462,7 +502,7 @@
 			<section class="card">
 				<label class="pin">
 					<input type="checkbox" bind:checked={pinned} />
-					Pin this dive (keep beyond the 5-video cap)
+					Pin this dive (keep beyond the 20-video cap)
 				</label>
 
 				<div class="gift">

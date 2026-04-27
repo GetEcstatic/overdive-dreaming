@@ -19,6 +19,12 @@
 		type PendingUpload
 	} from '$lib/capture/uploadQueue';
 	import { drainUploadQueue } from '$lib/capture/uploadProcessor';
+	import {
+		checkUploadDiagnosticsStorage,
+		clearUploadDiagnostics,
+		listUploadDiagnostics,
+		type UploadDiagnosticEntry
+	} from '$lib/capture/uploadDiagnostics';
 
 	type DefaultTimeframe = '1month' | '6months' | '1year';
 
@@ -70,12 +76,16 @@
 	let pendingError = $state<string | null>(null);
 	let pendingResultMessage = $state<string | null>(null);
 	let pendingProgressByLocalId = $state<Record<string, number>>({});
+	let uploadDiagnostics = $state<UploadDiagnosticEntry[]>([]);
+	let uploadDiagnosticsHealth = $state(checkUploadDiagnosticsStorage());
 
 	async function loadPendingUploads() {
 		try {
 			pendingLoading = true;
 			pendingError = null;
 			pendingUploads = await listPendingUploads();
+			uploadDiagnosticsHealth = checkUploadDiagnosticsStorage();
+			uploadDiagnostics = listUploadDiagnostics();
 		} catch (error) {
 			console.error('Failed to load pending uploads:', error);
 			pendingError = 'Failed to read the pending uploads queue.';
@@ -113,6 +123,11 @@
 		}
 	}
 
+	function handleClearUploadDiagnostics() {
+		clearUploadDiagnostics();
+		uploadDiagnostics = [];
+	}
+
 	function formatBytes(bytes: number): string {
 		if (bytes < 1024) return `${bytes} B`;
 		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -127,6 +142,23 @@
 			hour: '2-digit',
 			minute: '2-digit'
 		});
+	}
+
+	function formatDiagnosticTime(ms: number): string {
+		return new Date(ms).toLocaleTimeString(undefined, {
+			hour: '2-digit',
+			minute: '2-digit',
+			second: '2-digit'
+		});
+	}
+
+	function formatDiagnosticDetails(details?: Record<string, unknown>): string {
+		if (!details) return '';
+		try {
+			return JSON.stringify(details);
+		} catch {
+			return '';
+		}
 	}
 
 	const toInputDate = (date: Date) => {
@@ -656,7 +688,13 @@
 										{#if item.attempts > 0}
 											· {item.attempts} previous attempt{item.attempts === 1 ? '' : 's'}
 										{/if}
+										{#if item.remoteVideoId}
+											· video {item.remoteVideoId}
+										{/if}
 									</div>
+									{#if item.intendedStoragePath}
+										<div class="pending-meta">{item.intendedStoragePath}</div>
+									{/if}
 									{#if item.lastError}
 										<div class="pending-error">Last error: {item.lastError}</div>
 									{/if}
@@ -684,6 +722,57 @@
 			{/if}
 			{#if pendingError}
 				<p class="form-hint error-text">{pendingError}</p>
+			{/if}
+		</section>
+
+		<section class="profile-card">
+			<div class="card-header">
+				<h2 class="card-title">Upload diagnostics</h2>
+				<span class="card-subtitle">Recent local recorder upload events on this device</span>
+			</div>
+			<p class="form-hint">
+				Diagnostics storage:
+				{uploadDiagnosticsHealth.ok ? 'available' : 'unavailable'}
+				· {uploadDiagnosticsHealth.version}
+				{#if uploadDiagnosticsHealth.error}
+					· {uploadDiagnosticsHealth.error}
+				{/if}
+			</p>
+			{#if uploadDiagnostics.length === 0}
+				<p class="form-hint">No upload diagnostics on this device.</p>
+			{:else}
+				<div class="pending-list">
+					{#each uploadDiagnostics.slice(0, 12) as entry}
+						<div class="pending-item">
+							<div class="pending-row">
+								<div>
+									<div class="pending-title">
+										{formatDiagnosticTime(entry.at)} · {entry.step}
+									</div>
+									<div class="pending-meta">
+										{entry.level.toUpperCase()} · {entry.message}
+										{#if entry.localId}
+											· local {entry.localId.slice(0, 8)}
+										{/if}
+										{#if entry.videoId}
+											· video {entry.videoId}
+										{/if}
+									</div>
+									{#if formatDiagnosticDetails(entry.details)}
+										<div class="pending-error">{formatDiagnosticDetails(entry.details)}</div>
+									{/if}
+								</div>
+							</div>
+						</div>
+					{/each}
+				</div>
+				<button
+					type="button"
+					class="button button-secondary full-width"
+					onclick={handleClearUploadDiagnostics}
+				>
+					Clear diagnostics
+				</button>
 			{/if}
 		</section>
 

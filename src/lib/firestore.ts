@@ -449,6 +449,8 @@ export async function deleteRoutineLog(routineLogId: string): Promise<void> {
 
 /**
  * Delete all routine logs for a session group (permanent deletion)
+ * Do not use this for user-facing single routine deletion. sessionGroup is a coarse
+ * analytics bucket and may contain multiple independent routine logs.
  * Also deletes associated photos from storage
  * @param userId - User ID owning the logs
  * @param sessionGroup - Session group ID (e.g., "2026-01-01-morning")

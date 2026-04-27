@@ -3,7 +3,7 @@
  *
  * Trigger: Firestore document create on `diveVideos/{videoId}`.
  * Behaviour: for the newly-created video's `ownerId`, list all owned videos,
- * skip those with `retentionTier === 'pinned'`, keep the 5 newest non-pinned,
+ * skip those with `retentionTier === 'pinned'`, keep the 20 newest non-pinned,
  * and delete the rest — Firestore doc + Storage clean/burned/thumb blobs.
  *
  * Idempotent: if the function runs twice for the same create event the second
@@ -24,7 +24,7 @@ import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 
 const COLLECTION = 'diveVideos';
-const KEEP_COUNT = 5;
+const KEEP_COUNT = 20;
 
 interface DiveVideoDoc {
 	ownerId: string;
@@ -72,7 +72,10 @@ export const onDiveVideoCreated = onDocumentCreated(
 
 		const all = ownedSnap.docs.map((d) => ({ id: d.id, ...(d.data() as DiveVideoDoc) }));
 		const keepCandidates = all.filter((v) => v.retentionTier !== 'pinned');
-		const toReap = keepCandidates.slice(KEEP_COUNT);
+		const triggerVideoId = event.params.videoId;
+		const toReap = keepCandidates
+			.slice(KEEP_COUNT)
+			.filter((video) => video.id !== triggerVideoId);
 
 		if (toReap.length === 0) {
 			logger.info('reaper: within budget — no deletions', {
@@ -104,7 +107,7 @@ export const onDiveVideoCreated = onDocumentCreated(
 
 		await db.collection('reaperAudit').add({
 			ownerId,
-			triggeredByVideoId: event.params.videoId,
+			triggeredByVideoId: triggerVideoId,
 			reapedAt: FieldValue.serverTimestamp(),
 			dryRun,
 			keepCount: KEEP_COUNT,
@@ -116,6 +119,7 @@ export const onDiveVideoCreated = onDocumentCreated(
 
 		logger.info('reaper: complete', {
 			ownerId,
+			triggeredByVideoId: triggerVideoId,
 			dryRun,
 			reapedCount: reaped.length
 		});

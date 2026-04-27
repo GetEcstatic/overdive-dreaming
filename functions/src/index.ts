@@ -2,7 +2,7 @@
  * Overdive Dreaming — Cloud Functions entrypoint.
  *
  * Functions:
- *   - onDiveVideoCreated: retention reaper (keeps 5 newest non-pinned per owner).
+ *   - onDiveVideoCreated: retention reaper (keeps 20 newest non-pinned per owner).
  *
  * Deploy: `npm run deploy` from this directory (after `firebase login`).
  *

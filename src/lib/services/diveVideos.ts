@@ -250,10 +250,10 @@ export async function deleteDiveVideo(video: DiveVideo): Promise<void> {
 /**
  * Client-side retention reaper.
  *
- * Keeps the 5 most recent `retentionTier === 'keep-last-5'` videos for the
+ * Keeps the 20 most recent `retentionTier === 'keep-last-5'` videos for the
  * given owner and deletes the rest (Firestore doc + Storage blobs). Videos
  * with `retentionTier === 'pinned'` are always preserved and do NOT count
- * against the 5-video budget.
+ * against the 20-video budget.
  *
  * Returns the list of video ids that were reaped.
  *
@@ -266,11 +266,15 @@ export async function deleteDiveVideo(video: DiveVideo): Promise<void> {
  */
 export async function reapOwnedDiveVideos(
 	ownerId: string,
-	keepCount = 5
+	keepCount = 20,
+	protectedVideoIds: string[] = []
 ): Promise<string[]> {
 	const all = await listOwnedDiveVideos(ownerId, 100);
+	const protectedIds = new Set(protectedVideoIds);
 	const keepCandidates = all.filter((v) => v.retentionTier !== 'pinned');
-	const toReap = keepCandidates.slice(keepCount);
+	const toReap = keepCandidates
+		.slice(keepCount)
+		.filter((video) => !protectedIds.has(video.id));
 	const reapedIds: string[] = [];
 	for (const video of toReap) {
 		try {

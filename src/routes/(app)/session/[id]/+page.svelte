@@ -10,7 +10,7 @@
 	import { formatTime } from '$lib/utils/time';
 	import { getYouTubeEmbedUrl, deleteSessionPhoto, deleteBiometricCsv } from '$lib/storage';
 	import { format } from 'date-fns';
-	import { updateRoutineLog, deleteRoutineLog, deleteSessionByGroup } from '$lib/firestore';
+	import { updateRoutineLog, deleteRoutineLog } from '$lib/firestore';
 	import { recalculatePBsForDisciplines } from '$lib/utils/personalBests';
 	import { clearDashboardCache } from '$lib/utils/dashboardCache';
 	import { shareCard, downloadShareCard } from '$lib/utils/shareCard';
@@ -162,22 +162,10 @@
 		deleteError = null;
 
 		try {
-			let photoUrls: string[] = [];
-			let disciplines: Discipline[] = [];
+			const photoUrls = log.photoUrl ? [log.photoUrl] : [];
+			const disciplines: Discipline[] = log.disciplineUsed ? [log.disciplineUsed] : [];
 
-			if (log.sessionGroup) {
-				// Delete all routine logs in this session group
-				const result = await deleteSessionByGroup($user.uid, log.sessionGroup);
-				photoUrls = result.photoUrls;
-				disciplines = result.disciplines;
-			} else {
-				// Fallback for legacy logs without sessionGroup
-				if (log.photoUrl) {
-					photoUrls = [log.photoUrl];
-				}
-				disciplines = log.disciplineUsed ? [log.disciplineUsed] : [];
-				await deleteRoutineLog(log.id);
-			}
+			await deleteRoutineLog(log.id);
 
 			// Clean up photos from storage
 			for (const photoUrl of photoUrls) {
@@ -211,8 +199,8 @@
 			clearDashboardCache($user.uid);
 			goto('/dashboard');
 		} catch (err) {
-			console.error('Failed to delete session:', err);
-			deleteError = 'Failed to delete session. Please try again.';
+			console.error('Failed to delete routine:', err);
+			deleteError = 'Failed to delete routine. Please try again.';
 			isDeleting = false;
 		}
 	}
@@ -766,9 +754,9 @@
 		tabindex="-1"
 	>
 		<div class="modal-content" onclick={(e) => e.stopPropagation()}>
-			<h2 class="modal-title" id="delete-dialog-title">Delete Session?</h2>
+			<h2 class="modal-title" id="delete-dialog-title">Delete Routine?</h2>
 			<p class="modal-message">
-				This will permanently delete this session and all associated data. This action cannot be undone.
+				This will permanently delete this saved routine and its associated data. This action cannot be undone.
 			</p>
 
 			{#if deleteError}

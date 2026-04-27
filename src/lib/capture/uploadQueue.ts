@@ -10,6 +10,7 @@
 
 import { Timestamp } from 'firebase/firestore';
 import type { DiveVideoFormData } from '$lib/types';
+import { logUploadDiagnostic } from './uploadDiagnostics';
 
 const DB_NAME = 'overdive-upload-queue';
 const DB_VERSION = 1;
@@ -22,22 +23,35 @@ const STORE = 'pending-videos';
  * JSON-shaped data here and reconstruct on read.
  */
 function serializeMetadata(metadata: DiveVideoFormData): Record<string, unknown> {
-	const plain = JSON.parse(
-		JSON.stringify(metadata, (_key, value) => {
-			if (value instanceof Timestamp) {
-				return { __ts: true, seconds: value.seconds, nanoseconds: value.nanoseconds };
+	const serialize = (value: unknown): unknown => {
+		if (value instanceof Timestamp) {
+			return { __ts: true, seconds: value.seconds, nanoseconds: value.nanoseconds };
+		}
+		if (Array.isArray(value)) {
+			return value.map((item) => serialize(item) ?? null);
+		}
+		if (value && typeof value === 'object') {
+			const out: Record<string, unknown> = {};
+			for (const [key, nested] of Object.entries(value)) {
+				const serialized = serialize(nested);
+				if (serialized !== undefined) out[key] = serialized;
 			}
-			return value;
-		})
-	);
-	return plain;
+			return out;
+		}
+		return value;
+	};
+	return serialize(metadata) as Record<string, unknown>;
 }
 
 function deserializeMetadata(plain: Record<string, unknown>): DiveVideoFormData {
 	const revive = (val: unknown): unknown => {
 		if (val && typeof val === 'object') {
 			const obj = val as Record<string, unknown>;
-			if (obj.__ts === true && typeof obj.seconds === 'number' && typeof obj.nanoseconds === 'number') {
+			if (
+				(obj.__ts === true || obj.type === 'firestore/timestamp/1.0') &&
+				typeof obj.seconds === 'number' &&
+				typeof obj.nanoseconds === 'number'
+			) {
 				return new Timestamp(obj.seconds, obj.nanoseconds);
 			}
 			if (Array.isArray(val)) return val.map(revive);
@@ -58,6 +72,10 @@ export interface PendingUpload {
 	mimeType: string;
 	sizeBytes: number;
 	metadata: DiveVideoFormData;
+	/** Firestore diveVideos id once created. Reused on retry. */
+	remoteVideoId?: string;
+	/** Storage path the blob is expected to upload to once a remote id exists. */
+	intendedStoragePath?: string;
 	/** Last upload attempt error message, if any. */
 	lastError?: string;
 	attempts: number;
@@ -94,6 +112,18 @@ export async function enqueueUpload(
 	blob: Blob,
 	metadata: DiveVideoFormData
 ): Promise<PendingUpload> {
+	logUploadDiagnostic({
+		level: 'info',
+		step: 'enqueue:start',
+		message: 'Writing video blob to IndexedDB queue',
+		details: {
+			sizeBytes: blob.size,
+			mimeType: metadata.mimeType,
+			sessionId: metadata.sessionId,
+			ownerId: metadata.ownerId,
+			discipline: metadata.discipline
+		}
+	});
 	const db = await openDb();
 	// IndexedDB uses structuredClone, which rejects class instances (Firestore
 	// `Timestamp`) and some reactive proxies. Store a plain-JSON shape.
@@ -130,10 +160,24 @@ export async function enqueueUpload(
 	});
 	db.close();
 	if (!persisted) {
+		logUploadDiagnostic({
+			level: 'error',
+			step: 'enqueue:verify',
+			message: 'IndexedDB write did not survive readback',
+			localId: storedEntry.localId,
+			details: { sizeBytes: blob.size, mimeType: metadata.mimeType }
+		});
 		throw new Error(
 			'Could not persist upload to local storage. Browser storage may be full or restricted (private browsing / disabled site data).'
 		);
 	}
+	logUploadDiagnostic({
+		level: 'info',
+		step: 'enqueue:complete',
+		message: 'Video blob persisted to IndexedDB queue',
+		localId: storedEntry.localId,
+		details: { sizeBytes: blob.size, mimeType: metadata.mimeType }
+	});
 	return {
 		localId: storedEntry.localId,
 		createdAt: storedEntry.createdAt,
@@ -212,31 +256,75 @@ export async function listPendingUploads(): Promise<PendingUpload[]> {
 export async function removePendingUpload(localId: string): Promise<void> {
 	const db = await openDb();
 	await new Promise<void>((resolve, reject) => {
-		const req = tx(db, 'readwrite').delete(localId);
-		req.onsuccess = () => resolve();
+		const writeTx = db.transaction(STORE, 'readwrite');
+		const req = writeTx.objectStore(STORE).delete(localId);
 		req.onerror = () => reject(req.error);
+		writeTx.oncomplete = () => resolve();
+		writeTx.onerror = () => reject(writeTx.error);
+		writeTx.onabort = () =>
+			reject(writeTx.error ?? new Error('IndexedDB transaction aborted'));
 	});
 	db.close();
+	logUploadDiagnostic({
+		level: 'info',
+		step: 'queue:remove',
+		message: 'Removed uploaded item from IndexedDB queue',
+		localId
+	});
 }
 
 export async function markAttempt(localId: string, error?: string): Promise<void> {
 	const db = await openDb();
 	await new Promise<void>((resolve, reject) => {
-		const store = tx(db, 'readwrite');
+		const writeTx = db.transaction(STORE, 'readwrite');
+		const store = writeTx.objectStore(STORE);
 		const getReq = store.get(localId);
 		getReq.onsuccess = () => {
 			const entry = getReq.result as PendingUpload | undefined;
 			if (!entry) {
-				resolve();
 				return;
 			}
 			entry.attempts += 1;
 			entry.lastError = error;
 			const putReq = store.put(entry);
-			putReq.onsuccess = () => resolve();
 			putReq.onerror = () => reject(putReq.error);
 		};
 		getReq.onerror = () => reject(getReq.error);
+		writeTx.oncomplete = () => resolve();
+		writeTx.onerror = () => reject(writeTx.error);
+		writeTx.onabort = () =>
+			reject(writeTx.error ?? new Error('IndexedDB transaction aborted'));
+	});
+	db.close();
+	logUploadDiagnostic({
+		level: 'warn',
+		step: 'queue:attempt',
+		message: 'Recorded failed upload attempt',
+		localId,
+		details: { error }
+	});
+}
+
+export async function updatePendingUpload(
+	localId: string,
+	patch: Partial<Pick<PendingUpload, 'remoteVideoId' | 'intendedStoragePath' | 'lastError'>>
+): Promise<void> {
+	const db = await openDb();
+	await new Promise<void>((resolve, reject) => {
+		const writeTx = db.transaction(STORE, 'readwrite');
+		const store = writeTx.objectStore(STORE);
+		const getReq = store.get(localId);
+		getReq.onsuccess = () => {
+			const entry = getReq.result as PendingUpload | undefined;
+			if (!entry) return;
+			const putReq = store.put({ ...entry, ...patch });
+			putReq.onerror = () => reject(putReq.error);
+		};
+		getReq.onerror = () => reject(getReq.error);
+		writeTx.oncomplete = () => resolve();
+		writeTx.onerror = () => reject(writeTx.error);
+		writeTx.onabort = () =>
+			reject(writeTx.error ?? new Error('IndexedDB transaction aborted'));
 	});
 	db.close();
 }

@@ -63,7 +63,7 @@ End dive is a **tap-and-hold** button: press and hold for 0.5 s to finalize (the
 ### 7. Review and fill in details
 - **Pool length** — defaults to 25 m; adjust if needed.
 - **Discipline** — DYN (with fins), DYNB (bifins), or DNF (no fins).
-- **Pin this dive** — check to keep it beyond the 5-most-recent cap.
+- **Pin this dive** — check to keep it beyond the 20-most-recent cap.
 - **Gift this dive to…** — pick the athlete (defaults to yourself). The athlete will see it on their session too.
 
 ### 8. Save
@@ -75,7 +75,7 @@ Open the session; the video appears under the routine log / dive entry. In-app p
 ## Tips and Limits
 
 - **Keep the screen awake.** The app uses the Wake Lock API, but avoid backgrounding the app for long periods.
-- **Retention.** Only the 5 most recent non-pinned videos are retained per user. Pin important dives.
+- **Retention.** Only the 20 most recent non-pinned videos are retained per user. Pin important dives.
 - **Timeline is forever.** Splits, distance and other timeline data stay in Firestore even after a video is reaped from Storage.
 - **Sample stream.** While the dive is in progress, a 1 Hz position sample is recorded alongside wall/split taps, so replay HUDs (cumulative distance, live speed) follow the real recorded values instead of re-interpolating from laps. Legacy clips (pre-v2) still render via lap-based fallback.
 - **Flaky Wi-Fi is fine.** If an upload stalls, it resumes automatically the next time the app is online — no re-record needed.
