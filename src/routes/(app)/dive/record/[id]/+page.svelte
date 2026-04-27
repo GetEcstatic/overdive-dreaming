@@ -74,6 +74,30 @@
 	let resolution = $state<DiveVideoResolution>('720p');
 	let cameraPreference = $state<CameraPreference>(AUTO_REAR_CAMERA);
 	let cameraOptions = $state<CameraDeviceOption[]>([]);
+
+	function setupCameraOptions(): CameraDeviceOption[] {
+		const reliable = cameraOptions.filter((option) => option.confidence !== 'unknown');
+		const preference = cameraPreference;
+		if (
+			preference.kind === 'device' &&
+			preference.label &&
+			!/^Camera\s+\d+$/i.test(preference.label) &&
+			!reliable.some((option) => option.id === preference.deviceId)
+		) {
+			return [
+				{
+					id: preference.deviceId,
+					label: preference.label,
+					rawLabel: 'Saved camera preference',
+					kind: 'videoinput',
+					facing: 'unknown',
+					confidence: 'inferred-label'
+				},
+				...reliable
+			];
+		}
+		return reliable;
+	}
 	let resolutionLoaded = $state(false);
 	/**
 	 * Quick-start state.
@@ -459,12 +483,13 @@
 
 					<div class="field">
 						<span class="field-label">Camera</span>
-						<CameraSelector
-							bind:value={cameraPreference}
-							options={cameraOptions}
-							compact
-						/>
-					</div>
+							<CameraSelector
+								bind:value={cameraPreference}
+								options={setupCameraOptions()}
+								compact
+								emptyMessage="Exact lens choices appear on the recorder screen after camera permission is granted."
+							/>
+						</div>
 
 					<div class="field">
 						<NumberWheelInput

@@ -13,6 +13,7 @@
 		activeDeviceId?: string;
 		disabled?: boolean;
 		compact?: boolean;
+		emptyMessage?: string;
 		onChange?: (preference: CameraPreference) => void;
 	}
 
@@ -22,6 +23,7 @@
 		activeDeviceId,
 		disabled = false,
 		compact = false,
+		emptyMessage = 'Specific cameras will appear after camera permission is granted.',
 		onChange
 	}: Props = $props();
 
@@ -76,7 +78,7 @@
 	</div>
 
 	{#if options.length === 0}
-		<p class="empty">Specific cameras will appear after camera permission is granted.</p>
+		<p class="empty">{emptyMessage}</p>
 	{/if}
 </div>
 

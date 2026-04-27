@@ -509,13 +509,6 @@
 		<video bind:this={videoEl} muted playsinline autoplay></video>
 
 		<div class="hud hud-top">
-			{#if rs.phase === 'ready'}
-				<button class="camera-pill" type="button" onclick={() => (showCameraSheet = true)}>
-					{activeCameraLabel}
-				</button>
-			{:else if rs.phase !== 'arming' && rs.phase !== 'error'}
-				<div class="camera-pill readonly">{activeCameraLabel}</div>
-			{/if}
 			<div class="hud-row">
 				<div class="hud-cell">
 					<div class="hud-label">Time</div>
@@ -543,11 +536,21 @@
 						Surface protocol
 					{:else if rs.phase === 'prepping'}
 						Tap “Start dive” when leaving the wall
-					{:else}
-						{waypointsPerLap} waypoints/lap · step {formatMeters(spacing)} m
-					{/if}
+				{:else}
+					{waypointsPerLap} waypoints/lap · step {formatMeters(spacing)} m
+				{/if}
 				</span>
 			</div>
+		</div>
+
+		<div class="camera-control">
+			{#if rs.phase === 'ready'}
+				<button class="camera-pill" type="button" onclick={() => (showCameraSheet = true)}>
+					{activeCameraLabel}
+				</button>
+			{:else if rs.phase !== 'arming' && rs.phase !== 'error'}
+				<div class="camera-pill readonly">{activeCameraLabel}</div>
+			{/if}
 			{#if cameraMessage && rs.phase === 'ready'}
 				<div class="camera-message">{cameraMessage}</div>
 			{/if}
@@ -714,10 +717,17 @@
 	.hud-top {
 		top: max(0.75rem, env(safe-area-inset-top));
 	}
-	.camera-pill {
+	.camera-control {
 		position: absolute;
-		top: 0.45rem;
-		right: 0.55rem;
+		top: max(0.75rem, env(safe-area-inset-top));
+		right: max(0.75rem, env(safe-area-inset-right));
+		z-index: 4;
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 0.25rem;
+	}
+	.camera-pill {
 		max-width: 12rem;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -737,7 +747,6 @@
 		opacity: 0.75;
 	}
 	.camera-message {
-		margin-top: 0.25rem;
 		color: #fef3c7;
 		font-size: 0.72rem;
 		text-align: right;
@@ -1027,9 +1036,11 @@
 			max-width: 60%;
 			padding: 0.45rem 0.7rem;
 		}
+		.camera-control {
+			top: max(0.5rem, env(safe-area-inset-top));
+			right: 0.5rem;
+		}
 		.camera-pill {
-			top: 0.35rem;
-			right: 0.45rem;
 			font-size: 0.64rem;
 			max-width: 9rem;
 		}
