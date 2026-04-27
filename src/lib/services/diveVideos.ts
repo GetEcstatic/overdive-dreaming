@@ -307,6 +307,9 @@ export function buildDiveVideoFormData(args: {
 	resolutionPreset: DiveVideo['resolutionPreset'];
 	timeline: DiveVideo['timeline'];
 	deviceLabel?: string;
+	cameraDeviceId?: string;
+	cameraPreference?: DiveVideo['cameraPreference'];
+	cameraFacing?: DiveVideo['cameraFacing'];
 	routineLogId?: string;
 	diveId?: string;
 }): DiveVideoFormData {
@@ -329,6 +332,9 @@ export function buildDiveVideoFormData(args: {
 		recordedAt: Timestamp.now(),
 		poolLength: args.poolLength,
 		deviceLabel: args.deviceLabel,
+		cameraDeviceId: args.cameraDeviceId,
+		cameraPreference: args.cameraPreference,
+		cameraFacing: args.cameraFacing,
 		orientation: 'portrait',
 		aspectRatio: '9:16',
 		resolutionPreset: args.resolutionPreset,

@@ -12,7 +12,8 @@
 import type {
 	DiveTimeline,
 	DiveVideoDiscipline,
-	DiveVideoResolution
+	DiveVideoResolution,
+	CameraPreference
 } from '$lib/types';
 import {
 	appendLap,
@@ -43,6 +44,7 @@ export interface RecorderConfig {
 	resolution: DiveVideoResolution;
 	/** Metres of over-run past the next waypoint before auto-advance. */
 	autoAdvanceThresholdM: number;
+	cameraPreference: CameraPreference;
 }
 
 export interface RecorderClocks {

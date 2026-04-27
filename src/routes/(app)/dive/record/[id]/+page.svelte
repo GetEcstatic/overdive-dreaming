@@ -14,15 +14,27 @@
 	import { user } from '$lib/stores/auth';
 	import DiveRecorder from '$lib/components/DiveRecorder.svelte';
 	import AthletePicker from '$lib/components/AthletePicker.svelte';
+	import CameraSelector from '$lib/components/CameraSelector.svelte';
 	import NumberWheelInput from '$lib/components/NumberWheelInput.svelte';
 	import { buildDiveVideoFormData, listDiveVideosForSession } from '$lib/services/diveVideos';
+	import {
+		AUTO_REAR_CAMERA,
+		enumerateCameraDevices,
+		type CameraDeviceOption
+	} from '$lib/capture/cameraDevices';
 	import { canWriteToIndexedDB, enqueueUpload } from '$lib/capture/uploadQueue';
 	import { drainUploadQueue } from '$lib/capture/uploadProcessor';
 	import { logUploadDiagnostic } from '$lib/capture/uploadDiagnostics';
 	import { summariseTimeline, totalDistanceM } from '$lib/capture/timeline';
 	import { getUserSettings, updateUserSettings } from '$lib/firestore';
 	import { diveRecording } from '$lib/stores/videoPlayback';
-	import type { DiveTimeline, DiveVideoDiscipline, DiveVideoResolution } from '$lib/types';
+	import type {
+		CameraFacing,
+		CameraPreference,
+		DiveTimeline,
+		DiveVideoDiscipline,
+		DiveVideoResolution
+	} from '$lib/types';
 
 	const sessionId = $derived($page.params.id ?? '');
 
@@ -34,6 +46,9 @@
 		heightPx: number;
 		durationSeconds: number;
 		deviceLabel?: string;
+		cameraDeviceId?: string;
+		cameraPreference: CameraPreference;
+		cameraFacing?: CameraFacing;
 		timeline: DiveTimeline;
 	}
 
@@ -57,6 +72,8 @@
 	let waypointsPerLap = $state<number | undefined>(2);
 	let discipline = $state<DiveVideoDiscipline>('DYN');
 	let resolution = $state<DiveVideoResolution>('720p');
+	let cameraPreference = $state<CameraPreference>(AUTO_REAR_CAMERA);
+	let cameraOptions = $state<CameraDeviceOption[]>([]);
 	let resolutionLoaded = $state(false);
 	/**
 	 * Quick-start state.
@@ -105,6 +122,10 @@
 				}
 				if (settings?.defaultDiscipline) {
 					discipline = settings.defaultDiscipline;
+					gotAnyDefault = true;
+				}
+				if (settings?.defaultCameraPreference) {
+					cameraPreference = settings.defaultCameraPreference;
 					gotAnyDefault = true;
 				}
 				if (gotAnyDefault) hasQuickStart = true;
@@ -179,7 +200,10 @@
 				durationSeconds: capture.durationSeconds,
 				resolutionPreset: resolution,
 				timeline: capture.timeline,
-				deviceLabel: capture.deviceLabel
+				deviceLabel: capture.deviceLabel,
+				cameraDeviceId: capture.cameraDeviceId,
+				cameraPreference: capture.cameraPreference,
+				cameraFacing: capture.cameraFacing
 			});
 			if (pinned) metadata.retentionTier = 'pinned';
 			const pending = await enqueueUpload(capture.blob, metadata);
@@ -265,7 +289,8 @@
 				updateUserSettings(uid, {
 					defaultPoolLength: poolLength,
 					defaultWaypointsPerLap: waypointsPerLap,
-					defaultDiscipline: discipline
+					defaultDiscipline: discipline,
+					defaultCameraPreference: cameraPreference
 				}).catch((err) => {
 					// eslint-disable-next-line no-console
 					console.warn('[dive-record] could not save recorder defaults', err);
@@ -328,6 +353,13 @@
 		canWriteToIndexedDB().then((ok) => {
 			storageHealthy = ok;
 		});
+		enumerateCameraDevices()
+			.then((options) => {
+				cameraOptions = options;
+			})
+			.catch(() => {
+				cameraOptions = [];
+			});
 
 		return () => {
 			document.removeEventListener('gesturestart', prevent);
@@ -426,6 +458,15 @@
 					</div>
 
 					<div class="field">
+						<span class="field-label">Camera</span>
+						<CameraSelector
+							bind:value={cameraPreference}
+							options={cameraOptions}
+							compact
+						/>
+					</div>
+
+					<div class="field">
 						<NumberWheelInput
 							bind:value={waypointsPerLap}
 							variant="chip"
@@ -471,6 +512,8 @@
 		waypointsPerLap={waypointsPerLap ?? 2}
 		{resolution}
 		{discipline}
+		{cameraPreference}
+		onCameraPreferenceResolved={(preference) => (cameraPreference = preference)}
 		onCapture={onCaptured}
 		onCancel={() => (stage = 'setup')}
 	/>

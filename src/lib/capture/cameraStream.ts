@@ -17,12 +17,14 @@
  * See docs/Dynamic video feature.md §3.1 and §9.
  */
 
-import type { DiveVideoResolution } from '$lib/types';
+import type { CameraFacing, DiveVideoResolution } from '$lib/types';
 
 export interface CameraStreamOptions {
 	resolution: DiveVideoResolution;
 	/** Prefer the rear camera (environment). */
 	facingMode?: 'environment' | 'user';
+	/** Exact camera device id. Takes precedence over facingMode when present. */
+	deviceId?: string;
 	/** Include audio track (default true — coaches narrate dives). */
 	withAudio?: boolean;
 }
@@ -32,7 +34,9 @@ export interface AcquiredStream {
 	/** Actual resolution returned by the browser after constraints negotiation. */
 	actualWidth: number;
 	actualHeight: number;
+	deviceId?: string;
 	deviceLabel?: string;
+	facingMode?: CameraFacing;
 }
 
 /**
@@ -46,15 +50,34 @@ export function constraintsFor(
 			? { width: { ideal: 1920 }, height: { ideal: 1080 } }
 			: { width: { ideal: 1280 }, height: { ideal: 720 } };
 
+	const video: MediaTrackConstraints = {
+		frameRate: { ideal: 30, max: 30 },
+		aspectRatio: { ideal: 16 / 9 },
+		...landscapeFrame
+	};
+
+	if (options.deviceId) {
+		video.deviceId = { exact: options.deviceId };
+	} else {
+		video.facingMode = { ideal: options.facingMode ?? 'environment' };
+	}
+
 	return {
-		video: {
-			facingMode: { ideal: options.facingMode ?? 'environment' },
-			frameRate: { ideal: 30, max: 30 },
-			aspectRatio: { ideal: 16 / 9 },
-			...landscapeFrame
-		},
+		video,
 		audio: options.withAudio ?? true
 	};
+}
+
+function normalizeFacingMode(value: unknown): CameraFacing | undefined {
+	if (value === 'environment') return 'rear';
+	if (value === 'user') return 'front';
+	if (typeof value === 'string') return 'unknown';
+	return undefined;
+}
+
+export function isExactDeviceFailure(err: unknown): boolean {
+	if (!(err instanceof DOMException)) return false;
+	return err.name === 'OverconstrainedError' || err.name === 'NotFoundError';
 }
 
 export async function acquireCameraStream(
@@ -72,7 +95,9 @@ export async function acquireCameraStream(
 		stream,
 		actualWidth: settings.width ?? 0,
 		actualHeight: settings.height ?? 0,
-		deviceLabel: track.label
+		deviceId: settings.deviceId,
+		deviceLabel: track.label,
+		facingMode: normalizeFacingMode(settings.facingMode)
 	};
 }
 

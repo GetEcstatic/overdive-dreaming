@@ -127,13 +127,11 @@ export function createPlaceholderRoutine(routineId: string): RoutineTemplate {
 		tags: [],
 		trackingConfig: {
 			trackRPE: false,
-			trackJoy: false,
-			trackSpO2: false,
-			trackHeartRate: false
-		},
+			trackJoyScale: false
+		} as RoutineTemplate['trackingConfig'],
 		displayConfig: {
-			heroMetric: 'date',
-			heroMetricLabel: 'Date',
+			heroMetric: 'repsCompleted',
+			heroMetricLabel: 'Reps',
 			secondaryMetric: 'repsCompleted',
 			secondaryMetricLabel: 'Reps'
 		},

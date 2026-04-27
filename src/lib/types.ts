@@ -101,6 +101,12 @@ export interface PersonalBests {
 
 export type Gender = 'male' | 'female' | 'prefer-not-to-say';
 
+export type CameraFacing = 'rear' | 'front' | 'unknown';
+
+export type CameraPreference =
+	| { kind: 'auto-rear' }
+	| { kind: 'device'; deviceId: string; label?: string };
+
 export interface UserSettings {
 	defaultTimeframe?: '1month' | '6months' | '1year';
 	defaultAnalyticsFilter?: string;
@@ -120,6 +126,7 @@ export interface UserSettings {
 	defaultPoolLength?: number;
 	defaultWaypointsPerLap?: number;
 	defaultDiscipline?: 'DYN' | 'DYNB' | 'DNF';
+	defaultCameraPreference?: CameraPreference;
 }
 
 export interface User {
@@ -909,6 +916,9 @@ export interface DiveVideo {
 	recordedAt: Timestamp;
 	poolLength: number;         // meters (used to derive distance)
 	deviceLabel?: string;
+	cameraDeviceId?: string;
+	cameraPreference?: CameraPreference;
+	cameraFacing?: CameraFacing;
 	orientation: DiveVideoOrientation;
 	aspectRatio: DiveVideoAspectRatio;
 	resolutionPreset: DiveVideoResolution; // 720p default, 1080p opt-in

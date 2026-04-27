@@ -13,9 +13,18 @@
 	import { onDestroy, onMount } from 'svelte';
 	import {
 		acquireCameraStream,
+		isExactDeviceFailure,
 		stopStream,
 		type AcquiredStream
 	} from '$lib/capture/cameraStream';
+	import CameraSelector from '$lib/components/CameraSelector.svelte';
+	import {
+		AUTO_REAR_CAMERA,
+		cameraPreferenceLabel,
+		classifyCameraLabel,
+		enumerateCameraDevices,
+		type CameraDeviceOption
+	} from '$lib/capture/cameraDevices';
 	import { createRecorder, type RecorderHandle } from '$lib/capture/recorder';
 	import { requestWakeLock, type WakeLockHandle } from '$lib/capture/wakeLock';
 	import { finalizeTimeline, summariseTimeline } from '$lib/capture/timeline';
@@ -39,6 +48,8 @@
 		type ButtonSpec
 	} from '$lib/capture/recorderSelectors';
 	import type {
+		CameraFacing,
+		CameraPreference,
 		DiveTimeline,
 		DiveVideoDiscipline,
 		DiveVideoResolution
@@ -52,6 +63,9 @@
 		heightPx: number;
 		durationSeconds: number;
 		deviceLabel?: string;
+		cameraDeviceId?: string;
+		cameraPreference: CameraPreference;
+		cameraFacing?: CameraFacing;
 		timeline: DiveTimeline;
 	}
 
@@ -60,9 +74,11 @@
 		waypointsPerLap?: number;
 		resolution?: DiveVideoResolution;
 		discipline?: DiveVideoDiscipline;
+		cameraPreference?: CameraPreference;
 		autoAdvanceThresholdM?: number;
 		onCapture: (result: CaptureResult) => void;
 		onCancel?: () => void;
+		onCameraPreferenceResolved?: (preference: CameraPreference) => void;
 	}
 
 	let {
@@ -70,27 +86,41 @@
 		waypointsPerLap = 2,
 		resolution = '720p',
 		discipline = 'DYN',
+		cameraPreference = AUTO_REAR_CAMERA,
 		autoAdvanceThresholdM = 10,
 		onCapture,
-		onCancel
+		onCancel,
+		onCameraPreferenceResolved
 	}: Props = $props();
 
-	const config: RecorderConfig = {
-		poolLengthM: poolLength,
-		waypointsPerLap,
-		discipline,
-		resolution,
-		autoAdvanceThresholdM
-	};
+	function initialCameraPreference(): CameraPreference {
+		return cameraPreference;
+	}
 
-	let rs: RecorderState = $state(initialRecorderState(config));
+	function initialConfig(): RecorderConfig {
+		return {
+			poolLengthM: poolLength,
+			waypointsPerLap,
+			discipline,
+			resolution,
+			autoAdvanceThresholdM,
+			cameraPreference: selectedCamera
+		};
+	}
+
+	let selectedCamera = $state<CameraPreference>(initialCameraPreference());
+	let cameraOptions = $state<CameraDeviceOption[]>([]);
+	let showCameraSheet = $state(false);
+	let cameraMessage = $state<string | null>(null);
+
+	let rs: RecorderState = $state(initialRecorderState(initialConfig()));
 	function dispatch(event: RecorderEvent): void {
 		rs = recorderReducer(rs, event);
 	}
 
 	// Imperative handles (edges of the system).
 	let videoEl: HTMLVideoElement;
-	let acquired: AcquiredStream | null = null;
+	let acquired = $state<AcquiredStream | null>(null);
 	let recorder: RecorderHandle | null = null;
 	let wakeLock: WakeLockHandle | null = null;
 
@@ -105,6 +135,11 @@
 	const nextM = $derived(nextWaypointM(rs));
 	const lapCount = $derived(waypointCount(rs));
 	const spacing = $derived(waypointSpacingM(rs.config));
+	const activeCameraLabel = $derived(
+		acquired?.deviceLabel
+			? classifyCameraLabel(acquired.deviceLabel).displayLabel
+			: cameraPreferenceLabel(selectedCamera)
+	);
 
 	function formatMs(ms: number): string {
 		const totalSecs = Math.floor(ms / 1000);
@@ -120,22 +155,74 @@
 		return Number.isInteger(m) ? `${m}` : m.toFixed(1);
 	}
 
-	async function arm(): Promise<void> {
+	async function refreshCameraOptions(): Promise<void> {
+		try {
+			cameraOptions = await enumerateCameraDevices();
+		} catch {
+			cameraOptions = [];
+		}
+	}
+
+	async function acquireForPreference(
+		preference: CameraPreference
+	): Promise<{ stream: AcquiredStream; preference: CameraPreference; message?: string }> {
+		try {
+			const stream = await acquireCameraStream({
+				resolution,
+				facingMode: 'environment',
+				deviceId: preference.kind === 'device' ? preference.deviceId : undefined
+			});
+			return { stream, preference };
+		} catch (err) {
+			if (preference.kind === 'device' && isExactDeviceFailure(err)) {
+				const stream = await acquireCameraStream({
+					resolution,
+					facingMode: 'environment'
+				});
+				return {
+					stream,
+					preference: AUTO_REAR_CAMERA,
+					message: 'Using Auto rear instead'
+				};
+			}
+			throw err;
+		}
+	}
+
+	async function bindAcquiredStream(stream: AcquiredStream): Promise<void> {
+		if (videoEl) {
+			videoEl.srcObject = stream.stream;
+			await videoEl.play().catch(() => undefined);
+		}
+	}
+
+	async function arm(preference: CameraPreference = selectedCamera): Promise<void> {
 		dispatch({ type: 'arm/started' });
 		try {
-			acquired = await acquireCameraStream({
-				resolution,
-				facingMode: 'environment'
+			const previous = acquired;
+			const result = await acquireForPreference(preference);
+			acquired = result.stream;
+			selectedCamera = result.preference;
+			rs = recorderReducer(rs, {
+				type: 'config/updated',
+				patch: { cameraPreference: result.preference }
 			});
-			if (videoEl) {
-				videoEl.srcObject = acquired.stream;
-				await videoEl.play().catch(() => undefined);
-			}
+			await bindAcquiredStream(acquired);
+			stopStream(previous?.stream);
+			cameraMessage = result.message ?? null;
+			onCameraPreferenceResolved?.(result.preference);
+			await refreshCameraOptions();
 			dispatch({ type: 'arm/succeeded' });
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
 			dispatch({ type: 'arm/failed', message });
 		}
+	}
+
+	async function switchCamera(preference: CameraPreference): Promise<void> {
+		if (rs.phase !== 'ready') return;
+		showCameraSheet = false;
+		await arm(preference);
 	}
 
 	function startTicking(): void {
@@ -298,6 +385,9 @@
 				heightPx,
 				durationSeconds,
 				deviceLabel: acquired?.deviceLabel,
+				cameraDeviceId: acquired?.deviceId,
+				cameraPreference: selectedCamera,
+				cameraFacing: acquired?.facingMode,
 				timeline: finalTimeline
 			});
 		} catch (err) {
@@ -419,6 +509,13 @@
 		<video bind:this={videoEl} muted playsinline autoplay></video>
 
 		<div class="hud hud-top">
+			{#if rs.phase === 'ready'}
+				<button class="camera-pill" type="button" onclick={() => (showCameraSheet = true)}>
+					{activeCameraLabel}
+				</button>
+			{:else if rs.phase !== 'arming' && rs.phase !== 'error'}
+				<div class="camera-pill readonly">{activeCameraLabel}</div>
+			{/if}
 			<div class="hud-row">
 				<div class="hud-cell">
 					<div class="hud-label">Time</div>
@@ -451,6 +548,9 @@
 					{/if}
 				</span>
 			</div>
+			{#if cameraMessage && rs.phase === 'ready'}
+				<div class="camera-message">{cameraMessage}</div>
+			{/if}
 		</div>
 
 		{#if rs.autoAdvance}
@@ -476,7 +576,38 @@
 		{#if rs.phase === 'error' && rs.errorMessage}
 			<div class="overlay error">
 				<p>{rs.errorMessage}</p>
-				<button class="btn btn-primary" onclick={arm}>Retry</button>
+				<button class="btn btn-primary" onclick={() => arm()}>Retry</button>
+			</div>
+		{/if}
+
+		{#if showCameraSheet && rs.phase === 'ready'}
+			<div class="sheet-layer">
+				<button
+					type="button"
+					class="sheet-backdrop"
+					aria-label="Close camera selector"
+					onclick={() => (showCameraSheet = false)}
+				></button>
+				<div
+					class="camera-sheet"
+					role="dialog"
+					aria-modal="true"
+					aria-labelledby="camera-sheet-title"
+				>
+					<div class="sheet-header">
+						<h2 id="camera-sheet-title">Camera</h2>
+						<button type="button" class="sheet-close" onclick={() => (showCameraSheet = false)}>
+							×
+						</button>
+					</div>
+					<CameraSelector
+						bind:value={selectedCamera}
+						options={cameraOptions}
+						activeDeviceId={acquired?.deviceId}
+						compact
+						onChange={switchCamera}
+					/>
+				</div>
 			</div>
 		{/if}
 	</div>
@@ -583,6 +714,34 @@
 	.hud-top {
 		top: max(0.75rem, env(safe-area-inset-top));
 	}
+	.camera-pill {
+		position: absolute;
+		top: 0.45rem;
+		right: 0.55rem;
+		max-width: 12rem;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		border: 1px solid rgba(20, 184, 166, 0.4);
+		border-radius: 999px;
+		padding: 0.28rem 0.55rem;
+		background: rgba(15, 23, 42, 0.82);
+		color: #d1fae5;
+		font: inherit;
+		font-size: 0.72rem;
+		font-weight: 650;
+		pointer-events: auto;
+	}
+	.camera-pill.readonly {
+		pointer-events: none;
+		opacity: 0.75;
+	}
+	.camera-message {
+		margin-top: 0.25rem;
+		color: #fef3c7;
+		font-size: 0.72rem;
+		text-align: right;
+	}
 	.hud-row {
 		display: flex;
 		justify-content: space-between;
@@ -642,6 +801,57 @@
 	.overlay.error p {
 		color: #fca5a5;
 		text-align: center;
+	}
+	.sheet-layer {
+		position: absolute;
+		inset: 0;
+		z-index: 12;
+		display: flex;
+		align-items: flex-end;
+		justify-content: center;
+	}
+	.sheet-backdrop {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		border: 0;
+		padding: 0;
+		background: rgba(2, 6, 23, 0.55);
+		cursor: default;
+	}
+	.camera-sheet {
+		position: relative;
+		z-index: 1;
+		width: min(100%, 28rem);
+		max-height: min(80vh, 34rem);
+		overflow-y: auto;
+		padding: 1rem;
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		border-radius: 12px 12px 0 0;
+		background: rgba(15, 23, 42, 0.98);
+		box-shadow: 0 -18px 40px rgba(0, 0, 0, 0.35);
+	}
+	.sheet-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		margin-bottom: 0.8rem;
+	}
+	.sheet-header h2 {
+		margin: 0;
+		font-size: 1rem;
+	}
+	.sheet-close {
+		width: 2.2rem;
+		height: 2.2rem;
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		border-radius: 999px;
+		background: rgba(15, 23, 42, 0.85);
+		color: var(--color-text);
+		font: inherit;
+		font-size: 1.2rem;
+		cursor: pointer;
 	}
 	.overlay.orientation {
 		background: rgba(15, 23, 42, 0.92);
@@ -816,6 +1026,12 @@
 			right: auto;
 			max-width: 60%;
 			padding: 0.45rem 0.7rem;
+		}
+		.camera-pill {
+			top: 0.35rem;
+			right: 0.45rem;
+			font-size: 0.64rem;
+			max-width: 9rem;
 		}
 		.hud-value {
 			font-size: 1.25rem;

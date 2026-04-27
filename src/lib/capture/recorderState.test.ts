@@ -22,7 +22,8 @@ const CONFIG: RecorderConfig = {
 	waypointsPerLap: 2, // 12.5 m spacing
 	discipline: 'DYN',
 	resolution: '720p',
-	autoAdvanceThresholdM: 10
+	autoAdvanceThresholdM: 10,
+	cameraPreference: { kind: 'auto-rear' }
 };
 
 function arm(state: RecorderState): RecorderState {
