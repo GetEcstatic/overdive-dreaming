@@ -106,12 +106,34 @@ export async function enqueueUpload(
 		metadata: serializeMetadata(metadata),
 		attempts: 0
 	};
+	// Wait for the transaction to commit, not just for the add request to
+	// succeed — on iOS Safari a request can resolve inside a transaction that
+	// later silently aborts under quota/private-mode pressure, leaving no
+	// trace in the store.
+	const writeTx = db.transaction(STORE, 'readwrite');
+	const addReq = writeTx.objectStore(STORE).add(storedEntry);
 	await new Promise<void>((resolve, reject) => {
-		const req = tx(db, 'readwrite').add(storedEntry);
-		req.onsuccess = () => resolve();
-		req.onerror = () => reject(req.error);
+		addReq.onerror = () => reject(addReq.error);
+		writeTx.oncomplete = () => resolve();
+		writeTx.onerror = () => reject(writeTx.error);
+		writeTx.onabort = () =>
+			reject(writeTx.error ?? new Error('IndexedDB transaction aborted'));
+	});
+	// Read back in a fresh transaction to confirm persistence. If this comes
+	// back undefined the write didn't survive — surface that to the caller so
+	// the recorder can show a real error instead of a fake success.
+	const verifyTx = db.transaction(STORE, 'readonly');
+	const getReq = verifyTx.objectStore(STORE).get(storedEntry.localId);
+	const persisted = await new Promise<unknown>((resolve, reject) => {
+		getReq.onsuccess = () => resolve(getReq.result);
+		getReq.onerror = () => reject(getReq.error);
 	});
 	db.close();
+	if (!persisted) {
+		throw new Error(
+			'Could not persist upload to local storage. Browser storage may be full or restricted (private browsing / disabled site data).'
+		);
+	}
 	return {
 		localId: storedEntry.localId,
 		createdAt: storedEntry.createdAt,
@@ -121,6 +143,54 @@ export async function enqueueUpload(
 		metadata,
 		attempts: 0
 	};
+}
+
+/**
+ * One-shot health check for IndexedDB on this device. Writes a tiny throwaway
+ * blob, reads it back, deletes it, and reports whether the round trip
+ * survived a transaction commit. Used by the recorder to warn the user
+ * BEFORE they record on a device where storage is broken.
+ */
+export async function canWriteToIndexedDB(): Promise<boolean> {
+	const SMOKE_KEY = '__overdive_storage_smoketest__';
+	try {
+		const db = await openDb();
+		const testEntry = {
+			localId: SMOKE_KEY,
+			createdAt: Date.now(),
+			blob: new Blob(['ok'], { type: 'text/plain' }),
+			mimeType: 'text/plain',
+			sizeBytes: 2,
+			metadata: {} as Record<string, unknown>,
+			attempts: 0
+		};
+		const writeTx = db.transaction(STORE, 'readwrite');
+		writeTx.objectStore(STORE).put(testEntry);
+		await new Promise<void>((resolve, reject) => {
+			writeTx.oncomplete = () => resolve();
+			writeTx.onerror = () => reject(writeTx.error);
+			writeTx.onabort = () =>
+				reject(writeTx.error ?? new Error('IndexedDB transaction aborted'));
+		});
+		const readTx = db.transaction(STORE, 'readonly');
+		const getReq = readTx.objectStore(STORE).get(SMOKE_KEY);
+		const got = await new Promise<unknown>((resolve, reject) => {
+			getReq.onsuccess = () => resolve(getReq.result);
+			getReq.onerror = () => reject(getReq.error);
+		});
+		const cleanupTx = db.transaction(STORE, 'readwrite');
+		cleanupTx.objectStore(STORE).delete(SMOKE_KEY);
+		await new Promise<void>((resolve) => {
+			cleanupTx.oncomplete = () => resolve();
+			cleanupTx.onerror = () => resolve();
+			cleanupTx.onabort = () => resolve();
+		});
+		db.close();
+		return !!got;
+	} catch (err) {
+		console.warn('[uploadQueue] storage smoke test failed', err);
+		return false;
+	}
 }
 
 export async function listPendingUploads(): Promise<PendingUpload[]> {

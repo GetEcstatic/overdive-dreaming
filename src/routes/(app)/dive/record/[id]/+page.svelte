@@ -16,7 +16,7 @@
 	import AthletePicker from '$lib/components/AthletePicker.svelte';
 	import NumberWheelInput from '$lib/components/NumberWheelInput.svelte';
 	import { buildDiveVideoFormData, listDiveVideosForSession } from '$lib/services/diveVideos';
-	import { enqueueUpload } from '$lib/capture/uploadQueue';
+	import { canWriteToIndexedDB, enqueueUpload } from '$lib/capture/uploadQueue';
 	import { drainUploadQueue } from '$lib/capture/uploadProcessor';
 	import { summariseTimeline, totalDistanceM } from '$lib/capture/timeline';
 	import { getUserSettings, updateUserSettings } from '$lib/firestore';
@@ -72,6 +72,7 @@
 	let capture = $state<CaptureResult | null>(null);
 	let saveError = $state<string | null>(null);
 	let uploadProgress = $state(0);
+	let storageHealthy = $state<boolean | null>(null);
 
 	const waypointSpacing = $derived(
 		poolLength && waypointsPerLap ? poolLength / waypointsPerLap : 0
@@ -180,8 +181,16 @@
 				uploadProgress = p.fraction;
 			});
 
-			if (result.failed > 0 && result.uploaded === 0) {
-				const detail = result.errors[0] ?? 'unknown error';
+			// We just enqueued exactly one item, so `uploaded === 0` means our
+			// item didn't make it to Storage — either it failed (counted in
+			// `failed`), was skipped (past MAX_ATTEMPTS), or the queue was
+			// silently empty when drain ran. All three are user-visible failures.
+			if (result.uploaded === 0) {
+				const detail =
+					result.errors[0] ??
+					(result.skipped > 0
+						? 'queue items past retry limit — go to Profile › Pending video uploads to retry'
+						: 'upload did not run (browser storage may have rejected the queue write)');
 				throw new Error(
 					`Upload failed: ${detail}. The dive is saved locally and will retry when you reopen the app.`
 				);
@@ -271,6 +280,15 @@
 		const prevent = (e: Event) => e.preventDefault();
 		document.addEventListener('gesturestart', prevent);
 		document.addEventListener('gesturechange', prevent);
+
+		// Smoke-test IndexedDB writes BEFORE recording. iOS Safari has been
+		// observed silently dropping writes under quota / private mode, which
+		// causes the recorder to "save" but lose the blob. We surface that
+		// state on the setup screen so the user doesn't record into a void.
+		canWriteToIndexedDB().then((ok) => {
+			storageHealthy = ok;
+		});
+
 		return () => {
 			document.removeEventListener('gesturestart', prevent);
 			document.removeEventListener('gesturechange', prevent);
@@ -295,6 +313,18 @@
 					{/if}
 				</p>
 			</header>
+
+			{#if storageHealthy === false}
+				<div class="storage-warning" role="alert">
+					<strong>Browser storage check failed.</strong>
+					<p>
+						This device can't save uploads locally — recordings made now will
+						most likely be lost. Try closing private browsing, freeing up
+						space, or using a different device. If you record anyway, check
+						Profile › Pending video uploads after saving.
+					</p>
+				</div>
+			{/if}
 
 			{#if hasQuickStart && !quickStartExpanded && poolLength && waypointsPerLap}
 				<!-- Phase 1/2: one-tap quick-start. Big button uses saved defaults
@@ -684,5 +714,27 @@
 		text-decoration: underline;
 		cursor: pointer;
 		padding: 0.35rem 0.5rem;
+	}
+
+	.storage-warning {
+		background: rgba(248, 113, 113, 0.12);
+		border: 1px solid rgba(248, 113, 113, 0.4);
+		color: #fecaca;
+		border-radius: 12px;
+		padding: 0.85rem 1rem;
+		margin-bottom: 1rem;
+		font-size: 0.9rem;
+	}
+
+	.storage-warning strong {
+		display: block;
+		color: #fca5a5;
+		margin-bottom: 0.35rem;
+	}
+
+	.storage-warning p {
+		margin: 0;
+		font-size: 0.85rem;
+		line-height: 1.4;
 	}
 </style>

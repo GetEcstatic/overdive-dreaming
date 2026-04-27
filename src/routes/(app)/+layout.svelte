@@ -6,6 +6,7 @@
 	import { auth, authPersistenceReady } from '$lib/firebase';
 	import { onAuthStateChanged, getRedirectResult } from 'firebase/auth';
 	import BottomNav from '$lib/components/BottomNav.svelte';
+	import { drainUploadQueue, installOnlineDrainer } from '$lib/capture/uploadProcessor';
 
 	let mobileMenuOpen = $state(false);
 
@@ -49,7 +50,18 @@
 			}
 		});
 
-		return unsubscribe;
+		// Drain any pending video uploads left over from a previous session
+		// (network drop, app close mid-upload, etc.) and listen for the
+		// browser coming back online so we retry without user intervention.
+		const cleanupOnlineDrainer = installOnlineDrainer();
+		drainUploadQueue().catch((err) =>
+			console.warn('[app-layout] boot upload drain failed', err)
+		);
+
+		return () => {
+			cleanupOnlineDrainer();
+			unsubscribe();
+		};
 	});
 </script>
 
