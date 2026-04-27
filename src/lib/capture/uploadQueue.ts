@@ -172,6 +172,46 @@ export async function markAttempt(localId: string, error?: string): Promise<void
 }
 
 /**
+ * Reset attempts (and lastError) for one entry, or all entries if no id is
+ * given. Used by the manual "Retry uploads" UI so users can re-drive items
+ * that hit MAX_ATTEMPTS.
+ */
+export async function resetAttempts(localId?: string): Promise<void> {
+	const db = await openDb();
+	await new Promise<void>((resolve, reject) => {
+		const store = tx(db, 'readwrite');
+		const getReq = localId ? store.get(localId) : store.getAll();
+		getReq.onsuccess = () => {
+			const result = getReq.result as PendingUpload | PendingUpload[] | undefined;
+			const entries = Array.isArray(result) ? result : result ? [result] : [];
+			if (entries.length === 0) {
+				resolve();
+				return;
+			}
+			let remaining = entries.length;
+			let errored = false;
+			for (const entry of entries) {
+				entry.attempts = 0;
+				entry.lastError = undefined;
+				const putReq = store.put(entry);
+				putReq.onsuccess = () => {
+					remaining -= 1;
+					if (remaining === 0 && !errored) resolve();
+				};
+				putReq.onerror = () => {
+					if (!errored) {
+						errored = true;
+						reject(putReq.error);
+					}
+				};
+			}
+		};
+		getReq.onerror = () => reject(getReq.error);
+	});
+	db.close();
+}
+
+/**
  * Total bytes currently waiting in the queue — used to render a
  * "Pending upload (X MB)" chip in the nav.
  */

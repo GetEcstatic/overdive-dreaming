@@ -13,6 +13,12 @@
 	} from '$lib/firestore';
 	import { getProfileCache, refreshProfileCache, updateProfileCache } from '$lib/utils/profileCache';
 	import type { Season, SessionVisibility, UserSettings, Gender } from '$lib/types';
+	import {
+		listPendingUploads,
+		resetAttempts,
+		type PendingUpload
+	} from '$lib/capture/uploadQueue';
+	import { drainUploadQueue } from '$lib/capture/uploadProcessor';
 
 	type DefaultTimeframe = '1month' | '6months' | '1year';
 
@@ -57,6 +63,71 @@
 	let editSeasonStart = $state('');
 	let editSeasonEnd = $state('');
 	const profileCacheTtlMs = 5 * 60 * 1000;
+
+	let pendingUploads = $state<PendingUpload[]>([]);
+	let pendingLoading = $state(false);
+	let pendingRetrying = $state(false);
+	let pendingError = $state<string | null>(null);
+	let pendingResultMessage = $state<string | null>(null);
+	let pendingProgressByLocalId = $state<Record<string, number>>({});
+
+	async function loadPendingUploads() {
+		try {
+			pendingLoading = true;
+			pendingError = null;
+			pendingUploads = await listPendingUploads();
+		} catch (error) {
+			console.error('Failed to load pending uploads:', error);
+			pendingError = 'Failed to read the pending uploads queue.';
+		} finally {
+			pendingLoading = false;
+		}
+	}
+
+	async function handleRetryUploads() {
+		if (pendingRetrying || pendingUploads.length === 0) return;
+		try {
+			pendingRetrying = true;
+			pendingError = null;
+			pendingResultMessage = null;
+			pendingProgressByLocalId = {};
+			// Reset attempts so items previously past MAX_ATTEMPTS are tried again.
+			await resetAttempts();
+			const result = await drainUploadQueue((p) => {
+				pendingProgressByLocalId = {
+					...pendingProgressByLocalId,
+					[p.localId]: p.fraction
+				};
+			});
+			const parts: string[] = [];
+			if (result.uploaded > 0) parts.push(`${result.uploaded} uploaded`);
+			if (result.failed > 0) parts.push(`${result.failed} failed`);
+			if (result.skipped > 0) parts.push(`${result.skipped} skipped`);
+			pendingResultMessage = parts.length > 0 ? parts.join(' · ') : 'Nothing to upload.';
+			await loadPendingUploads();
+		} catch (error) {
+			console.error('Retry uploads failed:', error);
+			pendingError = error instanceof Error ? error.message : String(error);
+		} finally {
+			pendingRetrying = false;
+		}
+	}
+
+	function formatBytes(bytes: number): string {
+		if (bytes < 1024) return `${bytes} B`;
+		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+		return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+	}
+
+	function formatPendingDate(ms: number): string {
+		const date = new Date(ms);
+		return date.toLocaleString(undefined, {
+			month: 'short',
+			day: 'numeric',
+			hour: '2-digit',
+			minute: '2-digit'
+		});
+	}
 
 	const toInputDate = (date: Date) => {
 		const year = date.getUTCFullYear();
@@ -353,6 +424,7 @@
 			lastImportAt = storedAt ? Number(storedAt) : null;
 		}
 		initializeProfileData();
+		loadPendingUploads();
 	});
 
 	function formatImportTimestamp(timestamp: number | null): string | null {
@@ -555,6 +627,65 @@
 				</div>
 			</section>
 		</div>
+
+		<section class="profile-card">
+			<div class="card-header">
+				<h2 class="card-title">Pending video uploads</h2>
+				<span class="card-subtitle">Dive videos saved on this device but not yet sent to the cloud</span>
+			</div>
+			{#if pendingLoading}
+				<p class="form-hint">Checking queue...</p>
+			{:else if pendingUploads.length === 0}
+				<p class="form-hint">No pending uploads on this device.</p>
+			{:else}
+				{@const totalBytes = pendingUploads.reduce((acc, p) => acc + p.sizeBytes, 0)}
+				<p class="form-hint">
+					{pendingUploads.length} video{pendingUploads.length === 1 ? '' : 's'} waiting · {formatBytes(totalBytes)}
+				</p>
+				<div class="pending-list">
+					{#each pendingUploads as item (item.localId)}
+						{@const fraction = pendingProgressByLocalId[item.localId] ?? 0}
+						<div class="pending-item">
+							<div class="pending-row">
+								<div>
+									<div class="pending-title">
+										{item.metadata.discipline ?? 'Dive'} · {formatBytes(item.sizeBytes)}
+									</div>
+									<div class="pending-meta">
+										Recorded {formatPendingDate(item.createdAt)}
+										{#if item.attempts > 0}
+											· {item.attempts} previous attempt{item.attempts === 1 ? '' : 's'}
+										{/if}
+									</div>
+									{#if item.lastError}
+										<div class="pending-error">Last error: {item.lastError}</div>
+									{/if}
+								</div>
+							</div>
+							{#if pendingRetrying && fraction > 0 && fraction < 1}
+								<div class="pending-progress">
+									<div class="pending-progress-bar" style="width: {Math.round(fraction * 100)}%"></div>
+								</div>
+							{/if}
+						</div>
+					{/each}
+				</div>
+				<button
+					type="button"
+					class="button button-primary full-width"
+					onclick={handleRetryUploads}
+					disabled={pendingRetrying}
+				>
+					{pendingRetrying ? 'Uploading...' : 'Retry uploads'}
+				</button>
+			{/if}
+			{#if pendingResultMessage}
+				<p class="form-hint">{pendingResultMessage}</p>
+			{/if}
+			{#if pendingError}
+				<p class="form-hint error-text">{pendingError}</p>
+			{/if}
+		</section>
 
 		<section class="profile-card">
 			<div class="card-header">
@@ -1069,5 +1200,56 @@
 
 	.profile-footer {
 		margin-top: 1.5rem;
+	}
+
+	.pending-list {
+		display: grid;
+		gap: 0.75rem;
+		margin: 1rem 0;
+	}
+
+	.pending-item {
+		border-radius: 12px;
+		padding: 0.85rem 1rem;
+		background: rgba(15, 23, 42, 0.35);
+		border: 1px solid rgba(148, 163, 184, 0.12);
+	}
+
+	.pending-row {
+		display: flex;
+		justify-content: space-between;
+		gap: 1rem;
+	}
+
+	.pending-title {
+		font-size: 0.95rem;
+		font-weight: 600;
+	}
+
+	.pending-meta {
+		font-size: 0.8rem;
+		color: var(--color-text-muted);
+		margin-top: 0.25rem;
+	}
+
+	.pending-error {
+		font-size: 0.8rem;
+		color: #f87171;
+		margin-top: 0.25rem;
+		word-break: break-word;
+	}
+
+	.pending-progress {
+		margin-top: 0.75rem;
+		height: 4px;
+		background: rgba(148, 163, 184, 0.2);
+		border-radius: 999px;
+		overflow: hidden;
+	}
+
+	.pending-progress-bar {
+		height: 100%;
+		background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+		transition: width 0.2s ease;
 	}
 </style>
