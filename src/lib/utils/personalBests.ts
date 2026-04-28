@@ -121,18 +121,41 @@ export async function updateUserPBRecord(
 	const standardPB: Partial<PersonalBests> = record.isStandard
 		? { [record.discipline]: record.value }
 		: {};
+	const cleanRecord = stripUndefinedDeep(record);
 
 	await setDoc(
 		userRef,
 		{
 			personalBestRecords: {
-				[record.key]: record
+				[record.key]: cleanRecord
 			},
 			...(record.isStandard && { personalBests: standardPB }),
 			updatedAt: new Date()
 		},
 		{ merge: true }
 	);
+}
+
+function stripUndefinedDeep<T>(value: T): T {
+	if (Array.isArray(value)) {
+		return value
+			.filter((v) => v !== undefined)
+			.map((v) => stripUndefinedDeep(v)) as unknown as T;
+	}
+	if (
+		value !== null &&
+		typeof value === 'object' &&
+		(Object.getPrototypeOf(value) === Object.prototype ||
+			Object.getPrototypeOf(value) === null)
+	) {
+		const out: Record<string, unknown> = {};
+		for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+			if (nestedValue === undefined) continue;
+			out[key] = stripUndefinedDeep(nestedValue);
+		}
+		return out as unknown as T;
+	}
+	return value;
 }
 
 /**

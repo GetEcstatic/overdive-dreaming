@@ -331,20 +331,6 @@
 
 			// 4. Create routine log (get the ID for photo and CSV upload)
 			const routineLogId = await createRoutineLog(routineLogData);
-			if (isMaxAttempt && isPB && result !== undefined) {
-				await updateUserPBRecord($user.uid, {
-					key: category.key,
-					discipline: logData.disciplineUsed,
-					categoryKind: category.conditions.kind,
-					categoryLabel: category.label,
-					metric: category.metric,
-					value: result,
-					routineLogId,
-					date: Timestamp.fromDate(sessionDateTime),
-					conditions: category.conditions,
-					isStandard: category.isStandard
-				});
-			}
 
 			// 4b. If this log was opened from the dynamic dive recorder,
 			// re-link the freshly-uploaded diveVideo(s) from the ad-hoc
@@ -369,6 +355,29 @@
 				console.log(
 					`[dives] seedSessionId === routineLogId (${routineLogId}); no re-link needed`
 				);
+			}
+
+			// PB bookkeeping should never make the saved routine/video look
+			// failed. If it breaks, preserve the session and allow PB repair
+			// separately.
+			if (isMaxAttempt && isPB && result !== undefined) {
+				try {
+					await updateUserPBRecord($user.uid, {
+						key: category.key,
+						discipline: logData.disciplineUsed,
+						categoryKind: category.conditions.kind,
+						categoryLabel: category.label,
+						metric: category.metric,
+						value: result,
+						routineLogId,
+						date: Timestamp.fromDate(sessionDateTime),
+						conditions: category.conditions,
+						isStandard: category.isStandard
+					});
+				} catch (pbError) {
+					console.warn('Routine saved, but PB update failed:', pbError);
+					error = 'Routine saved, but PB update failed. PBs can be recalculated later.';
+				}
 			}
 
 			// 5. Upload photo if provided and update routine log
