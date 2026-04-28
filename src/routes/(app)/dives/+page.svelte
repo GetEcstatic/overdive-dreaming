@@ -5,7 +5,12 @@
 	import { user } from '$lib/stores/auth';
 	import { getRoutinesForUser, createRoutineLog, updateRoutineLog, getUserSettings, upsertPublicUserProfile } from '$lib/firestore';
 	import { uploadSessionPhoto, uploadBiometricCsv } from '$lib/storage';
-	import { getUserPBs, checkIsPB, updateUserPB } from '$lib/utils/personalBests';
+	import {
+		checkIsCategoryPB,
+		getUserPBRecords,
+		updateUserPBRecord
+	} from '$lib/utils/personalBests';
+	import { deriveAttemptCategory } from '$lib/utils/attemptCategories';
 	import { getTimeOfDay } from '$lib/utils/sessions';
 	import { clearDashboardCache } from '$lib/utils/dashboardCache';
 	import RoutineSelector from '$lib/components/RoutineSelector.svelte';
@@ -178,41 +183,40 @@
 			const dateStr = logData.sessionDate; // Already in YYYY-MM-DD format
 			const sessionGroup = `${dateStr}-${timeOfDay}`; // e.g., "2026-01-01-morning"
 
+			const category = deriveAttemptCategory({
+				disciplineUsed: logData.disciplineUsed,
+				attemptConditions: logData.attemptConditions,
+				defaultLungVolume: logData.defaultLungVolume,
+				gasMix: logData.gasMix,
+				breatheUpType: logData.breatheUpType
+			});
+
 			// 2. Check if this is a PB (for max-attempt routines only)
 			let isPB = false;
 			const isMaxAttempt = selectedRoutine.tags.includes('max-attempt') || selectedRoutine.tags.includes('pb');
+			const result = logData.disciplineUsed === 'STA'
+				? logData.totalTime
+				: logData.totalDistance;
 
-			if (isMaxAttempt) {
-				// Get the dive result (time for STA, distance for dynamic disciplines)
-				const result = logData.disciplineUsed === 'STA'
-					? logData.totalTime
-					: logData.totalDistance;
-
-				if (result !== undefined) {
-					// Get user's current PBs
-					const currentPBs = await getUserPBs($user.uid);
-
-					// Check if this beats the PB
-					isPB = checkIsPB(logData.disciplineUsed, result, currentPBs);
-
-					// If it's a PB, update the user's PBs
-					if (isPB) {
-						await updateUserPB($user.uid, logData.disciplineUsed, result);
-					}
-				}
+			if (isMaxAttempt && result !== undefined) {
+				const currentPBRecords = await getUserPBRecords($user.uid);
+				isPB = checkIsCategoryPB({ key: category.key, value: result }, currentPBRecords);
 			}
 
 			// 3. Build routine log data, filtering out undefined values
-			const routineLogData: any = {
-				routineId: selectedRoutine.id,
-				userId: $user.uid,
-				date: Timestamp.fromDate(sessionDateTime), // Use selected date instead of now
+				const routineLogData: any = {
+					routineId: selectedRoutine.id,
+					userId: $user.uid,
+					date: Timestamp.fromDate(sessionDateTime), // Use selected date instead of now
 				timeOfDay,
-				sessionGroup,
-				disciplineUsed: logData.disciplineUsed,
-				hasDetailedData: false, // Quick summary only
-				visibility: logData.visibility ?? defaultSessionVisibility,
-				...(isPB && { isPB: true }) // Mark as PB if applicable
+					sessionGroup,
+					disciplineUsed: logData.disciplineUsed,
+					attemptConditions: category.conditions,
+					pbCategoryKey: category.key,
+					pbCategoryLabel: category.label,
+					hasDetailedData: false, // Quick summary only
+					visibility: logData.visibility ?? defaultSessionVisibility,
+					...(isPB && { isPB: true }) // Mark as PB if applicable
 			};
 
 			if ($user.displayName) routineLogData.authorDisplayName = $user.displayName;
@@ -327,6 +331,20 @@
 
 			// 4. Create routine log (get the ID for photo and CSV upload)
 			const routineLogId = await createRoutineLog(routineLogData);
+			if (isMaxAttempt && isPB && result !== undefined) {
+				await updateUserPBRecord($user.uid, {
+					key: category.key,
+					discipline: logData.disciplineUsed,
+					categoryKind: category.conditions.kind,
+					categoryLabel: category.label,
+					metric: category.metric,
+					value: result,
+					routineLogId,
+					date: Timestamp.fromDate(sessionDateTime),
+					conditions: category.conditions,
+					isStandard: category.isStandard
+				});
+			}
 
 			// 4b. If this log was opened from the dynamic dive recorder,
 			// re-link the freshly-uploaded diveVideo(s) from the ad-hoc

@@ -6,6 +6,7 @@
 	import { user } from '$lib/stores/auth';
 	import { onMount } from 'svelte';
 	import { getTimeOfDay } from '$lib/utils/sessions';
+	import { deriveAttemptCategory } from '$lib/utils/attemptCategories';
 
 	interface Props {
 		open: boolean;
@@ -79,9 +80,19 @@
 			}
 
 			// Add changed fields (compare with original log)
-			if (formData.poolLength !== log.poolLength) updates.poolLength = formData.poolLength;
-			if (formData.initialBreatheUpTime !== log.initialBreatheUpTime)
-				updates.initialBreatheUpTime = formData.initialBreatheUpTime;
+				if (formData.poolLength !== log.poolLength) updates.poolLength = formData.poolLength;
+				const attemptCategory = deriveAttemptCategory({
+					disciplineUsed: formData.disciplineUsed,
+					attemptConditions: formData.attemptConditions,
+					defaultLungVolume: formData.defaultLungVolume,
+					gasMix: formData.gasMix,
+					breatheUpType: formData.breatheUpType
+				});
+				updates.attemptConditions = attemptCategory.conditions;
+				updates.pbCategoryKey = attemptCategory.key;
+				updates.pbCategoryLabel = attemptCategory.label;
+				if (formData.initialBreatheUpTime !== log.initialBreatheUpTime)
+					updates.initialBreatheUpTime = formData.initialBreatheUpTime;
 			if (formData.totalDistance !== log.totalDistance) updates.totalDistance = formData.totalDistance;
 			if (formData.totalTime !== log.totalTime) updates.totalTime = formData.totalTime;
 			if (formData.repsCompleted !== log.summary?.repsCompleted) {
@@ -122,8 +133,9 @@
 				updates.minimumSpO2 = formData.minimumSpO2;
 			if (formData.minimumHR !== log.minimumHR) updates.minimumHR = formData.minimumHR;
 			if (formData.bodyWeight !== log.bodyWeight) updates.bodyWeight = formData.bodyWeight;
-			if (formData.fvc !== log.fvc) updates.fvc = formData.fvc;
-			if (formData.fvcWithPacking !== log.fvcWithPacking) updates.fvcWithPacking = formData.fvcWithPacking;
+				if (formData.fvc !== log.fvc) updates.fvc = formData.fvc;
+				if (formData.fvcWithPacking !== log.fvcWithPacking) updates.fvcWithPacking = formData.fvcWithPacking;
+				if (formData.defaultLungVolume !== log.defaultLungVolume) updates.defaultLungVolume = formData.defaultLungVolume;
 			// O2-Assisted Static Apnea
 			if (formData.lucidity !== log.lucidity) updates.lucidity = formData.lucidity;
 			if (formData.urgeToBreathe !== log.urgeToBreathe) updates.urgeToBreathe = formData.urgeToBreathe;

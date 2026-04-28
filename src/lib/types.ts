@@ -19,6 +19,36 @@ export type BreathingTechnique = 'tidal' | 'hyperventilation' | 'hypoventilation
  */
 export type LungVolume = 'FL' | 'RV' | 'FRC';
 
+export type AttemptCategoryKind = 'standard' | 'o2-assisted' | 'frc' | 'rv' | 'custom';
+
+export type BreathingGas = 'air' | 'oxygen' | 'nitrox' | 'custom';
+
+export interface AttemptConditions {
+	kind: AttemptCategoryKind;
+	label?: string;
+	lungVolume?: LungVolume;
+	breathingGas?: BreathingGas;
+	gasMix?: string;
+	countsForStandardPB?: boolean;
+}
+
+export interface PersonalBestRecord {
+	key: string;
+	discipline: Discipline;
+	categoryKind: AttemptCategoryKind;
+	categoryLabel: string;
+	metric: 'time' | 'distance';
+	value: number;
+	routineLogId: string;
+	date: Timestamp;
+	conditions?: AttemptConditions;
+	isStandard: boolean;
+}
+
+export interface PersonalBestRecords {
+	[key: string]: PersonalBestRecord;
+}
+
 export type UserTier = 'free' | 'premium';
 
 export type PoolType = 'indoor' | 'outdoor';
@@ -137,6 +167,7 @@ export interface User {
 	tier?: UserTier;
 	customRoutineCount?: number;
 	personalBests?: PersonalBests; // Track PB per discipline
+	personalBestRecords?: PersonalBestRecords; // Track PB per discipline + attempt category
 	settings?: UserSettings;
 	createdAt: Timestamp;
 	updatedAt: Timestamp;
@@ -506,6 +537,9 @@ export interface RoutineLog {
 
 	// Which discipline was used (required if routine applies to multiple)
 	disciplineUsed: Discipline;
+	attemptConditions?: AttemptConditions;
+	pbCategoryKey?: string;
+	pbCategoryLabel?: string;
 
 	// Session-level metadata (moved from Session)
 	location?: string; // Pool name/location

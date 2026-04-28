@@ -23,8 +23,9 @@ export function routineLogToFormData(log: RoutineLog): LogFormData {
 		isCompetition: log.isCompetition || false,
 		compeitionOrg: log.compeitionOrg ?? undefined,
 		cardTag: log.cardTag ?? undefined,
-		recordTag: log.recordTag ?? undefined,
-		visibility: log.visibility ?? 'private',
+			recordTag: log.recordTag ?? undefined,
+			attemptConditions: log.attemptConditions,
+			visibility: log.visibility ?? 'private',
 
 		// Session context
 		isDrySession: log.isDrySession,
@@ -66,8 +67,22 @@ export function routineLogToFormData(log: RoutineLog): LogFormData {
 		fvc: log.fvc,
 		fvcWithPacking: log.fvcWithPacking,
 
-		// Session-level default lung volume (FL/RV/FRC)
-		defaultLungVolume: log.defaultLungVolume,
+			// Session-level default lung volume (FL/RV/FRC)
+			defaultLungVolume: log.defaultLungVolume,
+
+			// O2-assisted / special attempt context
+			lucidity: log.lucidity,
+			urgeToBreathe: log.urgeToBreathe,
+			contractions: log.contractions,
+			etco2: log.etco2,
+			expiredAirPostHold: log.expiredAirPostHold,
+			lungVolumeLossPerMin: log.lungVolumeLossPerMin,
+			gasMix: log.gasMix,
+			co2TremorOnset: log.co2TremorOnset,
+			mentalChangeTime: log.mentalChangeTime,
+			recoveryQuality: log.recoveryQuality,
+			endSpO2: log.endSpO2,
+			breatheUpType: log.breatheUpType,
 
 		// Biometric tracking data (from CSV import)
 		laps: log.laps,

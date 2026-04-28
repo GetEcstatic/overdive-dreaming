@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { user } from '$lib/stores/auth';
 	import { getRecentActivityPaginated, getPublicActivityPaginated, getPublicUserProfile, getLogCountInDays, getRoutineOrPlaceholder } from '$lib/firestore';
-	import { doc, getDoc, collection, query, where, getDocs, type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore';
-	import { db } from '$lib/firebase';
-	import type { RoutineLog, RoutineTemplate, PersonalBests, Discipline } from '$lib/types';
+	import { type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore';
+	import type { PersonalBests, Discipline, PersonalBestRecord, PersonalBestRecords } from '$lib/types';
 	import SessionCard from '$lib/components/SessionCard.svelte';
 	import PendingGifts from '$lib/components/PendingGifts.svelte';
-	import { getUserPBs, updateUserPB, checkIsPB } from '$lib/utils/personalBests';	import { onMount } from 'svelte';
+	import { getUserPBRecords, getUserPBs, formatPBRecord } from '$lib/utils/personalBests';
+	import { onMount } from 'svelte';
 	import { getDashboardCache, updateDashboardCache, type LogWithRoutine } from '$lib/utils/dashboardCache';
 
 	type FeedMode = 'mine' | 'community';
@@ -19,6 +19,7 @@
 	let loadingMore = $state(false);
 	let error = $state<string | null>(null);
 	let personalBests = $state<PersonalBests | undefined>(undefined);
+	let personalBestRecords = $state<PersonalBestRecords | undefined>(undefined);
 	let thisWeekCount = $state(0);
 	let last30DaysCount = $state(0);
 	let personalLastDoc: QueryDocumentSnapshot<DocumentData> | null = $state(null);
@@ -39,6 +40,16 @@
 		feedMode === 'community'
 			? 'Public dives will appear here once people share them'
 			: 'Start logging your dives to see them here'
+	);
+	const standardPBRecords = $derived.by(() =>
+		Object.values(personalBestRecords ?? {})
+			.filter((record) => record.isStandard)
+			.sort((a, b) => disciplineOrder(a.discipline) - disciplineOrder(b.discipline))
+	);
+	const specialPBRecords = $derived.by(() =>
+		Object.values(personalBestRecords ?? {})
+			.filter((record) => !record.isStandard)
+			.sort((a, b) => disciplineOrder(a.discipline) - disciplineOrder(b.discipline) || a.categoryLabel.localeCompare(b.categoryLabel))
 	);
 
 	function setFeedMode(mode: FeedMode) {
@@ -241,53 +252,25 @@
 
 		try {
 			personalBests = await getUserPBs($user.uid);
+			personalBestRecords = await getUserPBRecords($user.uid);
 		} catch (err) {
 			console.error('Error fetching PBs:', err);
 		}
 	}
 
-	// Helper function to recalculate PB for a discipline from all max attempts
-	async function recalculatePBForDiscipline(discipline: Discipline) {
-		if (!$user) return;
+	function disciplineOrder(discipline: Discipline): number {
+		return ['STA', 'DYN', 'DNF', 'DYNB'].indexOf(discipline);
+	}
 
-		try {
-			// Query all routine logs for this user and discipline
-			const logsRef = collection(db, 'routineLogs');
-			const q = query(logsRef, where('userId', '==', $user.uid), where('disciplineUsed', '==', discipline));
-
-			const logsSnapshot = await getDocs(q);
-
-			// Find the maximum value from all max attempt logs
-			let maxValue = 0;
-
-			for (const logDoc of logsSnapshot.docs) {
-				const log = logDoc.data() as RoutineLog;
-
-				// Get the routine to check if it's a max attempt (use placeholder if deleted)
-				const routine = await getRoutineOrPlaceholder(log.routineId);
-				const isMaxAttempt =
-					routine.tags.includes('max-attempt') || routine.tags.includes('pb');
-
-				if (isMaxAttempt) {
-					// Get the result value
-					const result = discipline === 'STA' ? log.totalTime : log.totalDistance;
-
-					if (result !== undefined && result > maxValue) {
-						maxValue = result;
-					}
-				}
-			}
-
-			// Update the user's PB with the recalculated value
-			if (maxValue > 0) {
-				await updateUserPB($user.uid, discipline, maxValue);
-			}
-
-			// Refetch PBs to update the UI
-			await fetchPBs();
-		} catch (err) {
-			console.error('Error recalculating PB:', err);
+	function formatLegacyPB(discipline: Discipline, value: number): string {
+		if (discipline === 'STA') {
+			return `${Math.floor(value / 60)}:${Math.floor(value % 60).toString().padStart(2, '0')}`;
 		}
+		return `${value}m`;
+	}
+
+	function formatRecordValue(record: PersonalBestRecord): string {
+		return formatPBRecord(record).replace(`${record.categoryLabel}: `, '');
 	}
 
 	async function fetch30DayCount() {
@@ -400,45 +383,41 @@
 						<div class="stat-value secondary">{thisWeekCount}</div>
 					</div>
 
-					<!-- Personal Bests - show all disciplines with PBs -->
-					{#if personalBests}
-						{#if personalBests.STA !== undefined}
-							<div class="stat-box">
-								<div class="stat-label">STA PB</div>
-								<div class="stat-value primary">
-									{Math.floor(personalBests.STA / 60)}:{(Math.floor(personalBests.STA % 60)).toString().padStart(2, '0')}
+						<!-- Standard PBs -->
+						{#if standardPBRecords.length > 0}
+							{#each standardPBRecords as record (record.key)}
+								<div class="stat-box">
+									<div class="stat-label">{record.categoryLabel} PB</div>
+									<div class="stat-value primary">{formatRecordValue(record)}</div>
 								</div>
-							</div>
+							{/each}
+						{:else if personalBests}
+							{#each ['STA', 'DYN', 'DNF', 'DYNB'] as discipline}
+								{@const value = personalBests[discipline as Discipline]}
+								{#if value !== undefined}
+									<div class="stat-box">
+										<div class="stat-label">{discipline} PB</div>
+										<div class="stat-value primary">{formatLegacyPB(discipline as Discipline, value)}</div>
+									</div>
+								{/if}
+							{/each}
 						{/if}
-						{#if personalBests.DYN !== undefined}
-							<div class="stat-box">
-								<div class="stat-label">DYN PB</div>
-								<div class="stat-value primary">{personalBests.DYN}m</div>
-							</div>
-						{/if}
-						{#if personalBests.DNF !== undefined}
-							<div class="stat-box">
-								<div class="stat-label">DNF PB</div>
-								<div class="stat-value primary">{personalBests.DNF}m</div>
-							</div>
-						{/if}
-						{#if personalBests.DYNB !== undefined}
-							<div class="stat-box">
-								<div class="stat-label">DYNB PB</div>
-								<div class="stat-value primary">{personalBests.DYNB}m</div>
-							</div>
-						{/if}
-					{/if}
 
-					<!-- Show placeholder if no PBs yet -->
-					{#if !personalBests || (personalBests.STA === undefined && personalBests.DYN === undefined && personalBests.DNF === undefined && personalBests.DYNB === undefined)}
-						<div class="stat-box">
-							<div class="stat-label">Personal Bests</div>
-							<div class="stat-value primary">—</div>
-						</div>
-					{/if}
+						<!-- Show placeholder if no PBs yet -->
+						{#if standardPBRecords.length === 0 && (!personalBests || (personalBests.STA === undefined && personalBests.DYN === undefined && personalBests.DNF === undefined && personalBests.DYNB === undefined))}
+							<div class="stat-box">
+								<div class="stat-label">Personal Bests</div>
+								<div class="stat-value primary">—</div>
+							</div>
+						{/if}
+						{#each specialPBRecords as record (record.key)}
+							<div class="stat-box special-pb">
+								<div class="stat-label">{record.categoryLabel} PB</div>
+								<div class="stat-value secondary">{formatRecordValue(record)}</div>
+							</div>
+						{/each}
+					</div>
 				</div>
-			</div>
 
 			<div class="gradient-divider"></div>
 

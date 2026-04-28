@@ -10,6 +10,7 @@
 	import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 	import { getPublicUserProfilesByIds } from '$lib/firestore';
 	import { shareCard } from '$lib/utils/shareCard';
+	import { formatAttemptBadge } from '$lib/utils/attemptCategories';
 	import { onMount } from 'svelte';
 	import { diveVideoBehavior } from '$lib/stores/videoPlayback';
 	import CommentSection from '$lib/components/CommentSection.svelte';
@@ -222,6 +223,7 @@
 	// Comment state
 	let showComments = $state(false);
 	let commentCount = $state(log.commentCount ?? 0);
+	const attemptBadge = $derived(formatAttemptBadge(log));
 
 	function toggleComments(e: MouseEvent) {
 		e.preventDefault();
@@ -346,9 +348,12 @@
 		</div>
 		<div class="routine-meta">
 			<span class="routine-name">{routine.name}</span>
-			<span class="separator">•</span>
-			<span class="discipline">{log.disciplineUsed}</span>
-		</div>
+				<span class="separator">•</span>
+				<span class="discipline">{log.disciplineUsed}</span>
+				{#if attemptBadge}
+					<span class="attempt-badge">{attemptBadge}</span>
+				{/if}
+			</div>
 		{#if sessionTags.length > 0}
 			<div class="session-tags">
 				{#each sessionTags as tag}
@@ -703,6 +708,18 @@
 		text-transform: uppercase;
 		font-size: 0.75rem;
 		letter-spacing: 0.05em;
+	}
+
+	.attempt-badge {
+		border: 1px solid rgba(20, 184, 166, 0.35);
+		border-radius: 999px;
+		padding: 0.15rem 0.45rem;
+		background: rgba(20, 184, 166, 0.1);
+		color: #99f6e4;
+		font-size: 0.68rem;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
 	}
 
 	.gradient-line {

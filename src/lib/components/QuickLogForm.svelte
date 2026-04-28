@@ -10,7 +10,10 @@
 		TimeOfDay,
 		RepEditorData,
 		LapData,
-		LungVolume
+		LungVolume,
+		AttemptCategoryKind,
+		AttemptConditions,
+		BreathingGas
 	} from '$lib/types';
 	import PhotoCropper from '$lib/components/PhotoCropper.svelte';
 	import RepEditor from '$lib/components/RepEditor.svelte';
@@ -22,6 +25,11 @@
 	import { applyDefaultLungVolume } from '$lib/utils/lungVolume';
 	import { getTagByValue } from '$lib/config/tagConfig';
 	import { resolveMetricInput } from '$lib/utils/resolveMetricInput';
+	import {
+		DEFAULT_O2_GAS_MIX,
+		attemptOptionsForDiscipline,
+		defaultConditionsForKind
+	} from '$lib/utils/attemptCategories';
 
 	interface Props {
 		routine: RoutineTemplate;
@@ -58,6 +66,7 @@
 		compeitionOrg?: string;
 		cardTag?: CardTag;
 		recordTag?: RecordTag;
+		attemptConditions?: AttemptConditions;
 		// Session context
 		isDrySession?: boolean; // True if dry training (out of water)
 		poolLength?: number;
@@ -175,6 +184,9 @@
 	// Selectable tags from routine - user can toggle these
 	let selectedTags = $state<string[]>([]);
 	let hasSelectableTags = $derived(routine.selectableTags && routine.selectableTags.length > 0);
+	let attemptKind = $state<AttemptCategoryKind>('standard');
+	let customAttemptLabel = $state('');
+	let breathingGas = $state<BreathingGas>('air');
 	
 	// Wet/Dry toggle - defaults to routine's isDryTraining setting for STA disciplines
 	// Only show for STA routines that support biometric tracking
@@ -273,6 +285,7 @@
 
 	// Per-rep starting lung volume (FL/RV/FRC) — opt-in via trackingConfig
 	let defaultLungVolume = $state<LungVolume | undefined>(undefined);
+	const attemptOptions = $derived(attemptOptionsForDiscipline(disciplineUsed));
 
 	// Handle biometric import from CSV
 	function handleBiometricImport(
@@ -500,6 +513,7 @@
 			compeitionOrg: isCompetition ? compeitionOrg.trim() || undefined : undefined,
 			cardTag,
 			recordTag,
+			attemptConditions: buildAttemptConditions(),
 			visibility,
 			// Session context
 			isDrySession: isSTARoutine ? isDrySession : undefined,
@@ -653,6 +667,52 @@
 	const showIntervalRepLogging = $derived(
 		hasVariableTable && !hasBiometricTracking
 	);
+
+	function selectAttemptKind(kind: AttemptCategoryKind): void {
+		attemptKind = kind;
+		const defaults = defaultConditionsForKind(kind, {
+			label: customAttemptLabel,
+			breathingGas,
+			gasMix,
+			lungVolume: defaultLungVolume
+		});
+		defaultLungVolume = defaults.lungVolume;
+		breathingGas = defaults.breathingGas ?? (kind === 'standard' ? 'air' : breathingGas);
+		if (kind === 'o2-assisted') gasMix = defaults.gasMix ?? DEFAULT_O2_GAS_MIX;
+		if (kind === 'standard') {
+			gasMix = undefined;
+			customAttemptLabel = '';
+		}
+	}
+
+	function selectLungVolume(vol: LungVolume): void {
+		defaultLungVolume = vol;
+		if (vol === 'FRC') attemptKind = 'frc';
+		else if (vol === 'RV') attemptKind = 'rv';
+		else if (attemptKind === 'frc' || attemptKind === 'rv') attemptKind = 'standard';
+	}
+
+	function buildAttemptConditions(): AttemptConditions {
+		const effectiveKind: AttemptCategoryKind =
+			attemptKind === 'standard' && defaultLungVolume === 'FRC'
+				? 'frc'
+				: attemptKind === 'standard' && defaultLungVolume === 'RV'
+					? 'rv'
+					: attemptKind;
+		const base = defaultConditionsForKind(effectiveKind, {
+			label: customAttemptLabel.trim() || undefined,
+			breathingGas,
+			gasMix: gasMix?.trim() || undefined,
+			lungVolume: defaultLungVolume
+		});
+		return {
+			...base,
+			label: effectiveKind === 'custom' ? customAttemptLabel.trim() || undefined : base.label,
+			breathingGas,
+			gasMix: gasMix?.trim() || base.gasMix,
+			lungVolume: defaultLungVolume ?? base.lungVolume
+		};
+	}
 </script>
 
 <form onsubmit={handleSubmit} class="log-form">
@@ -690,6 +750,44 @@
 			</p>
 		</div>
 	{/if}
+
+	<div class="form-section">
+		<div class="field-label">Attempt type</div>
+		<div class="tag-row">
+			{#each attemptOptions as option}
+				<button
+					type="button"
+					class="tag-button"
+					class:active={attemptKind === option.kind}
+					onclick={() => selectAttemptKind(option.kind)}
+					title={option.hint}
+				>
+					{option.label}
+				</button>
+			{/each}
+		</div>
+		{#if attemptKind === 'o2-assisted'}
+			<div class="field-grid">
+				<label class="field-group">
+					<span class="field-label">Gas</span>
+					<select bind:value={breathingGas} class="field-input">
+						<option value="oxygen">Oxygen</option>
+						<option value="nitrox">Nitrox</option>
+						<option value="custom">Custom</option>
+					</select>
+				</label>
+				<label class="field-group">
+					<span class="field-label">Mix</span>
+					<input class="field-input" bind:value={gasMix} placeholder="e.g., 100% O2" />
+				</label>
+			</div>
+		{:else if attemptKind === 'custom'}
+			<label class="field-group">
+				<span class="field-label">Category label</span>
+				<input class="field-input" bind:value={customAttemptLabel} placeholder="e.g., Hypoxic" />
+			</label>
+		{/if}
+	</div>
 
 	<!-- Session Date -->
 	<div class="form-section">
@@ -1036,7 +1134,7 @@
 						class="lv-chip"
 						class:selected={(defaultLungVolume ?? 'FL') === vol}
 						aria-pressed={(defaultLungVolume ?? 'FL') === vol}
-						onclick={() => (defaultLungVolume = vol)}
+						onclick={() => selectLungVolume(vol)}
 					>
 						{vol}
 					</button>
@@ -2558,6 +2656,13 @@
 
 	.environment-toggle .field-hint {
 		margin-top: 0.5rem;
+	}
+
+	.field-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+		gap: 0.75rem;
+		margin-top: 0.75rem;
 	}
 
 	/* Saving Overlay */

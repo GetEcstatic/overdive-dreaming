@@ -15,12 +15,14 @@
 	import { clearDashboardCache } from '$lib/utils/dashboardCache';
 	import { shareCard, downloadShareCard } from '$lib/utils/shareCard';
 	import { parseBiometricCsv } from '$lib/utils/biometricCsvParser';
+	import { formatAttemptBadge } from '$lib/utils/attemptCategories';
 	import type { RoutineLog, Discipline, BiometricReading } from '$lib/types';
 	import CommentSection from '$lib/components/CommentSection.svelte';
 	import SessionDiveVideos from '$lib/components/SessionDiveVideos.svelte';
 
 	let { data } = $props();
 	let { log, routine, showMenstrualCycleTracking } = $derived(data);
+	const attemptBadge = $derived(formatAttemptBadge(log));
 
 	// Edit modal state
 	let editingLog = $state<{ log: RoutineLog; routine: typeof routine } | null>(null);
@@ -104,6 +106,12 @@
 		try {
 			// Update Firestore
 			await updateRoutineLog(editingLog.log.id, updates);
+			if ($user) {
+				const disciplines = Array.from(
+					new Set([editingLog.log.disciplineUsed, updates.disciplineUsed].filter(Boolean))
+				) as Discipline[];
+				await recalculatePBsForDisciplines($user.uid, disciplines);
+			}
 			if ($user) {
 				clearDashboardCache($user.uid);
 			}
@@ -241,10 +249,13 @@
 		<div class="header-content">
 			<h1>{routine.name}</h1>
 			<div class="session-meta">
-				<span class="discipline-badge" style="background-color: {disciplineColor}20; color: {disciplineColor}">
-					{log.disciplineUsed}
-				</span>
-				<span class="date">{fullDate}</span>
+					<span class="discipline-badge" style="background-color: {disciplineColor}20; color: {disciplineColor}">
+						{log.disciplineUsed}
+					</span>
+					{#if attemptBadge}
+						<span class="attempt-badge">{attemptBadge}</span>
+					{/if}
+					<span class="date">{fullDate}</span>
 				<span class="time">{fullTime}</span>
 			</div>
 		</div>
@@ -846,6 +857,18 @@
 		padding: 0.25rem 0.75rem;
 		border-radius: 9999px;
 		font-weight: 600;
+		font-size: 0.8125rem;
+		text-transform: uppercase;
+		letter-spacing: 0.025em;
+	}
+
+	.attempt-badge {
+		padding: 0.25rem 0.75rem;
+		border: 1px solid rgba(20, 184, 166, 0.35);
+		border-radius: 9999px;
+		background: rgba(20, 184, 166, 0.1);
+		color: #99f6e4;
+		font-weight: 700;
 		font-size: 0.8125rem;
 		text-transform: uppercase;
 		letter-spacing: 0.025em;

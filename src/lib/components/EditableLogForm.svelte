@@ -9,7 +9,10 @@
 		CardTag,
 		SessionVisibility,
 		LapData,
-		RepEditorData
+		RepEditorData,
+		AttemptCategoryKind,
+		BreathingGas,
+		LungVolume
 	} from '$lib/types';
 	import type { LogFormData } from '$lib/components/QuickLogForm.svelte';
 	import {
@@ -23,6 +26,12 @@
 	import { calculateSessionBiometricSummary } from '$lib/utils/biometricCsvParser';
 	import { applyDefaultLungVolume } from '$lib/utils/lungVolume';
 	import { formatTime } from '$lib/utils/time';
+	import {
+		DEFAULT_O2_GAS_MIX,
+		attemptOptionsForDiscipline,
+		defaultConditionsForKind,
+		deriveAttemptCategory
+	} from '$lib/utils/attemptCategories';
 
 	interface Props {
 		routine: RoutineTemplate;
@@ -66,6 +75,16 @@
 	let cardTag = $state<CardTag | undefined>(formData.cardTag);
 	let recordTag = $state<RecordTag | undefined>(formData.recordTag);
 	let visibility = $state<SessionVisibility>(formData.visibility ?? 'private');
+	const initialAttemptCategory = deriveAttemptCategory({
+		disciplineUsed: formData.disciplineUsed,
+		attemptConditions: formData.attemptConditions,
+		defaultLungVolume: formData.defaultLungVolume,
+		gasMix: formData.gasMix,
+		breatheUpType: formData.breatheUpType
+	});
+	let attemptKind = $state<AttemptCategoryKind>(initialAttemptCategory.conditions.kind);
+	let customAttemptLabel = $state(initialAttemptCategory.conditions.label ?? '');
+	let breathingGas = $state<BreathingGas>(initialAttemptCategory.conditions.breathingGas ?? 'air');
 
 	// Check if this is an STA routine - show wet/dry toggle for all STA routines
 	const isSTARoutine = routine.disciplines.includes('STA');
@@ -153,7 +172,7 @@
 		}))
 	);
 	// Session-level default lung volume (FL/RV/FRC) — carries through to log payload
-	let defaultLungVolume = $state<import('$lib/types').LungVolume | undefined>(formData.defaultLungVolume);
+		let defaultLungVolume = $state<LungVolume | undefined>(formData.defaultLungVolume ?? initialAttemptCategory.conditions.lungVolume);
 	let biometricSummary = $state<ReturnType<typeof calculateSessionBiometricSummary>>(
 		formData.hasBiometricData ? {
 			hasBiometricData: true,
@@ -314,8 +333,9 @@
 			isCompetition,
 			compeitionOrg: isCompetition ? compeitionOrg.trim() || undefined : undefined,
 			cardTag,
-			recordTag,
-			visibility,
+				recordTag,
+				attemptConditions: buildAttemptConditions(),
+				visibility,
 			// Session context
 			isDrySession: isSTARoutine ? isDrySession : undefined,
 			poolLength: normalizeNumber(poolLength),
@@ -438,6 +458,53 @@
 
 	// Check if there's existing biometric data (either from formData or from new import)
 	const hasBiometricData = $derived(biometricSummary?.hasBiometricData || false);
+	const attemptOptions = $derived(attemptOptionsForDiscipline(disciplineUsed));
+
+	function selectAttemptKind(kind: AttemptCategoryKind): void {
+		attemptKind = kind;
+		const defaults = defaultConditionsForKind(kind, {
+			label: customAttemptLabel,
+			breathingGas,
+			gasMix,
+			lungVolume: defaultLungVolume
+		});
+		defaultLungVolume = defaults.lungVolume;
+		breathingGas = defaults.breathingGas ?? (kind === 'standard' ? 'air' : breathingGas);
+		if (kind === 'o2-assisted') gasMix = defaults.gasMix ?? DEFAULT_O2_GAS_MIX;
+		if (kind === 'standard') {
+			gasMix = undefined;
+			customAttemptLabel = '';
+		}
+	}
+
+	function selectLungVolume(vol: LungVolume): void {
+		defaultLungVolume = vol;
+		if (vol === 'FRC') attemptKind = 'frc';
+		else if (vol === 'RV') attemptKind = 'rv';
+		else if (attemptKind === 'frc' || attemptKind === 'rv') attemptKind = 'standard';
+	}
+
+	function buildAttemptConditions() {
+		const effectiveKind: AttemptCategoryKind =
+			attemptKind === 'standard' && defaultLungVolume === 'FRC'
+				? 'frc'
+				: attemptKind === 'standard' && defaultLungVolume === 'RV'
+					? 'rv'
+					: attemptKind;
+		const base = defaultConditionsForKind(effectiveKind, {
+			label: customAttemptLabel.trim() || undefined,
+			breathingGas,
+			gasMix: gasMix?.trim() || undefined,
+			lungVolume: defaultLungVolume
+		});
+		return {
+			...base,
+			label: effectiveKind === 'custom' ? customAttemptLabel.trim() || undefined : base.label,
+			breathingGas,
+			gasMix: gasMix?.trim() || base.gasMix,
+			lungVolume: defaultLungVolume ?? base.lungVolume
+		};
+	}
 </script>
 
 <form onsubmit={handleSubmit} class="log-form">
@@ -475,6 +542,44 @@
 			</p>
 		</div>
 	{/if}
+
+	<div class="form-section">
+		<div class="field-label">Attempt type</div>
+		<div class="tag-row">
+			{#each attemptOptions as option}
+				<button
+					type="button"
+					class="tag-button"
+					class:active={attemptKind === option.kind}
+					onclick={() => selectAttemptKind(option.kind)}
+					title={option.hint}
+				>
+					{option.label}
+				</button>
+			{/each}
+		</div>
+		{#if attemptKind === 'o2-assisted'}
+			<div class="field-grid">
+				<label class="field-group">
+					<span class="field-label">Gas</span>
+					<select bind:value={breathingGas} class="field-input">
+						<option value="oxygen">Oxygen</option>
+						<option value="nitrox">Nitrox</option>
+						<option value="custom">Custom</option>
+					</select>
+				</label>
+				<label class="field-group">
+					<span class="field-label">Mix</span>
+					<input class="field-input" bind:value={gasMix} placeholder="e.g., 100% O2" />
+				</label>
+			</div>
+		{:else if attemptKind === 'custom'}
+			<label class="field-group">
+				<span class="field-label">Category label</span>
+				<input class="field-input" bind:value={customAttemptLabel} placeholder="e.g., Hypoxic" />
+			</label>
+		{/if}
+	</div>
 
 	<!-- Session Date -->
 	<div class="form-section">
@@ -743,7 +848,7 @@
 					class:selected={(defaultLungVolume ?? 'FL') === vol}
 					aria-pressed={(defaultLungVolume ?? 'FL') === vol}
 					onclick={() => {
-						defaultLungVolume = vol;
+						selectLungVolume(vol);
 						repEditorData = applyDefaultLungVolume(repEditorData, vol);
 					}}
 				>
@@ -1885,5 +1990,12 @@
 
 	.environment-toggle .field-hint {
 		margin-top: 0.5rem;
+	}
+
+	.field-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+		gap: 0.75rem;
+		margin-top: 0.75rem;
 	}
 </style>

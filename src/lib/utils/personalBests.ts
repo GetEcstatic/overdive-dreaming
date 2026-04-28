@@ -1,9 +1,17 @@
 // Personal Best (PB) Utilities
 // Functions for checking and updating personal bests
 
-import type { Discipline, PersonalBests, RoutineLog, RoutineTemplate } from '$lib/types';
-import { collection, deleteField, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
+import type {
+	Discipline,
+	PersonalBestRecord,
+	PersonalBestRecords,
+	PersonalBests,
+	RoutineLog,
+	RoutineTemplate
+} from '$lib/types';
+import { Timestamp, collection, deleteField, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { db } from '$lib/firebase';
+import { deriveAttemptCategory, resultForPB } from '$lib/utils/attemptCategories';
 
 /**
  * Check if a dive result is a personal best
@@ -86,6 +94,47 @@ export async function getUserPBs(userId: string): Promise<PersonalBests | undefi
 	return userData.personalBests as PersonalBests | undefined;
 }
 
+export async function getUserPBRecords(userId: string): Promise<PersonalBestRecords | undefined> {
+	const userRef = doc(db, 'users', userId);
+	const userSnap = await getDoc(userRef);
+
+	if (!userSnap.exists()) return undefined;
+
+	const userData = userSnap.data();
+	return userData.personalBestRecords as PersonalBestRecords | undefined;
+}
+
+export function checkIsCategoryPB(
+	record: Pick<PersonalBestRecord, 'key' | 'value'>,
+	currentRecords?: PersonalBestRecords
+): boolean {
+	const currentPB = currentRecords?.[record.key];
+	if (!currentPB) return true;
+	return record.value > currentPB.value;
+}
+
+export async function updateUserPBRecord(
+	userId: string,
+	record: PersonalBestRecord
+): Promise<void> {
+	const userRef = doc(db, 'users', userId);
+	const standardPB: Partial<PersonalBests> = record.isStandard
+		? { [record.discipline]: record.value }
+		: {};
+
+	await setDoc(
+		userRef,
+		{
+			personalBestRecords: {
+				[record.key]: record
+			},
+			...(record.isStandard && { personalBests: standardPB }),
+			updatedAt: new Date()
+		},
+		{ merge: true }
+	);
+}
+
 /**
  * Recalculate personal bests for specific disciplines
  * @param userId - User's ID
@@ -95,7 +144,20 @@ export async function recalculatePBsForDisciplines(
 	userId: string,
 	disciplines: Discipline[]
 ): Promise<void> {
-	const uniqueDisciplines = Array.from(new Set(disciplines));
+	await recalculatePBRecordsForUser(userId, disciplines);
+}
+
+export async function recalculatePBRecordsForUser(
+	userId: string,
+	disciplines?: Discipline[]
+): Promise<void> {
+	const uniqueDisciplines: Discipline[] = disciplines?.length
+		? Array.from(new Set(disciplines))
+		: ['STA', 'DYN', 'DNF', 'DYNB'];
+
+	const records: PersonalBestRecords = {};
+	const standardPBs: PersonalBests = {};
+	const existingRecords = await getUserPBRecords(userId);
 
 	for (const discipline of uniqueDisciplines) {
 		const logsRef = collection(db, 'routineLogs');
@@ -106,10 +168,8 @@ export async function recalculatePBsForDisciplines(
 		);
 		const logsSnapshot = await getDocs(q);
 
-		let maxValue = 0;
-
 		for (const logDoc of logsSnapshot.docs) {
-			const log = logDoc.data() as RoutineLog;
+			const log = { id: logDoc.id, ...logDoc.data() } as RoutineLog;
 			if (!log.routineId) continue;
 
 			const routineSnap = await getDoc(doc(db, 'routines', log.routineId));
@@ -120,18 +180,62 @@ export async function recalculatePBsForDisciplines(
 			const isMaxAttempt = tags.includes('max-attempt') || tags.includes('pb');
 			if (!isMaxAttempt) continue;
 
-			const result = discipline === 'STA' ? log.totalTime : log.totalDistance;
-			if (typeof result === 'number' && result > maxValue) {
-				maxValue = result;
+			const result = resultForPB(discipline, log);
+			if (result === undefined) continue;
+
+			const category = deriveAttemptCategory(log);
+			const current = records[category.key];
+			if (current && current.value >= result) continue;
+
+			const date =
+				log.date && typeof log.date === 'object' && 'toDate' in log.date
+					? log.date
+					: Timestamp.fromDate(new Date());
+			const record: PersonalBestRecord = {
+				key: category.key,
+				discipline,
+				categoryKind: category.conditions.kind,
+				categoryLabel: category.label,
+				metric: category.metric,
+				value: result,
+				routineLogId: logDoc.id,
+				date,
+				conditions: category.conditions,
+				isStandard: category.isStandard
+			};
+
+			records[category.key] = record;
+			if (record.isStandard) {
+				standardPBs[discipline] = result;
 			}
 		}
+	}
 
-		if (maxValue > 0) {
-			await updateUserPB(userId, discipline, maxValue);
-		} else {
-			await clearUserPB(userId, discipline);
+	const userRef = doc(db, 'users', userId);
+	const personalBestsPatch: Record<string, number | ReturnType<typeof deleteField>> = {};
+	for (const discipline of uniqueDisciplines) {
+		const value = standardPBs[discipline];
+		personalBestsPatch[discipline] = value === undefined ? deleteField() : value;
+	}
+	const recordsPatch: Record<string, PersonalBestRecord | ReturnType<typeof deleteField>> = {};
+	for (const [key, record] of Object.entries(existingRecords ?? {})) {
+		if (uniqueDisciplines.includes(record.discipline)) {
+			recordsPatch[key] = deleteField();
 		}
 	}
+	for (const [key, record] of Object.entries(records)) {
+		recordsPatch[key] = record;
+	}
+
+	await setDoc(
+		userRef,
+		{
+			personalBestRecords: recordsPatch,
+			personalBests: personalBestsPatch,
+			updatedAt: new Date()
+		},
+		{ merge: true }
+	);
 }
 
 /**
@@ -150,6 +254,16 @@ export function formatPB(discipline: Discipline, value: number): string {
 		// Format distance in meters
 		return `${discipline}: ${value}m`;
 	}
+}
+
+export function formatPBRecord(record: Pick<PersonalBestRecord, 'categoryLabel' | 'metric' | 'value'>): string {
+	if (record.metric === 'time') {
+		const minutes = Math.floor(record.value / 60);
+		const seconds = Math.floor(record.value % 60);
+		return `${record.categoryLabel}: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+	}
+
+	return `${record.categoryLabel}: ${record.value}m`;
 }
 
 /**
