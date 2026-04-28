@@ -371,9 +371,12 @@ export async function getRoutineLog(routineLogId: string): Promise<RoutineLog | 
  * and Firestore would write them as plain maps, breaking `.toDate()` on read.
  */
 function stripUndefinedDeep<T>(value: T): T {
+	if (typeof value === 'number' && !Number.isFinite(value)) {
+		return undefined as T;
+	}
 	if (Array.isArray(value)) {
 		return value
-			.filter((v) => v !== undefined)
+			.filter((v) => v !== undefined && !(typeof v === 'number' && !Number.isFinite(v)))
 			.map((v) => stripUndefinedDeep(v)) as unknown as T;
 	}
 	if (
@@ -385,7 +388,9 @@ function stripUndefinedDeep<T>(value: T): T {
 		const out: Record<string, unknown> = {};
 		for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
 			if (v === undefined) continue;
-			out[k] = stripUndefinedDeep(v);
+			const cleaned = stripUndefinedDeep(v);
+			if (cleaned === undefined) continue;
+			out[k] = cleaned;
 		}
 		return out as unknown as T;
 	}

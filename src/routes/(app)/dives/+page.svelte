@@ -199,8 +199,12 @@
 				: logData.totalDistance;
 
 			if (isMaxAttempt && result !== undefined) {
-				const currentPBRecords = await getUserPBRecords($user.uid);
-				isPB = checkIsCategoryPB({ key: category.key, value: result }, currentPBRecords);
+				try {
+					const currentPBRecords = await getUserPBRecords($user.uid);
+					isPB = checkIsCategoryPB({ key: category.key, value: result }, currentPBRecords);
+				} catch (pbCheckError) {
+					console.warn('Could not check PB status before saving routine:', pbCheckError);
+				}
 			}
 
 			// 3. Build routine log data, filtering out undefined values
@@ -434,7 +438,8 @@
 			}, 3000);
 		} catch (err) {
 			console.error('Error saving routine log:', err);
-			error = 'Failed to save routine log. Please try again.';
+			const detail = err instanceof Error ? err.message : String(err);
+			error = `Failed to save routine log: ${detail}`;
 		} finally {
 			saving = false;
 		}

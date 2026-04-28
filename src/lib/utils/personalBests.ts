@@ -137,9 +137,12 @@ export async function updateUserPBRecord(
 }
 
 function stripUndefinedDeep<T>(value: T): T {
+	if (typeof value === 'number' && !Number.isFinite(value)) {
+		return undefined as T;
+	}
 	if (Array.isArray(value)) {
 		return value
-			.filter((v) => v !== undefined)
+			.filter((v) => v !== undefined && !(typeof v === 'number' && !Number.isFinite(v)))
 			.map((v) => stripUndefinedDeep(v)) as unknown as T;
 	}
 	if (
@@ -151,7 +154,9 @@ function stripUndefinedDeep<T>(value: T): T {
 		const out: Record<string, unknown> = {};
 		for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
 			if (nestedValue === undefined) continue;
-			out[key] = stripUndefinedDeep(nestedValue);
+			const cleaned = stripUndefinedDeep(nestedValue);
+			if (cleaned === undefined) continue;
+			out[key] = cleaned;
 		}
 		return out as unknown as T;
 	}
