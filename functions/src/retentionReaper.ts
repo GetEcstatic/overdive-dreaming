@@ -3,7 +3,7 @@
  *
  * Trigger: Firestore document create on `diveVideos/{videoId}`.
  * Behaviour: for the newly-created video's `ownerId`, list all owned videos,
- * skip those with `retentionTier === 'pinned'`, keep the 20 newest non-pinned,
+ * skip those with `retentionTier === 'pinned'`, keep the 100 newest non-pinned,
  * and delete the rest — Firestore doc + Storage clean/burned/thumb blobs.
  *
  * Idempotent: if the function runs twice for the same create event the second
@@ -22,16 +22,25 @@ import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions/v2';
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
+import {
+	deleteObject as deleteWasabiObject,
+	WASABI_ACCESS_KEY_ID,
+	WASABI_SECRET_ACCESS_KEY
+} from './wasabiClient.js';
 
 const COLLECTION = 'diveVideos';
-const KEEP_COUNT = 20;
+const KEEP_COUNT = 100;
 
 interface DiveVideoDoc {
 	ownerId: string;
 	retentionTier?: 'keep-last-5' | 'pinned';
+	storageProvider?: 'firebase-storage' | 'wasabi';
 	storagePathClean?: string;
 	storagePathBurned?: string;
 	thumbnailPath?: string;
+	cleanObject?: { bucket?: string; key: string; provider?: string };
+	burnedObject?: { bucket?: string; key: string; provider?: string };
+	thumbnailObject?: { bucket?: string; key: string; provider?: string };
 	recordedAt?: Timestamp;
 }
 
@@ -49,8 +58,22 @@ async function deleteStoragePath(path: string): Promise<boolean> {
 	}
 }
 
+async function deleteWasabiRef(ref: { bucket?: string; key: string } | undefined): Promise<boolean> {
+	if (!ref?.key || !ref.bucket) return false;
+	try {
+		await deleteWasabiObject({ bucket: ref.bucket, key: ref.key });
+		return true;
+	} catch (err) {
+		logger.warn('reaper: failed to delete Wasabi object', { ref, err });
+		return false;
+	}
+}
+
 export const onDiveVideoCreated = onDocumentCreated(
-	`${COLLECTION}/{videoId}`,
+	{
+		document: `${COLLECTION}/{videoId}`,
+		secrets: [WASABI_ACCESS_KEY_ID, WASABI_SECRET_ACCESS_KEY]
+	},
 	async (event) => {
 		const snap = event.data;
 		if (!snap) return;
@@ -92,13 +115,24 @@ export const onDiveVideoCreated = onDocumentCreated(
 		for (const video of toReap) {
 			const storageDeleted: string[] = [];
 			if (!dryRun) {
-				const paths = [
-					video.storagePathClean,
-					video.storagePathBurned,
-					video.thumbnailPath
-				].filter((p): p is string => typeof p === 'string' && p.length > 0);
-				for (const path of paths) {
-					if (await deleteStoragePath(path)) storageDeleted.push(path);
+				if (video.storageProvider === 'wasabi' || video.cleanObject?.provider === 'wasabi') {
+					const refs = [
+						video.cleanObject,
+						video.burnedObject,
+						video.thumbnailObject
+					].filter((ref): ref is { bucket?: string; key: string } => Boolean(ref?.key));
+					for (const ref of refs) {
+						if (await deleteWasabiRef(ref)) storageDeleted.push(ref.key);
+					}
+				} else {
+					const paths = [
+						video.storagePathClean,
+						video.storagePathBurned,
+						video.thumbnailPath
+					].filter((p): p is string => typeof p === 'string' && p.length > 0);
+					for (const path of paths) {
+						if (await deleteStoragePath(path)) storageDeleted.push(path);
+					}
 				}
 				await db.collection(COLLECTION).doc(video.id).delete();
 			}

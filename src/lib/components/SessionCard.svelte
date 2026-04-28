@@ -11,6 +11,7 @@
 	import { getPublicUserProfilesByIds } from '$lib/firestore';
 	import { shareCard } from '$lib/utils/shareCard';
 	import { formatAttemptBadge } from '$lib/utils/attemptCategories';
+	import { getWasabiReadUrl } from '$lib/media/client';
 	import { onMount } from 'svelte';
 	import { diveVideoBehavior } from '$lib/stores/videoPlayback';
 	import CommentSection from '$lib/components/CommentSection.svelte';
@@ -261,6 +262,28 @@
 	);
 	let diveVideo = $state<DiveVideo | null>(null);
 	let diveVideoUrl = $state<string | null>(null);
+	let sessionPhotoUrl = $state<string | null>(log.photoUrl ?? null);
+
+	onMount(() => {
+		if (log.photoObject?.provider !== 'wasabi') return;
+		let cancelled = false;
+		(async () => {
+			try {
+				const read = await getWasabiReadUrl({
+					kind: 'session-photo',
+					routineLogId: log.id,
+					key: log.photoObject?.key,
+					bucket: log.photoObject?.bucket
+				});
+				if (!cancelled) sessionPhotoUrl = read.url;
+			} catch (err) {
+				console.warn('[SessionCard] failed to resolve photo URL', err);
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	});
 
 	onMount(() => {
 		if (!isDynamicDiscipline) return;
@@ -274,7 +297,7 @@
 					videos.find((v) => v.retentionTier === 'pinned') ?? videos[0];
 				diveVideo = pick;
 				if (pick.uploadStatus === 'uploaded') {
-					const url = await getDiveVideoDownloadUrl(pick.storagePathClean);
+					const url = await getDiveVideoDownloadUrl(pick);
 					if (!cancelled) diveVideoUrl = url;
 				}
 			} catch (err) {
@@ -403,7 +426,7 @@
 	</div>
 
 	<!-- Media Section -->
-	{#if log.photoUrl || log.youtubeUrl || diveVideoUrl}
+	{#if sessionPhotoUrl || log.youtubeUrl || diveVideoUrl}
 		<div class="media-section">
 			{#if diveVideoUrl}
 				<!--
@@ -437,9 +460,9 @@
 				</div>
 			{/if}
 
-			{#if log.photoUrl}
+			{#if sessionPhotoUrl}
 				<div class="session-photo">
-					<img src={log.photoUrl} alt="Session" class="photo-image" />
+					<img src={sessionPhotoUrl} alt="Session" class="photo-image" />
 				</div>
 			{/if}
 

@@ -1,5 +1,12 @@
 import { storage } from '$lib/firebase';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import type { MediaObjectRef } from '$lib/types';
+import { createWasabiUpload, deleteWasabiObject, getWasabiReadUrl, uploadWithSignedUrl } from '$lib/media/client';
+
+export interface UploadedSessionPhoto {
+	url: string;
+	object?: MediaObjectRef;
+}
 
 /**
  * Upload a photo to Firebase Storage for a session
@@ -10,6 +17,49 @@ import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebas
  * @returns Download URL of uploaded photo
  */
 export async function uploadSessionPhoto(
+	userId: string,
+	sessionId: string,
+	file: File,
+	onProgress?: (progress: number) => void
+): Promise<string> {
+	const result = await uploadSessionPhotoMedia(userId, sessionId, file, onProgress);
+	return result.url;
+}
+
+export async function uploadSessionPhotoMedia(
+	userId: string,
+	sessionId: string,
+	file: File,
+	onProgress?: (progress: number) => void
+): Promise<UploadedSessionPhoto> {
+	// Validate file type
+	if (!file.type.startsWith('image/')) {
+		throw new Error('File must be an image');
+	}
+
+	// Validate file size (5MB max)
+	if (file.size > 5 * 1024 * 1024) {
+		throw new Error('Image must be under 5MB');
+	}
+
+	const upload = await createWasabiUpload({
+		kind: 'session-photo',
+		userId,
+		routineLogId: sessionId,
+		contentType: file.type,
+		sizeBytes: file.size
+	});
+	await uploadWithSignedUrl(upload, file, onProgress);
+	const read = await getWasabiReadUrl({
+		kind: 'session-photo',
+		routineLogId: sessionId,
+		key: upload.key,
+		bucket: upload.bucket
+	}).catch(() => ({ url: upload.uploadUrl, expiresAt: upload.expiresAt }));
+	return { url: read.url, object: upload.object };
+}
+
+export async function uploadSessionPhotoFirebase(
 	userId: string,
 	sessionId: string,
 	file: File,
@@ -59,6 +109,23 @@ export async function uploadSessionPhoto(
 export async function deleteSessionPhoto(photoUrl: string): Promise<void> {
 	const photoRef = ref(storage, photoUrl);
 	await deleteObject(photoRef);
+}
+
+export async function deleteSessionPhotoMedia(args: {
+	photoUrl?: string;
+	photoObject?: MediaObjectRef;
+	routineLogId?: string;
+}): Promise<void> {
+	if (args.photoObject?.provider === 'wasabi') {
+		await deleteWasabiObject({
+			kind: 'session-photo',
+			routineLogId: args.routineLogId,
+			key: args.photoObject.key,
+			bucket: args.photoObject.bucket
+		});
+		return;
+	}
+	if (args.photoUrl) await deleteSessionPhoto(args.photoUrl);
 }
 
 /**

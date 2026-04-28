@@ -2,7 +2,7 @@
 	import type { RoutineLog, RoutineTemplate } from '$lib/types';
 	import type { LogFormData } from '$lib/components/QuickLogForm.svelte';
 	import EditableLogForm from '$lib/components/EditableLogForm.svelte';
-	import { uploadSessionPhoto, deleteSessionPhoto } from '$lib/storage';
+	import { uploadSessionPhotoMedia, deleteSessionPhotoMedia } from '$lib/storage';
 	import { user } from '$lib/stores/auth';
 	import { onMount } from 'svelte';
 	import { getTimeOfDay } from '$lib/utils/sessions';
@@ -41,14 +41,29 @@
 			const updates: Partial<RoutineLog> = {};
 
 			// Handle photo changes
-			if (photoAction === 'remove' && log.photoUrl) {
-				await deleteSessionPhoto(log.photoUrl);
-				updates.photoUrl = undefined;
+			if (photoAction === 'remove' && (log.photoUrl || log.photoObject)) {
+				await deleteSessionPhotoMedia({
+					photoUrl: log.photoUrl,
+					photoObject: log.photoObject,
+					routineLogId: log.id
+				});
+				(updates as Record<string, unknown>).photoUrl = null;
+				(updates as Record<string, unknown>).photoObject = null;
 			} else if (photoAction === 'replace' && formData.photoFile) {
-				if (log.photoUrl) await deleteSessionPhoto(log.photoUrl);
-				updates.photoUrl = await uploadSessionPhoto($user.uid, log.id, formData.photoFile);
+				if (log.photoUrl || log.photoObject) {
+					await deleteSessionPhotoMedia({
+						photoUrl: log.photoUrl,
+						photoObject: log.photoObject,
+						routineLogId: log.id
+					});
+				}
+				const photo = await uploadSessionPhotoMedia($user.uid, log.id, formData.photoFile);
+				updates.photoUrl = photo.url;
+				updates.photoObject = photo.object;
 			} else if (photoAction === 'add' && formData.photoFile) {
-				updates.photoUrl = await uploadSessionPhoto($user.uid, log.id, formData.photoFile);
+				const photo = await uploadSessionPhotoMedia($user.uid, log.id, formData.photoFile);
+				updates.photoUrl = photo.url;
+				updates.photoObject = photo.object;
 			}
 
 			// Handle YouTube changes

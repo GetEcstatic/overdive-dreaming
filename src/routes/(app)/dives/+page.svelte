@@ -4,7 +4,7 @@
 	import { page } from '$app/stores';
 	import { user } from '$lib/stores/auth';
 	import { getRoutinesForUser, createRoutineLog, updateRoutineLog, getUserSettings, upsertPublicUserProfile } from '$lib/firestore';
-	import { uploadSessionPhoto, uploadBiometricCsv } from '$lib/storage';
+	import { uploadSessionPhotoMedia, uploadBiometricCsv } from '$lib/storage';
 	import {
 		checkIsCategoryPB,
 		getUserPBRecords,
@@ -374,7 +374,7 @@
 			// 5. Upload photo if provided and update routine log
 			if (logData.photoFile) {
 				try {
-					const photoUrl = await uploadSessionPhoto(
+					const photo = await uploadSessionPhotoMedia(
 						$user.uid,
 						routineLogId, // Use routineLogId as folder name
 						logData.photoFile,
@@ -383,8 +383,11 @@
 						}
 					);
 
-					// Update routine log with photo URL
-					await updateRoutineLog(routineLogId, { photoUrl });
+					// Update routine log with photo URL + durable object ref
+					await updateRoutineLog(routineLogId, {
+						photoUrl: photo.url,
+						photoObject: photo.object
+					});
 				} catch (uploadError) {
 					console.error('Photo upload failed:', uploadError);
 					error = 'Failed to upload photo. Routine saved without photo.';

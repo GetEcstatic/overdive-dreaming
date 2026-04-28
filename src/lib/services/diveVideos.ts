@@ -30,6 +30,12 @@ import {
 	type UploadTask
 } from 'firebase/storage';
 import { db, storage } from '$lib/firebase';
+import {
+	createWasabiUpload,
+	deleteWasabiObject,
+	getWasabiReadUrl,
+	uploadWithSignedUrl
+} from '$lib/media/client';
 import type {
 	DiveVideo,
 	DiveVideoFormData,
@@ -104,6 +110,34 @@ export async function uploadDiveVideoThumbnail(
 	videoId: string,
 	thumbBlob: Blob
 ): Promise<{ path: string; url: string }> {
+	const upload = await createWasabiUpload({
+		kind: 'dive-video-thumb',
+		userId,
+		videoId,
+		contentType: 'image/jpeg',
+		sizeBytes: thumbBlob.size
+	});
+	await uploadWithSignedUrl(upload, thumbBlob);
+	await updateDoc(doc(db, COLLECTION, videoId), {
+		storageProvider: 'wasabi',
+		thumbnailPath: upload.key,
+		thumbnailObject: upload.object,
+		updatedAt: serverTimestamp()
+	});
+	const read = await getWasabiReadUrl({
+		kind: 'dive-video-thumb',
+		videoId,
+		key: upload.key,
+		bucket: upload.bucket
+	});
+	return { path: upload.key, url: read.url };
+}
+
+export async function uploadDiveVideoThumbnailFirebase(
+	userId: string,
+	videoId: string,
+	thumbBlob: Blob
+): Promise<{ path: string; url: string }> {
 	const path = thumbnailPathFor(userId, videoId);
 	const ref = storageRef(storage, path);
 	const task = uploadBytesResumable(ref, thumbBlob, { contentType: 'image/jpeg' });
@@ -112,8 +146,21 @@ export async function uploadDiveVideoThumbnail(
 	return { path, url };
 }
 
-export async function getDiveVideoDownloadUrl(storagePath: string): Promise<string> {
-	return getDownloadURL(storageRef(storage, storagePath));
+export async function getDiveVideoDownloadUrl(videoOrStoragePath: DiveVideo | string): Promise<string> {
+	if (typeof videoOrStoragePath !== 'string') {
+		const video = videoOrStoragePath;
+		if (video.storageProvider === 'wasabi' || video.cleanObject?.provider === 'wasabi') {
+			const read = await getWasabiReadUrl({
+				kind: 'dive-video-clean',
+				videoId: video.id,
+				key: video.cleanObject?.key ?? video.storagePathClean,
+				bucket: video.cleanObject?.bucket
+			});
+			return read.url;
+		}
+		return getDownloadURL(storageRef(storage, video.storagePathClean));
+	}
+	return getDownloadURL(storageRef(storage, videoOrStoragePath));
 }
 
 export async function updateDiveVideoUploadStatus(
@@ -234,14 +281,45 @@ export async function listDiveVideosForSession(sessionId: string): Promise<DiveV
  */
 export async function deleteDiveVideo(video: DiveVideo): Promise<void> {
 	const deletions: Promise<unknown>[] = [];
-	deletions.push(deleteObject(storageRef(storage, video.storagePathClean)).catch(() => null));
-	if (video.storagePathBurned) {
+	if (video.storageProvider === 'wasabi' || video.cleanObject?.provider === 'wasabi') {
 		deletions.push(
-			deleteObject(storageRef(storage, video.storagePathBurned)).catch(() => null)
+			deleteWasabiObject({
+				kind: 'dive-video-clean',
+				videoId: video.id,
+				key: video.cleanObject?.key ?? video.storagePathClean,
+				bucket: video.cleanObject?.bucket
+			}).catch(() => null)
 		);
-	}
-	if (video.thumbnailPath) {
-		deletions.push(deleteObject(storageRef(storage, video.thumbnailPath)).catch(() => null));
+		if (video.burnedObject || video.storagePathBurned) {
+			deletions.push(
+				deleteWasabiObject({
+					kind: 'dive-video-burned',
+					videoId: video.id,
+					key: video.burnedObject?.key ?? video.storagePathBurned,
+					bucket: video.burnedObject?.bucket
+				}).catch(() => null)
+			);
+		}
+		if (video.thumbnailObject || video.thumbnailPath) {
+			deletions.push(
+				deleteWasabiObject({
+					kind: 'dive-video-thumb',
+					videoId: video.id,
+					key: video.thumbnailObject?.key ?? video.thumbnailPath,
+					bucket: video.thumbnailObject?.bucket
+				}).catch(() => null)
+			);
+		}
+	} else {
+		deletions.push(deleteObject(storageRef(storage, video.storagePathClean)).catch(() => null));
+		if (video.storagePathBurned) {
+			deletions.push(
+				deleteObject(storageRef(storage, video.storagePathBurned)).catch(() => null)
+			);
+		}
+		if (video.thumbnailPath) {
+			deletions.push(deleteObject(storageRef(storage, video.thumbnailPath)).catch(() => null));
+		}
 	}
 	await Promise.all(deletions);
 	await deleteDoc(doc(db, COLLECTION, video.id));
@@ -323,6 +401,7 @@ export function buildDiveVideoFormData(args: {
 		routineLogId: args.routineLogId,
 		diveId: args.diveId,
 		discipline: args.discipline,
+		storageProvider: 'wasabi',
 		storagePathClean,
 		durationSeconds: args.durationSeconds,
 		widthPx: args.widthPx,

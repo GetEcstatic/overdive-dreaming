@@ -52,7 +52,7 @@
 				list.map(async (v) => {
 					if (v.uploadStatus !== 'uploaded') return [v.id, ''] as const;
 					try {
-						const url = await getDiveVideoDownloadUrl(v.storagePathClean);
+						const url = await getDiveVideoDownloadUrl(v);
 						return [v.id, url] as const;
 					} catch {
 						return [v.id, ''] as const;

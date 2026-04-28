@@ -426,6 +426,16 @@ export type TimeOfDay = 'morning' | 'afternoon' | 'evening';
 export type RecordTag = 'NR' | 'CR' | 'WR';
 export type CardTag = 'white' | 'yellow' | 'red';
 export type SessionVisibility = 'private' | 'public';
+export type MediaStorageProvider = 'firebase-storage' | 'wasabi';
+
+export interface MediaObjectRef {
+	provider: MediaStorageProvider;
+	bucket?: string;
+	key: string;
+	contentType?: string;
+	sizeBytes?: number;
+	createdAt?: Timestamp;
+}
 
 export interface Session {
 	id: string;
@@ -544,6 +554,7 @@ export interface RoutineLog {
 	// Session-level metadata (moved from Session)
 	location?: string; // Pool name/location
 	photoUrl?: string; // Firebase Storage download URL
+	photoObject?: MediaObjectRef;
 	youtubeUrl?: string; // YouTube video URL
 
 	// Session context
@@ -665,6 +676,7 @@ export interface RoutineLog {
 	totalTimeBelow40?: number;
 	// Raw biometric CSV storage (Firebase Storage URL for reprocessing)
 	biometricCsvUrl?: string; // URL to raw CSV file in Firebase Storage
+	biometricCsvObject?: MediaObjectRef;
 
 	// Media support
 	thumbnailImageUrl?: string; // Photo from session (for social feed)
@@ -912,15 +924,15 @@ export type DiveVideoDiscipline = 'DYN' | 'DYNB' | 'DNF';
  * Upload lifecycle state of the video blob itself.
  * - 'pending': blob lives in IndexedDB, not yet uploaded
  * - 'uploading': resumable upload in progress
- * - 'uploaded': available in Firebase Storage
+ * - 'uploaded': available in object storage
  * - 'failed': upload failed after retries; user can retry manually
  */
 export type DiveVideoUploadStatus = 'pending' | 'uploading' | 'uploaded' | 'failed';
 
 /**
  * A dive video captured in-app. Stored under
- * `sessions/{sessionId}/videos/{videoId}` with the media blobs in Firebase
- * Storage. See docs/Dynamic video feature.md.
+ * `sessions/{sessionId}/videos/{videoId}` with media blobs in object storage.
+ * See docs/Dynamic video feature.md.
  */
 export interface DiveVideo {
 	id: string;
@@ -935,9 +947,13 @@ export interface DiveVideo {
 	discipline: DiveVideoDiscipline;
 
 	// Storage
-	storagePathClean: string;   // path in Firebase Storage for the raw clip
+	storageProvider?: MediaStorageProvider;
+	storagePathClean: string;   // legacy path/key for the raw clip
 	storagePathBurned?: string; // optional overlay-burned export
 	thumbnailPath?: string;
+	cleanObject?: MediaObjectRef;
+	burnedObject?: MediaObjectRef;
+	thumbnailObject?: MediaObjectRef;
 
 	// Media metadata
 	durationSeconds: number;

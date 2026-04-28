@@ -3,8 +3,11 @@
 Server-side jobs for Overdive Dreaming. Currently:
 
 - **`onDiveVideoCreated`** (`src/retentionReaper.ts`) — Firestore trigger that
-  enforces the "keep 20 newest non-pinned `DiveVideo`s per owner" policy.
+  enforces the "keep 100 newest non-pinned `DiveVideo`s per owner" policy.
   Writes an audit entry to `reaperAudit/*` every run.
+- **Wasabi media signing callables** (`src/mediaSigning.ts`) — authenticated
+  upload/read/delete URL signing plus multipart video upload completion for
+  Wasabi object storage.
 
 ## Relationship to the client-side reaper
 
@@ -14,7 +17,7 @@ if a user uploads from one device and never returns to the app, the client
 path never fires. This Cloud Function is the **canonical** enforcement point
 and makes the client-side reaper safe to treat as a "happy-path nicety".
 
-Both implementations share the same semantics (keep 20 newest non-pinned,
+Both implementations share the same semantics (keep 100 newest non-pinned,
 skip pinned, delete Firestore doc + all Storage blobs).
 
 ## First-time setup
@@ -22,9 +25,23 @@ skip pinned, delete Firestore doc + all Storage blobs).
 ```bash
 cd functions
 npm install
+firebase functions:secrets:set WASABI_ACCESS_KEY_ID
+firebase functions:secrets:set WASABI_SECRET_ACCESS_KEY
 # Requires Blaze plan on the Firebase project:
 firebase deploy --only functions
 ```
+
+Expected non-secret Wasabi environment values are currently defaulted in code:
+
+```txt
+WASABI_REGION=ap-southeast-1
+WASABI_ENDPOINT=https://s3.ap-southeast-1.wasabisys.com
+WASABI_BUCKET_PROD=overdive-media-prod
+WASABI_BUCKET_DEV=overdive-media-dev
+```
+
+Set `WASABI_ENV=dev` for a deployed/test functions environment that should
+write to the dev bucket. Production defaults to `overdive-media-prod`.
 
 Add a `functions` block to the root `firebase.json` when deploying for the
 first time:

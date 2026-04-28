@@ -1,6 +1,6 @@
 /**
  * Drains the IndexedDB upload queue by resumable-uploading each blob to
- * Firebase Storage and writing the corresponding Firestore `DiveVideo`.
+ * Wasabi object storage and writing the corresponding Firestore `DiveVideo`.
  *
  * Triggered:
  * - explicitly by the capture-save flow (best path — user just finished recording)
@@ -13,9 +13,14 @@
 import {
 	createDiveVideo,
 	reapOwnedDiveVideos,
-	updateDiveVideoUploadStatus,
-	uploadDiveVideoBlob
+	updateDiveVideoUploadStatus
 } from '$lib/services/diveVideos';
+import {
+	completeWasabiMultipartUpload,
+	createWasabiMultipartUpload,
+	uploadWasabiPart,
+	type UploadedPart
+} from '$lib/media/client';
 import {
 	listPendingUploads,
 	markAttempt,
@@ -26,6 +31,8 @@ import {
 import { logUploadDiagnostic } from './uploadDiagnostics';
 
 const MAX_ATTEMPTS = 5;
+const DEFAULT_PART_SIZE_BYTES = 8 * 1024 * 1024;
+const RETENTION_KEEP_COUNT = 100;
 
 export interface UploadProgress {
 	localId: string;
@@ -75,52 +82,113 @@ async function uploadOne(
 		});
 	}
 
-	// 2. Resumable upload.
-	const { task, storagePath } = uploadDiveVideoBlob(
-		entry.metadata.userId,
-		videoId,
-		entry.blob,
-		entry.mimeType
-	);
-	await updatePendingUpload(entry.localId, { intendedStoragePath: storagePath });
+	// 2. Multipart object upload to Wasabi.
+	const wasabiUpload =
+		entry.wasabiUpload ??
+		(await createWasabiMultipartUpload({
+			videoId,
+			contentType: entry.mimeType,
+			sizeBytes: entry.blob.size,
+			partSizeBytes: DEFAULT_PART_SIZE_BYTES
+		}));
+	const cleanObject = {
+		provider: 'wasabi' as const,
+		bucket: wasabiUpload.bucket,
+		key: wasabiUpload.key,
+		contentType: entry.mimeType,
+		sizeBytes: entry.blob.size
+	};
+	await updatePendingUpload(entry.localId, {
+		intendedStoragePath: wasabiUpload.key,
+		wasabiUpload: {
+			bucket: wasabiUpload.bucket,
+			key: wasabiUpload.key,
+			uploadId: wasabiUpload.uploadId,
+			partSizeBytes: wasabiUpload.partSizeBytes,
+			uploadedParts: entry.wasabiUpload?.uploadedParts ?? []
+		}
+	});
 	logUploadDiagnostic({
 		level: 'info',
 		step: 'storage:start',
-		message: 'Starting Firebase Storage upload',
+		message: 'Starting Wasabi multipart upload',
 		localId: entry.localId,
 		videoId,
-		details: { storagePath }
+		details: {
+			storagePath: wasabiUpload.key,
+			bucket: wasabiUpload.bucket,
+			uploadId: wasabiUpload.uploadId,
+			partSizeBytes: wasabiUpload.partSizeBytes
+		}
 	});
 
 	await updateDiveVideoUploadStatus(videoId, 'uploading', {
-		storagePathClean: storagePath
+		storageProvider: 'wasabi',
+		storagePathClean: wasabiUpload.key,
+		cleanObject
 	});
 
-	await new Promise<void>((resolve, reject) => {
-		task.on(
-			'state_changed',
-			(snapshot) => {
-				onProgress?.({
-					localId: entry.localId,
-					bytesSent: snapshot.bytesTransferred,
-					bytesTotal: snapshot.totalBytes,
-					fraction:
-						snapshot.totalBytes > 0
-							? snapshot.bytesTransferred / snapshot.totalBytes
-							: 0
-				});
-			},
-			(err) => reject(err),
-			() => resolve()
-		);
+	const uploadedParts = new Map<number, UploadedPart>();
+	for (const part of entry.wasabiUpload?.uploadedParts ?? []) {
+		uploadedParts.set(part.partNumber, part);
+	}
+	const partCount = Math.ceil(entry.blob.size / wasabiUpload.partSizeBytes);
+	for (let partNumber = 1; partNumber <= partCount; partNumber += 1) {
+		if (uploadedParts.has(partNumber)) continue;
+		const start = (partNumber - 1) * wasabiUpload.partSizeBytes;
+		const end = Math.min(start + wasabiUpload.partSizeBytes, entry.blob.size);
+		const partBlob = entry.blob.slice(start, end, entry.mimeType);
+		const uploadedPart = await uploadWasabiPart({
+			videoId,
+			bucket: wasabiUpload.bucket,
+			key: wasabiUpload.key,
+			uploadId: wasabiUpload.uploadId,
+			partNumber,
+			blob: partBlob
+		});
+		uploadedParts.set(partNumber, uploadedPart);
+		const parts = Array.from(uploadedParts.values()).sort((a, b) => a.partNumber - b.partNumber);
+		await updatePendingUpload(entry.localId, {
+			wasabiUpload: {
+				bucket: wasabiUpload.bucket,
+				key: wasabiUpload.key,
+				uploadId: wasabiUpload.uploadId,
+				partSizeBytes: wasabiUpload.partSizeBytes,
+				uploadedParts: parts
+			}
+		});
+		const bytesSent = parts.reduce((sum, part) => sum + part.sizeBytes, 0);
+		onProgress?.({
+			localId: entry.localId,
+			bytesSent,
+			bytesTotal: entry.blob.size,
+			fraction: entry.blob.size > 0 ? bytesSent / entry.blob.size : 0
+		});
+		logUploadDiagnostic({
+			level: 'info',
+			step: 'storage:part',
+			message: 'Wasabi multipart part uploaded',
+			localId: entry.localId,
+			videoId,
+			details: { partNumber, partCount, sizeBytes: uploadedPart.sizeBytes }
+		});
+	}
+
+	const completedParts = Array.from(uploadedParts.values()).sort((a, b) => a.partNumber - b.partNumber);
+	await completeWasabiMultipartUpload({
+		videoId,
+		bucket: wasabiUpload.bucket,
+		key: wasabiUpload.key,
+		uploadId: wasabiUpload.uploadId,
+		parts: completedParts
 	});
 	logUploadDiagnostic({
 		level: 'info',
 		step: 'storage:complete',
-		message: 'Firebase Storage upload completed',
+		message: 'Wasabi multipart upload completed',
 		localId: entry.localId,
 		videoId,
-		details: { storagePath }
+		details: { storagePath: wasabiUpload.key, bucket: wasabiUpload.bucket }
 	});
 
 	// 3. Flip status to 'uploaded' and remove from queue.
@@ -134,9 +202,9 @@ async function uploadOne(
 	});
 	await removePendingUpload(entry.localId);
 
-	// 4. Best-effort retention reap (keep 20 newest non-pinned for this owner).
+	// 4. Best-effort retention reap (keep newest non-pinned videos for this owner).
 	try {
-		const reaped = await reapOwnedDiveVideos(entry.metadata.ownerId, 20, [videoId]);
+		const reaped = await reapOwnedDiveVideos(entry.metadata.ownerId, RETENTION_KEEP_COUNT, [videoId]);
 		if (reaped.length > 0) {
 			// eslint-disable-next-line no-console
 			console.info(

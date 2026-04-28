@@ -10,6 +10,7 @@
 
 import { Timestamp } from 'firebase/firestore';
 import type { DiveVideoFormData } from '$lib/types';
+import type { UploadedPart } from '$lib/media/client';
 import { logUploadDiagnostic } from './uploadDiagnostics';
 
 const DB_NAME = 'overdive-upload-queue';
@@ -76,6 +77,14 @@ export interface PendingUpload {
 	remoteVideoId?: string;
 	/** Storage path the blob is expected to upload to once a remote id exists. */
 	intendedStoragePath?: string;
+	/** Wasabi multipart upload state for resumable object uploads. */
+	wasabiUpload?: {
+		bucket: string;
+		key: string;
+		uploadId: string;
+		partSizeBytes: number;
+		uploadedParts: UploadedPart[];
+	};
 	/** Last upload attempt error message, if any. */
 	lastError?: string;
 	attempts: number;
@@ -307,7 +316,7 @@ export async function markAttempt(localId: string, error?: string): Promise<void
 
 export async function updatePendingUpload(
 	localId: string,
-	patch: Partial<Pick<PendingUpload, 'remoteVideoId' | 'intendedStoragePath' | 'lastError'>>
+	patch: Partial<Pick<PendingUpload, 'remoteVideoId' | 'intendedStoragePath' | 'lastError' | 'wasabiUpload'>>
 ): Promise<void> {
 	const db = await openDb();
 	await new Promise<void>((resolve, reject) => {

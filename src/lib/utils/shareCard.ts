@@ -9,6 +9,7 @@ import { formatTime } from '$lib/utils/time';
 import { format as formatDate } from 'date-fns';
 import { getFormattedMetric } from '$lib/utils/metrics';
 import { formatTimeOfDay } from '$lib/utils/sessions';
+import { getWasabiReadUrl } from '$lib/media/client';
 
 interface ShareCardData {
 	log: RoutineLog;
@@ -135,7 +136,20 @@ export async function generateShareCard(
 
 	// Load session photo
 	let sessionPhoto: HTMLImageElement | null = null;
-	const photoUrl = log.photoUrl || log.thumbnailImageUrl;
+	let photoUrl = log.photoUrl || log.thumbnailImageUrl;
+	if (log.photoObject?.provider === 'wasabi') {
+		try {
+			const read = await getWasabiReadUrl({
+				kind: 'session-photo',
+				routineLogId: log.id,
+				key: log.photoObject.key,
+				bucket: log.photoObject.bucket
+			});
+			photoUrl = read.url;
+		} catch (e) {
+			console.warn('Failed to resolve Wasabi session photo:', e);
+		}
+	}
 	if (photoUrl) {
 		try { sessionPhoto = await loadImage(photoUrl); }
 		catch (e) { console.warn('Failed to load session photo:', e); }

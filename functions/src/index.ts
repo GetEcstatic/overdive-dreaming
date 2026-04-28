@@ -14,3 +14,12 @@ import { initializeApp } from 'firebase-admin/app';
 initializeApp();
 
 export { onDiveVideoCreated } from './retentionReaper.js';
+export {
+	abortDiveVideoMultipartUpload,
+	completeDiveVideoMultipartUpload,
+	createDiveVideoMultipartUpload,
+	createMediaUpload,
+	deleteMediaObject,
+	getMediaReadUrl,
+	signDiveVideoPart
+} from './mediaSigning.js';

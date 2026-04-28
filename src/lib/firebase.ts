@@ -8,6 +8,7 @@ import {
 } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { getFunctions } from 'firebase/functions';
 import { browser } from '$app/environment';
 import {
 	PUBLIC_FIREBASE_API_KEY,
@@ -34,6 +35,7 @@ export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+export const functions = getFunctions(app);
 export const googleProvider = new GoogleAuthProvider();
 
 // Auth persistence: prefer IndexedDB so installed PWAs survive iOS/Android
@@ -48,4 +50,3 @@ export const authPersistenceReady: Promise<void> = browser
 				console.warn('[firebase] could not set auth persistence', err);
 			})
 	: Promise.resolve();
-

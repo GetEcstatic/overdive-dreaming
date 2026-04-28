@@ -8,7 +8,7 @@
 	import LapTable from '$lib/components/LapTable.svelte';
 	import { getFormattedMetric } from '$lib/utils/metrics';
 	import { formatTime } from '$lib/utils/time';
-	import { getYouTubeEmbedUrl, deleteSessionPhoto, deleteBiometricCsv } from '$lib/storage';
+	import { getYouTubeEmbedUrl, deleteSessionPhotoMedia, deleteBiometricCsv } from '$lib/storage';
 	import { format } from 'date-fns';
 	import { updateRoutineLog, deleteRoutineLog } from '$lib/firestore';
 	import { recalculatePBsForDisciplines } from '$lib/utils/personalBests';
@@ -170,15 +170,18 @@
 		deleteError = null;
 
 		try {
-			const photoUrls = log.photoUrl ? [log.photoUrl] : [];
 			const disciplines: Discipline[] = log.disciplineUsed ? [log.disciplineUsed] : [];
 
 			await deleteRoutineLog(log.id);
 
-			// Clean up photos from storage
-			for (const photoUrl of photoUrls) {
+			// Clean up photo from storage
+			if (log.photoUrl || log.photoObject) {
 				try {
-					await deleteSessionPhoto(photoUrl);
+					await deleteSessionPhotoMedia({
+						photoUrl: log.photoUrl,
+						photoObject: log.photoObject,
+						routineLogId: log.id
+					});
 				} catch (photoError) {
 					console.error('Failed to delete photo:', photoError);
 					// Continue even if photo deletion fails
