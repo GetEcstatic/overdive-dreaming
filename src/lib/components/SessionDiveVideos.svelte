@@ -10,12 +10,14 @@
 -->
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { user } from '$lib/stores/auth';
 	import {
 		listDiveVideosForSession,
 		getDiveVideoDownloadUrl,
 		deleteDiveVideo,
 		pinDiveVideo
 	} from '$lib/services/diveVideos';
+	import { getPublicUserProfile } from '$lib/firestore';
 	import DiveVideoPlayer from './DiveVideoPlayer.svelte';
 	import type { DiveVideo, Discipline } from '$lib/types';
 
@@ -37,6 +39,30 @@
 	let loadError = $state<string | null>(null);
 	let busyVideoId = $state<string | null>(null);
 
+	// Gift banner: shown above the video list when this routine log was
+	// created from a gifted dive (any attached video whose `ownerId` is
+	// NOT the current viewer). Dismissed via sessionStorage so it doesn't
+	// nag on every page revisit within the same tab.
+	let giftCoachName = $state<string | null>(null);
+	let bannerDismissed = $state(false);
+	const showGiftBanner = $derived(
+		!!giftCoachName && !bannerDismissed
+	);
+
+	const dismissKey = $derived(`gift-banner-dismissed:${routineLogId}`);
+
+	$effect(() => {
+		if (typeof window === 'undefined') return;
+		bannerDismissed = window.sessionStorage.getItem(dismissKey) === '1';
+	});
+
+	function dismissGiftBanner(): void {
+		bannerDismissed = true;
+		if (typeof window !== 'undefined') {
+			window.sessionStorage.setItem(dismissKey, '1');
+		}
+	}
+
 	$effect(() => {
 		void loadVideos(routineLogId);
 	});
@@ -47,6 +73,22 @@
 		try {
 			const list = await listDiveVideosForSession(sessionId);
 			videos = list;
+
+			// Detect a gifted dive: any attached video where the recorder
+			// (`ownerId`) is somebody other than the current viewer.
+			const viewerUid = $user?.uid;
+			const giftedVideo = viewerUid
+				? list.find((v) => v.ownerId && v.ownerId !== viewerUid)
+				: undefined;
+			if (giftedVideo) {
+				try {
+					const profile = await getPublicUserProfile(giftedVideo.ownerId);
+					giftCoachName = profile?.displayName ?? 'a coach';
+				} catch {
+					giftCoachName = 'a coach';
+				}
+			}
+
 			// Resolve download URLs lazily but in parallel.
 			const entries = await Promise.all(
 				list.map(async (v) => {
@@ -106,6 +148,23 @@
 
 {#if isDynamic}
 	<section class="dive-videos-section">
+		{#if showGiftBanner}
+			<div class="gift-banner">
+				<div class="gift-banner-text">
+					<strong>🎁 Gifted by {giftCoachName}.</strong>
+					We filled in what we know — tap any field to edit.
+				</div>
+				<button
+					type="button"
+					class="gift-banner-close"
+					aria-label="Dismiss"
+					onclick={dismissGiftBanner}
+				>
+					×
+				</button>
+			</div>
+		{/if}
+
 		<div class="section-head">
 			<h2>🎥 Dive Videos</h2>
 			{#if isOwner}
@@ -180,6 +239,38 @@
 		border-radius: 16px;
 		padding: 1.25rem;
 		margin-bottom: 1.5rem;
+	}
+
+	.gift-banner {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.75rem;
+		background: linear-gradient(135deg, rgba(20, 184, 166, 0.14), rgba(16, 185, 129, 0.1));
+		border: 1px solid rgba(20, 184, 166, 0.35);
+		border-radius: 12px;
+		padding: 0.75rem 0.9rem;
+		margin-bottom: 1rem;
+		color: var(--color-text);
+		font-size: 0.9rem;
+	}
+
+	.gift-banner-text {
+		flex: 1;
+		line-height: 1.4;
+	}
+
+	.gift-banner-close {
+		background: transparent;
+		border: 0;
+		color: var(--color-text-muted);
+		font-size: 1.4rem;
+		line-height: 1;
+		cursor: pointer;
+		padding: 0 0.25rem;
+	}
+
+	.gift-banner-close:hover {
+		color: var(--color-text);
 	}
 
 	.section-head {
