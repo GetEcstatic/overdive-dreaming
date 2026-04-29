@@ -46,6 +46,18 @@
 			.filter((record) => record.isStandard)
 			.sort((a, b) => disciplineOrder(a.discipline) - disciplineOrder(b.discipline))
 	);
+	// Disciplines that have a legacy `personalBests[discipline]` value but no
+	// standard PB record yet. Without this, those legacy PBs disappear from the
+	// dashboard as soon as any per-category record (e.g. an O2-assisted STA) is
+	// written, because the existing fallback only triggers when the records
+	// array is completely empty.
+	const legacyOnlyDisciplines = $derived.by<Discipline[]>(() => {
+		if (!personalBests) return [];
+		const covered = new Set(standardPBRecords.map((r) => r.discipline));
+		return (['STA', 'DYN', 'DNF', 'DYNB'] as Discipline[]).filter(
+			(d) => !covered.has(d) && personalBests?.[d] !== undefined
+		);
+	});
 	const specialPBRecords = $derived.by(() =>
 		Object.values(personalBestRecords ?? {})
 			.filter((record) => !record.isStandard)
@@ -390,6 +402,16 @@
 									<div class="stat-label">{record.categoryLabel} PB</div>
 									<div class="stat-value primary">{formatRecordValue(record)}</div>
 								</div>
+							{/each}
+							<!-- Legacy PB values for disciplines not yet covered by a standard record -->
+							{#each legacyOnlyDisciplines as discipline (discipline)}
+								{@const value = personalBests?.[discipline]}
+								{#if value !== undefined}
+									<div class="stat-box">
+										<div class="stat-label">{discipline} PB</div>
+										<div class="stat-value primary">{formatLegacyPB(discipline, value)}</div>
+									</div>
+								{/if}
 							{/each}
 						{:else if personalBests}
 							{#each ['STA', 'DYN', 'DNF', 'DYNB'] as discipline}
