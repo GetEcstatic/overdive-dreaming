@@ -128,3 +128,62 @@ export function readViewportSnapshot(): ViewportSnapshot {
 		viewportHeight: window.innerHeight
 	};
 }
+
+// ---------------------------------------------------------------------------
+// Display transform — pure decision used by the in-app player.
+// ---------------------------------------------------------------------------
+
+export type HudCoordinateMode = 'landscape' | 'portrait';
+
+export interface DisplayTransform {
+	/** Aspect ratio for the video viewport, e.g. `'16 / 9'` or `'9 / 16'`. */
+	aspectRatio: string;
+	/**
+	 * CSS `transform` value applied to the inner <video> element to rotate
+	 * the asset into the intended display orientation. Empty string means
+	 * "no transform" — the asset already plays as-is.
+	 */
+	transform: string;
+	/** Coordinate space the HUD overlay should anchor to. */
+	hudMode: HudCoordinateMode;
+}
+
+/**
+ * Given just the DiveVideo metadata fields relevant to display, decide
+ * how the player should render the clip. Pure: takes data, returns data.
+ *
+ * Defaults match the legacy "always landscape" behaviour so existing
+ * clips without the new metadata fields continue to render exactly as
+ * before.
+ */
+export function displayTransformFor(args: {
+	displayOrientation?: DiveVideoDisplayOrientation;
+	displayRotationDeg?: DiveVideoRotation;
+	assetOrientation?: DiveVideoOrientation;
+}): DisplayTransform {
+	// Choose the effective display orientation. Old documents that don't
+	// have the field fall back to the asset's own orientation, which in
+	// turn falls back to 'landscape' for the legacy hardcoded value.
+	const display: DiveVideoDisplayOrientation =
+		args.displayOrientation ??
+		(args.assetOrientation === 'portrait' ? 'portrait-left' : 'landscape');
+
+	if (display === 'landscape') {
+		return { aspectRatio: '16 / 9', transform: '', hudMode: 'landscape' };
+	}
+
+	const rotation = args.displayRotationDeg ?? (display === 'portrait-left' ? 90 : 270);
+	// When we rotate a landscape asset into a portrait viewport we also
+	// need to scale it so that its long edge fits the viewport's tall
+	// side — otherwise the rotated rectangle gets letterboxed twice.
+	const transform =
+		rotation === 0
+			? ''
+			: `rotate(${rotation}deg)`;
+
+	return {
+		aspectRatio: '9 / 16',
+		transform,
+		hudMode: 'portrait'
+	};
+}

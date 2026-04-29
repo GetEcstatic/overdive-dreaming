@@ -19,6 +19,7 @@
 		speedAt,
 		totalTimeMs
 	} from '$lib/capture/timeline';
+	import { displayTransformFor } from '$lib/capture/orientation';
 	import {
 		diveVideoBehavior,
 		exitDiveFullscreen,
@@ -137,6 +138,17 @@
 	const lapsCompleted = $derived(timeline.laps.filter((l) => l.atMs <= currentMs).length);
 
 	const totalDurationMs = $derived(totalTimeMs(timeline) || video.durationSeconds * 1000);
+
+	// Orientation-aware display transform. For legacy clips without the
+	// new metadata fields, this returns the same landscape layout the
+	// player has always used, so existing videos keep rendering as before.
+	const displayTransform = $derived(
+		displayTransformFor({
+			displayOrientation: video.displayOrientation,
+			displayRotationDeg: video.displayRotationDeg,
+			assetOrientation: video.assetOrientation
+		})
+	);
 
 	function formatMs(ms: number): string {
 		const secs = Math.floor(ms / 1000);
@@ -604,16 +616,17 @@
 
 <div
 	bind:this={containerEl}
-	class="relative aspect-video w-full overflow-hidden rounded-2xl bg-black shadow-lg"
-	style="position: relative; --dive-video-fit: {fitMode};"
+	class="relative w-full overflow-hidden rounded-2xl bg-black shadow-lg"
+	style="position: relative; --dive-video-fit: {fitMode}; aspect-ratio: {displayTransform.aspectRatio};"
 	data-fullscreen-root
+	data-display-orientation={displayTransform.hudMode}
 >
 	<!-- svelte-ignore a11y_media_has_caption -->
 	<video
 		bind:this={videoEl}
 		src={srcUrl}
 		class="h-full w-full"
-		style="object-fit: {isFullscreen ? 'var(--dive-video-fit, cover)' : 'contain'};"
+		style="object-fit: {isFullscreen ? 'var(--dive-video-fit, cover)' : 'contain'}; transform: {displayTransform.transform}; transform-origin: center;"
 		controls={!isFullscreen}
 		playsinline
 		ontimeupdate={onTimeUpdate}

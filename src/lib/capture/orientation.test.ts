@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { decideDisplayOrientation, posturefromViewport } from './orientation';
+import {
+	decideDisplayOrientation,
+	displayTransformFor,
+	posturefromViewport
+} from './orientation';
 
 describe('posturefromViewport', () => {
 	it('uses Screen Orientation API type when present', () => {
@@ -88,5 +92,52 @@ describe('decideDisplayOrientation', () => {
 				capturePosture: 'unknown'
 			})
 		).toEqual({ displayOrientation: 'landscape', displayRotationDeg: 0 });
+	});
+});
+
+describe('displayTransformFor', () => {
+	it('returns landscape transform for legacy clips with no metadata', () => {
+		expect(displayTransformFor({})).toEqual({
+			aspectRatio: '16 / 9',
+			transform: '',
+			hudMode: 'landscape'
+		});
+	});
+
+	it('falls back to asset orientation when displayOrientation is missing', () => {
+		expect(displayTransformFor({ assetOrientation: 'portrait' })).toMatchObject({
+			aspectRatio: '9 / 16',
+			hudMode: 'portrait'
+		});
+	});
+
+	it('produces a portrait viewport with rotation when display is portrait-left', () => {
+		expect(
+			displayTransformFor({
+				displayOrientation: 'portrait-left',
+				displayRotationDeg: 90,
+				assetOrientation: 'landscape'
+			})
+		).toEqual({ aspectRatio: '9 / 16', transform: 'rotate(90deg)', hudMode: 'portrait' });
+	});
+
+	it('produces a portrait viewport with reverse rotation for portrait-right', () => {
+		expect(
+			displayTransformFor({
+				displayOrientation: 'portrait-right',
+				displayRotationDeg: 270,
+				assetOrientation: 'landscape'
+			})
+		).toEqual({ aspectRatio: '9 / 16', transform: 'rotate(270deg)', hudMode: 'portrait' });
+	});
+
+	it('keeps native landscape clips untransformed', () => {
+		expect(
+			displayTransformFor({
+				displayOrientation: 'landscape',
+				displayRotationDeg: 0,
+				assetOrientation: 'landscape'
+			})
+		).toEqual({ aspectRatio: '16 / 9', transform: '', hudMode: 'landscape' });
 	});
 });
