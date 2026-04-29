@@ -29,6 +29,11 @@
 	import { requestWakeLock, type WakeLockHandle } from '$lib/capture/wakeLock';
 	import { finalizeTimeline, summariseTimeline } from '$lib/capture/timeline';
 	import {
+		decideDisplayOrientation,
+		posturefromViewport,
+		readViewportSnapshot
+	} from '$lib/capture/orientation';
+	import {
 		initialRecorderState,
 		recorderReducer,
 		waypointSpacingM,
@@ -51,8 +56,11 @@
 		CameraFacing,
 		CameraPreference,
 		DiveTimeline,
+		DiveVideoCapturePosture,
 		DiveVideoDiscipline,
-		DiveVideoResolution
+		DiveVideoDisplayOrientation,
+		DiveVideoResolution,
+		DiveVideoRotation
 	} from '$lib/types';
 
 	interface CaptureResult {
@@ -67,6 +75,9 @@
 		cameraPreference: CameraPreference;
 		cameraFacing?: CameraFacing;
 		timeline: DiveTimeline;
+		capturePosture: DiveVideoCapturePosture;
+		displayOrientation: DiveVideoDisplayOrientation;
+		displayRotationDeg: DiveVideoRotation;
 	}
 
 	interface Props {
@@ -123,6 +134,11 @@
 	let acquired = $state<AcquiredStream | null>(null);
 	let recorder: RecorderHandle | null = null;
 	let wakeLock: WakeLockHandle | null = null;
+
+	// Captured at the moment recording starts so that orientation
+	// metadata reflects the actual phone posture and not whatever the
+	// user does later (rotating to review the clip, etc.).
+	let capturePosture: DiveVideoCapturePosture = 'unknown';
 
 	let nowMs = $state(0);
 	let tickHandle: number | null = null;
@@ -249,6 +265,7 @@
 				videoBitsPerSecond: bitrate,
 				timesliceMs: 2000
 			});
+			capturePosture = posturefromViewport(readViewportSnapshot());
 			recorder.start();
 			dispatch({ type: 'recording/started', atPerfMs: performance.now() });
 			startTicking();
@@ -368,6 +385,12 @@
 			const widthPx = settings.width ?? acquired?.actualWidth ?? 0;
 			const heightPx = settings.height ?? acquired?.actualHeight ?? 0;
 
+			const assetOrientation = widthPx >= heightPx ? 'landscape' : 'portrait';
+			const { displayOrientation, displayRotationDeg } = decideDisplayOrientation({
+				assetOrientation,
+				capturePosture
+			});
+
 			const finalTimeline: DiveTimeline =
 				rs.clocks.diveEndedPerfMs > 0
 					? finalizeTimeline(
@@ -388,7 +411,10 @@
 				cameraDeviceId: acquired?.deviceId,
 				cameraPreference: selectedCamera,
 				cameraFacing: acquired?.facingMode,
-				timeline: finalTimeline
+				timeline: finalTimeline,
+				capturePosture,
+				displayOrientation,
+				displayRotationDeg
 			});
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);

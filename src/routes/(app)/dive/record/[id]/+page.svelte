@@ -33,7 +33,10 @@
 		CameraPreference,
 		DiveTimeline,
 		DiveVideoDiscipline,
-		DiveVideoResolution
+		DiveVideoDisplayOrientation,
+		DiveVideoCapturePosture,
+		DiveVideoResolution,
+		DiveVideoRotation
 	} from '$lib/types';
 
 	const sessionId = $derived($page.params.id ?? '');
@@ -50,6 +53,9 @@
 		cameraPreference: CameraPreference;
 		cameraFacing?: CameraFacing;
 		timeline: DiveTimeline;
+		capturePosture: DiveVideoCapturePosture;
+		displayOrientation: DiveVideoDisplayOrientation;
+		displayRotationDeg: DiveVideoRotation;
 	}
 
 	type Stage = 'setup' | 'record' | 'review' | 'saving' | 'done';
@@ -227,7 +233,10 @@
 				deviceLabel: capture.deviceLabel,
 				cameraDeviceId: capture.cameraDeviceId,
 				cameraPreference: capture.cameraPreference,
-				cameraFacing: capture.cameraFacing
+				cameraFacing: capture.cameraFacing,
+				capturePosture: capture.capturePosture,
+				displayOrientation: capture.displayOrientation,
+				displayRotationDeg: capture.displayRotationDeg
 			});
 			if (pinned) metadata.retentionTier = 'pinned';
 			const pending = await enqueueUpload(capture.blob, metadata);
