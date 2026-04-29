@@ -640,13 +640,17 @@
 	{#if showOverlay}
 		<!--
 		  HUD overlay: compact variant of the recording HUD, sized to stay
-		  out of the way in both portrait and landscape replay. In fullscreen
-		  landscape, shift to the top-center and respect safe-area insets so
-		  the overlay clears notches / Dynamic Island on iPhones.
+		  out of the way in both portrait and landscape replay. The HUD is
+		  anchored to the *container* (display coordinates), so when the
+		  inner <video> is rotated by displayTransform, the HUD stays
+		  upright relative to the user's intended framing automatically.
+		  In fullscreen landscape, shift to top-center and respect safe-
+		  area insets so the overlay clears notches / Dynamic Island.
 		-->
 		<div
 			class="dive-hud"
 			class:dive-hud-fullscreen={isFullscreen}
+			class:dive-hud-portrait={displayTransform.hudMode === 'portrait'}
 		>
 			<div class="dive-hud-row">
 				<div>
@@ -781,6 +785,17 @@
 		min-width: min(70vw, 28rem);
 		max-width: calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 1rem);
 		background: rgba(15, 23, 42, 0.55);
+	}
+	/*
+	 * Portrait display mode (landscape asset rotated into a portrait
+	 * viewport, or a true portrait asset). Add a touch more horizontal
+	 * inset because the rotated video's letterboxing eats less side space
+	 * and the HUD risks sitting visually on top of the diver.
+	 */
+	.dive-hud-portrait:not(.dive-hud-fullscreen) {
+		left: 0.75rem;
+		right: 0.75rem;
+		top: 0.75rem;
 	}
 	.dive-hud-row {
 		display: flex;
