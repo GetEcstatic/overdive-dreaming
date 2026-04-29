@@ -97,14 +97,6 @@ describe('recorderReducer — phase transitions', () => {
 		expect(s.timeline.diveEndMs).toBe(0);
 	});
 
-	it('orientation/changed updates isLandscape', () => {
-		const s = recorderReducer(base, {
-			type: 'orientation/changed',
-			isLandscape: false
-		});
-		expect(s.isLandscape).toBe(false);
-	});
-
 	it('reset returns to a fresh initial state with same config', () => {
 		const s = startDiveAt(startRecordingAt(arm(base), 1000), 5000);
 		const reset = recorderReducer(s, { type: 'reset' });

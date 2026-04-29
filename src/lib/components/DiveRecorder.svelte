@@ -507,21 +507,7 @@
 	});
 
 	onMount(() => {
-		const updateOrientation = () => {
-			if (typeof window === 'undefined') return;
-			dispatch({
-				type: 'orientation/changed',
-				isLandscape: window.innerWidth >= window.innerHeight
-			});
-		};
-		updateOrientation();
-		window.addEventListener('resize', updateOrientation);
-		window.addEventListener('orientationchange', updateOrientation);
 		void arm();
-		return () => {
-			window.removeEventListener('resize', updateOrientation);
-			window.removeEventListener('orientationchange', updateOrientation);
-		};
 	});
 
 	onDestroy(() => {

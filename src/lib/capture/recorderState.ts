@@ -70,7 +70,6 @@ export interface RecorderState {
 	timeline: DiveTimeline;
 	autoAdvance: AutoAdvanceBanner | null;
 	errorMessage: string | null;
-	isLandscape: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -95,7 +94,6 @@ export type RecorderEvent =
 	| { type: 'dive/ended'; atPerfMs: number }
 	| { type: 'recording/stopping' }
 	| { type: 'recording/stopped' }
-	| { type: 'orientation/changed'; isLandscape: boolean }
 	| { type: 'banner/cleared' }
 	| { type: 'error/raised'; message: string }
 	| { type: 'config/updated'; patch: Partial<RecorderConfig> }
@@ -116,8 +114,7 @@ export function initialRecorderState(config: RecorderConfig): RecorderState {
 		},
 		timeline: createEmptyTimeline(0),
 		autoAdvance: null,
-		errorMessage: null,
-		isLandscape: true
+		errorMessage: null
 	};
 }
 
@@ -337,9 +334,6 @@ export function recorderReducer(
 
 		case 'recording/stopped':
 			return { ...state, phase: 'ready' };
-
-		case 'orientation/changed':
-			return { ...state, isLandscape: event.isLandscape };
 
 		case 'banner/cleared':
 			return state.autoAdvance === null

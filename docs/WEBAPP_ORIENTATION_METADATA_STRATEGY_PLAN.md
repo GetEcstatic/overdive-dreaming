@@ -219,3 +219,50 @@ Backward compatibility:
 Take this direction now.
 
 It is useful, cheap, and aligned with the web platform's strengths. It makes Overdive smarter about videos without pretending the browser gives native-level control over MP4 orientation. It also sets up the same conceptual model the native app will need: asset orientation, display orientation, and overlay coordinate space are separate concerns.
+
+---
+
+## 11. Implementation Status (shipped to `main`)
+
+Phases 0–3 of the plan have landed on `main`, plus an unblock that lets users
+record while holding the phone vertically.
+
+| Commit | Phase | Summary |
+| --- | --- | --- |
+| `ecfdc7d` | Phase 0 | Widened `DiveVideo` types (`assetOrientation`, `displayOrientation`, `displayRotationDeg`, `capturePosture`, etc.). `buildDiveVideoFormData()` now derives `assetOrientation` from pixel dimensions instead of hardcoding `portrait`. Legacy `orientation`/`aspectRatio` fields are still written for backwards compatibility and kept in sync with the new display fields. |
+| `00fbf2c` | Phase 1 | Added `src/lib/capture/orientation.ts` with pure helpers (`posturefromViewport`, `decideDisplayOrientation`, `displayTransformFor`) and a viewport snapshot adapter at the edge. 13 unit tests in `orientation.test.ts`. `DiveRecorder` samples `capturePosture` immediately before `recorder.start()` and threads it through `CaptureResult` → `buildDiveVideoFormData`. |
+| `9a4df78` | Phase 2 | `DiveVideoPlayer` consumes `displayTransformFor()` to drive container `aspect-ratio` and an inner-`<video>` rotation. Legacy clips with no display fields fall back to the original landscape behaviour. Non-fullscreen playback uses `object-fit: contain` so the rotated frame is fully visible inside the portrait container. |
+| `8100d81` | Phase 3 | HUD overlays use `dive-hud-portrait` modifier when display is portrait so insets and edge anchoring work in display coordinates rather than asset coordinates. |
+| `f9b7ccf` | Portrait recording unblock | Removed the "Rotate your phone to landscape" gating overlay from `DiveRecorder`. Camera still encodes 16:9 landscape pixels under iOS Safari constraints — Phase 1 metadata + Phase 2 playback do the rotation. |
+| `<this commit>` | Phase 4 cleanup | Dropped the now-dead `isLandscape` field, `'orientation/changed'` event variant, and corresponding reducer case from `recorderState.ts` (and its test). The `onMount` orientation listener in `DiveRecorder` is gone — posture is sampled per-recording at `recorder.start()` time, which is the only moment that needs a stable reading. |
+
+### What this means in practice
+
+- Recording while holding the phone vertically is supported. The saved file
+  is still landscape pixels (browsers don't give us a portable way to encode
+  portrait MP4 reliably from a landscape camera track), but the document
+  carries `displayOrientation: 'portrait'` and the player rotates 90° on
+  playback.
+- Pre-existing landscape clips render exactly as before — the player keys off
+  `displayOrientation === 'portrait'` to opt into the rotated layout.
+- The HUD anchors in display coordinates so portrait playback gets the
+  expected top/bottom positioning without any per-clip overrides.
+
+### Deferred / explicitly not done
+
+- **Live preview rotation in the recorder.** The preview currently uses
+  `object-fit: cover` which crops the landscape frame down to a portrait
+  slice — close enough to "what you'll see in playback" for the coach pool
+  use case. A WYSIWYG preview that exactly matches the player letterbox is
+  possible (rotate the live `<video>` 90° via CSS) but not worth the layout
+  fragility right now.
+- **Phase 5 — Export pipeline.** A real "export as portrait MP4" step that
+  re-encodes pixels (FFmpeg.wasm or server-side) is still future work, per
+  Section 6 of this plan. In-app playback works today; external downloads
+  remain raw landscape.
+
+### Validation
+
+- `npm run check` → 0 errors (pre-existing 86 a11y warnings unrelated to this work).
+- `npx vitest run src/lib/capture/orientation.test.ts src/lib/capture/recorderState.test.ts`
+  → 52 tests pass (13 orientation + 39 recorder reducer).
