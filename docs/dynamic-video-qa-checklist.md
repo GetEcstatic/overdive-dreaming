@@ -55,10 +55,34 @@ _Last updated: 2026-04-21_
 ## Gifting
 
 - [ ] Coach can pick an athlete (from followed users or by email invite) at save time.
-- [ ] Gifted video appears as "Pending" on the athlete's feed.
-- [ ] Athlete can Accept or Decline.
-- [ ] After Accept, the video shows in athlete's session list and counts toward their retention cap **if they pin it**; otherwise it counts toward the coach's cap only.
-- [ ] Firestore rules: athlete cannot write any field other than `giftStatus`.
+- [ ] Gifted video appears as "Pending" on the athlete's feed via `PendingGifts`.
+- [ ] Athlete tapping **Review & save** navigates to `/gift/{videoId}` and the
+      `DiveVideoPlayer` renders with HUD from the gifted timeline.
+- [ ] Athlete tapping **Save to my training** calls `acceptDiveGift` Cloud
+      Function, which atomically (a) creates a `routineLogs/{id}` owned by
+      the athlete with discipline / pool length / total time / total
+      distance / per-lap data projected from the timeline, and (b) updates
+      the `DiveVideo` with `routineLogId`, `sessionId`, and
+      `giftStatus = 'accepted'`.
+- [ ] After Accept, the athlete lands on `/session/{routineLogId}` with the
+      "🎁 Gifted by {coach}" banner shown above the video section. Banner
+      dismiss persists per-routineLogId for the tab session.
+- [ ] Double-tapping **Save to my training** is idempotent — no duplicate
+      routine log is created, second call returns the original
+      `routineLogId` with `alreadyAccepted: true`.
+- [ ] Athlete tapping **Decline** flips `giftStatus` to `'declined'` and
+      navigates back to the feed; the gift no longer appears in
+      `PendingGifts`.
+- [ ] Re-visiting `/gift/{videoId}` for an already-accepted gift redirects
+      straight to `/session/{routineLogId}` instead of re-prompting.
+- [ ] Re-visiting `/gift/{videoId}` for a declined gift shows the
+      "already declined" state with a back-to-feed button.
+- [ ] After Accept, the video shows in athlete's session list and counts
+      toward their retention cap **if they pin it**; otherwise it counts
+      toward the coach's cap only.
+- [ ] Firestore rules: athlete cannot write any field other than
+      `giftStatus` directly (only the Cloud Function can set
+      `routineLogId` / `sessionId`).
 - [ ] Firestore rules: non-owner / non-athlete users cannot read the doc.
 
 ## Retention
