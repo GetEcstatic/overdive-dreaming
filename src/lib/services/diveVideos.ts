@@ -30,6 +30,8 @@ import {
 	type UploadTask
 } from 'firebase/storage';
 import { db, storage } from '$lib/firebase';
+import { functions } from '$lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 import {
 	createWasabiUpload,
 	deleteWasabiObject,
@@ -183,6 +185,32 @@ export async function updateDiveVideoGiftStatus(
 		giftStatus: status,
 		updatedAt: serverTimestamp()
 	});
+}
+
+/**
+ * Accept a gifted dive video. Calls the `acceptDiveGift` Cloud Function
+ * which atomically:
+ *   - synthesises a `RoutineLog` from the video's timeline + metadata
+ *     (no athlete input required),
+ *   - sets `routineLogId` and re-links `sessionId` on the dive video,
+ *   - flips `giftStatus` from `'pending'` to `'accepted'`.
+ *
+ * The athlete's client cannot do this directly because the Firestore
+ * rule on `diveVideos/{videoId}` only lets the recipient change
+ * `giftStatus` — not `routineLogId`.
+ *
+ * Idempotent: if the gift has already been accepted, returns the
+ * existing `routineLogId` with `alreadyAccepted: true`.
+ */
+export async function acceptDiveGift(
+	videoId: string
+): Promise<{ routineLogId: string; alreadyAccepted: boolean }> {
+	const callable = httpsCallable<
+		{ videoId: string },
+		{ routineLogId: string; alreadyAccepted: boolean }
+	>(functions, 'acceptDiveGift');
+	const result = await callable({ videoId });
+	return result.data;
 }
 
 export async function pinDiveVideo(videoId: string, pinned: boolean): Promise<void> {

@@ -23,3 +23,4 @@ export {
 	getMediaReadUrl,
 	signDiveVideoPart
 } from './mediaSigning.js';
+export { acceptDiveGift } from './acceptDiveGift.js';
