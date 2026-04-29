@@ -595,13 +595,6 @@
 			</div>
 		{/if}
 
-		{#if !rs.isLandscape && rs.phase !== 'arming' && rs.phase !== 'error'}
-			<div class="overlay orientation">
-				<span class="rotate-icon" aria-hidden="true">⟳</span>
-				<p>Rotate your phone to landscape to record.</p>
-			</div>
-		{/if}
-
 		{#if rs.phase === 'error' && rs.errorMessage}
 			<div class="overlay error">
 				<p>{rs.errorMessage}</p>
