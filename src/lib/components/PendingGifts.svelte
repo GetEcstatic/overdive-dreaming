@@ -12,6 +12,10 @@
 		listGiftedDiveVideos,
 		updateDiveVideoGiftStatus
 	} from '$lib/services/diveVideos';
+	// Accept now navigates to the gift review route, where the athlete
+	// previews the clip and triggers the server-side acceptDiveGift
+	// callable. We never write giftStatus='accepted' from here directly.
+
 	import { getPublicUserProfilesByIds } from '$lib/firestore';
 	import { goto } from '$app/navigation';
 	import { format } from 'date-fns';
@@ -49,18 +53,8 @@
 		}
 	}
 
-	async function handleAccept(video: DiveVideo): Promise<void> {
-		busyVideoId = video.id;
-		try {
-			await updateDiveVideoGiftStatus(video.id, 'accepted');
-			videos = videos.filter((v) => v.id !== video.id);
-			void goto(`/session/${video.sessionId}`);
-		} catch (err) {
-			// eslint-disable-next-line no-alert
-			alert(`Failed to accept: ${err instanceof Error ? err.message : String(err)}`);
-		} finally {
-			busyVideoId = null;
-		}
+	function handleReview(video: DiveVideo): void {
+		void goto(`/gift/${video.id}`);
 	}
 
 	async function handleDecline(video: DiveVideo): Promise<void> {
@@ -114,9 +108,9 @@
 						<button
 							class="btn btn-primary"
 							disabled={busyVideoId === video.id}
-							onclick={() => handleAccept(video)}
+							onclick={() => handleReview(video)}
 						>
-							{busyVideoId === video.id ? 'Working…' : 'Accept & view'}
+							Review &amp; save
 						</button>
 					</div>
 				</li>
