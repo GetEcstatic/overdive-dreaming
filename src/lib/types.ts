@@ -913,8 +913,45 @@ export interface DiveTimeline {
 	events?: OverlayEvent[];
 }
 
-export type DiveVideoOrientation = 'portrait';
-export type DiveVideoAspectRatio = '9:16';
+/**
+ * Physical orientation classification of the recorded asset / how the
+ * webapp should display it.
+ *
+ * - 'landscape' — wider than tall (e.g. 1280x720). All current webapp
+ *   recordings on iOS Safari fall in here regardless of phone posture.
+ * - 'portrait'  — taller than wide. Reserved for future native captures
+ *   or post-processed exports.
+ */
+export type DiveVideoOrientation = 'landscape' | 'portrait';
+
+/** Rotation applied to the asset to reach the intended display orientation. */
+export type DiveVideoRotation = 0 | 90 | 180 | 270;
+
+/**
+ * How Overdive should treat "up" when displaying the clip in its own
+ * player + HUD. Independent of the asset's physical orientation so that
+ * a landscape file recorded with the phone held vertically can still be
+ * shown framed for portrait review.
+ */
+export type DiveVideoDisplayOrientation =
+	| 'landscape'
+	| 'portrait-left'
+	| 'portrait-right';
+
+export type DiveVideoAspectRatio = '16:9' | '9:16' | 'unknown';
+
+/**
+ * Phone posture at the moment recording started. Captured from the
+ * Screen Orientation API (with viewport heuristics as fallback) so that
+ * Overdive's player can reconstruct the coach's intended framing.
+ */
+export type DiveVideoCapturePosture =
+	| 'phone-landscape-left'
+	| 'phone-landscape-right'
+	| 'phone-portrait-upright'
+	| 'phone-portrait-upside-down'
+	| 'unknown';
+
 export type DiveVideoResolution = '720p' | '1080p';
 export type DiveVideoRetentionTier = 'keep-last-5' | 'pinned';
 export type DiveVideoGiftStatus = 'pending' | 'accepted' | 'declined';
@@ -969,8 +1006,27 @@ export interface DiveVideo {
 	cameraDeviceId?: string;
 	cameraPreference?: CameraPreference;
 	cameraFacing?: CameraFacing;
+
+	// Orientation is split into three independent concerns:
+	//
+	//   1. asset*       — what the encoded file physically is.
+	//   2. display*     — how Overdive's player should present the clip.
+	//   3. capturePosture — how the user was holding the phone at
+	//                       record start (raw signal that produced the
+	//                       display* fields).
+	//
+	// `orientation` / `aspectRatio` remain as the legacy display-facing
+	// shorthand so existing readers keep working; new fields are optional
+	// for backward compatibility with documents written before this change.
 	orientation: DiveVideoOrientation;
 	aspectRatio: DiveVideoAspectRatio;
+	assetOrientation?: DiveVideoOrientation;
+	assetRotationDeg?: DiveVideoRotation;
+	assetAspectRatio?: DiveVideoAspectRatio;
+	displayOrientation?: DiveVideoDisplayOrientation;
+	displayRotationDeg?: DiveVideoRotation;
+	displayAspectRatio?: DiveVideoAspectRatio;
+	capturePosture?: DiveVideoCapturePosture;
 	resolutionPreset: DiveVideoResolution; // 720p default, 1080p opt-in
 
 	// Retention

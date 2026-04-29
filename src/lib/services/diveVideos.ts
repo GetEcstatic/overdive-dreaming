@@ -390,8 +390,27 @@ export function buildDiveVideoFormData(args: {
 	cameraFacing?: DiveVideo['cameraFacing'];
 	routineLogId?: string;
 	diveId?: string;
+	capturePosture?: DiveVideo['capturePosture'];
+	displayOrientation?: DiveVideo['displayOrientation'];
+	displayRotationDeg?: DiveVideo['displayRotationDeg'];
 }): DiveVideoFormData {
 	const storagePathClean = cleanPathFor(args.userId, 'pending', args.mimeType);
+
+	// Derive the asset's physical orientation from the encoded dimensions
+	// (the only source of truth that's not lying on iOS Safari).
+	const assetOrientation: DiveVideo['assetOrientation'] =
+		args.widthPx >= args.heightPx ? 'landscape' : 'portrait';
+	const assetAspectRatio: DiveVideo['assetAspectRatio'] =
+		assetOrientation === 'landscape' ? '16:9' : '9:16';
+
+	// Default display follows the asset unless the recorder told us
+	// otherwise (e.g. user held phone vertically but file is 16:9).
+	const displayOrientation: DiveVideo['displayOrientation'] =
+		args.displayOrientation ?? (assetOrientation === 'landscape' ? 'landscape' : 'portrait-left');
+	const displayAspectRatio: DiveVideo['displayAspectRatio'] =
+		displayOrientation === 'landscape' ? '16:9' : '9:16';
+	const displayRotationDeg: DiveVideo['displayRotationDeg'] = args.displayRotationDeg ?? 0;
+
 	return {
 		sessionId: args.sessionId,
 		userId: args.userId,
@@ -414,8 +433,16 @@ export function buildDiveVideoFormData(args: {
 		cameraDeviceId: args.cameraDeviceId,
 		cameraPreference: args.cameraPreference,
 		cameraFacing: args.cameraFacing,
-		orientation: 'portrait',
-		aspectRatio: '9:16',
+		// Legacy display-facing shorthand kept in sync with displayOrientation.
+		orientation: displayOrientation === 'landscape' ? 'landscape' : 'portrait',
+		aspectRatio: displayAspectRatio,
+		assetOrientation,
+		assetRotationDeg: 0,
+		assetAspectRatio,
+		displayOrientation,
+		displayRotationDeg,
+		displayAspectRatio,
+		capturePosture: args.capturePosture,
 		resolutionPreset: args.resolutionPreset,
 		retentionTier: 'keep-last-5',
 		uploadStatus: 'pending',
