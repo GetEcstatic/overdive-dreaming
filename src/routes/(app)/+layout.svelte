@@ -7,8 +7,11 @@
 	import { onAuthStateChanged, getRedirectResult } from 'firebase/auth';
 	import BottomNav from '$lib/components/BottomNav.svelte';
 	import { drainUploadQueue, installOnlineDrainer } from '$lib/capture/uploadProcessor';
+	import { diveRecording } from '$lib/stores/videoPlayback';
 
+	let { children } = $props();
 	let mobileMenuOpen = $state(false);
+	let isRecording = $derived($diveRecording > 0);
 
 	onMount(() => {
 		// On iOS standalone PWAs, Google sign-in uses signInWithRedirect.
@@ -67,44 +70,48 @@
 
 {#if $loading}
 	<div class="flex items-center justify-center min-h-screen">
-		<div class="text-2xl text-[var(--color-primary)]">Loading...</div>
+		<div class="text-2xl text-(--color-primary)">Loading...</div>
 	</div>
 {:else if $user}
-	<div class="app-wrapper">
-		<!-- Top Navigation Menu -->
-		<nav class="top-nav">
-			<div class="nav-content">
-				<h1 class="nav-title">Overdive</h1>
+	{#if isRecording}
+		{@render children()}
+	{:else}
+		<div class="app-wrapper">
+			<!-- Top Navigation Menu -->
+			<nav class="top-nav">
+				<div class="nav-content">
+					<h1 class="nav-title">Overdive</h1>
 
-				<!-- Hamburger Button (Mobile) -->
-				<button
-					class="hamburger"
-					onclick={() => mobileMenuOpen = !mobileMenuOpen}
-					aria-label="Toggle menu"
-				>
-					<span class="hamburger-line"></span>
-					<span class="hamburger-line"></span>
-					<span class="hamburger-line"></span>
-				</button>
+					<!-- Hamburger Button (Mobile) -->
+					<button
+						class="hamburger"
+						onclick={() => mobileMenuOpen = !mobileMenuOpen}
+						aria-label="Toggle menu"
+					>
+						<span class="hamburger-line"></span>
+						<span class="hamburger-line"></span>
+						<span class="hamburger-line"></span>
+					</button>
 
-				<!-- Navigation Links -->
-				<div class="nav-links" class:open={mobileMenuOpen}>
-					<a href="/dashboard" class="nav-link" class:active={$page.url.pathname === '/dashboard'} onclick={() => mobileMenuOpen = false}>Feed</a>
-					<a href="/dives" class="nav-link" class:active={$page.url.pathname === '/dives'} onclick={() => mobileMenuOpen = false}>Log Dive</a>
-					<a href="/routines" class="nav-link" class:active={$page.url.pathname.startsWith('/routines')} onclick={() => mobileMenuOpen = false}>Routines</a>
-					<a href="/analytics" class="nav-link" class:active={$page.url.pathname === '/analytics'} onclick={() => mobileMenuOpen = false}>Analytics</a>
-					<a href="/profile" class="nav-link" class:active={$page.url.pathname === '/profile'} onclick={() => mobileMenuOpen = false}>Profile</a>
+					<!-- Navigation Links -->
+					<div class="nav-links" class:open={mobileMenuOpen}>
+						<a href="/dashboard" class="nav-link" class:active={$page.url.pathname === '/dashboard'} onclick={() => mobileMenuOpen = false}>Feed</a>
+						<a href="/dives" class="nav-link" class:active={$page.url.pathname === '/dives'} onclick={() => mobileMenuOpen = false}>Log Dive</a>
+						<a href="/routines" class="nav-link" class:active={$page.url.pathname.startsWith('/routines')} onclick={() => mobileMenuOpen = false}>Routines</a>
+						<a href="/analytics" class="nav-link" class:active={$page.url.pathname === '/analytics'} onclick={() => mobileMenuOpen = false}>Analytics</a>
+						<a href="/profile" class="nav-link" class:active={$page.url.pathname === '/profile'} onclick={() => mobileMenuOpen = false}>Profile</a>
+					</div>
 				</div>
+			</nav>
+
+			<div class="gradient-divider"></div>
+
+			<div class="content-pad">
+				{@render children()}
 			</div>
-		</nav>
-
-		<div class="gradient-divider"></div>
-
-		<div class="content-pad">
-			<slot />
 		</div>
-	</div>
-	<BottomNav />
+		<BottomNav />
+	{/if}
 {/if}
 
 <style>
