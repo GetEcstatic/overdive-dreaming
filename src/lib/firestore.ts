@@ -711,6 +711,7 @@ export async function searchPublicUsersByDisplayName(
 	if (!trimmed) return [];
 
 	const usersRef = collection(db, 'usersPublic');
+	const normalized = trimmed.toLocaleLowerCase();
 	const searchQuery = query(
 		usersRef,
 		orderBy('displayName'),
@@ -720,7 +721,30 @@ export async function searchPublicUsersByDisplayName(
 	);
 
 	const snapshot = await getDocs(searchQuery);
-	return snapshot.docs.map((docSnap) => docSnap.data() as PublicUserProfile);
+	const exactPrefixMatches = snapshot.docs.map(
+		(docSnap) => docSnap.data() as PublicUserProfile
+	);
+
+	if (exactPrefixMatches.length >= maxResults) return exactPrefixMatches;
+
+	const fallbackQuery = query(usersRef, orderBy('displayName'), limit(100));
+	const fallbackSnapshot = await getDocs(fallbackQuery);
+	const byId = new Map<string, PublicUserProfile>();
+
+	for (const profile of exactPrefixMatches) {
+		byId.set(profile.userId, profile);
+	}
+
+	for (const docSnap of fallbackSnapshot.docs) {
+		const profile = docSnap.data() as PublicUserProfile;
+		const name = profile.displayName.toLocaleLowerCase();
+		if (name.startsWith(normalized) || name.includes(normalized)) {
+			byId.set(profile.userId, profile);
+		}
+		if (byId.size >= maxResults) break;
+	}
+
+	return Array.from(byId.values()).slice(0, maxResults);
 }
 
 export async function getPublicUserProfilesByIds(
