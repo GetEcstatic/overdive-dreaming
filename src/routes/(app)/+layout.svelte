@@ -147,6 +147,8 @@
 
 	/* Top Navigation */
 	.top-nav {
+		position: relative;
+		z-index: 200;
 		background: rgba(10, 15, 20, 0.85);
 		backdrop-filter: blur(12px);
 		-webkit-backdrop-filter: blur(12px);
@@ -196,6 +198,7 @@
 	.nav-links {
 		display: flex;
 		gap: 0.5rem;
+		z-index: 201;
 	}
 
 	.nav-link {
