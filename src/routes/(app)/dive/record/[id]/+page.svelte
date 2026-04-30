@@ -14,14 +14,9 @@
 	import { user } from '$lib/stores/auth';
 	import DiveRecorder from '$lib/components/DiveRecorder.svelte';
 	import AthletePicker from '$lib/components/AthletePicker.svelte';
-	import CameraSelector from '$lib/components/CameraSelector.svelte';
 	import NumberWheelInput from '$lib/components/NumberWheelInput.svelte';
 	import { buildDiveVideoFormData, listDiveVideosForSession } from '$lib/services/diveVideos';
-	import {
-		AUTO_REAR_CAMERA,
-		enumerateCameraDevices,
-		type CameraDeviceOption
-	} from '$lib/capture/cameraDevices';
+	import { AUTO_REAR_CAMERA } from '$lib/capture/cameraDevices';
 	import { canWriteToIndexedDB, enqueueUpload } from '$lib/capture/uploadQueue';
 	import { drainUploadQueue } from '$lib/capture/uploadProcessor';
 	import { logUploadDiagnostic } from '$lib/capture/uploadDiagnostics';
@@ -79,31 +74,6 @@
 	let discipline = $state<DiveVideoDiscipline>('DYN');
 	let resolution = $state<DiveVideoResolution>('720p');
 	let cameraPreference = $state<CameraPreference>(AUTO_REAR_CAMERA);
-	let cameraOptions = $state<CameraDeviceOption[]>([]);
-
-	function setupCameraOptions(): CameraDeviceOption[] {
-		const reliable = cameraOptions.filter((option) => option.confidence !== 'unknown');
-		const preference = cameraPreference;
-		if (
-			preference.kind === 'device' &&
-			preference.label &&
-			!/^Camera\s+\d+$/i.test(preference.label) &&
-			!reliable.some((option) => option.id === preference.deviceId)
-		) {
-			return [
-				{
-					id: preference.deviceId,
-					label: preference.label,
-					rawLabel: 'Saved camera preference',
-					kind: 'videoinput',
-					facing: 'unknown',
-					confidence: 'inferred-label'
-				},
-				...reliable
-			];
-		}
-		return reliable;
-	}
 	let resolutionLoaded = $state(false);
 	/**
 	 * Quick-start state.
@@ -154,10 +124,13 @@
 					discipline = settings.defaultDiscipline;
 					gotAnyDefault = true;
 				}
-				if (settings?.defaultCameraPreference) {
-					cameraPreference = settings.defaultCameraPreference;
-					gotAnyDefault = true;
-				}
+				// Note: we no longer restore `defaultCameraPreference` here. The
+				// recorder always starts with the auto rear camera and the user
+				// switches lenses from the on-screen pill once the preview is
+				// live. Pre-selecting a saved deviceId before the camera is
+				// opened is unreliable on mobile — the same lens often surfaces
+				// under a different id after a new permission prompt, which then
+				// fails the getUserMedia call.
 				if (gotAnyDefault) hasQuickStart = true;
 			})
 			.catch((err) => {
@@ -297,7 +270,14 @@
 			// session page. This is pure data — the form picks it up by
 			// session id. Kept on sessionStorage so a full reload still
 			// finds it; cleared after one read by the consumer.
-			if (capture) {
+			//
+			// We deliberately SKIP this seed (and the routine-log redirect
+			// below) when the dive is being gifted to someone else. The
+			// recipient owns the metrics — they'll fill in the form via the
+			// gift review route — and we don't want a stub routine log
+			// showing up on the gifter's dashboard feed.
+			const isGift = Boolean(athleteId && athleteId !== uid);
+			if (capture && !isGift) {
 				const summary = summariseTimeline(capture.timeline);
 				try {
 					sessionStorage.setItem(
@@ -318,22 +298,33 @@
 			// Persist the last-used recorder setup so next time we can offer
 			// a one-tap quick start. Fire-and-forget — any failure here is
 			// purely a UX regression for the *next* session.
+			//
+			// `defaultCameraPreference` is intentionally NOT saved: the
+			// recorder always starts on the auto rear camera and the user
+			// switches lenses from the on-screen pill once the preview is
+			// live (see comment on the setup-stage camera field).
 			if (poolLength && waypointsPerLap) {
 				updateUserSettings(uid, {
 					defaultPoolLength: poolLength,
 					defaultWaypointsPerLap: waypointsPerLap,
-					defaultDiscipline: discipline,
-					defaultCameraPreference: cameraPreference
+					defaultDiscipline: discipline
 				}).catch((err) => {
 					// eslint-disable-next-line no-console
 					console.warn('[dive-record] could not save recorder defaults', err);
 				});
 			}
-			// After save, open a new dynamic-max dive log pre-filled with
-			// the metrics parsed from the video (discipline, pool length,
-			// total distance, total time). The /dives page reads the
-			// `dive-log-seed:{sessionId}` sessionStorage bundle and auto-
-			// selects the system-dynamic-max routine.
+			if (isGift) {
+				// Gifted dive: send the gifter back to the dashboard. The
+				// recipient receives the video in their PendingGifts list and
+				// fills in the routine log themselves via /gift/{videoId}.
+				await goto('/dashboard');
+				return;
+			}
+			// Personal dive: open a new dynamic-max dive log pre-filled
+			// with the metrics parsed from the video (discipline, pool
+			// length, total distance, total time). The /dives page reads
+			// the `dive-log-seed:{sessionId}` sessionStorage bundle and
+			// auto-selects the system-dynamic-max routine.
 			await goto(
 				`/dives?routine=system-dynamic-max&seed=${encodeURIComponent(sessionId)}`
 			);
@@ -386,13 +377,6 @@
 		canWriteToIndexedDB().then((ok) => {
 			storageHealthy = ok;
 		});
-		enumerateCameraDevices()
-			.then((options) => {
-				cameraOptions = options;
-			})
-			.catch(() => {
-				cameraOptions = [];
-			});
 
 		return () => {
 			document.removeEventListener('gesturestart', prevent);
@@ -490,15 +474,14 @@
 						/>
 					</div>
 
-					<div class="field">
-						<span class="field-label">Camera</span>
-							<CameraSelector
-								bind:value={cameraPreference}
-								options={setupCameraOptions()}
-								compact
-								emptyMessage="Exact lens choices appear on the recorder screen after camera permission is granted."
-							/>
-						</div>
+					<!--
+						Camera selection deliberately removed from setup. Choosing a
+						lens before the camera is actually opened often fails on
+						iOS/Android (the deviceId may not survive a fresh permission
+						prompt). The recorder defaults to the auto rear camera and
+						exposes a pill on the live preview to switch lenses once the
+						camera image is showing.
+					-->
 
 					<div class="field">
 						<NumberWheelInput

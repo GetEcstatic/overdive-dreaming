@@ -638,6 +638,7 @@
 							onpointerup={onEndDiveHoldEnd}
 							onpointercancel={onEndDiveHoldEnd}
 							onpointerleave={onEndDiveHoldEnd}
+							oncontextmenu={(e) => e.preventDefault()}
 							aria-label="Hold to end dive"
 						>
 							<span class="btn-main">
@@ -723,13 +724,20 @@
 		top: max(0.75rem, env(safe-area-inset-top));
 	}
 	.camera-control {
+		/*
+		 * Pill sits near the record button (bottom of the live preview)
+		 * rather than the corner so it's reachable with the thumb in
+		 * both orientations. It's also auto-hidden once recording
+		 * starts — see the markup — so it never overlaps the live HUD.
+		 */
 		position: absolute;
-		top: max(0.75rem, env(safe-area-inset-top));
-		right: max(0.75rem, env(safe-area-inset-right));
+		left: 50%;
+		bottom: 0.85rem;
+		transform: translateX(-50%);
 		z-index: 4;
 		display: flex;
 		flex-direction: column;
-		align-items: flex-end;
+		align-items: center;
 		gap: 0.25rem;
 	}
 	.camera-pill {
@@ -957,6 +965,19 @@
 	.btn.btn-endDive {
 		position: relative;
 		overflow: hidden;
+		/*
+		 * On mobile webviews (especially iOS Safari and Android WebView),
+		 * a long press on a button still triggers the OS's text-selection
+		 * / "copy" callout because the rendered label counts as selectable
+		 * text. Suppress the entire native long-press behaviour on this
+		 * button so our 500 ms hold-to-confirm gesture is the only thing
+		 * the user sees.
+		 */
+		user-select: none;
+		-webkit-user-select: none;
+		-webkit-touch-callout: none;
+		touch-action: manipulation;
+		-webkit-tap-highlight-color: transparent;
 	}
 	.btn.btn-endDive.is-held {
 		background: #b91c1c;
@@ -1041,9 +1062,19 @@
 			max-width: 60%;
 			padding: 0.45rem 0.7rem;
 		}
+		.camera-message {
+			text-align: center;
+		}
 		.camera-control {
-			top: max(0.5rem, env(safe-area-inset-top));
-			right: 0.5rem;
+			/* Landscape: keep the pill near the bottom of the preview, on
+			   the side opposite the controls strip (which is on the right
+			   in landscape). Centering horizontally still reads as "near
+			   the record button" since the controls strip starts at the
+			   right edge. */
+			left: 50%;
+			right: auto;
+			bottom: max(0.6rem, env(safe-area-inset-bottom));
+			transform: translateX(-50%);
 		}
 		.camera-pill {
 			font-size: 0.64rem;
