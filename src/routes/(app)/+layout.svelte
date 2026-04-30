@@ -73,45 +73,41 @@
 		<div class="text-2xl text-(--color-primary)">Loading...</div>
 	</div>
 {:else if $user}
-	{#if isRecording}
-		{@render children()}
-	{:else}
-		<div class="app-wrapper">
-			<!-- Top Navigation Menu -->
-			<nav class="top-nav">
-				<div class="nav-content">
-					<h1 class="nav-title">Overdive</h1>
+	<div class="app-wrapper">
+		<!-- Top Navigation Menu -->
+		<nav class="top-nav" class:recording-hidden={isRecording} aria-hidden={isRecording}>
+			<div class="nav-content">
+				<h1 class="nav-title">Overdive</h1>
 
-					<!-- Hamburger Button (Mobile) -->
-					<button
-						class="hamburger"
-						onclick={() => mobileMenuOpen = !mobileMenuOpen}
-						aria-label="Toggle menu"
-					>
-						<span class="hamburger-line"></span>
-						<span class="hamburger-line"></span>
-						<span class="hamburger-line"></span>
-					</button>
+				<!-- Hamburger Button (Mobile) -->
+				<button
+					class="hamburger"
+					onclick={() => mobileMenuOpen = !mobileMenuOpen}
+					aria-label="Toggle menu"
+				>
+					<span class="hamburger-line"></span>
+					<span class="hamburger-line"></span>
+					<span class="hamburger-line"></span>
+				</button>
 
-					<!-- Navigation Links -->
-					<div class="nav-links" class:open={mobileMenuOpen}>
-						<a href="/dashboard" class="nav-link" class:active={$page.url.pathname === '/dashboard'} onclick={() => mobileMenuOpen = false}>Feed</a>
-						<a href="/dives" class="nav-link" class:active={$page.url.pathname === '/dives'} onclick={() => mobileMenuOpen = false}>Log Dive</a>
-						<a href="/routines" class="nav-link" class:active={$page.url.pathname.startsWith('/routines')} onclick={() => mobileMenuOpen = false}>Routines</a>
-						<a href="/analytics" class="nav-link" class:active={$page.url.pathname === '/analytics'} onclick={() => mobileMenuOpen = false}>Analytics</a>
-						<a href="/profile" class="nav-link" class:active={$page.url.pathname === '/profile'} onclick={() => mobileMenuOpen = false}>Profile</a>
-					</div>
+				<!-- Navigation Links -->
+				<div class="nav-links" class:open={mobileMenuOpen}>
+					<a href="/dashboard" class="nav-link" class:active={$page.url.pathname === '/dashboard'} onclick={() => mobileMenuOpen = false}>Feed</a>
+					<a href="/dives" class="nav-link" class:active={$page.url.pathname === '/dives'} onclick={() => mobileMenuOpen = false}>Log Dive</a>
+					<a href="/routines" class="nav-link" class:active={$page.url.pathname.startsWith('/routines')} onclick={() => mobileMenuOpen = false}>Routines</a>
+					<a href="/analytics" class="nav-link" class:active={$page.url.pathname === '/analytics'} onclick={() => mobileMenuOpen = false}>Analytics</a>
+					<a href="/profile" class="nav-link" class:active={$page.url.pathname === '/profile'} onclick={() => mobileMenuOpen = false}>Profile</a>
 				</div>
-			</nav>
-
-			<div class="gradient-divider"></div>
-
-			<div class="content-pad">
-				{@render children()}
 			</div>
+		</nav>
+
+		<div class="gradient-divider" class:recording-hidden={isRecording}></div>
+
+		<div class="content-pad">
+			{@render children()}
 		</div>
-		<BottomNav />
-	{/if}
+	</div>
+	<BottomNav />
 {/if}
 
 <style>
@@ -163,6 +159,11 @@
 		border-radius: 12px;
 		padding: 1rem 1.5rem;
 		margin-bottom: 2rem;
+	}
+
+	.top-nav.recording-hidden,
+	.gradient-divider.recording-hidden {
+		display: none;
 	}
 
 	.nav-content {
