@@ -21,6 +21,7 @@
 	import { drainUploadQueue } from '$lib/capture/uploadProcessor';
 	import { logUploadDiagnostic } from '$lib/capture/uploadDiagnostics';
 	import { summariseTimeline, totalDistanceM } from '$lib/capture/timeline';
+	import { defaultSpeedMs } from '$lib/capture/disciplineSpeeds';
 	import { getUserSettings, updateUserSettings } from '$lib/firestore';
 	import { diveRecording } from '$lib/stores/videoPlayback';
 	import type {
@@ -139,8 +140,10 @@
 			});
 
 		// Phase 2: session-scoped lock. If this session already has a recorded
-		// dive, reuse its pool length and discipline — the diver cannot change
-		// pools mid-session.
+		// dive, reuse its pool length — the diver cannot change pools
+		// mid-session. Discipline is intentionally NOT propagated: each dive
+		// video is treated as its own routine and the diver may switch
+		// between DYN / DYNB / DNF freely within a session.
 		if (sessionId) {
 			listDiveVideosForSession(sessionId)
 				.then((videos) => {
@@ -148,9 +151,6 @@
 					if (!prior) return;
 					if (typeof prior.poolLength === 'number') {
 						poolLength = prior.poolLength;
-					}
-					if (prior.discipline) {
-						discipline = prior.discipline;
 					}
 					sessionLocked = true;
 					hasQuickStart = true;
@@ -278,7 +278,10 @@
 			// showing up on the gifter's dashboard feed.
 			const isGift = Boolean(athleteId && athleteId !== uid);
 			if (capture && !isGift) {
-				const summary = summariseTimeline(capture.timeline);
+				const summary = summariseTimeline(
+					capture.timeline,
+					defaultSpeedMs(discipline)
+				);
 				try {
 					sessionStorage.setItem(
 						`dive-log-seed:${sessionId}`,
@@ -450,14 +453,32 @@
 				</div>
 			{:else}
 				<section class="card">
-					<label class="field">
+					<div class="field">
 						<span class="field-label">Discipline</span>
-						<select class="select" bind:value={discipline}>
-							<option value="DYN">DYN (with fins)</option>
-							<option value="DYNB">DYNB (bifins)</option>
-							<option value="DNF">DNF (no fins)</option>
-						</select>
-					</label>
+						<div class="segmented" role="radiogroup" aria-label="Discipline">
+							{#each [
+								{ value: 'DYN', label: 'DYN', sub: 'fins' },
+								{ value: 'DYNB', label: 'DYNB', sub: 'bifins' },
+								{ value: 'DNF', label: 'DNF', sub: 'no fins' }
+							] as opt (opt.value)}
+								<button
+									type="button"
+									class="seg-btn"
+									class:active={discipline === opt.value}
+									role="radio"
+									aria-checked={discipline === opt.value}
+									onclick={() => (discipline = opt.value as typeof discipline)}
+								>
+									<span class="seg-label">{opt.label}</span>
+									<span class="seg-sub">{opt.sub}</span>
+								</button>
+							{/each}
+						</div>
+						<p class="field-hint">
+							Sets the initial dive speed before your first waypoint
+							(DYN 1.1 · DYNB 1.0 · DNF 0.8 m/s).
+						</p>
+					</div>
 
 					<div class="field">
 						<NumberWheelInput
@@ -553,7 +574,7 @@
 						     estimated from the most recent measured pace).
 						  See `totalDistanceM` in src/lib/capture/timeline.ts.
 						-->
-						<strong>{formatMeters(totalDistanceM(capture.timeline))} m</strong>
+						<strong>{formatMeters(totalDistanceM(capture.timeline, defaultSpeedMs(discipline)))} m</strong>
 					</div>
 					<div><span>Size</span><strong>{(capture.sizeBytes / (1024 * 1024)).toFixed(1)} MB</strong></div>
 				</div>
@@ -664,6 +685,59 @@
 		border: 1px solid rgba(148, 163, 184, 0.2);
 		font: inherit;
 		font-size: 1rem;
+	}
+
+	.field-hint {
+		margin: 0;
+		font-size: 0.78rem;
+		color: var(--color-text-muted);
+	}
+
+	.segmented {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 0.4rem;
+		padding: 0.3rem;
+		background: rgba(15, 23, 42, 0.65);
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		border-radius: 12px;
+	}
+	.seg-btn {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.1rem;
+		padding: 0.6rem 0.4rem;
+		background: transparent;
+		border: 1px solid transparent;
+		border-radius: 9px;
+		color: var(--color-text-muted);
+		font: inherit;
+		cursor: pointer;
+		transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+		-webkit-tap-highlight-color: transparent;
+	}
+	.seg-btn:hover {
+		color: var(--color-text);
+	}
+	.seg-btn.active {
+		background: rgba(20, 184, 166, 0.18);
+		border-color: rgba(20, 184, 166, 0.55);
+		color: var(--color-primary);
+	}
+	.seg-label {
+		font-weight: 700;
+		font-size: 0.95rem;
+		letter-spacing: 0.02em;
+	}
+	.seg-sub {
+		font-size: 0.7rem;
+		color: var(--color-text-muted);
+	}
+	.seg-btn.active .seg-sub {
+		color: var(--color-primary);
+		opacity: 0.85;
 	}
 
 	.summary {

@@ -7,6 +7,7 @@
 import type { RecorderState } from './recorderState';
 import { waypointSpacingM } from './recorderState';
 import type { LapEvent } from '../types';
+import { defaultSpeedMs } from './disciplineSpeeds';
 
 /** ms elapsed since Start-dive. 0 before the dive begins. */
 export function diveElapsedMs(state: RecorderState, nowPerfMs: number): number {
@@ -87,16 +88,19 @@ export function nextWallM(state: RecorderState): number {
 /**
  * Live speed in m/s. Derived from the gap between the two most recent taps
  * (of any kind), or from the single tap's split (time since dive start)
- * if there is only one. Defaults to 1 m/s before the first tap.
+ * if there is only one. Defaults to the discipline-specific initial speed
+ * (see `disciplineSpeeds.ts`) before the first tap.
  */
 export function liveSpeedMs(state: RecorderState): number {
 	const { phase, timeline, config } = state;
 	if (phase !== 'diving' && phase !== 'ended' && phase !== 'stopping') return 0;
 
+	const initial = defaultSpeedMs(config.discipline);
+
 	// Merge walls + subSplits by atMs.
 	const subs = timeline.subSplits ?? [];
 	const merged = [...timeline.laps, ...subs].sort((a, b) => a.atMs - b.atMs);
-	if (merged.length === 0) return 1;
+	if (merged.length === 0) return initial;
 
 	if (merged.length === 1) {
 		const only = merged[0];
@@ -108,7 +112,7 @@ export function liveSpeedMs(state: RecorderState): number {
 	const prev = merged[merged.length - 2];
 	const dt = (last.atMs - prev.atMs) / 1000;
 	const dx = last.cumulativeDistanceM - prev.cumulativeDistanceM;
-	if (dt <= 0) return 1;
+	if (dt <= 0) return initial;
 	// Negative dx shouldn't happen (events are append-only with monotonic
 	// cumulative distance) but guard just in case.
 	if (dx < 0) return waypointSpacingM(config) / Math.max(dt, 0.001);
@@ -119,14 +123,15 @@ export function liveSpeedMs(state: RecorderState): number {
  * Interpolated cumulative distance at `nowPerfMs`. UNCAPPED in v2 — the HUD
  * keeps advancing past the next expected waypoint when the diver misses a
  * tap, instead of pinning. The reducer corrects the base on the next real
- * wall tap (snap-to-integer). Starts from dive-start at 1 m/s until the
- * first tap.
+ * wall tap (snap-to-integer). Starts from dive-start at the discipline-
+ * specific default speed (DYN/DYNB/DNF) until the first tap.
  */
 export function cumulativeDistanceM(
 	state: RecorderState,
 	nowPerfMs: number
 ): number {
-	const { phase, timeline, clocks } = state;
+	const { phase, timeline, clocks, config } = state;
+	const initial = defaultSpeedMs(config.discipline);
 
 	if (phase === 'ended' || phase === 'stopping') {
 		const anchor = lastTap(state);
@@ -137,7 +142,7 @@ export function cumulativeDistanceM(
 		const baseDistance = anchor?.cumulativeDistanceM ?? 0;
 		const endAtMs = clocks.diveEndedPerfMs - clocks.recordingStartedPerfMs;
 		const elapsedSinceBaseMs = Math.max(0, endAtMs - baseAtMs);
-		const speed = liveSpeedMs(state) > 0 ? liveSpeedMs(state) : 1;
+		const speed = liveSpeedMs(state) > 0 ? liveSpeedMs(state) : initial;
 		return baseDistance + (elapsedSinceBaseMs / 1000) * speed;
 	}
 
@@ -156,7 +161,7 @@ export function cumulativeDistanceM(
 		0,
 		nowPerfMs - clocks.recordingStartedPerfMs - baseAtMs
 	);
-	const speed = liveSpeedMs(state) > 0 ? liveSpeedMs(state) : 1;
+	const speed = liveSpeedMs(state) > 0 ? liveSpeedMs(state) : initial;
 	// v2: UNCAPPED — no Math.min against the next-waypoint target. A missed
 	// tap lets the HUD drift past the target so the coach can see it; the
 	// diver's next wall tap will snap the base back to the correct integer.

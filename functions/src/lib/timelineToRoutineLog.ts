@@ -68,7 +68,7 @@ function totalTimeMs(timeline: DiveTimeline): number {
 	return Math.max(0, timeline.diveEndMs - timeline.diveStartMs);
 }
 
-function totalDistanceM(timeline: DiveTimeline): number {
+function totalDistanceM(timeline: DiveTimeline, defaultSpeedMs: number = 1): number {
 	const samples = timeline.samples;
 	if (samples && samples.length > 0) {
 		const last = samples[samples.length - 1];
@@ -76,7 +76,12 @@ function totalDistanceM(timeline: DiveTimeline): number {
 		return last.distanceM + (tailMs / 1000) * last.speedMs;
 	}
 
-	if (timeline.laps.length === 0) return 0;
+	if (timeline.laps.length === 0) {
+		// No waypoints tapped — fall back to the discipline default pace
+		// (mirror of src/lib/capture/timeline.ts).
+		const diveDurationMs = Math.max(0, timeline.diveEndMs - timeline.diveStartMs);
+		return (diveDurationMs / 1000) * defaultSpeedMs;
+	}
 	const lastLap = timeline.laps[timeline.laps.length - 1];
 	const base = lastLap.cumulativeDistanceM;
 	const tailMs = Math.max(0, timeline.diveEndMs - lastLap.atMs);
@@ -86,14 +91,15 @@ function totalDistanceM(timeline: DiveTimeline): number {
 			? timeline.laps[timeline.laps.length - 2].cumulativeDistanceM
 			: 0;
 	const lapDistance = lastLap.cumulativeDistanceM - prevDistance;
-	const speedMs = lastLap.splitMs > 0 ? lapDistance / (lastLap.splitMs / 1000) : 1;
+	const speedMs =
+		lastLap.splitMs > 0 ? lapDistance / (lastLap.splitMs / 1000) : defaultSpeedMs;
 	return base + speedMs * (tailMs / 1000);
 }
 
-function averageSpeedMs(timeline: DiveTimeline): number {
+function averageSpeedMs(timeline: DiveTimeline, defaultSpeedMs: number = 1): number {
 	const totalMs = totalTimeMs(timeline);
 	if (totalMs <= 0) return 0;
-	return totalDistanceM(timeline) / (totalMs / 1000);
+	return totalDistanceM(timeline, defaultSpeedMs) / (totalMs / 1000);
 }
 
 interface LapSplit {
@@ -114,9 +120,12 @@ interface TimelineSummary {
 	perLap: LapSplit[];
 }
 
-function summariseTimeline(timeline: DiveTimeline): TimelineSummary {
+function summariseTimeline(
+	timeline: DiveTimeline,
+	defaultSpeedMs: number = 1
+): TimelineSummary {
 	const totalMs = totalTimeMs(timeline);
-	const distance = totalDistanceM(timeline);
+	const distance = totalDistanceM(timeline, defaultSpeedMs);
 	const lapCount = timeline.laps.length;
 
 	const splitSecs = timeline.laps.map((l) => l.splitMs / 1000);
@@ -139,13 +148,22 @@ function summariseTimeline(timeline: DiveTimeline): TimelineSummary {
 	return {
 		totalTimeSeconds: totalMs / 1000,
 		totalDistanceM: distance,
-		averageSpeedMs: averageSpeedMs(timeline),
+		averageSpeedMs: averageSpeedMs(timeline, defaultSpeedMs),
 		lapCount,
 		avgSplitSeconds: avgSplit,
 		fastestLapSeconds: fastest,
 		slowestLapSeconds: slowest,
 		perLap
 	};
+}
+
+// Discipline-specific initial speeds (vendored from
+// src/lib/capture/disciplineSpeeds.ts — keep in sync).
+const DISCIPLINE_DEFAULT_SPEED_MS: Readonly<Record<DiveVideoDiscipline, number>> =
+	Object.freeze({ DYN: 1.1, DYNB: 1.0, DNF: 0.8 });
+
+function defaultSpeedMs(discipline: DiveVideoDiscipline): number {
+	return DISCIPLINE_DEFAULT_SPEED_MS[discipline] ?? 1.0;
 }
 
 // ---------------------------------------------------------------------------
@@ -201,7 +219,10 @@ export interface RoutineLogProjection {
 export function projectTimelineToRoutineLog(
 	input: TimelineProjectionInput
 ): RoutineLogProjection {
-	const summary = summariseTimeline(input.timeline);
+	const summary = summariseTimeline(
+		input.timeline,
+		defaultSpeedMs(input.discipline)
+	);
 
 	const totalTime =
 		summary.totalTimeSeconds > 0 ? summary.totalTimeSeconds : input.durationSeconds;

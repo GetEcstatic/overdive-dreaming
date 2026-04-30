@@ -183,11 +183,15 @@ export function totalTimeMs(timeline: DiveTimeline): number {
  * End-dive. We estimate that tail using the most recent lap's measured
  * speed (metres per second) and the elapsed time from the last waypoint
  * to `diveEndMs`. When there are no waypoints yet (diver ended before the
- * first tap, or coach forgot to tap), we fall back to the same default
- * speed of 1 m/s used by the live HUD counter so distance is never 0 for
- * a dive that actually happened.
+ * first tap, or coach forgot to tap), we fall back to `defaultSpeedMs`
+ * (provided by the caller, typically discipline-derived) so distance is
+ * never 0 for a dive that actually happened. Defaults to 1 m/s for
+ * backward compatibility with callers that don't know the discipline.
  */
-export function totalDistanceM(timeline: DiveTimeline): number {
+export function totalDistanceM(
+	timeline: DiveTimeline,
+	defaultSpeedMs: number = 1
+): number {
 	const diveDurationMs = Math.max(0, timeline.diveEndMs - timeline.diveStartMs);
 
 	// v2: prefer the dense sample stream when present. It reflects the
@@ -201,8 +205,8 @@ export function totalDistanceM(timeline: DiveTimeline): number {
 	}
 
 	if (timeline.laps.length === 0) {
-		// No waypoints tapped — fall back to the HUD's default pace of 1 m/s.
-		return (diveDurationMs / 1000) * 1;
+		// No waypoints tapped — fall back to the discipline default pace.
+		return (diveDurationMs / 1000) * defaultSpeedMs;
 	}
 
 	const lastLap = timeline.laps[timeline.laps.length - 1];
@@ -211,24 +215,27 @@ export function totalDistanceM(timeline: DiveTimeline): number {
 	if (tailMs <= 0) return base;
 
 	// Estimate speed from the last lap: (lap distance) / (lap split).
-	// Falls back to 1 m/s (same default as the HUD) if the split is zero.
+	// Falls back to the discipline default if the split is zero.
 	const prevCumulative =
 		timeline.laps.length === 1
 			? 0
 			: timeline.laps[timeline.laps.length - 2].cumulativeDistanceM;
 	const lapDistance = base - prevCumulative;
 	const speedMs =
-		lastLap.splitMs > 0 ? lapDistance / (lastLap.splitMs / 1000) : 1;
+		lastLap.splitMs > 0 ? lapDistance / (lastLap.splitMs / 1000) : defaultSpeedMs;
 	return base + speedMs * (tailMs / 1000);
 }
 
 /**
  * Average speed (m/s) across the whole dive, or 0 if the dive has no duration.
  */
-export function averageSpeedMs(timeline: DiveTimeline): number {
+export function averageSpeedMs(
+	timeline: DiveTimeline,
+	defaultSpeedMs: number = 1
+): number {
 	const totalMs = totalTimeMs(timeline);
 	if (totalMs <= 0) return 0;
-	return totalDistanceM(timeline) / (totalMs / 1000);
+	return totalDistanceM(timeline, defaultSpeedMs) / (totalMs / 1000);
 }
 
 /**
@@ -259,7 +266,12 @@ function bisectSamples(
  *   2. Otherwise fall back to the v1 lap-based estimate (1 m/s before the
  *      first waypoint, last-lap pace thereafter).
  */
-export function speedAt(timeline: DiveTimeline, atMs: number, poolLengthM: number): number {
+export function speedAt(
+	timeline: DiveTimeline,
+	atMs: number,
+	poolLengthM: number,
+	defaultSpeedMs: number = 1
+): number {
 	const samples = timeline.samples;
 	if (samples && samples.length > 0) {
 		const i = bisectSamples(samples, atMs);
@@ -283,8 +295,9 @@ export function speedAt(timeline: DiveTimeline, atMs: number, poolLengthM: numbe
 	// Legacy (pre-v2) lap-based estimate.
 	const completedLaps = timeline.laps.filter((l) => l.atMs <= atMs);
 	if (completedLaps.length === 0) {
-		// Before any waypoint: 1 m/s default while the dive is in progress.
-		if (atMs > timeline.diveStartMs && atMs <= timeline.diveEndMs) return 1;
+		// Before any waypoint: discipline default while the dive is in progress.
+		if (atMs > timeline.diveStartMs && atMs <= timeline.diveEndMs)
+			return defaultSpeedMs;
 		return 0;
 	}
 
@@ -306,7 +319,8 @@ export function speedAt(timeline: DiveTimeline, atMs: number, poolLengthM: numbe
 export function distanceAt(
 	timeline: DiveTimeline,
 	atMs: number,
-	poolLengthM: number
+	poolLengthM: number,
+	defaultSpeedMs: number = 1
 ): number {
 	const samples = timeline.samples;
 	if (samples && samples.length > 0) {
@@ -342,7 +356,7 @@ export function distanceAt(
 		if (atMs <= timeline.diveStartMs) return 0;
 		const effectiveAtMs = Math.min(atMs, timeline.diveEndMs);
 		const elapsedSinceDiveStartMs = Math.max(0, effectiveAtMs - timeline.diveStartMs);
-		return (elapsedSinceDiveStartMs / 1000) * 1;
+		return (elapsedSinceDiveStartMs / 1000) * defaultSpeedMs;
 	}
 
 	const lastLap = completedLaps[completedLaps.length - 1];
@@ -378,9 +392,12 @@ export interface TimelineSummary {
 	perLap: LapSplit[];
 }
 
-export function summariseTimeline(timeline: DiveTimeline): TimelineSummary {
+export function summariseTimeline(
+	timeline: DiveTimeline,
+	defaultSpeedMs: number = 1
+): TimelineSummary {
 	const totalMs = totalTimeMs(timeline);
-	const distance = totalDistanceM(timeline);
+	const distance = totalDistanceM(timeline, defaultSpeedMs);
 	const lapCount = timeline.laps.length;
 
 	const splitSecs = timeline.laps.map((l) => l.splitMs / 1000);
@@ -403,7 +420,7 @@ export function summariseTimeline(timeline: DiveTimeline): TimelineSummary {
 	return {
 		totalTimeSeconds: totalMs / 1000,
 		totalDistanceM: distance,
-		averageSpeedMs: averageSpeedMs(timeline),
+		averageSpeedMs: averageSpeedMs(timeline, defaultSpeedMs),
 		lapCount,
 		avgSplitSeconds: avgSplit,
 		fastestLapSeconds: fastest,

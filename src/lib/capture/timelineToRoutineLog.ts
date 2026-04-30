@@ -22,6 +22,7 @@ import type {
 	TimeOfDay
 } from '$lib/types';
 import { summariseTimeline } from './timeline';
+import { defaultSpeedMs } from './disciplineSpeeds';
 
 /**
  * Default routine id to attach a gifted dive to. Today the recorder only
@@ -110,7 +111,7 @@ export interface RoutineLogProjection {
 export function projectTimelineToRoutineLog(
 	input: TimelineProjectionInput
 ): RoutineLogProjection {
-	const summary = summariseTimeline(input.timeline);
+	const summary = summariseTimeline(input.timeline, defaultSpeedMs(input.discipline));
 
 	const totalTime =
 		summary.totalTimeSeconds > 0 ? summary.totalTimeSeconds : input.durationSeconds;

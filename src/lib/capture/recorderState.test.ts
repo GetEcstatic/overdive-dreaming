@@ -259,18 +259,18 @@ describe('selectors', () => {
 		expect(diveElapsedMs(s, 99999)).toBe(4000);
 	});
 
-	it('cumulativeDistanceM interpolates at 1 m/s before first lap', () => {
-		// now = 5000 + 3000ms = 8000 → expect 3 m interpolated, capped at
-		// waypoint target 12.5 m → 3 m.
-		expect(cumulativeDistanceM(diving, 8000)).toBeCloseTo(3, 5);
+	it('cumulativeDistanceM interpolates at the discipline default speed (DYN=1.1 m/s) before first lap', () => {
+		// now = 5000 + 3000ms = 8000 → expect 3.3 m interpolated (3 s × 1.1 m/s),
+		// uncapped in v2.
+		expect(cumulativeDistanceM(diving, 8000)).toBeCloseTo(3.3, 5);
 	});
 
 	it('cumulativeDistanceM is uncapped in v2 — keeps advancing past the next target', () => {
 		// Huge elapsed time → the HUD keeps advancing linearly instead of
 		// pinning at nextWaypointM. The reducer snaps to the correct
 		// integer distance on the next real wall tap.
-		// 1_000_000 ms - 5000 ms (dive start) = 995 s × 1 m/s = 995 m.
-		expect(cumulativeDistanceM(diving, 1_000_000)).toBeCloseTo(995, 5);
+		// 1_000_000 ms - 5000 ms (dive start) = 995 s × 1.1 m/s (DYN) = 1094.5 m.
+		expect(cumulativeDistanceM(diving, 1_000_000)).toBeCloseTo(1094.5, 5);
 	});
 
 	it('cumulativeDistanceM freezes uncapped at dive-end (no revert to last waypoint)', () => {
@@ -304,8 +304,8 @@ describe('selectors', () => {
 		expect(nextWaypointM(afterWall)).toBeCloseTo(37.5, 5);
 	});
 
-	it('liveSpeedMs defaults to 1 before first lap', () => {
-		expect(liveSpeedMs(diving)).toBe(1);
+	it('liveSpeedMs defaults to the discipline speed (DYN=1.1 m/s) before first lap', () => {
+		expect(liveSpeedMs(diving)).toBeCloseTo(1.1, 5);
 	});
 
 	it('waypointCount reflects taps', () => {
@@ -337,14 +337,16 @@ describe('shouldAutoAdvance (10 m threshold, v2 compares to next wall)', () => {
 	);
 
 	it('does not trigger at 9.99 m over the next wall', () => {
-		// Next wall is 25 m. Over by ~9.99 → raw ≈ 34.99. At 1 m/s the
-		// dive has been underway for 34.99 s → perf = 34990.
-		expect(shouldAutoAdvance(diving, 34_990)).toBe(false);
+		// Next wall is 25 m. Over by ~9.99 → raw ≈ 34.99 m. At the DYN
+		// default speed of 1.1 m/s the dive has been underway for
+		// 34.99 / 1.1 ≈ 31.81 s → perf ≈ 31 809 ms.
+		expect(shouldAutoAdvance(diving, 31_809)).toBe(false);
 	});
 
 	it('triggers at 10.01 m over the next wall', () => {
-		// raw ≈ 35.01 m → over by 10.01.
-		expect(shouldAutoAdvance(diving, 35_010)).toBe(true);
+		// raw ≈ 35.01 m → over by 10.01. At 1.1 m/s → 35.01 / 1.1 ≈ 31.83 s
+		// → perf ≈ 31 828 ms.
+		expect(shouldAutoAdvance(diving, 31_828)).toBe(true);
 	});
 
 	it('does not trigger outside diving phase', () => {
