@@ -3,7 +3,17 @@
 	import { Timestamp } from 'firebase/firestore';
 	import { page } from '$app/stores';
 	import { user } from '$lib/stores/auth';
-	import { getRoutinesForUser, createRoutineLog, updateRoutineLog, getUserSettings, upsertPublicUserProfile } from '$lib/firestore';
+	import {
+		getRoutinesForUser,
+		getRoutine,
+		createRoutineLog,
+		updateRoutineLog,
+		getUserSettings,
+		upsertPublicUserProfile,
+		createGroupRoutineInvites,
+		getGroupRoutineInvite,
+		updateGroupRoutineInvite
+	} from '$lib/firestore';
 	import { uploadSessionPhotoMedia, uploadBiometricCsv } from '$lib/storage';
 	import {
 		checkIsCategoryPB,
@@ -15,7 +25,16 @@
 	import { clearDashboardCache } from '$lib/utils/dashboardCache';
 	import RoutineSelector from '$lib/components/RoutineSelector.svelte';
 	import QuickLogForm, { type LogFormData } from '$lib/components/QuickLogForm.svelte';
-	import type { Discipline, LapData, RoutineTemplate, SessionVisibility } from '$lib/types';
+	import DiveBuddyPicker from '$lib/components/DiveBuddyPicker.svelte';
+	import type {
+		Discipline,
+		GroupRoutineInvite,
+		LapData,
+		PublicUserProfile,
+		RoutineLogFormData,
+		RoutineTemplate,
+		SessionVisibility
+	} from '$lib/types';
 
 	let routines = $state<RoutineTemplate[]>([]);
 	let selectedRoutine = $state<RoutineTemplate | null>(null);
@@ -26,15 +45,33 @@
 	let success = $state<string | null>(null);
 	let defaultSessionVisibility = $state<SessionVisibility>('private');
 	let showMenstrualCycleTracking = $state<boolean>(false);
+	let selectedDiveBuddies = $state<PublicUserProfile[]>([]);
+	let activeGroupInvite = $state<GroupRoutineInvite | null>(null);
 
 	// Seed values passed in by the dynamic dive recorder via ?seed=<sessionId>
 	// and a sessionStorage bundle at `dive-log-seed:<sessionId>`.
 	let seedInitialValues = $state<{
 		discipline?: Discipline;
+		sessionDate?: string;
+		sessionTime?: string;
 		totalDistance?: number;
 		totalTimeSeconds?: number;
+		repsCompleted?: number;
+		repDuration?: number;
+		repDistance?: number;
 		poolLength?: number;
+		initialBreatheUpTime?: number;
+		breathingTechnique?: LogFormData['breathingTechnique'];
+		rpe?: number;
+		joyScale?: number;
+		hoursSinceLastMeal?: number;
 		notes?: string;
+		waterTemperature?: number;
+		contractionsOnsetTime?: number;
+		equipmentUsed?: string;
+		buddyName?: string;
+		breathsBetweenReps?: number;
+		defaultLungVolume?: LogFormData['defaultLungVolume'];
 		avgSpeed?: number;
 		laps?: LapData[];
 	} | undefined>(undefined);
@@ -60,6 +97,7 @@
 			const searchParams = $page.url.searchParams;
 			const routineParam = searchParams.get('routine');
 			const seedParam = searchParams.get('seed');
+			const groupInviteParam = searchParams.get('groupInvite');
 
 			// Always capture the seed session id when present — even if the
 			// routine param doesn't match a loaded routine. This ensures the
@@ -140,10 +178,34 @@
 				}
 			}
 
+			if (groupInviteParam) {
+				const invite = await getGroupRoutineInvite(groupInviteParam);
+				if (!invite) {
+					throw new Error('Group routine invite not found.');
+				}
+				if (invite.recipientUserId !== $user.uid) {
+					throw new Error('This group routine invite is for another athlete.');
+				}
+				if (invite.status !== 'pending') {
+					throw new Error(`This group routine invite has already been ${invite.status}.`);
+				}
+
+				let routine = routines.find((r) => r.id === invite.routineId) ?? null;
+				if (!routine) routine = await getRoutine(invite.routineId);
+				if (!routine) {
+					throw new Error('The routine for this group invite could not be loaded.');
+				}
+
+				activeGroupInvite = invite;
+				selectedRoutine = routine;
+				selectedRoutineId = routine.id;
+				seedInitialValues = seedFromRoutineLog(invite.sourceLogData);
+			}
+
 			loading = false;
 		} catch (err) {
 			console.error('Error loading routines:', err);
-			error = 'Failed to load routines';
+			error = err instanceof Error ? err.message : 'Failed to load routines';
 			loading = false;
 		}
 	});
@@ -157,6 +219,7 @@
 	function handleCancel() {
 		selectedRoutine = null;
 		selectedRoutineId = undefined;
+		selectedDiveBuddies = [];
 	}
 
 	function buildSessionDateTime(dateStr: string, timeStr?: string): Date {
@@ -169,8 +232,38 @@
 		return dateTime;
 	}
 
+	function seedFromRoutineLog(log: RoutineLogFormData): typeof seedInitialValues {
+		const date = log.date.toDate();
+		return {
+			discipline: log.disciplineUsed,
+			sessionDate: date.toISOString().split('T')[0],
+			sessionTime: `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`,
+			poolLength: log.poolLength,
+			initialBreatheUpTime: log.initialBreatheUpTime,
+			totalDistance: log.totalDistance ?? log.diveDistance,
+			totalTimeSeconds: log.totalTime ?? log.diveDuration,
+			repsCompleted: log.summary?.repsCompleted ?? log.repsCompleted,
+			repDuration: log.repDuration,
+			repDistance: log.repDistance,
+			avgSpeed: log.avgSpeed ?? log.avgSpeedMs,
+			laps: log.laps,
+			breathingTechnique: log.breathingTechnique,
+			rpe: log.rpe,
+			joyScale: log.joyScale,
+			hoursSinceLastMeal: log.hoursSinceLastMeal,
+			notes: log.notes,
+			waterTemperature: log.waterTemperature,
+			contractionsOnsetTime: log.contractionsOnsetTime,
+			equipmentUsed: log.equipmentUsed,
+			buddyName: log.buddyName,
+			breathsBetweenReps: log.breathsBetweenReps,
+			defaultLungVolume: log.defaultLungVolume
+		};
+	}
+
 	async function handleSubmit(logData: LogFormData) {
 		if (!$user || !selectedRoutine) return;
+		const routine = selectedRoutine;
 
 		saving = true;
 		error = null;
@@ -193,7 +286,7 @@
 
 			// 2. Check if this is a PB (for max-attempt routines only)
 			let isPB = false;
-			const isMaxAttempt = selectedRoutine.tags.includes('max-attempt') || selectedRoutine.tags.includes('pb');
+			const isMaxAttempt = routine.tags.includes('max-attempt') || routine.tags.includes('pb');
 			const result = logData.disciplineUsed === 'STA'
 				? logData.totalTime
 				: logData.totalDistance;
@@ -209,7 +302,7 @@
 
 			// 3. Build routine log data, filtering out undefined values
 				const routineLogData: any = {
-					routineId: selectedRoutine.id,
+					routineId: routine.id,
 					userId: $user.uid,
 					date: Timestamp.fromDate(sessionDateTime), // Use selected date instead of now
 				timeOfDay,
@@ -225,6 +318,12 @@
 
 			if ($user.displayName) routineLogData.authorDisplayName = $user.displayName;
 			if ($user.photoURL) routineLogData.authorPhotoURL = $user.photoURL;
+
+			if (activeGroupInvite) {
+				routineLogData.groupRoutineId = activeGroupInvite.groupRoutineId;
+				routineLogData.groupRoutineInviteId = activeGroupInvite.id;
+				routineLogData.groupRoutineSourceLogId = activeGroupInvite.sourceRoutineLogId;
+			}
 
 			if ($user.displayName) {
 				try {
@@ -336,6 +435,43 @@
 			// 4. Create routine log (get the ID for photo and CSV upload)
 			const routineLogId = await createRoutineLog(routineLogData);
 
+			if (activeGroupInvite) {
+				await updateGroupRoutineInvite(activeGroupInvite.id, {
+					status: 'accepted',
+					acceptedRoutineLogId: routineLogId
+				});
+			} else if (!seedSessionId && selectedDiveBuddies.length > 0) {
+				const groupRoutineId = routineLogId;
+				await updateRoutineLog(routineLogId, {
+					groupRoutineId,
+					groupRoutineParticipantCount: selectedDiveBuddies.length + 1
+				} as Partial<RoutineLogFormData>);
+
+				const sourceLogData = {
+					...routineLogData,
+					groupRoutineId,
+					groupRoutineParticipantCount: selectedDiveBuddies.length + 1
+				} as RoutineLogFormData;
+
+				await createGroupRoutineInvites(
+					selectedDiveBuddies.map((buddy) => ({
+						groupRoutineId,
+						sourceRoutineLogId: routineLogId,
+						hostUserId: $user.uid,
+						hostDisplayName: $user.displayName ?? undefined,
+						hostPhotoURL: $user.photoURL ?? undefined,
+						recipientUserId: buddy.userId,
+						recipientDisplayName: buddy.displayName,
+						recipientPhotoURL: buddy.photoURL ?? undefined,
+						routineId: routine.id,
+						routineName: routine.name,
+						date: Timestamp.fromDate(sessionDateTime),
+						status: 'pending',
+						sourceLogData
+					}))
+				);
+			}
+
 			// 4b. If this log was opened from the dynamic dive recorder,
 			// re-link the freshly-uploaded diveVideo(s) from the ad-hoc
 			// recorder session id onto the new routineLog id so session
@@ -425,12 +561,19 @@
 			}
 
 			// Show success message with PB indicator
+			const groupMessage = activeGroupInvite
+				? ' Group routine saved to your log.'
+				: selectedDiveBuddies.length > 0
+					? ` Sent to ${selectedDiveBuddies.length} dive buddy${selectedDiveBuddies.length === 1 ? '' : 'ies'}.`
+					: '';
 			success = isPB
-				? '🎉 NEW PERSONAL BEST! Routine logged successfully!'
-				: 'Routine logged successfully! 🎉';
+				? `NEW PERSONAL BEST! Routine logged successfully!${groupMessage}`
+				: `Routine logged successfully!${groupMessage}`;
 			clearDashboardCache($user.uid);
 			selectedRoutine = null;
 			selectedRoutineId = undefined;
+			selectedDiveBuddies = [];
+			activeGroupInvite = null;
 
 			// Clear success message after 3 seconds
 			setTimeout(() => {
@@ -453,11 +596,11 @@
 
 	<!-- Loading State -->
 	{#if loading}
-		<div class="bg-[var(--color-bg-card)] p-8 rounded-lg text-center">
+		<div class="bg-(--color-bg-card) p-8 rounded-lg text-center">
 			<div
-				class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[var(--color-primary)] border-r-transparent"
+				class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-(--color-primary) border-r-transparent"
 			></div>
-			<p class="mt-4 text-[var(--color-text-muted)]">Loading routines...</p>
+			<p class="mt-4 text-(--color-text-muted)">Loading routines...</p>
 		</div>
 
 		<!-- Error State -->
@@ -475,12 +618,40 @@
 
 	<!-- Main Content -->
 	{#if !loading}
-		<div class="bg-[var(--color-bg-card)] p-6 rounded-lg">
+		<div class="bg-(--color-bg-card) p-6 rounded-lg">
 			{#if !selectedRoutine}
 				<!-- Step 1: Select Routine -->
 				<RoutineSelector {routines} bind:selectedRoutineId onSelect={handleRoutineSelect} />
 			{:else}
 				<!-- Step 2: Quick Log Form -->
+				{#if activeGroupInvite}
+					<div class="group-invite-banner">
+						<div>
+							<strong>Group routine invite</strong>
+							<p>
+								Review the copy from {activeGroupInvite.hostDisplayName ?? 'your dive buddy'}, adjust your own data, then save it to your analytics.
+							</p>
+						</div>
+					</div>
+				{:else if !seedSessionId}
+					<section class="group-log-panel">
+						<div class="group-log-head">
+							<div>
+								<h2>Log as group</h2>
+								<p>Invite dive buddies to review a prefilled copy and save their own personal log.</p>
+							</div>
+							{#if selectedDiveBuddies.length > 0}
+								<span>{selectedDiveBuddies.length}</span>
+							{/if}
+						</div>
+						<DiveBuddyPicker
+							bind:selected={selectedDiveBuddies}
+							selfId={$user?.uid ?? ''}
+							disabled={saving}
+							onChange={(profiles) => (selectedDiveBuddies = profiles)}
+						/>
+					</section>
+				{/if}
 				<QuickLogForm
 					routine={selectedRoutine}
 					onSubmit={handleSubmit}
@@ -508,8 +679,8 @@
 		<!-- Empty State -->
 		{#if routines.length === 0}
 			<div class="text-center py-8">
-				<p class="text-[var(--color-text-muted)] mb-4">No routines available yet.</p>
-				<p class="text-sm text-[var(--color-text-muted)]">
+				<p class="text-(--color-text-muted) mb-4">No routines available yet.</p>
+				<p class="text-sm text-(--color-text-muted)">
 					Contact admin to check if default routines have been seeded.
 				</p>
 			</div>
@@ -524,6 +695,50 @@
 		color: var(--color-text);
 		margin-bottom: 1.5rem;
 		padding-left: 0.25rem;
+	}
+
+	.group-log-panel,
+	.group-invite-banner {
+		margin-bottom: 1.25rem;
+		padding: 1rem;
+		background: rgba(15, 23, 42, 0.7);
+		border: 1px solid rgba(20, 184, 166, 0.25);
+		border-radius: 8px;
+	}
+
+	.group-log-head {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 1rem;
+		margin-bottom: 0.85rem;
+	}
+
+	.group-log-head h2,
+	.group-invite-banner strong {
+		font-size: 1rem;
+		font-weight: 700;
+		color: var(--color-text);
+	}
+
+	.group-log-head p,
+	.group-invite-banner p {
+		margin: 0.2rem 0 0;
+		font-size: 0.85rem;
+		color: var(--color-text-muted);
+	}
+
+	.group-log-head span {
+		min-width: 1.6rem;
+		height: 1.6rem;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 999px;
+		background: var(--color-primary);
+		color: #0f172a;
+		font-size: 0.8rem;
+		font-weight: 800;
 	}
 
 	/* Info Card */

@@ -46,10 +46,26 @@
 		 */
 		initialValues?: {
 			discipline?: Discipline;
+			sessionDate?: string;
+			sessionTime?: string;
 			totalDistance?: number;
 			totalTimeSeconds?: number;
+			repsCompleted?: number;
+			repDuration?: number;
+			repDistance?: number;
 			poolLength?: number;
+			initialBreatheUpTime?: number;
+			breathingTechnique?: BreathingTechnique;
+			rpe?: number;
+			joyScale?: number;
+			hoursSinceLastMeal?: number;
 			notes?: string;
+			waterTemperature?: number;
+			contractionsOnsetTime?: number;
+			equipmentUsed?: string;
+			buddyName?: string;
+			breathsBetweenReps?: number;
+			defaultLungVolume?: LungVolume;
 			/** Average speed (m/s) across the whole dive, from video. */
 			avgSpeed?: number;
 			/** Per-lap splits (number, timeSeconds, distanceMeters, speedMs). */
@@ -173,8 +189,8 @@
 		return `${hours}:${minutes}`;
 	};
 
-	let sessionDate = $state<string>(formatDateForInput(today));
-	let sessionTime = $state<string>(formatTimeForInput(today));
+	let sessionDate = $state<string>(initialValues?.sessionDate ?? formatDateForInput(today));
+	let sessionTime = $state<string>(initialValues?.sessionTime ?? formatTimeForInput(today));
 	let isCompetition = $state<boolean>(false);
 	let compeitionOrg = $state<string>('');
 	let cardTag = $state<CardTag | undefined>(undefined);
@@ -211,14 +227,14 @@
 
 	// Session context
 	let poolLength = $state<number | undefined>(initialValues?.poolLength);
-	let initialBreatheUpTime = $state<number | undefined>(undefined); // in seconds
+	let initialBreatheUpTime = $state<number | undefined>(initialValues?.initialBreatheUpTime); // in seconds
 
 	// Performance metrics
 	let totalDistance = $state<number | undefined>(initialValues?.totalDistance);
 	let totalTimeSeconds = $state<number | undefined>(initialValues?.totalTimeSeconds); // in seconds
-	let repsCompleted = $state<number | undefined>(defaultRepsCompleted);
-	let repDurationSeconds = $state<number | undefined>(avgRepDuration); // in seconds
-	let repDistance = $state<number | undefined>(undefined);
+	let repsCompleted = $state<number | undefined>(initialValues?.repsCompleted ?? defaultRepsCompleted);
+	let repDurationSeconds = $state<number | undefined>(initialValues?.repDuration ?? avgRepDuration); // in seconds
+	let repDistance = $state<number | undefined>(initialValues?.repDistance);
 	// Pre-seeded per-lap splits + average speed parsed from a dynamic dive
 	// video. These are passed straight through to the log so coaches don't
 	// have to retype numbers that the recorder already measured.
@@ -229,22 +245,22 @@
 	let avgSpeed = $state<number | undefined>(seededAvgSpeed);
 
 	// Training context
-	let breathingTechnique = $state<BreathingTechnique | undefined>(undefined);
-	let rpe = $state<number | undefined>(undefined);
-	let joyScale = $state<number | undefined>(undefined);
-	let hoursSinceLastMeal = $state<number | undefined>(undefined);
+	let breathingTechnique = $state<BreathingTechnique | undefined>(initialValues?.breathingTechnique);
+	let rpe = $state<number | undefined>(initialValues?.rpe);
+	let joyScale = $state<number | undefined>(initialValues?.joyScale);
+	let hoursSinceLastMeal = $state<number | undefined>(initialValues?.hoursSinceLastMeal);
 	let notes = $state<string>(initialValues?.notes ?? '');
 
 	// NEW METRICS
-	let waterTemperature = $state<number | undefined>(undefined);
-	let contractionsOnsetTime = $state<number | undefined>(undefined); // in seconds
-	let equipmentUsed = $state<string>('');
-	let buddyName = $state<string>('');
+	let waterTemperature = $state<number | undefined>(initialValues?.waterTemperature);
+	let contractionsOnsetTime = $state<number | undefined>(initialValues?.contractionsOnsetTime); // in seconds
+	let equipmentUsed = $state<string>(initialValues?.equipmentUsed ?? '');
+	let buddyName = $state<string>(initialValues?.buddyName ?? '');
 	let restingHeartRate = $state<number | undefined>(undefined);
 	let hrv = $state<number | undefined>(undefined);
 	let poolType = $state<PoolType | undefined>(undefined);
 	let sambaBO = $state<boolean>(false);
-	let breathsBetweenReps = $state<number | undefined>(undefined);
+	let breathsBetweenReps = $state<number | undefined>(initialValues?.breathsBetweenReps);
 
 	// NEW METRICS - Phase 1
 	let menstrualCycleDay = $state<number | undefined>(undefined);
@@ -284,7 +300,7 @@
 	let rawBiometricCsv = $state<string>(''); // Raw CSV for storage
 
 	// Per-rep starting lung volume (FL/RV/FRC) — opt-in via trackingConfig
-	let defaultLungVolume = $state<LungVolume | undefined>(undefined);
+	let defaultLungVolume = $state<LungVolume | undefined>(initialValues?.defaultLungVolume);
 	const attemptOptions = $derived(attemptOptionsForDiscipline(disciplineUsed));
 
 	// Handle biometric import from CSV

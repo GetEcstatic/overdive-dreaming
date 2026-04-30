@@ -45,7 +45,9 @@ import type {
 	SeasonFormData,
 	UserSettings,
 	PublicUserProfile,
-	Comment
+	Comment,
+	GroupRoutineInvite,
+	GroupRoutineInviteFormData
 } from '$lib/types';
 import {
 	normalizeRoutineLog,
@@ -448,6 +450,70 @@ export async function updateRoutineLog(
 export async function deleteRoutineLog(routineLogId: string): Promise<void> {
 	const docRef = doc(db, 'routineLogs', routineLogId);
 	await deleteDoc(docRef);
+}
+
+// ============================================================================
+// GROUP ROUTINE INVITES
+// ============================================================================
+
+export async function createGroupRoutineInvites(
+	invites: GroupRoutineInviteFormData[]
+): Promise<string[]> {
+	if (invites.length === 0) return [];
+
+	const invitesRef = collection(db, 'groupRoutineInvites');
+	const ids: string[] = [];
+
+	for (const invite of invites) {
+		const cleanedInvite = stripUndefinedDeep(invite);
+		const docRef = await addDoc(invitesRef, {
+			...cleanedInvite,
+			createdAt: serverTimestamp(),
+			updatedAt: serverTimestamp()
+		});
+		ids.push(docRef.id);
+	}
+
+	return ids;
+}
+
+export async function getGroupRoutineInvite(
+	inviteId: string
+): Promise<GroupRoutineInvite | null> {
+	const docRef = doc(db, 'groupRoutineInvites', inviteId);
+	const docSnap = await getDoc(docRef);
+	if (!docSnap.exists()) return null;
+	return { id: docSnap.id, ...docSnap.data() } as GroupRoutineInvite;
+}
+
+export async function listPendingGroupRoutineInvites(
+	recipientUserId: string
+): Promise<GroupRoutineInvite[]> {
+	const invitesRef = collection(db, 'groupRoutineInvites');
+	const q = query(
+		invitesRef,
+		where('recipientUserId', '==', recipientUserId),
+		where('status', '==', 'pending'),
+		limit(20)
+	);
+
+	const snapshot = await getDocs(q);
+	return snapshot.docs
+		.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }) as GroupRoutineInvite)
+		.sort((a, b) => b.date.toDate().getTime() - a.date.toDate().getTime());
+}
+
+export async function updateGroupRoutineInvite(
+	inviteId: string,
+	updates: Pick<GroupRoutineInvite, 'status'> & {
+		acceptedRoutineLogId?: string;
+	}
+): Promise<void> {
+	const docRef = doc(db, 'groupRoutineInvites', inviteId);
+	await updateDoc(docRef, {
+		...stripUndefinedDeep(updates),
+		updatedAt: serverTimestamp()
+	});
 }
 
 /**

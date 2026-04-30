@@ -698,6 +698,10 @@ export interface RoutineLog {
 	visibility?: SessionVisibility; // Public/private visibility for social feed
 	authorDisplayName?: string;
 	authorPhotoURL?: string;
+	groupRoutineId?: string;
+	groupRoutineInviteId?: string;
+	groupRoutineSourceLogId?: string;
+	groupRoutineParticipantCount?: number;
 
 	// Tags selected by user at log time (from routine's selectableTags)
 	selectedTags?: string[];
@@ -777,6 +781,37 @@ export type SessionFormData = Omit<Session, 'id' | 'createdAt' | 'updatedAt'>;
 export type RoutineLogFormData = Omit<RoutineLog, 'id' | 'createdAt' | 'updatedAt'>;
 
 export type DiveFormData = Omit<Dive, 'id' | 'createdAt' | 'updatedAt'>;
+
+// ============================================================================
+// GROUP ROUTINE INVITES
+// ============================================================================
+
+export type GroupRoutineInviteStatus = 'pending' | 'accepted' | 'declined';
+
+export interface GroupRoutineInvite {
+	id: string;
+	groupRoutineId: string;
+	sourceRoutineLogId: string;
+	hostUserId: string;
+	hostDisplayName?: string;
+	hostPhotoURL?: string;
+	recipientUserId: string;
+	recipientDisplayName?: string;
+	recipientPhotoURL?: string;
+	routineId: string;
+	routineName: string;
+	date: Timestamp;
+	status: GroupRoutineInviteStatus;
+	sourceLogData: RoutineLogFormData;
+	acceptedRoutineLogId?: string;
+	createdAt: Timestamp;
+	updatedAt: Timestamp;
+}
+
+export type GroupRoutineInviteFormData = Omit<
+	GroupRoutineInvite,
+	'id' | 'createdAt' | 'updatedAt'
+>;
 
 export type SeasonFormData = Omit<Season, 'id' | 'createdAt' | 'updatedAt'>;
 

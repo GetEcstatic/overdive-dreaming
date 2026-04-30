@@ -5,6 +5,7 @@
 	import type { PersonalBests, Discipline, PersonalBestRecord, PersonalBestRecords } from '$lib/types';
 	import SessionCard from '$lib/components/SessionCard.svelte';
 	import PendingGifts from '$lib/components/PendingGifts.svelte';
+	import PendingGroupRoutineInvites from '$lib/components/PendingGroupRoutineInvites.svelte';
 	import { getUserPBRecords, getUserPBs, formatPBRecord } from '$lib/utils/personalBests';
 	import { onMount } from 'svelte';
 	import { getDashboardCache, updateDashboardCache, type LogWithRoutine } from '$lib/utils/dashboardCache';
@@ -381,6 +382,7 @@
 
 		<!-- Pending dive-video gifts -->
 		<PendingGifts />
+		<PendingGroupRoutineInvites />
 
 		<!-- Summary Stats Card -->
 		<div class="summary-card">
@@ -470,9 +472,9 @@
 					<div class="flex items-center justify-center py-12">
 						<div class="text-center">
 							<div
-								class="inline-block w-8 h-8 border-4 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin mb-2"
+								class="inline-block w-8 h-8 border-4 border-(--color-primary) border-t-transparent rounded-full animate-spin mb-2"
 							></div>
-							<p class="text-[var(--color-text-muted)]">Loading sessions...</p>
+							<p class="text-(--color-text-muted)">Loading sessions...</p>
 						</div>
 					</div>
 				{:else if error}
@@ -483,7 +485,7 @@
 							onclick={() =>
 								feedMode === 'community' ? fetchCommunitySessions() : fetchPersonalSessions()
 							}
-							class="mt-4 px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:opacity-80 transition"
+							class="mt-4 px-4 py-2 bg-(--color-primary) text-white rounded-lg hover:opacity-80 transition"
 						>
 							Try Again
 						</button>
@@ -511,14 +513,14 @@
 						<div class="flex items-center justify-center py-8">
 							<div class="text-center">
 								<div
-									class="inline-block w-6 h-6 border-4 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin mb-2"
+									class="inline-block w-6 h-6 border-4 border-(--color-primary) border-t-transparent rounded-full animate-spin mb-2"
 								></div>
-								<p class="text-sm text-[var(--color-text-muted)]">Loading more...</p>
+								<p class="text-sm text-(--color-text-muted)">Loading more...</p>
 							</div>
 						</div>
 					{:else if !hasMore && sessions.length > 0}
 						<div class="flex items-center justify-center py-8">
-							<p class="text-sm text-[var(--color-text-muted)]">
+							<p class="text-sm text-(--color-text-muted)">
 								You've reached the end • {sessions.length} sessions total
 							</p>
 						</div>

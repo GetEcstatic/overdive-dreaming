@@ -49,6 +49,30 @@ service cloud.firestore {
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount']);
     }
 
+    // Manual routine group-log invites. Hosts create invites after saving
+    // their own routine log; recipients review a copied log and save their
+    // own analytics record.
+    match /groupRoutineInvites/{inviteId} {
+      function isHost() {
+        return request.auth != null && request.auth.uid == resource.data.hostUserId;
+      }
+      function isRecipient() {
+        return request.auth != null && request.auth.uid == resource.data.recipientUserId;
+      }
+
+      allow list: if request.auth != null;
+      allow get: if isHost() || isRecipient();
+      allow create: if request.auth != null &&
+        request.auth.uid == request.resource.data.hostUserId;
+      allow update: if isRecipient() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'acceptedRoutineLogId',
+          'updatedAt'
+        ]);
+      allow delete: if isHost();
+    }
+
     // Personal bests (user-owned)
     match /personalBests/{pbId} {
       allow read: if request.auth != null &&
