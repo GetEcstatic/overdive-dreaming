@@ -31,17 +31,25 @@ service cloud.firestore {
 
     // Routine logs (flat structure)
     match /routineLogs/{routineLogId} {
+      function isOwnerBefore() {
+        return request.auth != null && request.auth.uid == resource.data.userId;
+      }
+
+      function isOwnerAfter() {
+        return request.auth != null && request.auth.uid == request.resource.data.userId;
+      }
+
       // Allow list queries where userId filter matches auth user
       allow list: if request.auth != null;
       // Allow get/read of individual docs user owns or public
       allow get: if request.auth != null &&
         (request.auth.uid == resource.data.userId || resource.data.visibility == 'public');
-      // Owner can write anything
-      allow write: if request.auth != null &&
-        request.auth.uid == resource.data.userId;
-      allow create: if request.auth != null &&
-        request.auth.uid == request.resource.data.userId;
-      // Any authenticated user can update likes or commentCount on public logs
+      // Owner can create their own logs.
+      allow create: if isOwnerAfter();
+      // Owner can update/delete their own logs, without transferring ownership.
+      allow update: if isOwnerBefore() && isOwnerAfter();
+      allow delete: if isOwnerBefore();
+      // Any authenticated user can update likes or commentCount on public logs.
       allow update: if request.auth != null &&
         resource.data.visibility == 'public' &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes']);
@@ -63,7 +71,9 @@ service cloud.firestore {
       allow list: if request.auth != null;
       allow get: if isHost() || isRecipient();
       allow create: if request.auth != null &&
-        request.auth.uid == request.resource.data.hostUserId;
+        request.auth.uid == request.resource.data.hostUserId &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.sourceLogData.userId == request.auth.uid;
       allow update: if isRecipient() &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status',

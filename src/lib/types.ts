@@ -702,6 +702,13 @@ export interface RoutineLog {
 	groupRoutineInviteId?: string;
 	groupRoutineSourceLogId?: string;
 	groupRoutineParticipantCount?: number;
+	/**
+	 * Display names of all participants in a group routine session
+	 * (host + invited dive buddies). Denormalised onto the log so feed
+	 * cards can render a "with X, Y + N others" line without fanout
+	 * queries. First entry is the host.
+	 */
+	groupRoutineParticipantNames?: string[];
 
 	// Tags selected by user at log time (from routine's selectableTags)
 	selectedTags?: string[];

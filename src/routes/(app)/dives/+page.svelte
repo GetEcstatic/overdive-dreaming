@@ -270,6 +270,8 @@
 		success = null;
 
 		try {
+			let groupInviteError: string | null = null;
+
 			// 1. Calculate time of day and session group using selected date/time
 			const sessionDateTime = buildSessionDateTime(logData.sessionDate, logData.sessionTime);
 			const timeOfDay = getTimeOfDay(sessionDateTime);
@@ -323,6 +325,14 @@
 				routineLogData.groupRoutineId = activeGroupInvite.groupRoutineId;
 				routineLogData.groupRoutineInviteId = activeGroupInvite.id;
 				routineLogData.groupRoutineSourceLogId = activeGroupInvite.sourceRoutineLogId;
+				const inheritedNames = activeGroupInvite.sourceLogData?.groupRoutineParticipantNames;
+				if (inheritedNames && inheritedNames.length > 0) {
+					routineLogData.groupRoutineParticipantNames = inheritedNames;
+				}
+				const inheritedCount = activeGroupInvite.sourceLogData?.groupRoutineParticipantCount;
+				if (typeof inheritedCount === 'number') {
+					routineLogData.groupRoutineParticipantCount = inheritedCount;
+				}
 			}
 
 			if ($user.displayName) {
@@ -442,34 +452,49 @@
 				});
 			} else if (!seedSessionId && selectedDiveBuddies.length > 0) {
 				const groupRoutineId = routineLogId;
-				await updateRoutineLog(routineLogId, {
-					groupRoutineId,
-					groupRoutineParticipantCount: selectedDiveBuddies.length + 1
-				} as Partial<RoutineLogFormData>);
-
-				const sourceLogData = {
-					...routineLogData,
-					groupRoutineId,
-					groupRoutineParticipantCount: selectedDiveBuddies.length + 1
-				} as RoutineLogFormData;
-
-				await createGroupRoutineInvites(
-					selectedDiveBuddies.map((buddy) => ({
+				// Denormalised participant list — host first so feed cards can
+				// render "with X, Y + N others" without fanout queries. Each
+				// invitee inherits this list when they accept the invite.
+				const hostName = $user.displayName ?? 'Host';
+				const groupRoutineParticipantNames = [
+					hostName,
+					...selectedDiveBuddies.map((buddy) => buddy.displayName)
+				];
+				try {
+					await updateRoutineLog(routineLogId, {
 						groupRoutineId,
-						sourceRoutineLogId: routineLogId,
-						hostUserId: $user.uid,
-						hostDisplayName: $user.displayName ?? undefined,
-						hostPhotoURL: $user.photoURL ?? undefined,
-						recipientUserId: buddy.userId,
-						recipientDisplayName: buddy.displayName,
-						recipientPhotoURL: buddy.photoURL ?? undefined,
-						routineId: routine.id,
-						routineName: routine.name,
-						date: Timestamp.fromDate(sessionDateTime),
-						status: 'pending',
-						sourceLogData
-					}))
-				);
+						groupRoutineParticipantCount: selectedDiveBuddies.length + 1,
+						groupRoutineParticipantNames
+					} as Partial<RoutineLogFormData>);
+
+					const sourceLogData = {
+						...routineLogData,
+						groupRoutineId,
+						groupRoutineParticipantCount: selectedDiveBuddies.length + 1,
+						groupRoutineParticipantNames
+					} as RoutineLogFormData;
+
+					await createGroupRoutineInvites(
+						selectedDiveBuddies.map((buddy) => ({
+							groupRoutineId,
+							sourceRoutineLogId: routineLogId,
+							hostUserId: $user.uid,
+							hostDisplayName: $user.displayName ?? undefined,
+							hostPhotoURL: $user.photoURL ?? undefined,
+							recipientUserId: buddy.userId,
+							recipientDisplayName: buddy.displayName,
+							recipientPhotoURL: buddy.photoURL ?? undefined,
+							routineId: routine.id,
+							routineName: routine.name,
+							date: Timestamp.fromDate(sessionDateTime),
+							status: 'pending',
+							sourceLogData
+						}))
+					);
+				} catch (inviteErr) {
+					console.error('Routine saved, but group invite failed:', inviteErr);
+					groupInviteError = inviteErr instanceof Error ? inviteErr.message : String(inviteErr);
+				}
 			}
 
 			// 4b. If this log was opened from the dynamic dive recorder,
@@ -561,7 +586,9 @@
 			}
 
 			// Show success message with PB indicator
-			const groupMessage = activeGroupInvite
+			const groupMessage = groupInviteError
+				? ` Routine saved, but group invites failed: ${groupInviteError}`
+				: activeGroupInvite
 				? ' Group routine saved to your log.'
 				: selectedDiveBuddies.length > 0
 					? ` Sent to ${selectedDiveBuddies.length} dive buddy${selectedDiveBuddies.length === 1 ? '' : 'ies'}.`

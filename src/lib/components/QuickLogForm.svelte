@@ -232,7 +232,7 @@
 	// Performance metrics
 	let totalDistance = $state<number | undefined>(initialValues?.totalDistance);
 	let totalTimeSeconds = $state<number | undefined>(initialValues?.totalTimeSeconds); // in seconds
-	let repsCompleted = $state<number | undefined>(initialValues?.repsCompleted ?? defaultRepsCompleted);
+	let repsCompleted = $state<number | undefined>(initialValues?.repsCompleted ?? defaultRepsCompleted ?? 3);
 	let repDurationSeconds = $state<number | undefined>(initialValues?.repDuration ?? avgRepDuration); // in seconds
 	let repDistance = $state<number | undefined>(initialValues?.repDistance);
 	// Pre-seeded per-lap splits + average speed parsed from a dynamic dive

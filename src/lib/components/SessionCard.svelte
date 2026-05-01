@@ -11,6 +11,7 @@
 	import { getPublicUserProfilesByIds } from '$lib/firestore';
 	import { shareCard } from '$lib/utils/shareCard';
 	import { formatAttemptBadge } from '$lib/utils/attemptCategories';
+	import { formatGroupParticipants } from '$lib/utils/groupParticipants';
 	import { getWasabiReadUrl } from '$lib/media/client';
 	import { onMount } from 'svelte';
 	import { diveVideoBehavior } from '$lib/stores/videoPlayback';
@@ -226,6 +227,17 @@
 	let commentCount = $state(log.commentCount ?? 0);
 	const attemptBadge = $derived(formatAttemptBadge(log));
 
+	// "Logged as group" indicator — names of co-participants captured at
+	// log time. Falls back to a "with N others" label for legacy logs
+	// that only have a count.
+	const groupLabel = $derived(
+		formatGroupParticipants({
+			authorDisplayName: log.authorDisplayName ?? displayName,
+			participantNames: log.groupRoutineParticipantNames,
+			participantCount: log.groupRoutineParticipantCount
+		})
+	);
+
 	function toggleComments(e: MouseEvent) {
 		e.preventDefault();
 		e.stopPropagation();
@@ -356,6 +368,19 @@
 			{/if}
 			<div class="profile-info">
 				<div class="user-name">{displayName}</div>
+				{#if groupLabel}
+					<div class="group-label" title="Logged as group">
+						<svg
+							class="group-icon"
+							viewBox="0 0 24 24"
+							fill="currentColor"
+							aria-hidden="true"
+						>
+							<path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+						</svg>
+						<span>{groupLabel}</span>
+					</div>
+				{/if}
 				<div class="session-meta">
 					<span class="date">{fullDate}</span>
 					{#if log.timeOfDay}
@@ -677,6 +702,22 @@
 		font-weight: 600;
 		font-size: 0.9375rem;
 		margin-bottom: 0.125rem;
+	}
+
+	.group-label {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		font-size: 0.75rem;
+		color: var(--color-text-muted);
+		margin-bottom: 0.125rem;
+	}
+
+	.group-icon {
+		width: 0.875rem;
+		height: 0.875rem;
+		flex-shrink: 0;
+		opacity: 0.85;
 	}
 
 	.session-meta {
