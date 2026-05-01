@@ -42,15 +42,15 @@
 		type RecorderState
 	} from '$lib/capture/recorderState';
 	import {
-		buttonLayout,
+		canUndo,
 		cumulativeDistanceM,
 		diveElapsedMs,
 		liveSpeedMs,
 		nextTapKind,
 		nextWaypointM,
+		primaryActionSpec,
 		shouldAutoAdvance,
-		waypointCount,
-		type ButtonSpec
+		waypointCount
 	} from '$lib/capture/recorderSelectors';
 	import type {
 		CameraFacing,
@@ -144,7 +144,8 @@
 	let tickHandle: number | null = null;
 	let bannerClearHandle: ReturnType<typeof setTimeout> | null = null;
 
-	const layout = $derived(buttonLayout(rs));
+	const primaryAction = $derived(primaryActionSpec(rs));
+	const undoAvailable = $derived(canUndo(rs));
 	const elapsedMs = $derived(diveElapsedMs(rs, nowMs));
 	const distanceM = $derived(cumulativeDistanceM(rs, nowMs));
 	const speedMs = $derived(liveSpeedMs(rs));
@@ -331,18 +332,17 @@
 		}
 	}
 
-	// ---- Tap-and-hold End-dive ---------------------------------------------
-	// End-dive is destructive (commits the dive's duration), so we require
-	// the coach to press-and-hold for 500 ms before it fires. A short tap
-	// does nothing. Haptics: short pulse on hold-start, long pattern on
-	// confirm.
+	// ---- Primary-button hold to end dive ------------------------------------
+	// End-dive is destructive (commits the dive's duration), so the primary
+	// waypoint button requires a 500 ms hold before it fires. A short tap still
+	// marks the next waypoint.
 	const END_DIVE_HOLD_MS = 500;
 	let endDiveHoldHandle: ReturnType<typeof setTimeout> | null = null;
 	let endDiveHeld = $state(false);
+	let suppressNextPrimaryClick = false;
 
-	function onEndDiveHoldStart(ev: PointerEvent): void {
-		if (rs.phase !== 'diving') return;
-		ev.preventDefault();
+	function onPrimaryHoldStart(ev: PointerEvent): void {
+		if (!primaryAction.supportsLongPressEndDive || rs.phase !== 'diving') return;
 		const target = ev.currentTarget as HTMLElement | null;
 		if (target && typeof target.setPointerCapture === 'function') {
 			try {
@@ -356,12 +356,16 @@
 		endDiveHoldHandle = setTimeout(() => {
 			endDiveHoldHandle = null;
 			endDiveHeld = false;
+			suppressNextPrimaryClick = true;
+			setTimeout(() => {
+				suppressNextPrimaryClick = false;
+			}, 350);
 			vibrate([50, 60, 150]);
 			onPressEndDive();
 		}, END_DIVE_HOLD_MS);
 	}
 
-	function onEndDiveHoldEnd(): void {
+	function onPrimaryHoldEnd(): void {
 		if (endDiveHoldHandle !== null) {
 			clearTimeout(endDiveHoldHandle);
 			endDiveHoldHandle = null;
@@ -424,17 +428,16 @@
 		}
 	}
 
-	function handleButton(btn: ButtonSpec): void {
-		if (btn.disabled) return;
-		switch (btn.kind) {
-			case 'cancel':
-				cancel();
-				return;
+	function handlePrimaryAction(): void {
+		if (primaryAction.disabled) return;
+		if (suppressNextPrimaryClick) {
+			suppressNextPrimaryClick = false;
+			return;
+		}
+
+		switch (primaryAction.action) {
 			case 'record':
 				void onPressRecord();
-				return;
-			case 'stopRecording':
-				void onPressStopRecording();
 				return;
 			case 'startDive':
 				onPressStartDive();
@@ -442,11 +445,8 @@
 			case 'waypoint':
 				onPressWaypoint();
 				return;
-			case 'undoWaypoint':
-				onPressUndo();
-				return;
-			case 'endDive':
-				onPressEndDive();
+			case 'stopRecording':
+				void onPressStopRecording();
 				return;
 		}
 	}
@@ -465,6 +465,7 @@
 			clearTimeout(bannerClearHandle);
 			bannerClearHandle = null;
 		}
+		onPrimaryHoldEnd();
 	}
 
 	function cancel(): void {
@@ -560,8 +561,6 @@
 				<button class="camera-pill" type="button" onclick={() => (showCameraSheet = true)}>
 					{activeCameraLabel}
 				</button>
-			{:else if rs.phase !== 'arming' && rs.phase !== 'error'}
-				<div class="camera-pill readonly">{activeCameraLabel}</div>
 			{/if}
 			{#if cameraMessage && rs.phase === 'ready'}
 				<div class="camera-message">{cameraMessage}</div>
@@ -621,55 +620,59 @@
 	</div>
 
 	<div class="controls">
-		{#if rs.phase === 'stopping'}
-			<div class="center-msg">Finalising recording…</div>
-		{:else if layout.buttons.length === 0}
-			<div class="center-msg">Preparing camera…</div>
-		{:else}
-			<div class="row">
-				{#each layout.buttons as btn (btn.kind)}
-					{#if btn.kind === 'endDive' && rs.phase === 'diving'}
-						<button
-							class="btn btn-{btn.kind} w-{btn.weight}"
-							class:is-held={endDiveHeld}
-							class:is-disabled={btn.disabled}
-							disabled={btn.disabled}
-							onpointerdown={onEndDiveHoldStart}
-							onpointerup={onEndDiveHoldEnd}
-							onpointercancel={onEndDiveHoldEnd}
-							onpointerleave={onEndDiveHoldEnd}
-							oncontextmenu={(e) => e.preventDefault()}
-							aria-label="Hold to end dive"
-						>
-							<span class="btn-main">
-								{endDiveHeld ? 'Hold…' : btn.label}
-							</span>
-							<span class="btn-sub">
-								{endDiveHeld ? 'keep holding' : 'hold 0.5s'}
-							</span>
-							{#if endDiveHeld}
-								<span class="hold-progress" aria-hidden="true"></span>
-							{/if}
-						</button>
-					{:else}
-						<button
-							class="btn btn-{btn.kind} w-{btn.weight}"
-							class:is-disabled={btn.disabled}
-							disabled={btn.disabled}
-							onclick={() => handleButton(btn)}
-						>
-							<span class="btn-main">{btn.label}</span>
-							{#if btn.sub}
-								<span class="btn-sub">{btn.sub}</span>
-							{/if}
-						</button>
-					{/if}
-				{/each}
-			</div>
-			{#if layout.hint}
-				<p class="hint">{layout.hint}</p>
+		<div class="secondary-actions">
+			{#if rs.phase === 'ready'}
+				<button class="utility-button" type="button" onclick={cancel}>
+					Cancel
+				</button>
+			{:else if rs.phase === 'prepping'}
+				<button class="utility-button" type="button" onclick={() => void onPressStopRecording()}>
+					Stop
+				</button>
+			{:else if rs.phase === 'diving'}
+				<button
+					class="utility-button"
+					type="button"
+					disabled={!undoAvailable}
+					onclick={onPressUndo}
+				>
+					Undo
+				</button>
 			{/if}
-		{/if}
+		</div>
+
+		<div class="primary-wrap">
+			<button
+				class="primary-action action-{primaryAction.action}"
+				class:is-held={endDiveHeld}
+				disabled={primaryAction.disabled}
+				onpointerdown={onPrimaryHoldStart}
+				onpointerup={onPrimaryHoldEnd}
+				onpointercancel={onPrimaryHoldEnd}
+				onpointerleave={onPrimaryHoldEnd}
+				oncontextmenu={(e) => e.preventDefault()}
+				onclick={handlePrimaryAction}
+				aria-label={primaryAction.supportsLongPressEndDive
+					? `${primaryAction.label}. Hold to end dive.`
+					: primaryAction.label}
+			>
+				<span class="btn-main">
+					{endDiveHeld ? 'Hold' : primaryAction.label}
+				</span>
+				{#if primaryAction.sub || primaryAction.supportsLongPressEndDive}
+					<span class="btn-sub">
+						{endDiveHeld
+							? 'end dive'
+							: primaryAction.supportsLongPressEndDive
+								? `${primaryAction.sub ?? ''} · hold end`
+								: primaryAction.sub}
+					</span>
+				{/if}
+				{#if endDiveHeld}
+					<span class="hold-progress" aria-hidden="true"></span>
+				{/if}
+			</button>
+		</div>
 
 		{#if rs.phase === 'diving' || rs.phase === 'ended'}
 			{@const summary = summariseTimeline({
@@ -689,15 +692,14 @@
 		position: fixed;
 		inset: 0;
 		z-index: 50;
-		display: flex;
-		flex-direction: column;
 		background: #000;
 		color: var(--color-text);
+		overflow: hidden;
 	}
 
 	.preview {
-		position: relative;
-		flex: 1 1 auto;
+		position: absolute;
+		inset: 0;
 		overflow: hidden;
 		background: #000;
 	}
@@ -724,20 +726,13 @@
 		top: max(0.75rem, env(safe-area-inset-top));
 	}
 	.camera-control {
-		/*
-		 * Pill sits near the record button (bottom of the live preview)
-		 * rather than the corner so it's reachable with the thumb in
-		 * both orientations. It's also auto-hidden once recording
-		 * starts — see the markup — so it never overlaps the live HUD.
-		 */
 		position: absolute;
-		left: 50%;
-		bottom: 0.85rem;
-		transform: translateX(-50%);
+		top: max(5.4rem, calc(env(safe-area-inset-top) + 4.6rem));
+		right: max(0.75rem, env(safe-area-inset-right));
 		z-index: 4;
 		display: flex;
 		flex-direction: column;
-		align-items: center;
+		align-items: flex-end;
 		gap: 0.25rem;
 	}
 	.camera-pill {
@@ -754,10 +749,6 @@
 		font-size: 0.72rem;
 		font-weight: 650;
 		pointer-events: auto;
-	}
-	.camera-pill.readonly {
-		pointer-events: none;
-		opacity: 0.75;
 	}
 	.camera-message {
 		color: #fef3c7;
@@ -875,35 +866,101 @@
 		font-size: 1.2rem;
 		cursor: pointer;
 	}
-	.overlay.orientation {
-		background: rgba(15, 23, 42, 0.92);
-		gap: 0.75rem;
-	}
-	.overlay.orientation p {
-		text-align: center;
-		max-width: 28ch;
-	}
-	.rotate-icon {
-		font-size: 2.5rem;
-		line-height: 1;
-		animation: rotateHint 1.8s ease-in-out infinite;
-		display: inline-block;
-	}
-	@keyframes rotateHint {
-		0%, 100% { transform: rotate(0deg); }
-		50% { transform: rotate(-90deg); }
-	}
-
 	.controls {
-		flex: 0 0 auto;
-		background: rgba(15, 23, 42, 0.95);
-		border-top: 1px solid rgba(148, 163, 184, 0.15);
-		padding: 0.9rem 0.9rem calc(1.25rem + env(safe-area-inset-bottom));
+		position: absolute;
+		inset: 0;
+		z-index: 6;
+		pointer-events: none;
+		padding: max(0.75rem, env(safe-area-inset-top))
+			max(0.75rem, env(safe-area-inset-right))
+			calc(1rem + env(safe-area-inset-bottom))
+			max(0.75rem, env(safe-area-inset-left));
 	}
-	.row {
+	.secondary-actions {
+		position: absolute;
+		left: max(0.9rem, env(safe-area-inset-left));
+		bottom: calc(1.45rem + env(safe-area-inset-bottom));
 		display: flex;
-		align-items: stretch;
-		gap: 0.6rem;
+		gap: 0.5rem;
+		pointer-events: auto;
+	}
+	.utility-button {
+		min-width: 4.75rem;
+		min-height: 2.5rem;
+		border: 1px solid rgba(226, 232, 240, 0.24);
+		border-radius: 999px;
+		padding: 0.45rem 0.8rem;
+		background: rgba(15, 23, 42, 0.68);
+		backdrop-filter: blur(8px);
+		-webkit-backdrop-filter: blur(8px);
+		color: #f8fafc;
+		font: inherit;
+		font-size: 0.86rem;
+		font-weight: 700;
+	}
+	.utility-button:disabled {
+		opacity: 0.45;
+	}
+	.primary-wrap {
+		position: absolute;
+		left: 50%;
+		bottom: calc(1rem + env(safe-area-inset-bottom));
+		transform: translateX(-50%);
+		display: flex;
+		pointer-events: auto;
+	}
+	.primary-action {
+		position: relative;
+		overflow: hidden;
+		width: clamp(7.4rem, 34vw, 9.6rem);
+		aspect-ratio: 1;
+		border: 2px solid rgba(255, 255, 255, 0.22);
+		border-radius: 999px;
+		padding: 0.85rem;
+		box-shadow:
+			0 18px 52px rgba(0, 0, 0, 0.46),
+			inset 0 0 0 6px rgba(255, 255, 255, 0.08);
+		color: #fff;
+		font: inherit;
+		font-weight: 800;
+		display: inline-flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.2rem;
+		user-select: none;
+		-webkit-user-select: none;
+		-webkit-touch-callout: none;
+		touch-action: manipulation;
+		-webkit-tap-highlight-color: transparent;
+		transition:
+			transform 0.06s ease,
+			filter 0.12s ease;
+	}
+	.primary-action:active:not(:disabled) {
+		transform: scale(0.96);
+	}
+	.primary-action:disabled {
+		opacity: 0.56;
+	}
+	.primary-action.action-record,
+	.primary-action.action-stopRecording {
+		background: #ef4444;
+	}
+	.primary-action.action-startDive {
+		background: #10b981;
+		color: #052e25;
+	}
+	.primary-action.action-waypoint {
+		background: var(--color-primary);
+		color: #042f2e;
+	}
+	.primary-action.action-disabled {
+		background: rgba(30, 41, 59, 0.9);
+	}
+	.primary-action.is-held {
+		background: #b91c1c;
+		color: #fff;
 	}
 
 	.btn {
@@ -962,27 +1019,11 @@
 		font-weight: 700;
 	}
 	/* Hold-to-end-dive progress affordance. */
-	.btn.btn-endDive {
+	.primary-action {
 		position: relative;
 		overflow: hidden;
-		/*
-		 * On mobile webviews (especially iOS Safari and Android WebView),
-		 * a long press on a button still triggers the OS's text-selection
-		 * / "copy" callout because the rendered label counts as selectable
-		 * text. Suppress the entire native long-press behaviour on this
-		 * button so our 500 ms hold-to-confirm gesture is the only thing
-		 * the user sees.
-		 */
-		user-select: none;
-		-webkit-user-select: none;
-		-webkit-touch-callout: none;
-		touch-action: manipulation;
-		-webkit-tap-highlight-color: transparent;
 	}
-	.btn.btn-endDive.is-held {
-		background: #b91c1c;
-	}
-	.btn.btn-endDive .hold-progress {
+	.primary-action .hold-progress {
 		position: absolute;
 		inset: 0;
 		background: rgba(255, 255, 255, 0.18);
@@ -999,13 +1040,19 @@
 		}
 	}
 	.btn-main {
-		font-size: 1.1rem;
+		font-size: clamp(1.05rem, 4.4vw, 1.35rem);
 		line-height: 1.1;
+		position: relative;
+		z-index: 1;
 	}
 	.btn-sub {
-		font-size: 0.85rem;
+		font-size: clamp(0.72rem, 3.2vw, 0.88rem);
 		font-weight: 500;
 		opacity: 0.8;
+		position: relative;
+		z-index: 1;
+		max-width: 7rem;
+		text-align: center;
 	}
 
 	.hint {
@@ -1020,42 +1067,24 @@
 		color: var(--color-text-muted);
 	}
 	.summary-line {
-		margin-top: 0.6rem;
+		position: absolute;
+		left: 50%;
+		bottom: calc(8.9rem + env(safe-area-inset-bottom));
+		transform: translateX(-50%);
+		margin: 0;
+		padding: 0.3rem 0.55rem;
+		border-radius: 999px;
+		background: rgba(15, 23, 42, 0.58);
+		backdrop-filter: blur(8px);
+		-webkit-backdrop-filter: blur(8px);
 		text-align: center;
-		color: var(--color-text-muted);
+		color: #cbd5e1;
 		font-size: 0.8rem;
+		white-space: nowrap;
+		pointer-events: none;
 	}
 
 	@media (orientation: landscape) {
-		.recorder {
-			flex-direction: row;
-		}
-		.controls {
-			width: min(32vw, 280px);
-			border-top: none;
-			border-left: 1px solid rgba(148, 163, 184, 0.15);
-			padding: calc(0.9rem + env(safe-area-inset-top)) 0.9rem
-				calc(0.9rem + env(safe-area-inset-bottom))
-				calc(0.9rem + env(safe-area-inset-right));
-			overflow-y: auto;
-		}
-		.row {
-			flex-direction: column;
-		}
-		.btn,
-		.btn.w-1,
-		.btn.w-2,
-		.btn.w-3 {
-			min-height: 56px;
-			width: 100%;
-			padding: 0.65rem 0.75rem;
-			font-size: 1rem;
-			min-width: 0;
-		}
-		.btn.w-3 {
-			min-height: 68px;
-			font-size: 1.05rem;
-		}
 		.hud {
 			left: 0.5rem;
 			right: auto;
@@ -1066,19 +1095,32 @@
 			text-align: center;
 		}
 		.camera-control {
-			/* Landscape: keep the pill near the bottom of the preview, on
-			   the side opposite the controls strip (which is on the right
-			   in landscape). Centering horizontally still reads as "near
-			   the record button" since the controls strip starts at the
-			   right edge. */
-			left: 50%;
-			right: auto;
-			bottom: max(0.6rem, env(safe-area-inset-bottom));
-			transform: translateX(-50%);
+			top: max(0.6rem, env(safe-area-inset-top));
+			right: max(0.6rem, env(safe-area-inset-right));
 		}
 		.camera-pill {
 			font-size: 0.64rem;
 			max-width: 9rem;
+		}
+		.primary-wrap {
+			left: auto;
+			right: calc(1rem + env(safe-area-inset-right));
+			bottom: calc(1rem + env(safe-area-inset-bottom));
+			transform: none;
+		}
+		.primary-action {
+			width: clamp(6.4rem, 18vw, 8rem);
+		}
+		.secondary-actions {
+			left: auto;
+			right: calc(1.2rem + env(safe-area-inset-right));
+			bottom: calc(7.9rem + env(safe-area-inset-bottom));
+		}
+		.summary-line {
+			left: auto;
+			right: calc(9.5rem + env(safe-area-inset-right));
+			bottom: calc(1.35rem + env(safe-area-inset-bottom));
+			transform: none;
 		}
 		.hud-value {
 			font-size: 1.25rem;

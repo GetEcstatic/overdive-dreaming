@@ -21,12 +21,16 @@ _Last updated: 2026-04-21_
 - [ ] Opening the capture route while logged out redirects to sign-in.
 - [ ] Camera permission prompt appears on first use; denying it shows a helpful error.
 - [ ] Mic permission prompt appears once; denying it keeps recording but silent.
-- [ ] Orientation locks to portrait; rotating the phone to landscape does **not** rotate the preview.
-- [ ] Preview stream mirrors the rear camera at 9:16 aspect ratio (no letterbox/pillarbox).
+- [ ] Portrait recorder preview fills the viewport behind overlays; small black bands are acceptable when preserving the camera frame.
+- [ ] Landscape recorder preview fills the viewport behind overlays; no persistent controls sidebar remains.
 - [ ] Selected resolution matches the setting (720p default, 1080p opt-in).
 - [ ] Wake Lock activates on recording start; screen does not auto-dim for ≥ 6 minutes.
-- [ ] "GO" button starts both the recorder and the timeline clock on the same `performance.now()` tick.
-- [ ] Lap tap button records a lap at the moment of tap; split time matches a stopwatch within ±50 ms.
+- [ ] In `ready`, the large primary button starts video recording.
+- [ ] In `prepping`, the same primary button starts the dive clock.
+- [ ] In `diving`, a short tap on the same primary button marks the next smart waypoint; split time matches a stopwatch within ±50 ms.
+- [ ] In `diving`, a long press on the primary button ends the dive and does not stop the video recording.
+- [ ] After the dive ends, the same primary button stops/finalises the video recording.
+- [ ] Primary button sits bottom-center in portrait and bottom-right in landscape with safe-area padding.
 - [ ] Undo removes the most recent lap and restores the previous cumulative distance.
 - [ ] STOP finalises the timeline; the next view shows totals and per-lap splits.
 
@@ -105,6 +109,6 @@ _Last updated: 2026-04-21_
 
 ## Accessibility
 
-- [ ] Primary "GO / STOP / LAP" buttons are at least 64 × 64 pt (one-handed, wet fingers).
+- [ ] Primary Record / Start dive / Waypoint / Stop button is at least 64 × 64 pt (one-handed, wet fingers).
 - [ ] HUD text has ≥ 4.5:1 contrast against the darkest 10% of the preview frame.
 - [ ] VoiceOver / TalkBack read out "Recording, lap 3, 1:23 elapsed" on state changes.

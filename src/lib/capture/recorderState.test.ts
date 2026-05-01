@@ -13,6 +13,7 @@ import {
 	diveElapsedMs,
 	liveSpeedMs,
 	nextWaypointM,
+	primaryActionSpec,
 	shouldAutoAdvance,
 	waypointCount
 } from './recorderSelectors';
@@ -389,5 +390,41 @@ describe('buttonLayout', () => {
 		expect(buttonLayout(s).buttons.map((b) => b.kind)).toEqual([
 			'stopRecording'
 		]);
+	});
+});
+
+describe('primaryActionSpec', () => {
+	const base = initialRecorderState(CONFIG);
+
+	it('ready maps to the record action', () => {
+		const spec = primaryActionSpec(arm(base));
+		expect(spec.action).toBe('record');
+		expect(spec.supportsLongPressEndDive).toBe(false);
+		expect(spec.disabled).toBe(false);
+	});
+
+	it('prepping maps to the start-dive action', () => {
+		const spec = primaryActionSpec(startRecordingAt(arm(base), 0));
+		expect(spec.action).toBe('startDive');
+		expect(spec.supportsLongPressEndDive).toBe(false);
+	});
+
+	it('diving maps to a waypoint action with long-press end enabled', () => {
+		const s = startDiveAt(startRecordingAt(arm(base), 0), 0);
+		const spec = primaryActionSpec(s);
+		expect(spec.action).toBe('waypoint');
+		expect(spec.label).toBe('Split');
+		expect(spec.supportsLongPressEndDive).toBe(true);
+	});
+
+	it('ended maps to stop recording', () => {
+		let s = startDiveAt(startRecordingAt(arm(base), 0), 0);
+		s = recorderReducer(s, { type: 'dive/ended', atPerfMs: 1 });
+		expect(primaryActionSpec(s).action).toBe('stopRecording');
+	});
+
+	it('non-action phases are disabled', () => {
+		expect(primaryActionSpec(base).disabled).toBe(true);
+		expect(primaryActionSpec(base).action).toBe('disabled');
 	});
 });

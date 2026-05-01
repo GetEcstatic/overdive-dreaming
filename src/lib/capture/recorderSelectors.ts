@@ -220,6 +220,84 @@ export interface ButtonLayout {
 	hint: string | null;
 }
 
+export type PrimaryRecorderAction =
+	| 'record'
+	| 'startDive'
+	| 'waypoint'
+	| 'stopRecording'
+	| 'disabled';
+
+export interface PrimaryActionSpec {
+	action: PrimaryRecorderAction;
+	label: string;
+	sub?: string;
+	disabled: boolean;
+	supportsLongPressEndDive: boolean;
+}
+
+export function primaryActionSpec(state: RecorderState): PrimaryActionSpec {
+	switch (state.phase) {
+		case 'ready':
+			return {
+				action: 'record',
+				label: 'Record',
+				sub: 'start capture',
+				disabled: false,
+				supportsLongPressEndDive: false
+			};
+
+		case 'prepping':
+			return {
+				action: 'startDive',
+				label: 'Start dive',
+				sub: 'leave wall',
+				disabled: false,
+				supportsLongPressEndDive: false
+			};
+
+		case 'diving': {
+			const kind = nextTapKind(state);
+			const targetM = nextWaypointM(state);
+			const completedWalls = state.timeline.laps.length;
+			return {
+				action: 'waypoint',
+				label: kind === 'wall' ? `Wall ${completedWalls + 1}` : 'Split',
+				sub:
+					kind === 'wall'
+						? `${formatMetersPlain(targetM)} m`
+						: `mid-lap ${formatMetersPlain(targetM)} m`,
+				disabled: false,
+				supportsLongPressEndDive: true
+			};
+		}
+
+		case 'ended':
+			return {
+				action: 'stopRecording',
+				label: 'Stop',
+				sub: 'save video',
+				disabled: false,
+				supportsLongPressEndDive: false
+			};
+
+		case 'stopping':
+			return {
+				action: 'disabled',
+				label: 'Finalising',
+				disabled: true,
+				supportsLongPressEndDive: false
+			};
+
+		default:
+			return {
+				action: 'disabled',
+				label: state.phase === 'arming' ? 'Arming' : 'Unavailable',
+				disabled: true,
+				supportsLongPressEndDive: false
+			};
+	}
+}
+
 export function buttonLayout(state: RecorderState): ButtonLayout {
 	switch (state.phase) {
 		case 'ready':
