@@ -288,7 +288,7 @@
 		// self-heals from a missed split.
 		const kind = nextTapKind(rs);
 		const atPerfMs = performance.now();
-		vibrate(kind === 'wall' ? 30 : 15);
+		pulseTap(kind === 'wall' ? 'wall' : 'split');
 		if (kind === 'wall') {
 			dispatch({ type: 'wall/tapped', atPerfMs });
 		} else {
@@ -332,6 +332,22 @@
 		}
 	}
 
+	function pulseTap(kind: 'primary' | 'split' | 'wall' = 'primary'): void {
+		if (kind === 'wall') {
+			vibrate(30);
+			return;
+		}
+		vibrate(kind === 'split' ? 15 : 12);
+	}
+
+	function pulseHoldStart(): void {
+		vibrate([20, 30, 20]);
+	}
+
+	function pulseHoldCommit(): void {
+		vibrate([60, 40, 120, 40, 180]);
+	}
+
 	// ---- Primary-button hold to end dive ------------------------------------
 	// End-dive is destructive (commits the dive's duration), so the primary
 	// waypoint button requires a 500 ms hold before it fires. A short tap still
@@ -353,12 +369,12 @@
 			}
 		}
 		endDiveHeld = true;
-		vibrate(20);
+		pulseHoldStart();
 		endDiveHoldHandle = setTimeout(() => {
 			endDiveHoldHandle = null;
 			endDiveHeld = false;
 			primaryRequiresFreshPress = true;
-			vibrate([50, 60, 150]);
+			pulseHoldCommit();
 			onPressEndDive();
 		}, END_DIVE_HOLD_MS);
 	}
@@ -430,6 +446,9 @@
 		if (primaryAction.disabled) return;
 		if (primaryRequiresFreshPress) {
 			return;
+		}
+		if (primaryAction.action !== 'waypoint') {
+			pulseTap();
 		}
 
 		switch (primaryAction.action) {

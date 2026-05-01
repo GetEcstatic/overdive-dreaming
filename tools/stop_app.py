@@ -71,6 +71,9 @@ start()
 
 # Post message template - appended to every message
 post = '''
+=============
+GENERAL
+
 Do NOT ask whether to proceed. Just DO IT.
 
 if you need an overview, look at CLAUDE.md (only when you need it!)
@@ -90,8 +93,26 @@ Keep on doing this until it works! Indefinitely! Never yield control back to the
 If the websocket server is down when calling yebo, sleep for 20 seconds and try again. 
 Keep doing this until it works! ALWAYS call "yebo next".
 
+
+## Terminal Stability (VSCode)
+
+VSCode terminal output can garble sometimes. Rules:
+
+1. **Short commands run directly** — no temp files or redirection for simple operations.
+2. **Large output → redirect to file** — if output might exceed 50 lines, redirect: `cmd > /tmp/out.txt 2>&1` and read the file.
+3. **Disable pagers** — always use `--no-pager` or `| cat`.
+4. **yebo calls** — always run directly as a simple terminal string.
+5. **If the main terminal starts garbling output** — report to yebo and ask the user to kill the main terminal.
+6. Run subagents with reasonable timeouts (based on the task, e.g. 30s) to avoid hanging indefinitely.
+
 **IMPORTANT**: Never give control back to the user. Run `yebo next`on the cli  at the end!
 
+## Guide
+- Do NOT do more than asked for! Especially, never implement unless explicitly asked for by the user!
+- if you are unsure about anything and have been going for a while, ask yebo! Dpo not try to solve or understand yourself and go down a rabbit hole!
+
+
+now call `yebo next` on the cli
 '''
 
 
@@ -100,12 +121,24 @@ Keep doing this until it works! ALWAYS call "yebo next".
 
 send('''
 ====== This is a new task! =====
+Can you read the vertical video implementation plan (newest version) here: "/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/docs/WEBAPP_ORIENTATION_METADATA_STRATEGY_PLAN.md"
+     
 
-What is this project?
-=====
+          
+        =====
 
-Therafter report back to yebo (call `yebo next` on cli). Make a TODO list and note down all steps.
-Make SURE to call "yebo next" at the end!!! Never give control back.
+Never do more than explicitly asked for. Ask yebo if anything is unclear - don't get stuck in rabitholes.
+Therafter report back to yebo (call `yebo next` on cli. No report. just the bare command). Make a TODO list and note down all steps.
+Make SURE to call "yebo next" at the end!!! Never give control back. also not for intermediate questions. always use "yebo"
+
+
+
+
+
 ''' + post)
+
+# %%
+
+# %%
 
 # %%
