@@ -339,9 +339,10 @@
 	const END_DIVE_HOLD_MS = 500;
 	let endDiveHoldHandle: ReturnType<typeof setTimeout> | null = null;
 	let endDiveHeld = $state(false);
-	let suppressNextPrimaryClick = false;
+	let primaryRequiresFreshPress = false;
 
 	function onPrimaryHoldStart(ev: PointerEvent): void {
+		primaryRequiresFreshPress = false;
 		if (!primaryAction.supportsLongPressEndDive || rs.phase !== 'diving') return;
 		const target = ev.currentTarget as HTMLElement | null;
 		if (target && typeof target.setPointerCapture === 'function') {
@@ -356,10 +357,7 @@
 		endDiveHoldHandle = setTimeout(() => {
 			endDiveHoldHandle = null;
 			endDiveHeld = false;
-			suppressNextPrimaryClick = true;
-			setTimeout(() => {
-				suppressNextPrimaryClick = false;
-			}, 350);
+			primaryRequiresFreshPress = true;
 			vibrate([50, 60, 150]);
 			onPressEndDive();
 		}, END_DIVE_HOLD_MS);
@@ -430,8 +428,7 @@
 
 	function handlePrimaryAction(): void {
 		if (primaryAction.disabled) return;
-		if (suppressNextPrimaryClick) {
-			suppressNextPrimaryClick = false;
+		if (primaryRequiresFreshPress) {
 			return;
 		}
 
@@ -912,11 +909,11 @@
 	.primary-action {
 		position: relative;
 		overflow: hidden;
-		width: clamp(7.4rem, 34vw, 9.6rem);
-		aspect-ratio: 1;
+		width: clamp(11rem, 58vw, 16rem);
+		min-height: 5.2rem;
 		border: 2px solid rgba(255, 255, 255, 0.22);
-		border-radius: 999px;
-		padding: 0.85rem;
+		border-radius: 18px;
+		padding: 0.9rem 1.15rem;
 		box-shadow:
 			0 18px 52px rgba(0, 0, 0, 0.46),
 			inset 0 0 0 6px rgba(255, 255, 255, 0.08);
@@ -1040,18 +1037,18 @@
 		}
 	}
 	.btn-main {
-		font-size: clamp(1.05rem, 4.4vw, 1.35rem);
+		font-size: clamp(1.25rem, 5.2vw, 1.7rem);
 		line-height: 1.1;
 		position: relative;
 		z-index: 1;
 	}
 	.btn-sub {
-		font-size: clamp(0.72rem, 3.2vw, 0.88rem);
+		font-size: clamp(0.82rem, 3.4vw, 1rem);
 		font-weight: 500;
 		opacity: 0.8;
 		position: relative;
 		z-index: 1;
-		max-width: 7rem;
+		max-width: 12rem;
 		text-align: center;
 	}
 
@@ -1109,7 +1106,8 @@
 			transform: none;
 		}
 		.primary-action {
-			width: clamp(6.4rem, 18vw, 8rem);
+			width: clamp(10rem, 25vw, 13rem);
+			min-height: 4.9rem;
 		}
 		.secondary-actions {
 			left: auto;
