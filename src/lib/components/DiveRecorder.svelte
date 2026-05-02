@@ -578,7 +578,8 @@
 		<div class="camera-control">
 			{#if rs.phase === 'ready'}
 				<button class="camera-pill" type="button" onclick={() => (showCameraSheet = true)}>
-					{activeCameraLabel}
+					<span class="camera-pill-label">Camera</span>
+					<span class="camera-pill-value">{activeCameraLabel}</span>
 				</button>
 			{/if}
 			{#if cameraMessage && rs.phase === 'ready'}
@@ -747,30 +748,49 @@
 	}
 	.camera-control {
 		position: absolute;
-		top: max(5.4rem, calc(env(safe-area-inset-top) + 4.6rem));
-		right: max(0.75rem, env(safe-area-inset-right));
+		right: max(1rem, env(safe-area-inset-right));
+		bottom: calc(7.45rem + env(safe-area-inset-bottom));
 		z-index: 4;
 		display: flex;
 		flex-direction: column;
 		align-items: flex-end;
 		gap: 0.25rem;
+		max-width: min(14rem, calc(100vw - 2rem));
 	}
 	.camera-pill {
-		max-width: 12rem;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		min-height: 2.5rem;
+		max-width: 100%;
+		overflow: hidden;
+		border: 1px solid rgba(20, 184, 166, 0.5);
+		border-radius: 999px;
+		padding: 0.45rem 0.7rem;
+		background: rgba(15, 23, 42, 0.86);
+		box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+		color: #d1fae5;
+		font: inherit;
+		font-size: 0.78rem;
+		font-weight: 650;
+		pointer-events: auto;
+		-webkit-tap-highlight-color: transparent;
+	}
+	.camera-pill-label {
+		color: #99f6e4;
+		font-size: 0.68rem;
+		font-weight: 800;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+	.camera-pill-value {
+		min-width: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		border: 1px solid rgba(20, 184, 166, 0.4);
-		border-radius: 999px;
-		padding: 0.28rem 0.55rem;
-		background: rgba(15, 23, 42, 0.82);
-		color: #d1fae5;
-		font: inherit;
-		font-size: 0.72rem;
-		font-weight: 650;
-		pointer-events: auto;
 	}
 	.camera-message {
+		max-width: 12rem;
 		color: #fef3c7;
 		font-size: 0.72rem;
 		text-align: right;
@@ -1113,15 +1133,22 @@
 			padding: 0.55rem 0.85rem;
 		}
 		.camera-message {
-			text-align: center;
+			max-width: 9.5rem;
+			text-align: right;
 		}
 		.camera-control {
-			top: max(0.6rem, env(safe-area-inset-top));
-			right: max(0.6rem, env(safe-area-inset-right));
+			top: auto;
+			right: max(1rem, env(safe-area-inset-right));
+			bottom: calc(11.25rem + env(safe-area-inset-bottom));
+			max-width: 11rem;
 		}
 		.camera-pill {
-			font-size: 0.64rem;
-			max-width: 9rem;
+			min-height: 2.35rem;
+			padding: 0.38rem 0.6rem;
+			font-size: 0.72rem;
+		}
+		.camera-pill-label {
+			font-size: 0.62rem;
 		}
 		.primary-wrap {
 			left: auto;
