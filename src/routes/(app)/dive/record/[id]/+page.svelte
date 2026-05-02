@@ -77,15 +77,15 @@
 
 	let poolLength = $state<number | undefined>(25);
 	let waypointsPerLap = $state<number | undefined>(2);
-	let discipline = $state<DiveVideoDiscipline>('DYN');
+	let discipline = $state<DiveVideoDiscipline | undefined>(undefined);
 	let resolution = $state<DiveVideoResolution>('720p');
 	let cameraPreference = $state<CameraPreference>(AUTO_REAR_CAMERA);
 	let resolutionLoaded = $state(false);
 	/**
 	 * Quick-start state.
-	 * - `hasQuickStart` = we loaded saved defaults and can offer a one-tap path.
+	 * - `hasQuickStart` = we loaded saved pool defaults and can skip the form.
 	 * - `quickStartExpanded` = user tapped "Change settings" to reveal the form.
-	 * - `sessionLocked` = a prior DiveVideo on this sessionId already set pool/discipline.
+	 * - `sessionLocked` = a prior DiveVideo on this sessionId already set pool length.
 	 */
 	let hasQuickStart = $state(false);
 	let quickStartExpanded = $state(false);
@@ -98,6 +98,7 @@
 	let uploadProgress = $state(0);
 	let storageHealthy = $state<boolean | null>(null);
 
+	const canStartRecording = $derived(Boolean(discipline && poolLength && waypointsPerLap));
 	const waypointSpacing = $derived(
 		poolLength && waypointsPerLap ? poolLength / waypointsPerLap : 0
 	);
@@ -111,7 +112,7 @@
 		if (!uid || resolutionLoaded) return;
 		resolutionLoaded = true;
 
-		// Load user-level defaults (resolution + last-used recorder setup).
+		// Load user-level defaults (resolution + last-used pool setup).
 		getUserSettings(uid)
 			.then((settings) => {
 				if (settings?.defaultVideoResolution) {
@@ -126,10 +127,9 @@
 					waypointsPerLap = settings.defaultWaypointsPerLap;
 					gotAnyDefault = true;
 				}
-				if (settings?.defaultDiscipline) {
-					discipline = settings.defaultDiscipline;
-					gotAnyDefault = true;
-				}
+				// Discipline is deliberately not restored from saved settings. Each
+				// recording needs an explicit fresh choice so the recorder never starts
+				// with a stale fin/no-fin mode.
 				// Note: we no longer restore `defaultCameraPreference` here. The
 				// recorder always starts with the auto rear camera and the user
 				// switches lenses from the on-screen pill once the preview is
@@ -179,6 +179,11 @@
 			saveError = 'You must be signed in.';
 			return;
 		}
+		const selectedDiscipline = discipline;
+		if (!selectedDiscipline) {
+			saveError = 'Choose a discipline before saving this dive.';
+			return;
+		}
 		stage = 'saving';
 		saveError = null;
 		uploadProgress = 0;
@@ -199,7 +204,7 @@
 				userId: uid,
 				ownerId: uid,
 				athleteId: athleteId ?? uid,
-				discipline,
+				discipline: selectedDiscipline,
 				poolLength: poolLength ?? 25,
 				mimeType: capture.mimeType,
 				sizeBytes: capture.sizeBytes,
@@ -289,13 +294,13 @@
 			if (capture && !isGift) {
 				const summary = summariseTimeline(
 					capture.timeline,
-					defaultSpeedMs(discipline)
+					defaultSpeedMs(selectedDiscipline)
 				);
 				try {
 					sessionStorage.setItem(
 						`dive-log-seed:${sessionId}`,
 						JSON.stringify({
-							discipline,
+							discipline: selectedDiscipline,
 							poolLength: poolLength ?? 25,
 							summary,
 							capturedAt: Date.now()
@@ -318,8 +323,7 @@
 			if (poolLength && waypointsPerLap) {
 				updateUserSettings(uid, {
 					defaultPoolLength: poolLength,
-					defaultWaypointsPerLap: waypointsPerLap,
-					defaultDiscipline: discipline
+					defaultWaypointsPerLap: waypointsPerLap
 				}).catch((err) => {
 					// eslint-disable-next-line no-console
 					console.warn('[dive-record] could not save recorder defaults', err);
@@ -407,10 +411,12 @@
 			<header class="setup-head">
 				<h1>Record dive</h1>
 				<p>
-					{#if hasQuickStart && !quickStartExpanded}
-						Ready to go with your last setup.
+					{#if discipline}
+						{discipline} selected. Check the pool setup, then start recording.
+					{:else if hasQuickStart && !quickStartExpanded}
+						Choose this dive's discipline. Your pool setup is already loaded.
 					{:else}
-						Dial in pool length and waypoints, then start the camera.
+						Choose discipline, pool length, and waypoints, then start the camera.
 					{/if}
 				</p>
 			</header>
@@ -427,20 +433,44 @@
 				</div>
 			{/if}
 
+			<section class="card discipline-card" class:needs-choice={!discipline}>
+				<div class="field">
+					<span class="field-label">Choose discipline</span>
+					<div class="segmented" role="radiogroup" aria-label="Discipline">
+						{#each [
+							{ value: 'DYN', label: 'DYN', sub: 'fins' },
+							{ value: 'DYNB', label: 'DYNB', sub: 'bifins' },
+							{ value: 'DNF', label: 'DNF', sub: 'no fins' }
+						] as opt (opt.value)}
+							<button
+								type="button"
+								class="seg-btn"
+								class:active={discipline === opt.value}
+								role="radio"
+								aria-checked={discipline === opt.value}
+								onclick={() => (discipline = opt.value as DiveVideoDiscipline)}
+							>
+								<span class="seg-label">{opt.label}</span>
+								<span class="seg-sub">{opt.sub}</span>
+							</button>
+						{/each}
+					</div>
+					<p class="field-hint">
+						Required for every recording so the video never starts with a stale
+						fin/no-fin mode.
+					</p>
+				</div>
+			</section>
+
 			{#if hasQuickStart && !quickStartExpanded && poolLength && waypointsPerLap}
-				<!-- Phase 1/2: one-tap quick-start. Big button uses saved defaults
-				     (or session-locked pool/discipline) and skips the form. -->
 				<section class="quick-start">
-					<button
-						class="btn btn-primary btn-quick"
-						onclick={() => (stage = 'record')}
-					>
-						<span class="quick-eyebrow">Start recording</span>
-						<span class="quick-summary">
+					<div class="quick-defaults">
+						<span class="quick-eyebrow">Pool setup</span>
+						<strong class="quick-summary">
 							{formatMeters(poolLength)} m pool · {waypointsPerLap}
-							waypoint{waypointsPerLap === 1 ? '' : 's'} · {discipline}
-						</span>
-					</button>
+							waypoint{waypointsPerLap === 1 ? '' : 's'}
+						</strong>
+					</div>
 					{#if sessionLocked}
 						<p class="quick-hint">
 							Pool length locked to this session from a previous dive.
@@ -454,41 +484,8 @@
 						Change settings
 					</button>
 				</section>
-
-				<div class="actions">
-					<button class="btn btn-secondary" onclick={() => history.back()}>
-						Cancel
-					</button>
-				</div>
 			{:else}
 				<section class="card">
-					<div class="field">
-						<span class="field-label">Discipline</span>
-						<div class="segmented" role="radiogroup" aria-label="Discipline">
-							{#each [
-								{ value: 'DYN', label: 'DYN', sub: 'fins' },
-								{ value: 'DYNB', label: 'DYNB', sub: 'bifins' },
-								{ value: 'DNF', label: 'DNF', sub: 'no fins' }
-							] as opt (opt.value)}
-								<button
-									type="button"
-									class="seg-btn"
-									class:active={discipline === opt.value}
-									role="radio"
-									aria-checked={discipline === opt.value}
-									onclick={() => (discipline = opt.value as typeof discipline)}
-								>
-									<span class="seg-label">{opt.label}</span>
-									<span class="seg-sub">{opt.sub}</span>
-								</button>
-							{/each}
-						</div>
-						<p class="field-hint">
-							Sets the initial dive speed before your first waypoint
-							(DYN 1.1 · DYNB 1.0 · DNF 0.8 m/s).
-						</p>
-					</div>
-
 					<div class="field">
 						<NumberWheelInput
 							bind:value={poolLength}
@@ -537,23 +534,25 @@
 						</div>
 					{/if}
 				</section>
-
-				<div class="actions">
-					<button class="btn btn-secondary" onclick={() => history.back()}>
-						Cancel
-					</button>
-					<button
-						class="btn btn-primary"
-						disabled={!poolLength || !waypointsPerLap}
-						onclick={() => (stage = 'record')}
-					>
-						Next →
-					</button>
-				</div>
 			{/if}
+
+			<div class="actions">
+				<button class="btn btn-secondary" onclick={() => history.back()}>
+					Cancel
+				</button>
+				<button
+					class="btn btn-primary"
+					disabled={!canStartRecording}
+					onclick={() => {
+						if (canStartRecording) stage = 'record';
+					}}
+				>
+					{discipline ? 'Start recording' : 'Select discipline to start'}
+				</button>
+			</div>
 		</div>
 	</div>
-{:else if stage === 'record'}
+{:else if stage === 'record' && discipline}
 	<DiveRecorder
 		poolLength={poolLength ?? 25}
 		waypointsPerLap={waypointsPerLap ?? 2}
@@ -569,7 +568,7 @@
 		<div class="review-inner">
 			<h1 class="review-title">Review &amp; save</h1>
 
-			{#if capture}
+			{#if capture && discipline}
 				<div class="stats-card">
 					<div><span>Duration</span><strong>{capture.durationSeconds.toFixed(1)} s</strong></div>
 					<div><span>Waypoints tapped</span><strong>{capture.timeline.laps.length}</strong></div>
@@ -671,6 +670,10 @@
 		display: flex;
 		flex-direction: column;
 		gap: 1.1rem;
+	}
+	.discipline-card.needs-choice {
+		border-color: rgba(20, 184, 166, 0.45);
+		box-shadow: 0 0 0 1px rgba(20, 184, 166, 0.08);
 	}
 
 	.field {
@@ -855,7 +858,7 @@
 		margin: 0.75rem 0;
 	}
 
-	/* ──────────────── Quick-start (one-tap) ──────────────── */
+	/* ──────────────── Quick pool setup ──────────────── */
 	.quick-start {
 		display: flex;
 		flex-direction: column;
@@ -863,23 +866,27 @@
 		gap: 0.85rem;
 		margin-bottom: 1.25rem;
 	}
-	.btn-quick {
-		flex: 0 0 auto;
+	.quick-defaults {
 		display: flex;
 		flex-direction: column;
-		align-items: center;
+		align-items: flex-start;
 		gap: 0.25rem;
-		padding: 1.25rem 1rem;
-		font-size: 1.05rem;
+		background: var(--color-bg-card);
+		border: 1px solid rgba(148, 163, 184, 0.15);
+		border-radius: 12px;
+		padding: 0.9rem 1rem;
 	}
 	.quick-eyebrow {
-		font-size: 1.1rem;
+		color: var(--color-text-muted);
+		font-size: 0.78rem;
 		font-weight: 700;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
 	}
 	.quick-summary {
-		font-size: 0.85rem;
-		font-weight: 500;
-		opacity: 0.85;
+		color: var(--color-text);
+		font-size: 1rem;
+		font-weight: 700;
 	}
 	.quick-hint {
 		margin: 0;
