@@ -16,13 +16,11 @@ import type {
 	CameraPreference
 } from '$lib/types';
 import {
-	appendLap,
-	appendSplit,
-	appendWall,
 	createEmptyTimeline,
 	finalizeTimeline,
 	removeLastTap
 } from './timeline';
+import type { LapEvent } from '$lib/types';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -61,6 +59,21 @@ export interface AutoAdvanceBanner {
 	atPerfMs: number;
 	/** How many waypoints were auto-advanced at once (≥1). */
 	count: number;
+	/** Distance of the first skipped waypoint. */
+	fromDistanceM?: number;
+	/** Distance now expected after the auto-advance. */
+	toDistanceM?: number;
+}
+
+export type WaypointCursorHistoryEntry =
+	| { kind: 'manual'; index: number }
+	| { kind: 'auto'; fromIndex: number; toIndex: number };
+
+export interface WaypointCursor {
+	expectedIndex: number;
+	lastManualIndex: number;
+	autoAdvancedIndexes: number[];
+	history: WaypointCursorHistoryEntry[];
 }
 
 export interface RecorderState {
@@ -68,6 +81,7 @@ export interface RecorderState {
 	config: RecorderConfig;
 	clocks: RecorderClocks;
 	timeline: DiveTimeline;
+	waypointCursor: WaypointCursor;
 	autoAdvance: AutoAdvanceBanner | null;
 	errorMessage: string | null;
 }
@@ -86,6 +100,8 @@ export type RecorderEvent =
 	 *  based on the expected-slot rule in the reducer. Kept for
 	 *  call-sites that haven't migrated yet. */
 	| { type: 'waypoint/tapped'; atPerfMs: number }
+	| { type: 'waypoint/manualTapped'; atPerfMs: number; index?: number }
+	| { type: 'waypoint/autoAdvanced'; atPerfMs: number; fromIndex: number; toIndex: number }
 	| { type: 'wall/tapped'; atPerfMs: number }
 	| { type: 'split/tapped'; atPerfMs: number }
 	| { type: 'waypoint/auto'; atPerfMs: number; count: number }
@@ -113,8 +129,18 @@ export function initialRecorderState(config: RecorderConfig): RecorderState {
 			diveEndedPerfMs: 0
 		},
 		timeline: createEmptyTimeline(0),
+		waypointCursor: initialWaypointCursor(),
 		autoAdvance: null,
 		errorMessage: null
+	};
+}
+
+export function initialWaypointCursor(): WaypointCursor {
+	return {
+		expectedIndex: 1,
+		lastManualIndex: 0,
+		autoAdvancedIndexes: [],
+		history: []
 	};
 }
 
@@ -123,6 +149,168 @@ export function waypointSpacingM(config: RecorderConfig): number {
 	return config.waypointsPerLap > 0
 		? config.poolLengthM / config.waypointsPerLap
 		: config.poolLengthM;
+}
+
+export function waypointDistanceM(config: RecorderConfig, index: number): number {
+	return Math.max(0, index) * waypointSpacingM(config);
+}
+
+export function tapKindForWaypointIndex(
+	config: RecorderConfig,
+	index: number
+): 'wall' | 'split' {
+	if (config.waypointsPerLap <= 1) return 'wall';
+	return index % config.waypointsPerLap === 0 ? 'wall' : 'split';
+}
+
+function lastTap(timeline: DiveTimeline): LapEvent | null {
+	const lastWall = timeline.laps[timeline.laps.length - 1] ?? null;
+	const subs = timeline.subSplits ?? [];
+	const lastSub = subs[subs.length - 1] ?? null;
+	if (!lastWall && !lastSub) return null;
+	if (lastWall && (!lastSub || lastWall.atMs >= lastSub.atMs)) return lastWall;
+	return lastSub;
+}
+
+function lapNumberForWaypoint(config: RecorderConfig, index: number): number {
+	return Math.max(1, Math.ceil(index / Math.max(1, config.waypointsPerLap)));
+}
+
+function splitIndexForWaypoint(config: RecorderConfig, index: number): number {
+	const wpl = Math.max(1, config.waypointsPerLap);
+	const mod = index % wpl;
+	return mod === 0 ? wpl : mod;
+}
+
+function appendManualWaypoint(
+	timeline: DiveTimeline,
+	atMs: number,
+	config: RecorderConfig,
+	index: number
+): DiveTimeline {
+	const previous = lastTap(timeline);
+	const previousAtMs = previous?.atMs ?? timeline.diveStartMs;
+	const distanceM = waypointDistanceM(config, index);
+	const entry: LapEvent = {
+		lapNumber: splitIndexForWaypoint(config, index),
+		atMs,
+		splitMs: Math.max(0, atMs - previousAtMs),
+		cumulativeDistanceM: distanceM
+	};
+
+	if (tapKindForWaypointIndex(config, index) === 'wall') {
+		const previousWallM = Math.max(0, distanceM - config.poolLengthM);
+		const subSplits = (timeline.subSplits ?? []).filter(
+			(s) => s.cumulativeDistanceM <= previousWallM || s.cumulativeDistanceM > distanceM
+		);
+		return {
+			...timeline,
+			subSplits,
+			laps: [
+				...timeline.laps,
+				{ ...entry, lapNumber: lapNumberForWaypoint(config, index) }
+			]
+		};
+	}
+
+	return {
+		...timeline,
+		subSplits: [...(timeline.subSplits ?? []), entry]
+	};
+}
+
+function commitManualWaypoint(
+	state: RecorderState,
+	atPerfMs: number,
+	index: number
+): RecorderState {
+	const safeIndex = Math.max(1, index);
+	const atMs = atPerfMs - state.clocks.recordingStartedPerfMs;
+	return {
+		...state,
+		timeline: appendManualWaypoint(state.timeline, atMs, state.config, safeIndex),
+		waypointCursor: {
+			...state.waypointCursor,
+			expectedIndex: safeIndex + 1,
+			lastManualIndex: safeIndex,
+			history: [...state.waypointCursor.history, { kind: 'manual', index: safeIndex }]
+		},
+		autoAdvance: null
+	};
+}
+
+function applyWaypointAutoAdvance(
+	state: RecorderState,
+	atPerfMs: number,
+	fromIndex: number,
+	toIndex: number
+): RecorderState {
+	const safeFrom = Math.max(1, fromIndex);
+	const safeTo = Math.max(safeFrom + 1, toIndex);
+	const skipped = Array.from(
+		{ length: safeTo - safeFrom },
+		(_value, offset) => safeFrom + offset
+	);
+	return {
+		...state,
+		waypointCursor: {
+			...state.waypointCursor,
+			expectedIndex: safeTo,
+			autoAdvancedIndexes: [
+				...state.waypointCursor.autoAdvancedIndexes,
+				...skipped
+			],
+			history: [
+				...state.waypointCursor.history,
+				{ kind: 'auto', fromIndex: safeFrom, toIndex: safeTo }
+			]
+		},
+		autoAdvance: {
+			atPerfMs,
+			count: safeTo - safeFrom,
+			fromDistanceM: waypointDistanceM(state.config, safeFrom),
+			toDistanceM: waypointDistanceM(state.config, safeTo)
+		}
+	};
+}
+
+function undoWaypointCursor(state: RecorderState): RecorderState {
+	const history = state.waypointCursor.history;
+	const last = history[history.length - 1];
+	if (!last) return state;
+
+	if (last.kind === 'manual') {
+		const remainingHistory = history.slice(0, -1);
+		const previousManual = [...remainingHistory]
+			.reverse()
+			.find((entry): entry is Extract<WaypointCursorHistoryEntry, { kind: 'manual' }> =>
+				entry.kind === 'manual'
+			);
+		return {
+			...state,
+			timeline: removeLastTap(state.timeline),
+			waypointCursor: {
+				...state.waypointCursor,
+				expectedIndex: last.index,
+				lastManualIndex: previousManual?.index ?? 0,
+				history: remainingHistory
+			},
+			autoAdvance: null
+		};
+	}
+
+	return {
+		...state,
+		waypointCursor: {
+			...state.waypointCursor,
+			expectedIndex: last.fromIndex,
+			autoAdvancedIndexes: state.waypointCursor.autoAdvancedIndexes.filter(
+				(index) => index < last.fromIndex || index >= last.toIndex
+			),
+			history: history.slice(0, -1)
+		},
+		autoAdvance: null
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -169,76 +357,41 @@ export function recorderReducer(
 				...state,
 				phase: 'diving',
 				clocks: { ...state.clocks, diveStartedPerfMs: event.atPerfMs },
-				timeline: createEmptyTimeline(diveStartOffsetMs)
-			};
-		}
-
-		case 'waypoint/tapped': {
-			// v1 back-compat: treat every tap as a wall under the legacy
-			// model where `laps` == every waypoint at `lapNumber*spacing`.
-			// New call-sites should dispatch wall/tapped or split/tapped
-			// directly. The v2 UI uses the smart-button classifier (see
-			// DiveRecorder.svelte) and will never dispatch this variant.
-			if (state.phase !== 'diving') return state;
-			const atMs = event.atPerfMs - state.clocks.recordingStartedPerfMs;
-			return {
-				...state,
-				timeline: appendLap(state.timeline, atMs, waypointSpacingM(state.config))
-			};
-		}
-
-		case 'wall/tapped': {
-			if (state.phase !== 'diving') return state;
-			const atMs = event.atPerfMs - state.clocks.recordingStartedPerfMs;
-			// Clear any mid-lap sub-splits that logically belong to the
-			// just-completed lap — the wall is authoritative. Keeping the
-			// sub-splits is also valid (they still carry a timestamp), but
-			// we prefer a clean "one lap = one wall + N splits within it"
-			// model going forward. Implementation choice: DROP in-lap
-			// splits when the wall is tapped; analytics can reconstruct
-			// speed between walls from `samples` instead. This avoids
-			// ambiguity when a split was tapped slightly AFTER the diver
-			// crossed the wall.
-			const completedWallCount = state.timeline.laps.length;
-			const currentWallM = completedWallCount * state.config.poolLengthM;
-			const prunedSubSplits = (state.timeline.subSplits ?? []).filter(
-				(s) => s.cumulativeDistanceM <= currentWallM
-			);
-			return {
-				...state,
-				timeline: appendWall(
-					{ ...state.timeline, subSplits: prunedSubSplits },
-					atMs,
-					state.config.poolLengthM
-				),
+				timeline: createEmptyTimeline(diveStartOffsetMs),
+				waypointCursor: initialWaypointCursor(),
 				autoAdvance: null
 			};
 		}
 
+		case 'waypoint/tapped': {
+			if (state.phase !== 'diving') return state;
+			return commitManualWaypoint(state, event.atPerfMs, state.waypointCursor.expectedIndex);
+		}
+
+		case 'waypoint/manualTapped': {
+			if (state.phase !== 'diving') return state;
+			return commitManualWaypoint(
+				state,
+				event.atPerfMs,
+				event.index ?? state.waypointCursor.expectedIndex
+			);
+		}
+
+		case 'wall/tapped': {
+			if (state.phase !== 'diving') return state;
+			const wpl = Math.max(1, state.config.waypointsPerLap);
+			const index = Math.ceil(state.waypointCursor.expectedIndex / wpl) * wpl;
+			return commitManualWaypoint(state, event.atPerfMs, index);
+		}
+
 		case 'split/tapped': {
 			if (state.phase !== 'diving') return state;
-			const atMs = event.atPerfMs - state.clocks.recordingStartedPerfMs;
-			// Count existing in-lap sub-splits to derive splitIndex.
-			const completedWallCount = state.timeline.laps.length;
-			const currentWallM = completedWallCount * state.config.poolLengthM;
-			const inLapSubs = (state.timeline.subSplits ?? []).filter(
-				(s) => s.cumulativeDistanceM > currentWallM
-			);
-			const splitIndex = inLapSubs.length + 1;
-			// waypointsPerLap === 1 is a degenerate config for splits; guard.
 			if (state.config.waypointsPerLap <= 1) return state;
-			// Don't let a split overshoot the wall it's preceding.
-			if (splitIndex >= state.config.waypointsPerLap) return state;
-			return {
-				...state,
-				timeline: appendSplit(
-					state.timeline,
-					atMs,
-					state.config.poolLengthM,
-					state.config.waypointsPerLap,
-					splitIndex
-				)
-			};
+			let index = state.waypointCursor.expectedIndex;
+			if (tapKindForWaypointIndex(state.config, index) === 'wall') {
+				return state;
+			}
+			return commitManualWaypoint(state, event.atPerfMs, index);
 		}
 
 		case 'sample/recorded': {
@@ -262,26 +415,24 @@ export function recorderReducer(
 		}
 
 		case 'waypoint/auto': {
-			// v2 semantics: signal-only. Raise the banner so the UI can
-			// hint "you may have missed a wall" — but do NOT stamp a lap.
-			// Ground truth is preserved for the next real wall tap.
 			if (state.phase !== 'diving' || event.count < 1) return state;
-			return {
-				...state,
-				autoAdvance: { atPerfMs: event.atPerfMs, count: event.count }
-			};
+			const fromIndex = state.waypointCursor.expectedIndex;
+			return applyWaypointAutoAdvance(
+				state,
+				event.atPerfMs,
+				fromIndex,
+				fromIndex + event.count
+			);
+		}
+
+		case 'waypoint/autoAdvanced': {
+			if (state.phase !== 'diving' || event.toIndex <= event.fromIndex) return state;
+			return applyWaypointAutoAdvance(state, event.atPerfMs, event.fromIndex, event.toIndex);
 		}
 
 		case 'waypoint/undone': {
 			if (state.phase !== 'diving') return state;
-			const hasWall = state.timeline.laps.length > 0;
-			const hasSub = (state.timeline.subSplits?.length ?? 0) > 0;
-			if (!hasWall && !hasSub) return state;
-			return {
-				...state,
-				timeline: removeLastTap(state.timeline),
-				autoAdvance: null
-			};
+			return undoWaypointCursor(state);
 		}
 
 		case 'dive/ended': {

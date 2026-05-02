@@ -281,30 +281,10 @@
 	}
 
 	function onPressWaypoint(): void {
-		// Smart-button classification (§9.4.1b): route to wall/tapped or
-		// split/tapped based on the next expected tap. Wall beats split
-		// whenever the live interpolation has already reached the next
-		// wall minus half-a-split tolerance — this is how the system
-		// self-heals from a missed split.
-		const kind = nextTapKind(rs);
 		const atPerfMs = performance.now();
+		const kind = nextTapKind(rs);
 		pulseTap(kind === 'wall' ? 'wall' : 'split');
-		if (kind === 'wall') {
-			dispatch({ type: 'wall/tapped', atPerfMs });
-		} else {
-			// Split expected — but if the diver has already drifted past
-			// the next wall (indicated by the auto-advance banner), snap
-			// to the wall instead.
-			const interp = cumulativeDistanceM(rs, atPerfMs);
-			const wallM =
-				(rs.timeline.laps.length + 1) * rs.config.poolLengthM;
-			const spacing = waypointSpacingM(rs.config);
-			if (interp >= wallM - spacing / 2) {
-				dispatch({ type: 'wall/tapped', atPerfMs });
-			} else {
-				dispatch({ type: 'split/tapped', atPerfMs });
-			}
-		}
+		dispatch({ type: 'waypoint/manualTapped', atPerfMs });
 	}
 
 	function onPressUndo(): void {
@@ -313,6 +293,7 @@
 
 	function onPressEndDive(): void {
 		dispatch({ type: 'dive/ended', atPerfMs: performance.now() });
+		stopTicking();
 	}
 
 	// ---- Haptics -----------------------------------------------------------
@@ -585,8 +566,7 @@
 
 		{#if rs.autoAdvance}
 			<div class="toast" role="status">
-				Looks like the diver passed a wall — tap Waypoint to snap to the
-				next wall.
+				Skipped {formatMeters(rs.autoAdvance.fromDistanceM ?? nextM)} m — Undo if the diver is still before it.
 			</div>
 		{/if}
 
@@ -680,7 +660,9 @@
 						{endDiveHeld
 							? 'end dive'
 							: primaryAction.supportsLongPressEndDive
-								? `${primaryAction.sub ?? ''} · hold end`
+								? primaryAction.sub
+									? `${primaryAction.sub} · hold end`
+									: 'hold end'
 								: primaryAction.sub}
 					</span>
 				{/if}
@@ -730,7 +712,7 @@
 		position: absolute;
 		left: 0.75rem;
 		right: 0.75rem;
-		padding: 0.65rem 0.9rem;
+		padding: 0.75rem 1.05rem;
 		border-radius: 14px;
 		background: rgba(15, 23, 42, 0.55);
 		backdrop-filter: blur(8px);
@@ -775,7 +757,7 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: baseline;
-		gap: 1rem;
+		gap: 1.25rem;
 	}
 	.hud-cell.right {
 		text-align: right;
@@ -788,16 +770,17 @@
 	}
 	.hud-value {
 		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-		font-size: 1.75rem;
+		font-size: 1.9rem;
 		font-variant-numeric: tabular-nums;
 		line-height: 1.1;
 	}
 	.hud-sub {
 		display: flex;
 		justify-content: space-between;
+		gap: 1.25rem;
 		color: #cbd5e1;
-		font-size: 0.8rem;
-		margin-top: 0.25rem;
+		font-size: 0.85rem;
+		margin-top: 0.4rem;
 	}
 
 	.toast {
@@ -1104,8 +1087,8 @@
 		.hud {
 			left: 0.5rem;
 			right: auto;
-			max-width: 60%;
-			padding: 0.45rem 0.7rem;
+			max-width: 62%;
+			padding: 0.55rem 0.85rem;
 		}
 		.camera-message {
 			text-align: center;
@@ -1140,13 +1123,13 @@
 			transform: none;
 		}
 		.hud-value {
-			font-size: 1.25rem;
+			font-size: 1.35rem;
 		}
 		.hud-label {
-			font-size: 0.6rem;
+			font-size: 0.64rem;
 		}
 		.hud-sub {
-			font-size: 0.7rem;
+			font-size: 0.76rem;
 		}
 		.hint,
 		.summary-line,

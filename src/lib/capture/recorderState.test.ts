@@ -117,9 +117,11 @@ describe('waypoints', () => {
 			type: 'waypoint/tapped',
 			atPerfMs: 15000
 		});
-		expect(s.timeline.laps).toHaveLength(1);
-		expect(s.timeline.laps[0].atMs).toBe(14000);
-		expect(s.timeline.laps[0].cumulativeDistanceM).toBe(12.5);
+		expect(s.timeline.laps).toHaveLength(0);
+		expect(s.timeline.subSplits).toHaveLength(1);
+		expect(s.timeline.subSplits![0].atMs).toBe(14000);
+		expect(s.timeline.subSplits![0].cumulativeDistanceM).toBe(12.5);
+		expect(s.waypointCursor.expectedIndex).toBe(2);
 	});
 
 	it('undo removes the last lap', () => {
@@ -129,19 +131,50 @@ describe('waypoints', () => {
 		});
 		s = recorderReducer(s, { type: 'waypoint/undone' });
 		expect(s.timeline.laps).toHaveLength(0);
+		expect(s.timeline.subSplits ?? []).toHaveLength(0);
+		expect(s.waypointCursor.expectedIndex).toBe(1);
 	});
 
-	it('auto-advance raises the banner without appending laps (v2)', () => {
+	it('auto-advance moves the cursor without appending laps', () => {
 		const s = recorderReducer(diving, {
 			type: 'waypoint/auto',
 			atPerfMs: 20000,
 			count: 2
 		});
-		// v2: auto-advance is signal-only — the next real wall tap is
-		// ground truth, not an inferred lap stamp.
 		expect(s.timeline.laps).toHaveLength(0);
+		expect(s.timeline.subSplits ?? []).toHaveLength(0);
+		expect(s.waypointCursor.expectedIndex).toBe(3);
+		expect(s.waypointCursor.autoAdvancedIndexes).toEqual([1, 2]);
 		expect(s.autoAdvance).not.toBeNull();
 		expect(s.autoAdvance?.count).toBe(2);
+	});
+
+	it('manual tap after auto-advance commits the current cursor target', () => {
+		let s = recorderReducer(diving, {
+			type: 'waypoint/auto',
+			atPerfMs: 12000,
+			count: 1
+		});
+		s = recorderReducer(s, {
+			type: 'waypoint/manualTapped',
+			atPerfMs: 20000
+		});
+		expect(s.timeline.laps).toHaveLength(1);
+		expect(s.timeline.laps[0].cumulativeDistanceM).toBe(25);
+		expect(s.waypointCursor.expectedIndex).toBe(3);
+	});
+
+	it('undo can step back through auto-advance without deleting timeline data', () => {
+		let s = recorderReducer(diving, {
+			type: 'waypoint/auto',
+			atPerfMs: 12000,
+			count: 1
+		});
+		expect(s.waypointCursor.expectedIndex).toBe(2);
+		s = recorderReducer(s, { type: 'waypoint/undone' });
+		expect(s.waypointCursor.expectedIndex).toBe(1);
+		expect(s.timeline.laps).toHaveLength(0);
+		expect(s.timeline.subSplits ?? []).toHaveLength(0);
 	});
 });
 
@@ -310,10 +343,7 @@ describe('selectors', () => {
 	});
 
 	it('waypointCount reflects taps', () => {
-		const s = recorderReducer(diving, {
-			type: 'waypoint/tapped',
-			atPerfMs: 15000
-		});
+		const s = recorderReducer(diving, { type: 'wall/tapped', atPerfMs: 20000 });
 		expect(waypointCount(s)).toBe(1);
 	});
 
@@ -331,23 +361,32 @@ describe('selectors', () => {
 	});
 });
 
-describe('shouldAutoAdvance (10 m threshold, v2 compares to next wall)', () => {
+describe('shouldAutoAdvance (halfway to following waypoint)', () => {
 	const diving = startDiveAt(
 		startRecordingAt(arm(initialRecorderState(CONFIG)), 0),
 		0
 	);
 
-	it('does not trigger at 9.99 m over the next wall', () => {
-		// Next wall is 25 m. Over by ~9.99 → raw ≈ 34.99 m. At the DYN
-		// default speed of 1.1 m/s the dive has been underway for
-		// 34.99 / 1.1 ≈ 31.81 s → perf ≈ 31 809 ms.
-		expect(shouldAutoAdvance(diving, 31_809)).toBe(false);
+	it('does not trigger before halfway from the expected waypoint to the next one', () => {
+		// First expected waypoint is 12.5 m. Halfway to the following waypoint
+		// is 18.75 m. At 1.1 m/s, 18.74 m is about 17.036 s.
+		expect(shouldAutoAdvance(diving, 17_036)).toBe(false);
 	});
 
-	it('triggers at 10.01 m over the next wall', () => {
-		// raw ≈ 35.01 m → over by 10.01. At 1.1 m/s → 35.01 / 1.1 ≈ 31.83 s
-		// → perf ≈ 31 828 ms.
-		expect(shouldAutoAdvance(diving, 31_828)).toBe(true);
+	it('triggers once the diver is halfway to the following waypoint', () => {
+		// 18.76 m at 1.1 m/s is about 17.055 s.
+		expect(shouldAutoAdvance(diving, 17_055)).toBe(true);
+	});
+
+	it('uses the advanced cursor target after a missed waypoint', () => {
+		const advanced = recorderReducer(diving, {
+			type: 'waypoint/auto',
+			atPerfMs: 17_055,
+			count: 1
+		});
+		// Cursor now expects 25 m. Halfway to 37.5 m is 31.25 m.
+		expect(shouldAutoAdvance(advanced, 28_400)).toBe(false);
+		expect(shouldAutoAdvance(advanced, 28_410)).toBe(true);
 	});
 
 	it('does not trigger outside diving phase', () => {
@@ -413,7 +452,7 @@ describe('primaryActionSpec', () => {
 		const s = startDiveAt(startRecordingAt(arm(base), 0), 0);
 		const spec = primaryActionSpec(s);
 		expect(spec.action).toBe('waypoint');
-		expect(spec.label).toBe('Split');
+		expect(spec.label).toBe('Waypoint 12.5 m');
 		expect(spec.supportsLongPressEndDive).toBe(true);
 	});
 

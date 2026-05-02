@@ -445,56 +445,62 @@
 		const spd = speedAt(timeline, atMs, poolLength);
 		const laps = timeline.laps.filter((l) => l.atMs <= atMs).length;
 
-		// Scale HUD sizes with the canvas so text reads well at any resolution.
-		const pad = Math.round(w * 0.025);
-		const boxW = w - pad * 2;
-		const boxH = Math.round(h * 0.16);
-		const boxX = pad;
-		const boxY = pad;
-		const radius = Math.round(boxH * 0.12);
+		// Match the live recorder HUD proportions: a compact top-left overlay,
+		// scaled from the 720p landscape camera baseline instead of filling the
+		// whole exported frame width.
+		const scale = Math.max(0.85, Math.min(2.25, h / 720));
+		const boxX = Math.round(8 * scale);
+		const boxY = Math.round(12 * scale);
+		const boxW = Math.min(Math.round(w * 0.62), w - boxX * 2);
+		const padX = Math.round(14 * scale);
+		const padY = Math.round(9 * scale);
+		const labelSize = Math.round(10 * scale);
+		const valueSize = Math.round(22 * scale);
+		const subSize = Math.round(12 * scale);
+		const valueGap = Math.round(5 * scale);
+		const subGap = Math.round(9 * scale);
+		const boxH = padY * 2 + labelSize + valueGap + valueSize + subGap + subSize;
+		const radius = Math.round(14 * scale);
 
 		ctx.save();
 		ctx.fillStyle = 'rgba(15, 23, 42, 0.55)';
 		roundRect(ctx, boxX, boxY, boxW, boxH, radius);
 		ctx.fill();
 
-		const labelSize = Math.round(boxH * 0.15);
-		const valueSize = Math.round(boxH * 0.38);
-		const subSize = Math.round(boxH * 0.17);
-
 		ctx.fillStyle = '#cbd5e1';
 		ctx.font = `600 ${labelSize}px ui-sans-serif, system-ui, -apple-system, sans-serif`;
 		ctx.textBaseline = 'top';
 
-		const innerX = boxX + Math.round(boxW * 0.04);
-		const innerY = boxY + Math.round(boxH * 0.12);
+		const innerX = boxX + padX;
+		const innerY = boxY + padY;
+		const rightX = boxX + boxW - padX;
 
 		ctx.textAlign = 'left';
 		ctx.fillText('TIME', innerX, innerY);
 		ctx.textAlign = 'right';
-		ctx.fillText('DISTANCE', boxX + boxW - Math.round(boxW * 0.04), innerY);
+		ctx.fillText('DISTANCE', rightX, innerY);
 
 		ctx.fillStyle = '#f8fafc';
 		ctx.font = `700 ${valueSize}px ui-monospace, SFMono-Regular, Menlo, monospace`;
 		ctx.textAlign = 'left';
 		const diveTimeMs = Math.max(0, atMs - (timeline.diveStartMs ?? 0));
-		ctx.fillText(formatMs(diveTimeMs), innerX, innerY + labelSize + Math.round(boxH * 0.03));
+		ctx.fillText(formatMs(diveTimeMs), innerX, innerY + labelSize + valueGap);
 		ctx.textAlign = 'right';
 		ctx.fillText(
 			`${dist.toFixed(1)} m`,
-			boxX + boxW - Math.round(boxW * 0.04),
-			innerY + labelSize + Math.round(boxH * 0.03)
+			rightX,
+			innerY + labelSize + valueGap
 		);
 
 		ctx.fillStyle = '#cbd5e1';
 		ctx.font = `500 ${subSize}px ui-sans-serif, system-ui, -apple-system, sans-serif`;
-		const subY = innerY + labelSize + valueSize + Math.round(boxH * 0.08);
+		const subY = innerY + labelSize + valueGap + valueSize + subGap;
 		ctx.textAlign = 'left';
 		ctx.fillText(`Lap ${laps}/${timeline.laps.length}`, innerX, subY);
 		ctx.textAlign = 'right';
 		ctx.fillText(
 			`${spd.toFixed(2)} m/s`,
-			boxX + boxW - Math.round(boxW * 0.04),
+			rightX,
 			subY
 		);
 		ctx.restore();

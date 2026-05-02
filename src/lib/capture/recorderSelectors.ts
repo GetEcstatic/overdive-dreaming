@@ -5,7 +5,11 @@
  */
 
 import type { RecorderState } from './recorderState';
-import { waypointSpacingM } from './recorderState';
+import {
+	tapKindForWaypointIndex,
+	waypointDistanceM,
+	waypointSpacingM
+} from './recorderState';
 import type { LapEvent } from '../types';
 import { defaultSpeedMs } from './disciplineSpeeds';
 
@@ -53,36 +57,28 @@ function lastTap(state: RecorderState): LapEvent | null {
 	return lastSub;
 }
 
-/** Number of sub-splits that belong to the current (incomplete) lap. */
-function inLapSubSplitCount(state: RecorderState): number {
-	const completedWalls = state.timeline.laps.length;
-	const thresholdM = completedWalls * state.config.poolLengthM;
-	return (state.timeline.subSplits ?? []).filter(
-		(s) => s.cumulativeDistanceM > thresholdM
-	).length;
-}
-
 /** What kind of tap is next expected under the smart-button rule? */
 export function nextTapKind(state: RecorderState): 'wall' | 'split' {
-	const wpl = state.config.waypointsPerLap;
-	if (wpl <= 1) return 'wall';
-	return inLapSubSplitCount(state) + 1 < wpl ? 'split' : 'wall';
+	return tapKindForWaypointIndex(state.config, expectedWaypointIndex(state));
 }
 
 /** Cumulative distance (m) of the next expected tap. */
 export function nextWaypointM(state: RecorderState): number {
-	const completedWalls = state.timeline.laps.length;
-	const wallBaseM = completedWalls * state.config.poolLengthM;
-	if (nextTapKind(state) === 'wall') {
-		return wallBaseM + state.config.poolLengthM;
-	}
-	const spacing = waypointSpacingM(state.config);
-	return wallBaseM + (inLapSubSplitCount(state) + 1) * spacing;
+	return expectedWaypointDistanceM(state);
+}
+
+export function expectedWaypointIndex(state: RecorderState): number {
+	return state.waypointCursor.expectedIndex;
+}
+
+export function expectedWaypointDistanceM(state: RecorderState): number {
+	return waypointDistanceM(state.config, expectedWaypointIndex(state));
 }
 
 /** Cumulative distance (m) of the next WALL — the next integer length. */
 export function nextWallM(state: RecorderState): number {
-	return (state.timeline.laps.length + 1) * state.config.poolLengthM;
+	const wpl = Math.max(1, state.config.waypointsPerLap);
+	return Math.ceil(expectedWaypointIndex(state) / wpl) * state.config.poolLengthM;
 }
 
 /**
@@ -170,10 +166,9 @@ export function cumulativeDistanceM(
 }
 
 /**
- * True when the interpolated distance exceeds the NEXT WALL by at least the
- * configured threshold — i.e. the coach likely missed a wall tap entirely.
- * In v2 this is signal-only: raising the banner is all that happens. The
- * next real wall tap is ground truth.
+ * True when the diver is closer to the following waypoint than the current
+ * expected waypoint. The reducer advances only the cursor, not the timeline,
+ * so no fake tap timestamps are written.
  */
 export function shouldAutoAdvance(
 	state: RecorderState,
@@ -181,16 +176,14 @@ export function shouldAutoAdvance(
 ): boolean {
 	if (state.phase !== 'diving') return false;
 	const raw = cumulativeDistanceM(state, nowPerfMs);
-	const target = nextWallM(state);
-	return raw - target >= state.config.autoAdvanceThresholdM;
+	const target = expectedWaypointDistanceM(state);
+	return raw >= target + waypointSpacingM(state.config) / 2;
 }
 
 /** Can the user undo the last tap (wall or split)? */
 export function canUndo(state: RecorderState): boolean {
 	if (state.phase !== 'diving') return false;
-	const hasWall = state.timeline.laps.length > 0;
-	const hasSub = (state.timeline.subSplits?.length ?? 0) > 0;
-	return hasWall || hasSub;
+	return state.waypointCursor.history.length > 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -256,16 +249,10 @@ export function primaryActionSpec(state: RecorderState): PrimaryActionSpec {
 			};
 
 		case 'diving': {
-			const kind = nextTapKind(state);
 			const targetM = nextWaypointM(state);
-			const completedWalls = state.timeline.laps.length;
 			return {
 				action: 'waypoint',
-				label: kind === 'wall' ? `Wall ${completedWalls + 1}` : 'Split',
-				sub:
-					kind === 'wall'
-						? `${formatMetersPlain(targetM)} m`
-						: `mid-lap ${formatMetersPlain(targetM)} m`,
+				label: `Waypoint ${formatMetersPlain(targetM)} m`,
 				disabled: false,
 				supportsLongPressEndDive: true
 			};
@@ -319,17 +306,7 @@ export function buttonLayout(state: RecorderState): ButtonLayout {
 			};
 
 		case 'diving': {
-			const kind = nextTapKind(state);
 			const targetM = nextWaypointM(state);
-			const completedWalls = state.timeline.laps.length;
-			const label =
-				kind === 'wall'
-					? `Wall ${completedWalls + 1}`
-					: `Split`;
-			const sub =
-				kind === 'wall'
-					? `at ${formatMetersPlain(targetM)} m`
-					: `mid-lap · ${formatMetersPlain(targetM)} m`;
 			return {
 				buttons: [
 					{
@@ -338,7 +315,11 @@ export function buttonLayout(state: RecorderState): ButtonLayout {
 						weight: 1,
 						disabled: !canUndo(state)
 					},
-					{ kind: 'waypoint', label, sub, weight: 3 },
+					{
+						kind: 'waypoint',
+						label: `Waypoint ${formatMetersPlain(targetM)} m`,
+						weight: 3
+					},
 					{ kind: 'endDive', label: 'End dive', weight: 1 }
 				],
 				hint: null
