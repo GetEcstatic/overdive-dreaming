@@ -995,6 +995,7 @@ export type DiveVideoCapturePosture =
 	| 'unknown';
 
 export type DiveVideoResolution = '720p' | '1080p';
+export type DiveVideoQualityPreset = 'standard' | 'high' | 'max';
 export type DiveVideoRetentionTier = 'keep-last-5' | 'pinned';
 export type DiveVideoGiftStatus = 'pending' | 'accepted' | 'declined';
 export type DiveVideoDiscipline = 'DYN' | 'DYNB' | 'DNF';
@@ -1070,6 +1071,10 @@ export interface DiveVideo {
 	displayAspectRatio?: DiveVideoAspectRatio;
 	capturePosture?: DiveVideoCapturePosture;
 	resolutionPreset: DiveVideoResolution; // 720p default, 1080p opt-in
+	qualityPreset?: DiveVideoQualityPreset;
+	requestedVideoBitrateBps?: number;
+	actualAverageBitrateBps?: number;
+	actualFrameRate?: number;
 
 	// Retention
 	retentionTier: DiveVideoRetentionTier; // 'pinned' survives the 5-video reaper

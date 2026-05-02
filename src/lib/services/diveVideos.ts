@@ -411,6 +411,10 @@ export function buildDiveVideoFormData(args: {
 	heightPx: number;
 	durationSeconds: number;
 	resolutionPreset: DiveVideo['resolutionPreset'];
+	qualityPreset?: DiveVideo['qualityPreset'];
+	requestedVideoBitrateBps?: number;
+	actualAverageBitrateBps?: number;
+	actualFrameRate?: number;
 	timeline: DiveVideo['timeline'];
 	deviceLabel?: string;
 	cameraDeviceId?: string;
@@ -472,6 +476,10 @@ export function buildDiveVideoFormData(args: {
 		displayAspectRatio,
 		capturePosture: args.capturePosture,
 		resolutionPreset: args.resolutionPreset,
+		qualityPreset: args.qualityPreset,
+		requestedVideoBitrateBps: args.requestedVideoBitrateBps,
+		actualAverageBitrateBps: args.actualAverageBitrateBps,
+		actualFrameRate: args.actualFrameRate,
 		retentionTier: 'keep-last-5',
 		uploadStatus: 'pending',
 		timeline: args.timeline

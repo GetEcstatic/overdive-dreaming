@@ -8,7 +8,11 @@
  */
 
 export interface RecorderOptions {
-	/** Target bitrate in bits/sec. 720p default ~3_000_000, 1080p ~5_000_000. */
+	/**
+	 * Target bitrate in bits/sec. Browsers treat this as an encoder hint,
+	 * not a guarantee; instantaneous bitrate and visible quality can still
+	 * vary by codec, motion, lighting, device load, and browser policy.
+	 */
 	videoBitsPerSecond?: number;
 	/** Emit a dataavailable event every N ms so we can checkpoint to IndexedDB. */
 	timesliceMs?: number;

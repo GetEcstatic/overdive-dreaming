@@ -34,6 +34,11 @@
 		readViewportSnapshot
 	} from '$lib/capture/orientation';
 	import {
+		actualAverageBitrateBps,
+		bitrateForResolution,
+		DEFAULT_VIDEO_QUALITY_PRESET
+	} from '$lib/capture/videoQuality';
+	import {
 		initialRecorderState,
 		recorderReducer,
 		waypointSpacingM,
@@ -56,6 +61,7 @@
 		CameraFacing,
 		CameraPreference,
 		DiveTimeline,
+		DiveVideoQualityPreset,
 		DiveVideoCapturePosture,
 		DiveVideoDiscipline,
 		DiveVideoDisplayOrientation,
@@ -74,6 +80,10 @@
 		cameraDeviceId?: string;
 		cameraPreference: CameraPreference;
 		cameraFacing?: CameraFacing;
+		qualityPreset: DiveVideoQualityPreset;
+		requestedVideoBitrateBps: number;
+		actualAverageBitrateBps?: number;
+		actualFrameRate?: number;
 		timeline: DiveTimeline;
 		capturePosture: DiveVideoCapturePosture;
 		displayOrientation: DiveVideoDisplayOrientation;
@@ -261,9 +271,10 @@
 		if (rs.phase !== 'ready' || !acquired) return;
 		try {
 			wakeLock = await requestWakeLock();
-			const bitrate = resolution === '1080p' ? 5_000_000 : 3_000_000;
+			const qualityPreset = DEFAULT_VIDEO_QUALITY_PRESET;
+			const requestedVideoBitrateBps = bitrateForResolution(resolution, qualityPreset);
 			recorder = createRecorder(acquired.stream, {
-				videoBitsPerSecond: bitrate,
+				videoBitsPerSecond: requestedVideoBitrateBps,
 				timesliceMs: 2000
 			});
 			capturePosture = posturefromViewport(readViewportSnapshot());
@@ -383,6 +394,7 @@
 			const settings = acquired?.stream.getVideoTracks()[0]?.getSettings() ?? {};
 			const widthPx = settings.width ?? acquired?.actualWidth ?? 0;
 			const heightPx = settings.height ?? acquired?.actualHeight ?? 0;
+			const actualFrameRate = settings.frameRate;
 
 			const assetOrientation = widthPx >= heightPx ? 'landscape' : 'portrait';
 			const { displayOrientation, displayRotationDeg } = decideDisplayOrientation({
@@ -410,6 +422,16 @@
 				cameraDeviceId: acquired?.deviceId,
 				cameraPreference: selectedCamera,
 				cameraFacing: acquired?.facingMode,
+				qualityPreset: DEFAULT_VIDEO_QUALITY_PRESET,
+				requestedVideoBitrateBps: bitrateForResolution(
+					resolution,
+					DEFAULT_VIDEO_QUALITY_PRESET
+				),
+				actualAverageBitrateBps: actualAverageBitrateBps(
+					result.sizeBytes,
+					durationSeconds
+				),
+				actualFrameRate,
 				timeline: finalTimeline,
 				capturePosture,
 				displayOrientation,

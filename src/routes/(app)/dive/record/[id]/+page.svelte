@@ -29,6 +29,7 @@
 		CameraPreference,
 		DiveTimeline,
 		DiveVideoDiscipline,
+		DiveVideoQualityPreset,
 		DiveVideoDisplayOrientation,
 		DiveVideoCapturePosture,
 		DiveVideoResolution,
@@ -48,6 +49,10 @@
 		cameraDeviceId?: string;
 		cameraPreference: CameraPreference;
 		cameraFacing?: CameraFacing;
+		qualityPreset: DiveVideoQualityPreset;
+		requestedVideoBitrateBps: number;
+		actualAverageBitrateBps?: number;
+		actualFrameRate?: number;
 		timeline: DiveTimeline;
 		capturePosture: DiveVideoCapturePosture;
 		displayOrientation: DiveVideoDisplayOrientation;
@@ -207,6 +212,10 @@
 				cameraDeviceId: capture.cameraDeviceId,
 				cameraPreference: capture.cameraPreference,
 				cameraFacing: capture.cameraFacing,
+				qualityPreset: capture.qualityPreset,
+				requestedVideoBitrateBps: capture.requestedVideoBitrateBps,
+				actualAverageBitrateBps: capture.actualAverageBitrateBps,
+				actualFrameRate: capture.actualFrameRate,
 				capturePosture: capture.capturePosture,
 				displayOrientation: capture.displayOrientation,
 				displayRotationDeg: capture.displayRotationDeg
