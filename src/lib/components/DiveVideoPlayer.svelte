@@ -769,26 +769,22 @@
 	.dive-hud {
 		position: absolute;
 		left: 0.5rem;
-		right: 0.5rem;
-		top: 0.5rem;
+		right: auto;
+		top: 0.75rem;
+		width: min(62%, calc(100% - 1rem));
 		z-index: 10;
 		pointer-events: none;
-		padding: 0.4rem 0.6rem;
-		border-radius: 10px;
-		background: rgba(15, 23, 42, 0.4);
-		backdrop-filter: blur(6px);
-		-webkit-backdrop-filter: blur(6px);
+		padding: 0.55rem 0.85rem;
+		border-radius: 14px;
+		background: rgba(15, 23, 42, 0.55);
+		backdrop-filter: blur(8px);
+		-webkit-backdrop-filter: blur(8px);
 		color: #f1f5f9;
 	}
 	.dive-hud-fullscreen {
-		/* Top-center, narrower, with safe-area-inset padding. */
-		left: 50%;
-		right: auto;
-		transform: translateX(-50%);
-		top: max(0.5rem, env(safe-area-inset-top));
-		margin-left: env(safe-area-inset-left);
-		margin-right: env(safe-area-inset-right);
-		min-width: min(70vw, 28rem);
+		left: max(0.5rem, env(safe-area-inset-left));
+		top: max(0.75rem, env(safe-area-inset-top));
+		width: min(62vw, 28rem);
 		max-width: calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 1rem);
 		background: rgba(15, 23, 42, 0.55);
 	}
@@ -802,15 +798,17 @@
 		left: 0.75rem;
 		right: 0.75rem;
 		top: 0.75rem;
+		width: auto;
+		padding: 0.75rem 1.05rem;
 	}
 	.dive-hud-row {
 		display: flex;
 		justify-content: space-between;
 		align-items: baseline;
-		gap: 0.75rem;
+		gap: 1.25rem;
 	}
 	.dive-hud-label {
-		font-size: 0.6rem;
+		font-size: 0.64rem;
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
 		color: #cbd5e1;
@@ -818,16 +816,26 @@
 	}
 	.dive-hud-value {
 		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-		font-size: 1.1rem;
+		font-size: 1.35rem;
 		font-variant-numeric: tabular-nums;
 		line-height: 1.1;
 	}
 	.dive-hud-sub {
 		display: flex;
 		justify-content: space-between;
+		gap: 1.25rem;
 		color: #cbd5e1;
-		font-size: 0.65rem;
-		margin-top: 0.15rem;
+		font-size: 0.76rem;
+		margin-top: 0.4rem;
+	}
+	.dive-hud-portrait:not(.dive-hud-fullscreen) .dive-hud-label {
+		font-size: 0.7rem;
+	}
+	.dive-hud-portrait:not(.dive-hud-fullscreen) .dive-hud-value {
+		font-size: 1.9rem;
+	}
+	.dive-hud-portrait:not(.dive-hud-fullscreen) .dive-hud-sub {
+		font-size: 0.85rem;
 	}
 	.dive-hud-mono {
 		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
