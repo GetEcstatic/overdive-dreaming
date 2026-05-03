@@ -484,6 +484,8 @@
 			clearTimeout(bannerClearHandle);
 			bannerClearHandle = null;
 		}
+		timeLimitAutoStopTriggered = false;
+		timeLimitBannerVisible = false;
 		onPrimaryHoldEnd();
 	}
 
@@ -524,6 +526,21 @@
 				dispatch({ type: 'banner/cleared' });
 			}, 2000);
 		}
+	});
+
+	// Auto-stop recording after 5 minutes.
+	const MAX_RECORDING_MS = 5 * 60 * 1000;
+	let timeLimitBannerVisible = $state(false);
+	let timeLimitAutoStopTriggered = false;
+
+	$effect(() => {
+		if (timeLimitAutoStopTriggered) return;
+		if (rs.phase !== 'prepping' && rs.phase !== 'diving') return;
+		if (rs.clocks.recordingStartedPerfMs <= 0) return;
+		if (nowMs - rs.clocks.recordingStartedPerfMs < MAX_RECORDING_MS) return;
+		timeLimitAutoStopTriggered = true;
+		timeLimitBannerVisible = true;
+		void onPressStopRecording();
 	});
 
 	onMount(() => {
@@ -590,6 +607,12 @@
 		{#if rs.autoAdvance}
 			<div class="toast" role="status">
 				Skipped {formatMeters(rs.autoAdvance.fromDistanceM ?? nextM)} m — Undo if the diver is still before it.
+			</div>
+		{/if}
+
+		{#if timeLimitBannerVisible}
+			<div class="toast" role="status">
+				5-minute limit reached — saving video.
 			</div>
 		{/if}
 
