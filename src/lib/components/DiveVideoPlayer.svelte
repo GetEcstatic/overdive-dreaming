@@ -266,7 +266,7 @@
 			const source = ctx.createMediaElementSource(el);
 			const destination = ctx.createMediaStreamDestination();
 			source.connect(destination);
-			await ctx.resume();
+			void ctx.resume().catch(() => undefined);
 			return {
 				tracks: destination.stream.getAudioTracks(),
 				close: async () => {
