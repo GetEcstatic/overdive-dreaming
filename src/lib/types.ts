@@ -149,6 +149,7 @@ export interface UserSettings {
 	 * See docs/Dynamic video feature.md §7.
 	 */
 	defaultVideoResolution?: '720p' | '1080p';
+	defaultVideoQualityPreset?: DiveVideoQualityPreset;
 	/**
 	 * Last-used recorder-setup values, persisted on successful capture.
 	 * Used to pre-fill the setup screen and enable one-tap quick-start.

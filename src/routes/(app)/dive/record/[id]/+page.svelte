@@ -22,6 +22,11 @@
 	import { logUploadDiagnostic } from '$lib/capture/uploadDiagnostics';
 	import { summariseTimeline, totalDistanceM } from '$lib/capture/timeline';
 	import { defaultSpeedMs } from '$lib/capture/disciplineSpeeds';
+	import {
+		bitrateForResolution,
+		DEFAULT_VIDEO_QUALITY_PRESET,
+		estimateBytesPerMinute
+	} from '$lib/capture/videoQuality';
 	import { getUserSettings, updateUserSettings } from '$lib/firestore';
 	import { diveRecording } from '$lib/stores/videoPlayback';
 	import type {
@@ -79,6 +84,7 @@
 	let waypointsPerLap = $state<number | undefined>(2);
 	let discipline = $state<DiveVideoDiscipline | undefined>(undefined);
 	let resolution = $state<DiveVideoResolution>('720p');
+	let qualityPreset = $state<DiveVideoQualityPreset>(DEFAULT_VIDEO_QUALITY_PRESET);
 	let cameraPreference = $state<CameraPreference>(AUTO_REAR_CAMERA);
 	let resolutionLoaded = $state(false);
 	/**
@@ -111,6 +117,10 @@
 		return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 	}
 
+	function formatMegabytesPerMinute(bytes: number): string {
+		return `${(bytes / (1024 * 1024)).toFixed(0)} MB/min`;
+	}
+
 	function formatMbps(bitsPerSecond: number | undefined): string {
 		if (!bitsPerSecond || bitsPerSecond <= 0) return 'Unknown';
 		return `${(bitsPerSecond / 1_000_000).toFixed(1)} Mbps`;
@@ -135,6 +145,15 @@
 		return warnings;
 	}
 
+	function estimatedRecordingSize(
+		resolution: DiveVideoResolution,
+		preset: DiveVideoQualityPreset
+	): string {
+		return formatMegabytesPerMinute(
+			estimateBytesPerMinute(bitrateForResolution(resolution, preset))
+		);
+	}
+
 	$effect(() => {
 		const uid = $user?.uid;
 		if (!uid || resolutionLoaded) return;
@@ -145,6 +164,9 @@
 			.then((settings) => {
 				if (settings?.defaultVideoResolution) {
 					resolution = settings.defaultVideoResolution;
+				}
+				if (settings?.defaultVideoQualityPreset) {
+					qualityPreset = settings.defaultVideoQualityPreset;
 				}
 				let gotAnyDefault = false;
 				if (typeof settings?.defaultPoolLength === 'number') {
@@ -351,7 +373,9 @@
 			if (poolLength && waypointsPerLap) {
 				updateUserSettings(uid, {
 					defaultPoolLength: poolLength,
-					defaultWaypointsPerLap: waypointsPerLap
+					defaultWaypointsPerLap: waypointsPerLap,
+					defaultVideoResolution: resolution,
+					defaultVideoQualityPreset: qualityPreset
 				}).catch((err) => {
 					// eslint-disable-next-line no-console
 					console.warn('[dive-record] could not save recorder defaults', err);
@@ -564,6 +588,56 @@
 				</section>
 			{/if}
 
+			<section class="card">
+				<div class="field">
+					<span class="field-label">Video resolution</span>
+					<div class="segmented two" role="radiogroup" aria-label="Video resolution">
+						{#each [
+							{ value: '720p', label: '720p', sub: 'lighter' },
+							{ value: '1080p', label: '1080p', sub: 'sharper' }
+						] as opt (opt.value)}
+							<button
+								type="button"
+								class="seg-btn"
+								class:active={resolution === opt.value}
+								role="radio"
+								aria-checked={resolution === opt.value}
+								onclick={() => (resolution = opt.value as DiveVideoResolution)}
+							>
+								<span class="seg-label">{opt.label}</span>
+								<span class="seg-sub">{opt.sub}</span>
+							</button>
+						{/each}
+					</div>
+				</div>
+
+				<div class="field">
+					<span class="field-label">Recording quality</span>
+					<div class="segmented" role="radiogroup" aria-label="Recording quality">
+						{#each [
+							{ value: 'standard', label: 'Std', sub: 'smaller' },
+							{ value: 'high', label: 'High', sub: 'default' },
+							{ value: 'max', label: 'Max', sub: 'largest' }
+						] as opt (opt.value)}
+							<button
+								type="button"
+								class="seg-btn"
+								class:active={qualityPreset === opt.value}
+								role="radio"
+								aria-checked={qualityPreset === opt.value}
+								onclick={() => (qualityPreset = opt.value as DiveVideoQualityPreset)}
+							>
+								<span class="seg-label">{opt.label}</span>
+								<span class="seg-sub">{opt.sub}</span>
+							</button>
+						{/each}
+					</div>
+					<p class="field-hint">
+						About {estimatedRecordingSize(resolution, qualityPreset)} before audio and container overhead.
+					</p>
+				</div>
+			</section>
+
 			<div class="actions">
 				<button class="btn btn-secondary" onclick={() => history.back()}>
 					Cancel
@@ -585,6 +659,7 @@
 		poolLength={poolLength ?? 25}
 		waypointsPerLap={waypointsPerLap ?? 2}
 		{resolution}
+		{qualityPreset}
 		{discipline}
 		{cameraPreference}
 		onCameraPreferenceResolved={(preference) => (cameraPreference = preference)}
@@ -766,6 +841,9 @@
 		background: rgba(15, 23, 42, 0.65);
 		border: 1px solid rgba(148, 163, 184, 0.2);
 		border-radius: 12px;
+	}
+	.segmented.two {
+		grid-template-columns: repeat(2, 1fr);
 	}
 	.seg-btn {
 		display: flex;

@@ -94,6 +94,7 @@
 		poolLength: number;
 		waypointsPerLap?: number;
 		resolution?: DiveVideoResolution;
+		qualityPreset?: DiveVideoQualityPreset;
 		discipline?: DiveVideoDiscipline;
 		cameraPreference?: CameraPreference;
 		autoAdvanceThresholdM?: number;
@@ -106,6 +107,7 @@
 		poolLength,
 		waypointsPerLap = 2,
 		resolution = '720p',
+		qualityPreset = DEFAULT_VIDEO_QUALITY_PRESET,
 		discipline = 'DYN',
 		cameraPreference = AUTO_REAR_CAMERA,
 		autoAdvanceThresholdM = 10,
@@ -271,7 +273,6 @@
 		if (rs.phase !== 'ready' || !acquired) return;
 		try {
 			wakeLock = await requestWakeLock();
-			const qualityPreset = DEFAULT_VIDEO_QUALITY_PRESET;
 			const requestedVideoBitrateBps = bitrateForResolution(resolution, qualityPreset);
 			recorder = createRecorder(acquired.stream, {
 				videoBitsPerSecond: requestedVideoBitrateBps,
@@ -422,11 +423,8 @@
 				cameraDeviceId: acquired?.deviceId,
 				cameraPreference: selectedCamera,
 				cameraFacing: acquired?.facingMode,
-				qualityPreset: DEFAULT_VIDEO_QUALITY_PRESET,
-				requestedVideoBitrateBps: bitrateForResolution(
-					resolution,
-					DEFAULT_VIDEO_QUALITY_PRESET
-				),
+				qualityPreset,
+				requestedVideoBitrateBps: bitrateForResolution(resolution, qualityPreset),
 				actualAverageBitrateBps: actualAverageBitrateBps(
 					result.sizeBytes,
 					durationSeconds
