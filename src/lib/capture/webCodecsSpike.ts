@@ -72,6 +72,7 @@ export async function runWebCodecsVideoOnlySpike(
 	let encodedBytes = 0;
 	let maxEncodeQueueSize = 0;
 	let encodeErrors = 0;
+	let encoderErrored = false;
 	let endedBecause: WebCodecsSpikeResult['endedBecause'] = 'duration';
 
 	const processor = new Processor({ track });
@@ -83,6 +84,7 @@ export async function runWebCodecsVideoOnlySpike(
 		},
 		error: () => {
 			encodeErrors += 1;
+			encoderErrored = true;
 			endedBecause = 'error';
 		}
 	});
@@ -97,7 +99,7 @@ export async function runWebCodecsVideoOnlySpike(
 
 	const startedAt = performance.now();
 	try {
-		while (performance.now() - startedAt < durationMs && endedBecause !== 'error') {
+		while (performance.now() - startedAt < durationMs && !encoderErrored) {
 			const { value: frame, done } = await reader.read();
 			if (done || !frame) {
 				endedBecause = 'source-ended';
