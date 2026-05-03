@@ -172,6 +172,18 @@ export function totalTimeMs(timeline: DiveTimeline): number {
 }
 
 /**
+ * Dive elapsed time at a recording-relative media timestamp.
+ *
+ * Playback can continue after the diver has ended the dive because the video
+ * may include surface protocol footage. The HUD timer should still freeze at
+ * the dive end, not keep counting through the rest of the recording.
+ */
+export function diveElapsedAt(timeline: DiveTimeline, atMs: number): number {
+	const effectiveAtMs = Math.min(Math.max(0, atMs), timeline.diveEndMs);
+	return Math.max(0, effectiveAtMs - timeline.diveStartMs);
+}
+
+/**
  * Total distance covered in meters.
  *
  * Mirrors the HUD "Distance" counter (`cumulativeDistanceM` in

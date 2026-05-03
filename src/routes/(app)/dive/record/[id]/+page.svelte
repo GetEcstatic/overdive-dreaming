@@ -154,6 +154,10 @@
 		);
 	}
 
+	function diveDurationSeconds(result: CaptureResult): number {
+		return Math.max(0, result.timeline.diveEndMs - result.timeline.diveStartMs) / 1000;
+	}
+
 	$effect(() => {
 		const uid = $user?.uid;
 		if (!uid || resolutionLoaded) return;
@@ -673,7 +677,7 @@
 
 			{#if capture && discipline}
 				<div class="stats-card">
-					<div><span>Duration</span><strong>{capture.durationSeconds.toFixed(1)} s</strong></div>
+					<div><span>Dive time</span><strong>{diveDurationSeconds(capture).toFixed(1)} s</strong></div>
 					<div><span>Waypoints tapped</span><strong>{capture.timeline.laps.length}</strong></div>
 					<div>
 						<span>Distance</span>
@@ -705,6 +709,7 @@
 						<div><span>Actual avg</span><strong>{formatMbps(capture.actualAverageBitrateBps)}</strong></div>
 						<div><span>Frame rate</span><strong>{formatFrameRate(capture.actualFrameRate)}</strong></div>
 						<div><span>Container</span><strong>{capture.mimeType || 'Unknown'}</strong></div>
+						<div><span>Video length</span><strong>{capture.durationSeconds.toFixed(1)} s</strong></div>
 					</div>
 					{#if qualityWarningsFor(capture).length > 0}
 						<ul class="diagnostics-warnings">

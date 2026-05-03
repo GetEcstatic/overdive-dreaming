@@ -16,6 +16,7 @@
 	import type { DiveTimeline, DiveVideo } from '$lib/types';
 	import {
 		distanceAt,
+		diveElapsedAt,
 		speedAt,
 		totalTimeMs
 	} from '$lib/capture/timeline';
@@ -132,7 +133,7 @@
 	// recording may include breathe-up footage before the dive begins, so
 	// the HUD Time is offset by `timeline.diveStartMs` and clamped to 0
 	// until the diver has "left the wall".
-	const elapsedMs = $derived(Math.max(0, currentMs - (timeline.diveStartMs ?? 0)));
+	const elapsedMs = $derived(diveElapsedAt(timeline, currentMs));
 	// Distance/speed helpers still key off recording-relative offsets so we
 	// pass the raw `currentMs` through.
 	const distance = $derived(distanceAt(timeline, Math.max(0, currentMs), poolLength));
@@ -507,7 +508,7 @@
 		ctx.fillStyle = '#f8fafc';
 		ctx.font = `700 ${valueSize}px ui-monospace, SFMono-Regular, Menlo, monospace`;
 		ctx.textAlign = 'left';
-		const diveTimeMs = Math.max(0, atMs - (timeline.diveStartMs ?? 0));
+		const diveTimeMs = diveElapsedAt(timeline, atMs);
 		ctx.fillText(formatMs(diveTimeMs), innerX, innerY + labelSize + valueGap);
 		ctx.textAlign = 'right';
 		ctx.fillText(

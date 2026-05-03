@@ -304,7 +304,9 @@
 	}
 
 	function onPressEndDive(): void {
-		dispatch({ type: 'dive/ended', atPerfMs: performance.now() });
+		const atPerfMs = performance.now();
+		nowMs = atPerfMs;
+		dispatch({ type: 'dive/ended', atPerfMs });
 		stopTicking();
 	}
 

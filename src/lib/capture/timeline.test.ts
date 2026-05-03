@@ -4,6 +4,7 @@ import {
 	averageSpeedMs,
 	createEmptyTimeline,
 	distanceAt,
+	diveElapsedAt,
 	finalizeTimeline,
 	removeLastLap,
 	speedAt,
@@ -83,6 +84,17 @@ describe('timeline — totals', () => {
 	it('totalTimeMs clamps negative to 0', () => {
 		const t = finalizeTimeline(createEmptyTimeline(1000), 500);
 		expect(totalTimeMs(t)).toBe(0);
+	});
+
+	it('diveElapsedAt is 0 before dive start', () => {
+		const t = finalizeTimeline(createEmptyTimeline(10_000), 20_000);
+		expect(diveElapsedAt(t, 5_000)).toBe(0);
+	});
+
+	it('diveElapsedAt freezes at dive end during surface-protocol playback', () => {
+		const t = finalizeTimeline(createEmptyTimeline(10_000), 20_000);
+		expect(diveElapsedAt(t, 15_000)).toBe(5_000);
+		expect(diveElapsedAt(t, 30_000)).toBe(10_000);
 	});
 
 	it('totalDistanceM uses the last lap cumulative distance', () => {
