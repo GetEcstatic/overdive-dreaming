@@ -604,7 +604,13 @@
 		const scale = Math.max(0.85, Math.min(2.25, h / 720));
 		const boxX = Math.round(8 * scale);
 		const boxY = Math.round(12 * scale);
-		const boxW = Math.min(Math.round(w * 0.62), w - boxX * 2);
+		// In portrait mode (h > w), stretch the overlay to fill the full canvas
+		// width — matching the DOM .dive-hud-portrait CSS (left/right: 0.75rem,
+		// width: auto). In landscape, keep the compact 62 % cap.
+		const isPortrait = h > w;
+		const boxW = isPortrait
+			? w - 2 * boxX
+			: Math.min(Math.round(w * 0.62), w - boxX * 2);
 		const padX = Math.round(14 * scale);
 		const padY = Math.round(9 * scale);
 		const labelSize = Math.round(10 * scale);
