@@ -201,6 +201,7 @@
 	// -----------------------------------------------------------------------
 	let downloadError = $state<string | null>(null);
 	let exportDiagnostic = $state<string | null>(null);
+	let preparedShareFile = $state<File | null>(null);
 	let downloading = $state(false);
 	let exportProgress = $state(0); // 0..1 while baking
 
@@ -217,6 +218,66 @@
 	function formatMbps(bitsPerSecond: number | undefined): string {
 		if (!bitsPerSecond || bitsPerSecond <= 0) return 'unknown bitrate';
 		return `${(bitsPerSecond / 1_000_000).toFixed(1)} Mbps`;
+	}
+
+	type CanvasVideoTrackWithRequestFrame = MediaStreamTrack & {
+		requestFrame?: () => void;
+	};
+
+	type AudioContextConstructor = new () => AudioContext;
+
+	type ExportAudioHandle = {
+		tracks: MediaStreamTrack[];
+		close: () => Promise<void>;
+	};
+
+	function captureCanvasStream(canvas: HTMLCanvasElement): {
+		stream: MediaStream;
+		requestFrame: (() => void) | null;
+		manualFrameRequest: boolean;
+	} {
+		const manualStream = canvas.captureStream(0);
+		const [manualTrack] = manualStream.getVideoTracks() as CanvasVideoTrackWithRequestFrame[];
+		if (typeof manualTrack?.requestFrame === 'function') {
+			return {
+				stream: manualStream,
+				requestFrame: () => manualTrack.requestFrame?.(),
+				manualFrameRequest: true
+			};
+		}
+		manualStream.getTracks().forEach((track) => track.stop());
+		return {
+			stream: canvas.captureStream(30),
+			requestFrame: null,
+			manualFrameRequest: false
+		};
+	}
+
+	async function captureAudioFromElement(el: HTMLVideoElement): Promise<ExportAudioHandle> {
+		const AudioCtx = (globalThis as unknown as {
+			AudioContext?: AudioContextConstructor;
+			webkitAudioContext?: AudioContextConstructor;
+		}).AudioContext ?? (globalThis as unknown as { webkitAudioContext?: AudioContextConstructor }).webkitAudioContext;
+
+		if (!AudioCtx) return { tracks: [], close: async () => undefined };
+
+		try {
+			const ctx = new AudioCtx();
+			const source = ctx.createMediaElementSource(el);
+			const destination = ctx.createMediaStreamDestination();
+			source.connect(destination);
+			await ctx.resume();
+			return {
+				tracks: destination.stream.getAudioTracks(),
+				close: async () => {
+					destination.stream.getTracks().forEach((track) => track.stop());
+					source.disconnect();
+					await ctx.close().catch(() => undefined);
+				}
+			};
+		} catch {
+			return { tracks: [], close: async () => undefined };
+		}
 	}
 
 	/**
@@ -295,6 +356,8 @@
 		blob: Blob;
 		mime: string;
 		requestedVideoBitrateBps: number;
+		audioPreserved: boolean;
+		manualFrameRequest: boolean;
 	}> {
 		const off = document.createElement('video');
 		off.crossOrigin = 'anonymous';
@@ -312,6 +375,8 @@
 		off.style.pointerEvents = 'none';
 		document.body.appendChild(off);
 		off.src = srcUrl;
+
+		let audioHandle: ExportAudioHandle | null = null;
 
 		try {
 			await new Promise<void>((resolve, reject) => {
@@ -354,8 +419,12 @@
 			const outputResolution = resolutionPresetForDimensions(w, h);
 			const outputQuality = video.qualityPreset ?? DEFAULT_VIDEO_QUALITY_PRESET;
 			const requestedVideoBitrateBps = bitrateForResolution(outputResolution, outputQuality);
-			const stream = canvas.captureStream(30);
-			const recorder = new MediaRecorder(stream, {
+			audioHandle = await captureAudioFromElement(off);
+			const capture = captureCanvasStream(canvas);
+			for (const track of audioHandle.tracks) {
+				capture.stream.addTrack(track);
+			}
+			const recorder = new MediaRecorder(capture.stream, {
 				mimeType,
 				videoBitsPerSecond: requestedVideoBitrateBps
 			});
@@ -374,6 +443,7 @@
 			const drawFrame = (atMs: number): void => {
 				ctx.drawImage(off, 0, 0, w, h);
 				drawHud(ctx, w, h, atMs);
+				capture.requestFrame?.();
 				if (durationMs > 0) {
 					exportProgress = Math.min(1, atMs / durationMs);
 				}
@@ -451,8 +521,15 @@
 				);
 			}
 
-			return { blob, mime: mimeType, requestedVideoBitrateBps };
+			return {
+				blob,
+				mime: mimeType,
+				requestedVideoBitrateBps,
+				audioPreserved: audioHandle.tracks.length > 0,
+				manualFrameRequest: capture.manualFrameRequest
+			};
 		} finally {
+			await audioHandle?.close();
 			off.pause();
 			off.removeAttribute('src');
 			off.load();
@@ -553,9 +630,27 @@
 		if (downloading) return;
 		downloading = true;
 		downloadError = null;
-		exportDiagnostic = null;
 		exportProgress = 0;
 		try {
+			const nav = navigator as Navigator & {
+				canShare?: (data: { files: File[] }) => boolean;
+				share?: (data: { files: File[]; title?: string; text?: string }) => Promise<void>;
+			};
+
+			if (preparedShareFile) {
+				if (typeof nav.share !== 'function' || !nav.canShare?.({ files: [preparedShareFile] })) {
+					throw new Error('This browser cannot share the prepared video file to Photos.');
+				}
+				await nav.share({
+					files: [preparedShareFile],
+					title: 'Dive video',
+					text: `${video.discipline} dive`
+				});
+				preparedShareFile = null;
+				return;
+			}
+
+			exportDiagnostic = null;
 			let blob: Blob;
 			let mime: string;
 			if (showOverlay) {
@@ -566,7 +661,9 @@
 					baked.requestedVideoBitrateBps
 				)}, actual ${formatMbps(
 					video.durationSeconds > 0 ? Math.round((blob.size * 8) / video.durationSeconds) : undefined
-				)}.`;
+				)}. ${baked.audioPreserved ? 'Audio preserved.' : 'Audio unavailable in browser export.'} ${
+					baked.manualFrameRequest ? 'Manual frame pacing.' : 'Fixed-rate canvas pacing.'
+				}`;
 			} else {
 				blob = await fetchBlob();
 				mime = video.mimeType;
@@ -597,11 +694,6 @@
 			// only "Save to Files" appears in the share sheet.
 			const iosSaveToPhotosBlocked = isIOS() && mime !== 'video/mp4';
 
-			const nav = navigator as Navigator & {
-				canShare?: (data: { files: File[] }) => boolean;
-				share?: (data: { files: File[]; title?: string; text?: string }) => Promise<void>;
-			};
-
 			if (
 				typeof nav.share === 'function' &&
 				typeof nav.canShare === 'function' &&
@@ -628,8 +720,17 @@
 					if (name !== 'NotAllowedError' && !/not allowed/i.test(msg)) {
 						throw err;
 					}
-					// else: fall through to anchor download below.
+					preparedShareFile = file;
+					downloadError =
+						'Export is ready. Tap Save to Photos again to open the iOS share sheet.';
+					return;
 				}
+			}
+
+			if (isIOS() && typeof nav.share === 'function' && !nav.canShare?.({ files: [file] })) {
+				downloadError = iosSaveToPhotosBlocked
+					? 'iOS Photos needs a real .mp4 video. This browser produced a non-MP4 export, so only Save to Files is available.'
+					: 'iOS could not accept this video through the share sheet, so it will fall back to Files.';
 			}
 
 			// Fallback: anchor download.
@@ -779,6 +880,9 @@
 			{:else if downloading}
 				<span class="pill-spinner" aria-hidden="true"></span>
 				<span>Preparing…</span>
+			{:else if preparedShareFile}
+				<span aria-hidden="true">⬇︎</span>
+				<span>Share prepared video</span>
 			{:else}
 				<span aria-hidden="true">⬇︎</span>
 				<span>Save to Photos</span>
