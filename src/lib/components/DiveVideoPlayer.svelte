@@ -231,11 +231,19 @@
 		close: () => void;
 	};
 
-	function captureCanvasStream(canvas: HTMLCanvasElement): {
+	function captureCanvasStream(canvas: HTMLCanvasElement, allowManualFrameRequest: boolean): {
 		stream: MediaStream;
 		requestFrame: (() => void) | null;
 		manualFrameRequest: boolean;
 	} {
+		if (!allowManualFrameRequest) {
+			return {
+				stream: canvas.captureStream(30),
+				requestFrame: null,
+				manualFrameRequest: false
+			};
+		}
+
 		const manualStream = canvas.captureStream(0);
 		const [manualTrack] = manualStream.getVideoTracks() as CanvasVideoTrackWithRequestFrame[];
 		if (typeof manualTrack?.requestFrame === 'function') {
@@ -358,6 +366,38 @@
 		requestedVideoBitrateBps: number;
 		audioPreserved: boolean;
 		manualFrameRequest: boolean;
+		reliableMode: boolean;
+		retried: boolean;
+	}> {
+		const reliableMode = isIOS();
+		let retried = false;
+
+		const render = async (preserveAudio: boolean, allowManualFrameRequest: boolean) =>
+			renderWithOverlayAttempt({ preserveAudio, allowManualFrameRequest, reliableMode, retried });
+
+		try {
+			return await render(!reliableMode, !reliableMode);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			if (reliableMode || !/exported clip was empty/i.test(msg)) throw err;
+			retried = true;
+			return await render(false, false);
+		}
+	}
+
+	async function renderWithOverlayAttempt(options: {
+		preserveAudio: boolean;
+		allowManualFrameRequest: boolean;
+		reliableMode: boolean;
+		retried: boolean;
+	}): Promise<{
+		blob: Blob;
+		mime: string;
+		requestedVideoBitrateBps: number;
+		audioPreserved: boolean;
+		manualFrameRequest: boolean;
+		reliableMode: boolean;
+		retried: boolean;
 	}> {
 		const off = document.createElement('video');
 		off.crossOrigin = 'anonymous';
@@ -420,10 +460,10 @@
 			const outputResolution = resolutionPresetForDimensions(w, h);
 			const outputQuality = video.qualityPreset ?? DEFAULT_VIDEO_QUALITY_PRESET;
 			const requestedVideoBitrateBps = bitrateForResolution(outputResolution, outputQuality);
-			audioHandle = await captureAudioFromElement(off);
-			const capture = captureCanvasStream(canvas);
+			audioHandle = options.preserveAudio ? await captureAudioFromElement(off) : null;
+			const capture = captureCanvasStream(canvas, options.allowManualFrameRequest);
 			exportStream = capture.stream;
-			for (const track of audioHandle.tracks) {
+			for (const track of audioHandle?.tracks ?? []) {
 				exportStream.addTrack(track);
 			}
 			const recorder = new MediaRecorder(exportStream, {
@@ -526,17 +566,17 @@
 			]);
 
 			if (blob.size === 0) {
-				throw new Error(
-					'Exported clip was empty. On iOS this usually means the canvas pipeline was blocked — please try with "Show overlay" turned off.'
-				);
+				throw new Error('Exported clip was empty. On iOS this usually means the canvas pipeline was blocked.');
 			}
 
 			return {
 				blob,
 				mime: mimeType,
 				requestedVideoBitrateBps,
-				audioPreserved: audioHandle.tracks.length > 0,
-				manualFrameRequest: capture.manualFrameRequest
+				audioPreserved: (audioHandle?.tracks.length ?? 0) > 0,
+				manualFrameRequest: capture.manualFrameRequest,
+				reliableMode: options.reliableMode,
+				retried: options.retried
 			};
 		} finally {
 			exportStream?.getTracks().forEach((track) => track.stop());
@@ -674,6 +714,8 @@
 					video.durationSeconds > 0 ? Math.round((blob.size * 8) / video.durationSeconds) : undefined
 				)}. ${baked.audioPreserved ? 'Audio preserved.' : 'Audio unavailable in browser export.'} ${
 					baked.manualFrameRequest ? 'Manual frame pacing.' : 'Fixed-rate canvas pacing.'
+				}${baked.reliableMode ? ' Reliable iOS export mode.' : ''}${
+					baked.retried ? ' Retried with compatible export mode.' : ''
 				}`;
 			} else {
 				blob = await fetchBlob();
