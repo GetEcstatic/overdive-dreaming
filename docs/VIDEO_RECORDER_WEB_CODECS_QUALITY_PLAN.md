@@ -93,33 +93,33 @@ This gives the app a safer path: tune the simple recorder first, then use WebCod
 
 ### Phase 1 - Make Quality Diagnostics Visible
 
-- [ ] Add a compact developer diagnostics section on the post-record review screen.
-- [ ] Show actual resolution, actual frame rate, requested bitrate, actual average bitrate, MIME/container, file size, and duration.
-- [ ] Flag suspicious captures, for example actual average bitrate under 70% of requested or frame rate below 24 fps.
-- [ ] Keep this diagnostic UI unobtrusive and removable later.
+- [x] Add a compact developer diagnostics section on the post-record review screen.
+- [x] Show actual resolution, actual frame rate, requested bitrate, actual average bitrate, MIME/container, file size, and duration.
+- [x] Flag suspicious captures, for example actual average bitrate under 70% of requested or frame rate below 24 fps.
+- [x] Keep this diagnostic UI unobtrusive and removable later.
 
 ### Phase 2 - Tune MediaRecorder Before Replacing It
 
-- [ ] Add a quality selector using the existing `standard` / `high` / `max` presets.
+- [x] Add a quality selector using the existing `standard` / `high` / `max` presets.
 - [ ] Default serious captures to `1080p/high` only if test devices can upload/play reliably.
-- [ ] Offer `720p/max` for devices where 1080p is too heavy but 720p/high is too soft.
+- [x] Offer `720p/max` for devices where 1080p is too heavy but 720p/high is too soft.
 - [ ] Consider shortening `timesliceMs` only if evidence shows long chunks increase memory pressure; otherwise keep the current 2000 ms.
 - [ ] Verify that IndexedDB queueing and upload progress stay reliable with larger files.
 
 ### Phase 3 - Fix Overlay Export Quality Separately
 
-- [ ] Raise burned-overlay export bitrate from `6_000_000` bps to a value based on output resolution and quality preset.
-- [ ] Reuse `bitrateForResolution(...)` where possible instead of hardcoding an export bitrate.
-- [ ] Store or surface export diagnostics separately from original capture diagnostics.
+- [x] Raise burned-overlay export bitrate from `6_000_000` bps to a value based on output resolution and quality preset.
+- [x] Reuse `bitrateForResolution(...)` where possible instead of hardcoding an export bitrate.
+- [x] Store or surface export diagnostics separately from original capture diagnostics.
 - [ ] Confirm whether reported quality loss happens in original recordings, overlay exports, or both.
 
 ### Phase 4 - WebCodecs Spike Behind A Flag
 
-- [ ] Add pure capability detection for `VideoEncoder`, supported H.264/VP9 configs, `VideoFrame`, and camera frame access strategy.
-- [ ] Decide muxer strategy: MP4 for iOS/Photos compatibility, WebM only for Chrome experiments, or both.
-- [ ] Build a minimal dev-only recorder path that records video-only first, without replacing `MediaRecorder`.
-- [ ] Add frame counters: source frames received, frames encoded, encode queue depth, encode errors, dropped/late frames.
-- [ ] Add a 10-20 second side-by-side test route or dev control so the same scene can be captured with MediaRecorder and WebCodecs.
+- [x] Add pure capability detection for `VideoEncoder`, supported H.264/VP9 configs, `VideoFrame`, and camera frame access strategy.
+- [x] Decide muxer strategy: MP4 for iOS/Photos compatibility, WebM only for Chrome experiments, or both.
+- [x] Build a minimal dev-only recorder path that records video-only first, without replacing `MediaRecorder`.
+- [x] Add frame counters: source frames received, frames encoded, encode queue depth, encode errors, dropped/late frames.
+- [x] Add a 10-20 second side-by-side test route or dev control so the same scene can be captured with MediaRecorder and WebCodecs.
 - [ ] Only add audio after video-only quality and frame pacing are proven.
 
 ### Phase 5 - Decision Gate
@@ -129,6 +129,24 @@ This gives the app a safer path: tune the simple recorder first, then use WebCod
 - [ ] Consider native capture or server-side processing if iPhone Safari remains unacceptable, because iOS is the riskiest platform for a WebCodecs-only recorder.
 	- Native capture is not possible from the current SvelteKit webapp by itself. It means adding a native iOS/Android app, or a native wrapper such as Capacitor, that can use platform camera APIs instead of browser `MediaRecorder`.
 	- Server-side processing is possible with the current app architecture only after adding new backend infrastructure. The webapp can already upload an original file, but a server-side path would need a transcode worker or Cloud Function, storage access, job status fields, retry/error handling, and a way to attach the processed file back to the `DiveVideo` record.
+
+## 5.1 Implementation Status
+
+Implemented in code:
+
+- Post-record capture diagnostics on the review screen.
+- Resolution and quality selectors that feed the actual `MediaRecorder` bitrate request.
+- Overlay export bitrate based on output resolution and saved quality preset instead of a fixed 6 Mbps.
+- Hidden dev route: `/dive/webcodecs-spike?enabled=1`.
+- WebCodecs capability probing and video-only frame/encode counters.
+- Focused unit coverage for WebCodecs capability detection.
+
+Still requires real-device evidence before changing the production recorder strategy:
+
+- iPhone Safari and Android Chrome pool-footage samples at `720p/high`, `720p/max`, and `1080p/high`.
+- Upload and playback checks with larger `max`/1080p files.
+- WebCodecs spike results from the same devices using `/dive/webcodecs-spike?enabled=1`.
+- A decision on whether WebCodecs improves enough to justify muxing/audio-sync complexity.
 
 ## 6. Acceptance Criteria
 
