@@ -228,7 +228,7 @@
 
 	type ExportAudioHandle = {
 		tracks: MediaStreamTrack[];
-		close: () => Promise<void>;
+		close: () => void;
 	};
 
 	function captureCanvasStream(canvas: HTMLCanvasElement): {
@@ -259,7 +259,7 @@
 			webkitAudioContext?: AudioContextConstructor;
 		}).AudioContext ?? (globalThis as unknown as { webkitAudioContext?: AudioContextConstructor }).webkitAudioContext;
 
-		if (!AudioCtx) return { tracks: [], close: async () => undefined };
+		if (!AudioCtx) return { tracks: [], close: () => undefined };
 
 		try {
 			const ctx = new AudioCtx();
@@ -269,14 +269,14 @@
 			void ctx.resume().catch(() => undefined);
 			return {
 				tracks: destination.stream.getAudioTracks(),
-				close: async () => {
+				close: () => {
 					destination.stream.getTracks().forEach((track) => track.stop());
 					source.disconnect();
-					await ctx.close().catch(() => undefined);
+					void ctx.close().catch(() => undefined);
 				}
 			};
 		} catch {
-			return { tracks: [], close: async () => undefined };
+			return { tracks: [], close: () => undefined };
 		}
 	}
 
@@ -377,6 +377,7 @@
 		off.src = srcUrl;
 
 		let audioHandle: ExportAudioHandle | null = null;
+		let exportStream: MediaStream | null = null;
 
 		try {
 			await new Promise<void>((resolve, reject) => {
@@ -421,10 +422,11 @@
 			const requestedVideoBitrateBps = bitrateForResolution(outputResolution, outputQuality);
 			audioHandle = await captureAudioFromElement(off);
 			const capture = captureCanvasStream(canvas);
+			exportStream = capture.stream;
 			for (const track of audioHandle.tracks) {
-				capture.stream.addTrack(track);
+				exportStream.addTrack(track);
 			}
-			const recorder = new MediaRecorder(capture.stream, {
+			const recorder = new MediaRecorder(exportStream, {
 				mimeType,
 				videoBitsPerSecond: requestedVideoBitrateBps
 			});
@@ -512,8 +514,16 @@
 
 			// Give the recorder a tick to flush the final frame.
 			await new Promise((r) => setTimeout(r, 150));
-			if (recorder.state !== 'inactive') recorder.stop();
-			const blob = await stopPromise;
+			if (recorder.state !== 'inactive') {
+				recorder.requestData();
+				recorder.stop();
+			}
+			const blob = await Promise.race([
+				stopPromise,
+				new Promise<Blob>((resolve) => {
+					setTimeout(() => resolve(new Blob(chunks, { type: mimeType })), 2500);
+				})
+			]);
 
 			if (blob.size === 0) {
 				throw new Error(
@@ -529,7 +539,8 @@
 				manualFrameRequest: capture.manualFrameRequest
 			};
 		} finally {
-			await audioHandle?.close();
+			exportStream?.getTracks().forEach((track) => track.stop());
+			audioHandle?.close();
 			off.pause();
 			off.removeAttribute('src');
 			off.load();
