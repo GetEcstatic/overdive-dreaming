@@ -21,6 +21,10 @@
 	} from '$lib/capture/timeline';
 	import { displayTransformFor } from '$lib/capture/orientation';
 	import {
+		bitrateForResolution,
+		DEFAULT_VIDEO_QUALITY_PRESET
+	} from '$lib/capture/videoQuality';
+	import {
 		diveVideoBehavior,
 		exitDiveFullscreen,
 		DIVE_FS_EVENT
@@ -195,6 +199,7 @@
 	// so the HUD is burned into every exported frame.
 	// -----------------------------------------------------------------------
 	let downloadError = $state<string | null>(null);
+	let exportDiagnostic = $state<string | null>(null);
 	let downloading = $state(false);
 	let exportProgress = $state(0); // 0..1 while baking
 
@@ -202,6 +207,15 @@
 		if (mime.includes('mp4')) return 'mp4';
 		if (mime.includes('webm')) return 'webm';
 		return 'bin';
+	}
+
+	function resolutionPresetForDimensions(width: number, height: number): '720p' | '1080p' {
+		return Math.max(width, height) >= 1600 || Math.min(width, height) >= 900 ? '1080p' : '720p';
+	}
+
+	function formatMbps(bitsPerSecond: number | undefined): string {
+		if (!bitsPerSecond || bitsPerSecond <= 0) return 'unknown bitrate';
+		return `${(bitsPerSecond / 1_000_000).toFixed(1)} Mbps`;
 	}
 
 	/**
@@ -276,7 +290,11 @@
 	 *    `canvas.captureStream()` + MediaRecorder will silently produce an
 	 *    empty blob.
 	 */
-	async function renderWithOverlay(): Promise<{ blob: Blob; mime: string }> {
+	async function renderWithOverlay(): Promise<{
+		blob: Blob;
+		mime: string;
+		requestedVideoBitrateBps: number;
+	}> {
 		const off = document.createElement('video');
 		off.crossOrigin = 'anonymous';
 		off.muted = true;
@@ -332,8 +350,14 @@
 			);
 			if (!mimeType) throw new Error('No supported MediaRecorder mime type');
 
+			const outputResolution = resolutionPresetForDimensions(w, h);
+			const outputQuality = video.qualityPreset ?? DEFAULT_VIDEO_QUALITY_PRESET;
+			const requestedVideoBitrateBps = bitrateForResolution(outputResolution, outputQuality);
 			const stream = canvas.captureStream(30);
-			const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 6_000_000 });
+			const recorder = new MediaRecorder(stream, {
+				mimeType,
+				videoBitsPerSecond: requestedVideoBitrateBps
+			});
 			const chunks: Blob[] = [];
 			recorder.ondataavailable = (e) => {
 				if (e.data && e.data.size > 0) chunks.push(e.data);
@@ -426,7 +450,7 @@
 				);
 			}
 
-			return { blob, mime: mimeType };
+			return { blob, mime: mimeType, requestedVideoBitrateBps };
 		} finally {
 			off.pause();
 			off.removeAttribute('src');
@@ -528,6 +552,7 @@
 		if (downloading) return;
 		downloading = true;
 		downloadError = null;
+		exportDiagnostic = null;
 		exportProgress = 0;
 		try {
 			let blob: Blob;
@@ -536,6 +561,11 @@
 				const baked = await renderWithOverlay();
 				blob = baked.blob;
 				mime = baked.mime;
+				exportDiagnostic = `Overlay export requested ${formatMbps(
+					baked.requestedVideoBitrateBps
+				)}, actual ${formatMbps(
+					video.durationSeconds > 0 ? Math.round((blob.size * 8) / video.durationSeconds) : undefined
+				)}.`;
 			} else {
 				blob = await fetchBlob();
 				mime = video.mimeType;
@@ -756,6 +786,9 @@
 
 		{#if downloadError}
 			<p class="download-error">{downloadError}</p>
+		{/if}
+		{#if exportDiagnostic && !downloadError}
+			<p class="export-diagnostic">{exportDiagnostic}</p>
 		{/if}
 	</div>
 {/if}
@@ -1055,5 +1088,12 @@
 		background: rgba(239, 68, 68, 0.15);
 		color: #fecaca;
 		font-size: 0.8rem;
+	}
+	.export-diagnostic {
+		flex-basis: 100%;
+		text-align: center;
+		margin: 0;
+		color: var(--color-text-muted);
+		font-size: 0.75rem;
 	}
 </style>
