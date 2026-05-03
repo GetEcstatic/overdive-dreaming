@@ -107,6 +107,34 @@
 		return Number.isInteger(m) ? `${m}` : m.toFixed(1);
 	}
 
+	function formatMegabytes(bytes: number): string {
+		return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+	}
+
+	function formatMbps(bitsPerSecond: number | undefined): string {
+		if (!bitsPerSecond || bitsPerSecond <= 0) return 'Unknown';
+		return `${(bitsPerSecond / 1_000_000).toFixed(1)} Mbps`;
+	}
+
+	function formatFrameRate(frameRate: number | undefined): string {
+		if (!frameRate || frameRate <= 0) return 'Unknown';
+		return `${frameRate.toFixed(frameRate % 1 === 0 ? 0 : 1)} fps`;
+	}
+
+	function qualityWarningsFor(result: CaptureResult): string[] {
+		const warnings: string[] = [];
+		if (
+			result.actualAverageBitrateBps &&
+			result.actualAverageBitrateBps < result.requestedVideoBitrateBps * 0.7
+		) {
+			warnings.push('Actual average bitrate landed below 70% of the request.');
+		}
+		if (result.actualFrameRate && result.actualFrameRate < 24) {
+			warnings.push('Actual frame rate was below 24 fps.');
+		}
+		return warnings;
+	}
+
 	$effect(() => {
 		const uid = $user?.uid;
 		if (!uid || resolutionLoaded) return;
@@ -584,8 +612,33 @@
 						-->
 						<strong>{formatMeters(totalDistanceM(capture.timeline, defaultSpeedMs(discipline)))} m</strong>
 					</div>
-					<div><span>Size</span><strong>{(capture.sizeBytes / (1024 * 1024)).toFixed(1)} MB</strong></div>
+					<div><span>Size</span><strong>{formatMegabytes(capture.sizeBytes)}</strong></div>
 				</div>
+
+				<section class="diagnostics-card" aria-label="Capture diagnostics">
+					<div class="diagnostics-head">
+						<div>
+							<span class="diagnostics-eyebrow">Capture diagnostics</span>
+							<strong>{capture.widthPx} × {capture.heightPx}</strong>
+						</div>
+						<span class="diagnostics-status" class:warn={qualityWarningsFor(capture).length > 0}>
+							{qualityWarningsFor(capture).length > 0 ? 'Check' : 'OK'}
+						</span>
+					</div>
+					<div class="diagnostics-grid">
+						<div><span>Requested</span><strong>{formatMbps(capture.requestedVideoBitrateBps)}</strong></div>
+						<div><span>Actual avg</span><strong>{formatMbps(capture.actualAverageBitrateBps)}</strong></div>
+						<div><span>Frame rate</span><strong>{formatFrameRate(capture.actualFrameRate)}</strong></div>
+						<div><span>Container</span><strong>{capture.mimeType || 'Unknown'}</strong></div>
+					</div>
+					{#if qualityWarningsFor(capture).length > 0}
+						<ul class="diagnostics-warnings">
+							{#each qualityWarningsFor(capture) as warning}
+								<li>{warning}</li>
+							{/each}
+						</ul>
+					{/if}
+				</section>
 			{/if}
 
 			<section class="card">
@@ -833,6 +886,65 @@
 	.stats-card strong {
 		font-size: 1rem;
 		color: var(--color-text);
+	}
+
+	.diagnostics-card {
+		background: rgba(15, 23, 42, 0.72);
+		border: 1px solid rgba(148, 163, 184, 0.16);
+		border-radius: 12px;
+		padding: 0.85rem 1rem;
+		margin-bottom: 1rem;
+	}
+	.diagnostics-head {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 1rem;
+		margin-bottom: 0.75rem;
+	}
+	.diagnostics-eyebrow,
+	.diagnostics-grid span {
+		display: block;
+		color: var(--color-text-muted);
+		font-size: 0.7rem;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+	.diagnostics-head strong,
+	.diagnostics-grid strong {
+		color: var(--color-text);
+		font-size: 0.9rem;
+		font-weight: 700;
+		word-break: break-word;
+	}
+	.diagnostics-status {
+		flex: 0 0 auto;
+		border-radius: 999px;
+		padding: 0.18rem 0.5rem;
+		background: rgba(16, 185, 129, 0.14);
+		border: 1px solid rgba(16, 185, 129, 0.32);
+		color: var(--color-secondary);
+		font-size: 0.7rem;
+		font-weight: 800;
+		letter-spacing: 0.05em;
+	}
+	.diagnostics-status.warn {
+		background: rgba(245, 158, 11, 0.14);
+		border-color: rgba(245, 158, 11, 0.36);
+		color: #fbbf24;
+	}
+	.diagnostics-grid {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.55rem 1rem;
+	}
+	.diagnostics-warnings {
+		margin: 0.75rem 0 0;
+		padding-left: 1rem;
+		color: #fbbf24;
+		font-size: 0.8rem;
+		line-height: 1.35;
 	}
 
 	.pin {
