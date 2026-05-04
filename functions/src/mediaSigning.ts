@@ -17,7 +17,6 @@ import {
 const UPLOAD_URL_EXPIRES_SECONDS = 15 * 60;
 const READ_URL_EXPIRES_SECONDS = 60 * 60;
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
-const MAX_VIDEO_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB — enforced by 5-min recording cap
 const MIN_PART_SIZE_BYTES = 5 * 1024 * 1024;
 const DEFAULT_PART_SIZE_BYTES = 8 * 1024 * 1024;
 
@@ -91,9 +90,6 @@ function validateMediaPolicy(kind: MediaKind, contentType: string, sizeBytes: nu
 	if (kind === 'dive-video-clean' || kind === 'dive-video-burned') {
 		if (!contentType.startsWith('video/')) {
 			throw new HttpsError('invalid-argument', 'Object must be a video');
-		}
-		if (sizeBytes > MAX_VIDEO_BYTES) {
-			throw new HttpsError('invalid-argument', 'Video must be under 2 GB');
 		}
 		return;
 	}
