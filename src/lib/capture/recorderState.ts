@@ -188,9 +188,10 @@ function appendManualWaypoint(
 	config: RecorderConfig,
 	index: number
 ): DiveTimeline {
+	const distanceM = waypointDistanceM(config, index);
+	const kind = tapKindForWaypointIndex(config, index);
 	const previous = lastTap(timeline);
 	const previousAtMs = previous?.atMs ?? timeline.diveStartMs;
-	const distanceM = waypointDistanceM(config, index);
 	const entry: LapEvent = {
 		lapNumber: splitIndexForWaypoint(config, index),
 		atMs,
@@ -198,7 +199,9 @@ function appendManualWaypoint(
 		cumulativeDistanceM: distanceM
 	};
 
-	if (tapKindForWaypointIndex(config, index) === 'wall') {
+	if (kind === 'wall') {
+		const previousWall = timeline.laps[timeline.laps.length - 1];
+		const previousWallAtMs = previousWall?.atMs ?? timeline.diveStartMs;
 		const previousWallM = Math.max(0, distanceM - config.poolLengthM);
 		const subSplits = (timeline.subSplits ?? []).filter(
 			(s) => s.cumulativeDistanceM <= previousWallM || s.cumulativeDistanceM > distanceM
@@ -208,7 +211,11 @@ function appendManualWaypoint(
 			subSplits,
 			laps: [
 				...timeline.laps,
-				{ ...entry, lapNumber: lapNumberForWaypoint(config, index) }
+				{
+					...entry,
+					lapNumber: lapNumberForWaypoint(config, index),
+					splitMs: Math.max(0, atMs - previousWallAtMs)
+				}
 			]
 		};
 	}

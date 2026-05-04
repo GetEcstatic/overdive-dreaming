@@ -212,7 +212,23 @@ describe('wall/split (v2)', () => {
 		// Split was inside lap 1; after wall-1 it's discarded.
 		expect(s.timeline.laps).toHaveLength(1);
 		expect(s.timeline.laps[0].cumulativeDistanceM).toBe(25);
+		expect(s.timeline.laps[0].splitMs).toBe(15000);
 		expect((s.timeline.subSplits ?? []).length).toBe(0);
+	});
+
+	it('wall split time uses the whole pool length, preventing speed spikes after mid-lap waypoints', () => {
+		const config: RecorderConfig = { ...CONFIG, poolLengthM: 50, waypointsPerLap: 4 };
+		let s = startDiveAt(startRecordingAt(arm(initialRecorderState(config)), 1000), 5000);
+
+		s = recorderReducer(s, { type: 'waypoint/tapped', atPerfMs: 15000 });
+		s = recorderReducer(s, { type: 'waypoint/tapped', atPerfMs: 25000 });
+		s = recorderReducer(s, { type: 'waypoint/tapped', atPerfMs: 35000 });
+		s = recorderReducer(s, { type: 'waypoint/tapped', atPerfMs: 45000 });
+
+		expect(s.timeline.laps).toHaveLength(1);
+		expect(s.timeline.laps[0].cumulativeDistanceM).toBe(50);
+		expect(s.timeline.laps[0].splitMs).toBe(40000);
+		expect(liveSpeedMs(s)).toBeCloseTo(1.25, 5);
 	});
 
 	it('missed-split self-heal: split then wall with no intervening split still yields integer wall', () => {
