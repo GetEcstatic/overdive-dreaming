@@ -14,6 +14,8 @@
     "seed": "tsx scripts/seed-data.ts",
     "seed:logs": "tsx scripts/seed-historical-logs.ts",
     "backfill:profiles": "tsx scripts/backfill-public-profiles.ts",
+    "backfill:dive-video-routine-logs": "tsx scripts/backfill-dive-video-routine-logs.ts",
+    "backfill:dive-video-routine-logs:dry": "tsx scripts/backfill-dive-video-routine-logs.ts --dry-run",
     "rollback:aida": "tsx scripts/rollback-aida-import.ts",
     "backup": "tsx scripts/backup-firestore.ts",
     "audit": "tsx scripts/audit-data.ts",
