@@ -50,6 +50,10 @@ export interface FullscreenDecisionInput {
 	userEscaped: boolean;
 	/** Opt-out for compact/feed-card variants that shouldn't take over the screen. */
 	allowAutoFullscreen: boolean;
+	/** Should a user play action in portrait enter the same locked player mode? */
+	allowPortraitPlayFullscreen?: boolean;
+	/** Has the current visible portrait player been promoted by pressing play? */
+	portraitPlayRequested?: boolean;
 }
 
 /**
@@ -62,10 +66,11 @@ export interface FullscreenDecisionInput {
  */
 export function shouldEnterFullscreen(input: FullscreenDecisionInput): boolean {
 	if (!input.allowAutoFullscreen) return false;
-	if (!input.isLandscape) return false;
 	if (!input.isVisible) return false;
 	if (input.userEscaped) return false;
-	return true;
+	if (input.isLandscape) return true;
+	if (input.allowPortraitPlayFullscreen && input.portraitPlayRequested) return true;
+	return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -85,6 +90,8 @@ export const DIVE_FS_EVENT = 'divefullscreenchange';
 export interface DiveVideoBehaviorOptions {
 	/** Feed-card / compact players skip auto-fullscreen on rotation. */
 	allowAutoFullscreen?: boolean;
+	/** Feed players can enter locked playback immediately from portrait play. */
+	allowPortraitPlayFullscreen?: boolean;
 }
 
 /**
@@ -111,10 +118,13 @@ export const diveVideoBehavior: Action<HTMLVideoElement, DiveVideoBehaviorOption
 	options: DiveVideoBehaviorOptions = {}
 ) => {
 	let allowAutoFullscreen = options.allowAutoFullscreen ?? true;
+	let allowPortraitPlayFullscreen = options.allowPortraitPlayFullscreen ?? false;
 	let playing = false;
 	let pseudoFs = false;
 	let isVisible = true; // assume visible until IO says otherwise
 	let userEscaped = false;
+	let portraitPlayRequested = false;
+	let fullscreenMode: 'landscape' | 'portrait' | null = null;
 	let savedScrollY = 0;
 
 	// When we enter pseudo-fullscreen we portal the container to document.body
@@ -135,6 +145,11 @@ export const diveVideoBehavior: Action<HTMLVideoElement, DiveVideoBehaviorOption
 			playing = true;
 			videoPlayback.begin();
 		}
+		if (allowPortraitPlayFullscreen && isMobileLikeDevice() && !detectLandscape()) {
+			portraitPlayRequested = true;
+			userEscaped = false;
+		}
+		applyDecision();
 	};
 	const onPause = () => {
 		if (playing) {
@@ -172,14 +187,23 @@ export const diveVideoBehavior: Action<HTMLVideoElement, DiveVideoBehaviorOption
 
 	// --- apply/unapply pseudo-fullscreen ---------------------------------
 	function applyDecision() {
+		const isLandscape = detectLandscape();
+		const previousMode = fullscreenMode;
 		const wanted = shouldEnterFullscreen({
-			isLandscape: detectLandscape(),
+			isLandscape,
 			isVisible,
 			userEscaped,
-			allowAutoFullscreen
+			allowAutoFullscreen,
+			allowPortraitPlayFullscreen,
+			portraitPlayRequested
 		});
+		fullscreenMode = wanted ? (isLandscape ? 'landscape' : 'portrait') : null;
 		if (wanted && !pseudoFs) enterPseudoFullscreen();
-		else if (!wanted && pseudoFs) exitPseudoFullscreen();
+		else if (wanted && pseudoFs && fullscreenMode !== previousMode) {
+			container()?.dispatchEvent(
+				new CustomEvent(DIVE_FS_EVENT, { detail: { fullscreen: true, mode: fullscreenMode } })
+			);
+		} else if (!wanted && pseudoFs) exitPseudoFullscreen();
 	}
 
 	function enterPseudoFullscreen() {
@@ -205,10 +229,12 @@ export const diveVideoBehavior: Action<HTMLVideoElement, DiveVideoBehaviorOption
 		const ori = window.screen?.orientation as
 			| (ScreenOrientation & { lock?: (o: string) => Promise<void> })
 			| undefined;
-		ori?.lock?.('landscape').catch(() => {
+		ori?.lock?.(fullscreenMode === 'portrait' ? 'portrait-primary' : 'landscape').catch(() => {
 			/* noop — iOS doesn't support lock, desktop may reject */
 		});
-		el.dispatchEvent(new CustomEvent(DIVE_FS_EVENT, { detail: { fullscreen: true } }));
+		el.dispatchEvent(
+			new CustomEvent(DIVE_FS_EVENT, { detail: { fullscreen: true, mode: fullscreenMode } })
+		);
 	}
 
 	function exitPseudoFullscreen() {
@@ -244,7 +270,8 @@ export const diveVideoBehavior: Action<HTMLVideoElement, DiveVideoBehaviorOption
 		} catch {
 			/* noop */
 		}
-		el?.dispatchEvent(new CustomEvent(DIVE_FS_EVENT, { detail: { fullscreen: false } }));
+		fullscreenMode = null;
+		el?.dispatchEvent(new CustomEvent(DIVE_FS_EVENT, { detail: { fullscreen: false, mode: null } }));
 	}
 
 	// --- user-escape: component-callable exit ----------------------------
@@ -257,6 +284,7 @@ export const diveVideoBehavior: Action<HTMLVideoElement, DiveVideoBehaviorOption
 	if (el0) {
 		el0.__diveExitFullscreen = () => {
 			userEscaped = true;
+			portraitPlayRequested = false;
 			applyDecision();
 		};
 	}
@@ -266,6 +294,7 @@ export const diveVideoBehavior: Action<HTMLVideoElement, DiveVideoBehaviorOption
 		// Rotating back to portrait clears the escape flag so the next
 		// landscape rotation re-enters fullscreen.
 		if (!detectLandscape()) userEscaped = false;
+		else portraitPlayRequested = false;
 		applyDecision();
 	};
 
@@ -308,6 +337,7 @@ export const diveVideoBehavior: Action<HTMLVideoElement, DiveVideoBehaviorOption
 	return {
 		update(newOptions: DiveVideoBehaviorOptions | undefined) {
 			allowAutoFullscreen = newOptions?.allowAutoFullscreen ?? true;
+			allowPortraitPlayFullscreen = newOptions?.allowPortraitPlayFullscreen ?? false;
 			applyDecision();
 		},
 		destroy() {

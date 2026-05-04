@@ -41,9 +41,11 @@
 		 * top of the video itself is preserved. Defaults to the full layout.
 		 */
 		compact?: boolean;
+		/** Dashboard feed opt-in: entering locked playback immediately on portrait play. */
+		fullscreenOnPlay?: boolean;
 	}
 
-	let { video, srcUrl, compact = false }: Props = $props();
+	let { video, srcUrl, compact = false, fullscreenOnPlay = false }: Props = $props();
 
 	let videoEl: HTMLVideoElement | undefined = $state();
 	let containerEl: HTMLDivElement | undefined = $state();
@@ -60,6 +62,7 @@
 	 * collide with the HUD.
 	 */
 	let isFullscreen = $state(false);
+	let fullscreenMode = $state<'landscape' | 'portrait' | null>(null);
 
 	/**
 	 * User-configurable fit mode: `cover` fills the screen with no black bars
@@ -92,8 +95,9 @@
 	});
 
 	function onFullscreenEvent(e: Event) {
-		const ce = e as CustomEvent<{ fullscreen: boolean }>;
+		const ce = e as CustomEvent<{ fullscreen: boolean; mode?: 'landscape' | 'portrait' | null }>;
 		isFullscreen = !!ce.detail?.fullscreen;
+		fullscreenMode = ce.detail?.mode ?? null;
 	}
 
 	$effect(() => {
@@ -831,7 +835,7 @@
 		onpause={onPlayStateChange}
 		onended={onPlayStateChange}
 		onloadedmetadata={() => videoEl && scheduleRvfc(videoEl as VideoWithRvfc)}
-		use:diveVideoBehavior={{ allowAutoFullscreen: !compact }}
+		use:diveVideoBehavior={{ allowAutoFullscreen: !compact, allowPortraitPlayFullscreen: fullscreenOnPlay }}
 	></video>
 
 	{#if showOverlay}
@@ -867,6 +871,17 @@
 	{/if}
 
 	{#if isFullscreen}
+		{#if fullscreenMode === 'portrait'}
+			<button
+				type="button"
+				class="fs-portrait-close"
+				aria-label="Exit fullscreen"
+				onclick={exitFullscreen}
+			>
+				✕
+			</button>
+		{/if}
+
 		<!--
 		  Custom landscape control bar. Replaces the native <video> controls
 		  (hidden above) so they don't visually fight the HUD. Positioned at
@@ -900,14 +915,16 @@
 			>
 				HUD
 			</button>
-			<button
-				type="button"
-				class="fs-btn fs-btn-exit"
-				aria-label="Exit fullscreen"
-				onclick={exitFullscreen}
-			>
-				✕
-			</button>
+			{#if fullscreenMode !== 'portrait'}
+				<button
+					type="button"
+					class="fs-btn fs-btn-exit"
+					aria-label="Exit fullscreen"
+					onclick={exitFullscreen}
+				>
+					✕
+				</button>
+			{/if}
 		</div>
 	{/if}
 </div>
@@ -1101,6 +1118,32 @@
 	.fs-btn-exit {
 		margin-left: auto;
 		background: rgba(15, 23, 42, 0.75);
+	}
+	.fs-portrait-close {
+		position: absolute;
+		top: max(0.75rem, env(safe-area-inset-top));
+		right: max(0.75rem, env(safe-area-inset-right));
+		z-index: 12;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 40px;
+		height: 40px;
+		border-radius: 9999px;
+		border: 1px solid rgba(255, 255, 255, 0.24);
+		background: rgba(15, 23, 42, 0.75);
+		color: #f1f5f9;
+		font: inherit;
+		font-size: 1rem;
+		font-weight: 700;
+		line-height: 1;
+		cursor: pointer;
+		backdrop-filter: blur(6px);
+		-webkit-backdrop-filter: blur(6px);
+		-webkit-tap-highlight-color: transparent;
+	}
+	.fs-portrait-close:active {
+		transform: scale(0.95);
 	}
 
 	/*

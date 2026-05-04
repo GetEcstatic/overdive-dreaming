@@ -18,8 +18,29 @@ describe('shouldEnterFullscreen', () => {
 		expect(shouldEnterFullscreen(base)).toBe(true);
 	});
 
-	test('portrait never triggers fullscreen', () => {
+	test('portrait does not trigger fullscreen by default', () => {
 		expect(shouldEnterFullscreen({ ...base, isLandscape: false })).toBe(false);
+	});
+
+	test('portrait can enter fullscreen after a play request when allowed', () => {
+		expect(
+			shouldEnterFullscreen({
+				...base,
+				isLandscape: false,
+				allowPortraitPlayFullscreen: true,
+				portraitPlayRequested: true
+			})
+		).toBe(true);
+	});
+
+	test('portrait play request is ignored unless explicitly allowed', () => {
+		expect(
+			shouldEnterFullscreen({
+				...base,
+				isLandscape: false,
+				portraitPlayRequested: true
+			})
+		).toBe(false);
 	});
 
 	test('off-screen players stay inline', () => {

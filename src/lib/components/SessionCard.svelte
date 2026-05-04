@@ -470,7 +470,7 @@
 						  the IntersectionObserver so only the on-screen
 						  card takes over.
 						-->
-						<DiveVideoPlayer video={diveVideo} srcUrl={diveVideoUrl} />
+						<DiveVideoPlayer video={diveVideo} srcUrl={diveVideoUrl} fullscreenOnPlay />
 					{:else}
 						<!-- svelte-ignore a11y_media_has_caption -->
 						<video
@@ -479,7 +479,7 @@
 							controls
 							playsinline
 							preload="metadata"
-							use:diveVideoBehavior
+							use:diveVideoBehavior={{ allowPortraitPlayFullscreen: true }}
 						></video>
 					{/if}
 				</div>
