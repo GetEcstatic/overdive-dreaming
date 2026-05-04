@@ -156,13 +156,38 @@ async function assertDiveVideoAccess(args: {
 }): Promise<FirebaseFirestore.DocumentSnapshot> {
 	const snap = await getFirestore().collection('diveVideos').doc(args.videoId).get();
 	if (!snap.exists) throw new HttpsError('not-found', 'Dive video not found');
-	const data = snap.data() as { ownerId?: string; userId?: string; athleteId?: string };
+	const data = snap.data() as {
+		ownerId?: string;
+		userId?: string;
+		athleteId?: string;
+		routineLogId?: string;
+		sessionId?: string;
+	};
 	const isOwner = data.ownerId === args.uid || data.userId === args.uid;
 	const isAthlete = data.athleteId === args.uid;
-	if (args.write ? !isOwner : !isOwner && !isAthlete) {
+	if (args.write) {
+		if (!isOwner) {
+			throw new HttpsError('permission-denied', 'You do not have access to this video');
+		}
+		return snap;
+	}
+
+	const linkedRoutineLogId = data.routineLogId ?? data.sessionId;
+	const isPublicSessionVideo = linkedRoutineLogId
+		? await routineLogAllowsRead({ uid: args.uid, routineLogId: linkedRoutineLogId })
+		: false;
+
+	if (!isOwner && !isAthlete && !isPublicSessionVideo) {
 		throw new HttpsError('permission-denied', 'You do not have access to this video');
 	}
 	return snap;
+}
+
+async function routineLogAllowsRead(args: { uid: string; routineLogId: string }): Promise<boolean> {
+	const snap = await getFirestore().collection('routineLogs').doc(args.routineLogId).get();
+	if (!snap.exists) return false;
+	const data = snap.data() as { userId?: string; visibility?: string } | undefined;
+	return data?.userId === args.uid || data?.visibility === 'public';
 }
 
 function diveVideoOwner(snap: FirebaseFirestore.DocumentSnapshot): string {
