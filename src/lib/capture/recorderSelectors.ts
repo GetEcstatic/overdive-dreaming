@@ -181,7 +181,6 @@ export function shouldAutoAdvance(
 ): boolean {
 	if (state.phase !== 'diving') return false;
 	const expectedIndex = expectedWaypointIndex(state);
-	if (tapKindForWaypointIndex(state.config, expectedIndex) === 'wall') return false;
 	const raw = cumulativeDistanceM(state, nowPerfMs);
 	const target = waypointDistanceM(state.config, expectedIndex);
 	return raw >= target + waypointSpacingM(state.config) / 2;

@@ -221,6 +221,13 @@ const callableOptions = {
 	secrets: [WASABI_ACCESS_KEY_ID, WASABI_SECRET_ACCESS_KEY]
 };
 
+function rethrowMediaBackendError(step: string, err: unknown): never {
+	if (err instanceof HttpsError) throw err;
+	const message = err instanceof Error && err.message ? err.message : String(err);
+	console.error(`[mediaSigning] ${step} failed`, err);
+	throw new HttpsError('unavailable', `${step} failed: ${message}`);
+}
+
 export const createMediaUpload = onCall(callableOptions, async (request) => {
 	const uid = requireUid(request.auth);
 	const data = asRecord(request.data);
@@ -243,12 +250,17 @@ export const createMediaUpload = onCall(callableOptions, async (request) => {
 		else key = videoCleanKey(uid, videoId, contentType);
 	}
 
-	const uploadUrl = await signPutObject({
-		bucket,
-		key,
-		contentType,
-		expiresInSeconds: UPLOAD_URL_EXPIRES_SECONDS
-	});
+	let uploadUrl: string;
+	try {
+		uploadUrl = await signPutObject({
+			bucket,
+			key,
+			contentType,
+			expiresInSeconds: UPLOAD_URL_EXPIRES_SECONDS
+		});
+	} catch (err) {
+		rethrowMediaBackendError('create signed upload URL', err);
+	}
 	return {
 		provider: 'wasabi',
 		bucket,
@@ -293,11 +305,16 @@ export const getMediaReadUrl = onCall(callableOptions, async (request) => {
 		requestedKey: optionalString(data, 'key'),
 		expectedPrefix
 	});
-	const url = await signGetObject({
-		bucket,
-		key,
-		expiresInSeconds: READ_URL_EXPIRES_SECONDS
-	});
+	let url: string;
+	try {
+		url = await signGetObject({
+			bucket,
+			key,
+			expiresInSeconds: READ_URL_EXPIRES_SECONDS
+		});
+	} catch (err) {
+		rethrowMediaBackendError('create signed read URL', err);
+	}
 	return { url, expiresAt: Date.now() + READ_URL_EXPIRES_SECONDS * 1000 };
 });
 
@@ -338,7 +355,11 @@ export const deleteMediaObject = onCall(callableOptions, async (request) => {
 		expectedPrefix
 	});
 	if (videoSnap) assertExistingDiveVideoObject({ snap: videoSnap, kind, bucket, key });
-	await deleteObject({ bucket, key });
+	try {
+		await deleteObject({ bucket, key });
+	} catch (err) {
+		rethrowMediaBackendError('delete media object', err);
+	}
 	return { deleted: true };
 });
 
@@ -355,7 +376,12 @@ export const createDiveVideoMultipartUpload = onCall(callableOptions, async (req
 	const bucket = getWasabiConfig().bucket;
 	const key = videoCleanKey(uid, videoId, contentType);
 	const partSizeBytes = Math.max(requestedPartSize || DEFAULT_PART_SIZE_BYTES, MIN_PART_SIZE_BYTES);
-	const uploadId = await createMultipartUpload({ bucket, key, contentType });
+	let uploadId: string;
+	try {
+		uploadId = await createMultipartUpload({ bucket, key, contentType });
+	} catch (err) {
+		rethrowMediaBackendError('create multipart upload', err);
+	}
 
 	await getFirestore().collection('diveVideos').doc(videoId).update({
 		storageProvider: 'wasabi',
@@ -390,19 +416,24 @@ export const signDiveVideoPart = onCall(callableOptions, async (request) => {
 	const expectedPrefix = `users/${diveVideoOwner(snap)}/videos/${videoId}/`;
 	assertWasabiKey({ bucket, key, expectedPrefix });
 	assertExistingDiveVideoObject({ snap, kind: 'dive-video-clean', bucket, key });
-	const parts = await Promise.all(
-		partNumbers.map(async (partNumber) => ({
-			partNumber,
-			uploadUrl: await signUploadPart({
-				bucket,
-				key,
-				uploadId,
+	let parts: Array<{ partNumber: number; uploadUrl: string; expiresAt: number }>;
+	try {
+		parts = await Promise.all(
+			partNumbers.map(async (partNumber) => ({
 				partNumber,
-				expiresInSeconds: UPLOAD_URL_EXPIRES_SECONDS
-			}),
-			expiresAt: Date.now() + UPLOAD_URL_EXPIRES_SECONDS * 1000
-		}))
-	);
+				uploadUrl: await signUploadPart({
+					bucket,
+					key,
+					uploadId,
+					partNumber,
+					expiresInSeconds: UPLOAD_URL_EXPIRES_SECONDS
+				}),
+				expiresAt: Date.now() + UPLOAD_URL_EXPIRES_SECONDS * 1000
+			}))
+		);
+	} catch (err) {
+		rethrowMediaBackendError('sign multipart upload part', err);
+	}
 	return { parts };
 });
 
@@ -431,15 +462,19 @@ export const completeDiveVideoMultipartUpload = onCall(callableOptions, async (r
 	assertWasabiKey({ bucket, key, expectedPrefix });
 	assertExistingDiveVideoObject({ snap, kind: 'dive-video-clean', bucket, key });
 	const existingCleanObject = (snap.data() as { cleanObject?: MediaObjectRef } | undefined)?.cleanObject;
-	await completeMultipartUpload({
-		bucket,
-		key,
-		uploadId,
-		parts: parts.map((part) => ({
-			partNumber: (part as { partNumber: number }).partNumber,
-			etag: (part as { etag: string }).etag
-		}))
-	});
+	try {
+		await completeMultipartUpload({
+			bucket,
+			key,
+			uploadId,
+			parts: parts.map((part) => ({
+				partNumber: (part as { partNumber: number }).partNumber,
+				etag: (part as { etag: string }).etag
+			}))
+		});
+	} catch (err) {
+		rethrowMediaBackendError('complete multipart upload', err);
+	}
 	await getFirestore().collection('diveVideos').doc(videoId).update({
 		uploadStatus: 'uploaded',
 		storageProvider: 'wasabi',
@@ -464,6 +499,10 @@ export const abortDiveVideoMultipartUpload = onCall(callableOptions, async (requ
 	const expectedPrefix = `users/${diveVideoOwner(snap)}/videos/${videoId}/`;
 	assertWasabiKey({ bucket, key, expectedPrefix });
 	assertExistingDiveVideoObject({ snap, kind: 'dive-video-clean', bucket, key });
-	await abortMultipartUpload({ bucket, key, uploadId });
+	try {
+		await abortMultipartUpload({ bucket, key, uploadId });
+	} catch (err) {
+		rethrowMediaBackendError('abort multipart upload', err);
+	}
 	return { aborted: true };
 });

@@ -43,13 +43,13 @@ service firebase.storage {
       // gate on who sees which video; storage paths are not enumerable.
       allow read: if request.auth != null;
 
-      // Write: only the owner (uploader). Video blobs may be up to 500 MB
-      // (1080p 5 min at 5 Mbps ≈ 188 MB, leave generous headroom).
+      // Write: only the owner (uploader). Video blobs may be up to 2 GB,
+      // matching the Wasabi signing policy and 5-minute recording cap.
       allow write: if request.auth != null
                    && request.auth.uid == userId
                    && (
                      (request.resource.contentType.matches('video/.*')
-                        && request.resource.size < 500 * 1024 * 1024) ||
+                      && request.resource.size < 2 * 1024 * 1024 * 1024) ||
                      (request.resource.contentType.matches('image/.*')
                         && request.resource.size < 5 * 1024 * 1024)
                    );
