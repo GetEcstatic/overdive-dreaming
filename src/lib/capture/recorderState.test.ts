@@ -9,6 +9,7 @@ import {
 import {
 	buttonLayout,
 	canUndo,
+	completedLapCount,
 	cumulativeDistanceM,
 	diveElapsedMs,
 	liveSpeedMs,
@@ -342,9 +343,29 @@ describe('selectors', () => {
 		expect(liveSpeedMs(diving)).toBeCloseTo(1.1, 5);
 	});
 
-	it('waypointCount reflects taps', () => {
-		const s = recorderReducer(diving, { type: 'wall/tapped', atPerfMs: 20000 });
+	it('waypointCount reflects user-defined waypoints, while completedLapCount reflects pool lengths', () => {
+		let s = recorderReducer(diving, { type: 'split/tapped', atPerfMs: 12000 });
 		expect(waypointCount(s)).toBe(1);
+		expect(completedLapCount(s)).toBe(0);
+
+		s = recorderReducer(s, { type: 'wall/tapped', atPerfMs: 20000 });
+		expect(waypointCount(s)).toBe(2);
+		expect(completedLapCount(s)).toBe(1);
+	});
+
+	it('waypointCount and completedLapCount handle 50m pools with 4 waypoints per lap', () => {
+		const config: RecorderConfig = { ...CONFIG, poolLengthM: 50, waypointsPerLap: 4 };
+		let s = startDiveAt(startRecordingAt(arm(initialRecorderState(config)), 1000), 5000);
+
+		s = recorderReducer(s, { type: 'waypoint/tapped', atPerfMs: 10000 });
+		expect(waypointCount(s)).toBe(1);
+		expect(completedLapCount(s)).toBe(0);
+
+		s = recorderReducer(s, { type: 'waypoint/tapped', atPerfMs: 15000 });
+		s = recorderReducer(s, { type: 'waypoint/tapped', atPerfMs: 20000 });
+		s = recorderReducer(s, { type: 'waypoint/tapped', atPerfMs: 25000 });
+		expect(waypointCount(s)).toBe(4);
+		expect(completedLapCount(s)).toBe(1);
 	});
 
 	it('waypointSpacingM = poolLength / waypointsPerLap', () => {
@@ -378,15 +399,40 @@ describe('shouldAutoAdvance (halfway to following waypoint)', () => {
 		expect(shouldAutoAdvance(diving, 17_055)).toBe(true);
 	});
 
-	it('uses the advanced cursor target after a missed waypoint', () => {
+	it('stops auto-advance at the next wall after a missed waypoint', () => {
 		const advanced = recorderReducer(diving, {
 			type: 'waypoint/auto',
 			atPerfMs: 17_055,
 			count: 1
 		});
+		// Cursor now expects 25 m, which is the wall for a 25m/2-waypoint lap.
+		expect(shouldAutoAdvance(advanced, 28_400)).toBe(false);
+		expect(shouldAutoAdvance(advanced, 28_410)).toBe(false);
+	});
+
+	it('uses the advanced cursor target for another mid-lap waypoint', () => {
+		const config: RecorderConfig = { ...CONFIG, poolLengthM: 50, waypointsPerLap: 4 };
+		const fourPointDive = startDiveAt(startRecordingAt(arm(initialRecorderState(config)), 0), 0);
+		const advanced = recorderReducer(fourPointDive, {
+			type: 'waypoint/auto',
+			atPerfMs: 11_370,
+			count: 1
+		});
+
 		// Cursor now expects 25 m. Halfway to 37.5 m is 31.25 m.
 		expect(shouldAutoAdvance(advanced, 28_400)).toBe(false);
 		expect(shouldAutoAdvance(advanced, 28_410)).toBe(true);
+	});
+
+	it('does not auto-advance over wall waypoints because walls define completed laps', () => {
+		const config: RecorderConfig = { ...CONFIG, poolLengthM: 50, waypointsPerLap: 4 };
+		let s = startDiveAt(startRecordingAt(arm(initialRecorderState(config)), 0), 0);
+		s = recorderReducer(s, { type: 'waypoint/auto', atPerfMs: 11_400, count: 1 });
+		s = recorderReducer(s, { type: 'waypoint/auto', atPerfMs: 22_800, count: 1 });
+		s = recorderReducer(s, { type: 'waypoint/auto', atPerfMs: 34_100, count: 1 });
+
+		expect(s.waypointCursor.expectedIndex).toBe(4);
+		expect(shouldAutoAdvance(s, 52_000)).toBe(false);
 	});
 
 	it('does not trigger outside diving phase', () => {

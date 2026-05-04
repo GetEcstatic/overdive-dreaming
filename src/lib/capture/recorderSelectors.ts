@@ -34,9 +34,14 @@ export function recordingElapsedMs(
 	return Math.max(0, nowPerfMs - state.clocks.recordingStartedPerfMs);
 }
 
-/** Wall taps so far (completed lengths). */
+/** Waypoints crossed so far, including user-defined mid-lap waypoints. */
 export function waypointCount(state: RecorderState): number {
-	return state.timeline.laps.length;
+	return Math.max(0, state.waypointCursor.expectedIndex - 1);
+}
+
+/** Whole pool lengths completed so far. One lap = one pool length. */
+export function completedLapCount(state: RecorderState): number {
+	return Math.floor(waypointCount(state) / Math.max(1, state.config.waypointsPerLap));
 }
 
 // ---------------------------------------------------------------------------
@@ -175,8 +180,10 @@ export function shouldAutoAdvance(
 	nowPerfMs: number
 ): boolean {
 	if (state.phase !== 'diving') return false;
+	const expectedIndex = expectedWaypointIndex(state);
+	if (tapKindForWaypointIndex(state.config, expectedIndex) === 'wall') return false;
 	const raw = cumulativeDistanceM(state, nowPerfMs);
-	const target = expectedWaypointDistanceM(state);
+	const target = waypointDistanceM(state.config, expectedIndex);
 	return raw >= target + waypointSpacingM(state.config) / 2;
 }
 
