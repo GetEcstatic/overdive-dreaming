@@ -1,0 +1,63 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "yebo next",
+			"type": "shell",
+			"command": "yebo next",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "firebase login check",
+			"type": "shell",
+			"command": "firebase login:list",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "firebase project check",
+			"type": "shell",
+			"command": "firebase use",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "functions build",
+			"type": "shell",
+			"command": "npm --prefix functions run build",
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "wasabi secrets check",
+			"type": "shell",
+			"command": "firebase functions:secrets:access WASABI_ACCESS_KEY_ID >/dev/null && echo WASABI_ACCESS_KEY_ID:ok && firebase functions:secrets:access WASABI_SECRET_ACCESS_KEY >/dev/null && echo WASABI_SECRET_ACCESS_KEY:ok",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "deploy media worker functions",
+			"type": "shell",
+			"command": "firebase deploy --only functions:processMediaJob,functions:onMediaProcessingJobCreated,functions:completeDiveVideoMultipartUpload",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "list deployed media functions",
+			"type": "shell",
+			"command": "firebase functions:list | grep -E 'processMediaJob|onMediaProcessingJobCreated|completeDiveVideoMultipartUpload|Function'",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "commit deployed worker docs",
+			"type": "shell",
+			"command": "git add docs/video/server-side-recording-pipeline.md && git commit -m \"Record media worker deployment\" -- docs/video/server-side-recording-pipeline.md",
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}

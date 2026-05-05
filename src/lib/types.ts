@@ -1134,6 +1134,10 @@ export interface DiveVideo {
 	requestedVideoBitrateBps?: number;
 	actualAverageBitrateBps?: number;
 	actualFrameRate?: number;
+	probeFormatName?: string;
+	probeVideoCodec?: string;
+	probeAudioCodec?: string;
+	probeRotationDeg?: DiveVideoRotation;
 
 	// Retention
 	retentionTier: DiveVideoRetentionTier; // 'pinned' survives the 5-video reaper

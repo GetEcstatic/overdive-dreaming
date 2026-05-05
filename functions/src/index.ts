@@ -23,5 +23,5 @@ export {
 	getMediaReadUrl,
 	signDiveVideoPart
 } from './mediaSigning.js';
-export { processMediaJob } from './mediaWorker.js';
+export { onMediaProcessingJobCreated, processMediaJob } from './mediaWorker.js';
 export { acceptDiveGift } from './acceptDiveGift.js';

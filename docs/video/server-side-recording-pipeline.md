@@ -188,39 +188,39 @@ Use social-app expectations:
 - [x] Add initial processing-state helpers and tests in `src/lib/media/processing.ts`.
 - [x] Mark uploaded masters as canonical non-disposable artifacts after Wasabi upload completes.
 - [x] Queue lightweight server jobs in data only: probe, thumbnail, playback proxy.
-- [ ] Add UI handling for `processingState` so feed/session pages can show thumbnail/proxy/export readiness.
-- [ ] Add signed URL helpers for future artifact variants beyond the clean master.
-- [ ] Keep the current direct original download as the reliable baseline.
+- [ ] ⚠️ Essential: add full UI handling for `processingState` so feed/session pages can show thumbnail/proxy/export readiness and retryable failures. Current UI opportunistically uses thumbnails/proxies when present, but does not yet expose all processing readiness/error states.
+- [x] Add signed URL helpers for future artifact variants beyond the clean master. Implemented for thumbnails and playback proxies through `getMediaReadUrl` / `getWasabiReadUrl`.
+- [x] Keep the current direct original download as the reliable baseline.
 
 ### Phase 1 - Server thumbnail and probe
 
-- [ ] Register/enable the required backend services.
-- [ ] Add a Cloud Run media worker with ffprobe/ffmpeg.
-- [ ] Add a queue trigger for automatic processing after upload completion.
-- [ ] Run `probe-master` and `generate-thumbnail` jobs from queued `DiveVideo.processingState.pendingJobs`.
-- [ ] Store codec, duration, frame rate, dimensions, rotation metadata, and thumbnail artifact.
-- [ ] Surface thumbnail/probe status in the dashboard and session detail.
+- [x] Register/enable the required backend services for the selected first worker path. Firebase Functions v2 worker deployment is confirmed.
+- [x] Add a media worker with ffprobe/ffmpeg. Implemented as Firebase Functions v2 `processMediaJob` rather than Cloud Run because the Functions v2 experiment worked.
+- [x] Add a queue trigger for automatic processing after upload completion. Implemented as `onMediaProcessingJobCreated`; it runs implemented probe/thumbnail jobs automatically and leaves `generate-playback-proxy` queued until Phase 2 implements proxy generation.
+- [x] Run `probe-master` and `generate-thumbnail` jobs from queued `DiveVideo.processingState.pendingJobs`. Verified against real Wasabi video `QoGe8CGB28NtfHOwXdbh`.
+- [x] Store the complete probe contract: codec, duration, frame rate, dimensions, rotation metadata, and thumbnail artifact. Probe now stores `probeVideoCodec`, `probeAudioCodec`, `probeRotationDeg`, `probeFormatName`, dimensions, duration, frame rate, and thumbnail object metadata.
+- [ ] ⚠️ Essential: surface thumbnail/probe status in the dashboard and session detail. Thumbnail images are resolved when present, but probe/thumbnail processing state is not yet shown as a first-class status.
 
 ### Phase 2 - Playback proxy
 
-- [ ] Generate mobile-friendly fast-start MP4 proxy artifacts first.
-- [ ] Preserve the artifact model so HLS can be added later without changing `DiveVideo` ownership or upload flow.
-- [ ] Add signed URL helper for proxy artifacts.
-- [ ] Use proxy for dashboard feed playback while keeping master available for full-quality review/download.
+- [ ] ⚠️ Essential: generate mobile-friendly fast-start MP4 proxy artifacts first. `generate-playback-proxy` is queued but not implemented; it was intentionally left queued during the probe/thumbnail gate.
+- [x] Preserve the artifact model so HLS can be added later without changing `DiveVideo` ownership or upload flow.
+- [x] Add signed URL helper for proxy artifacts.
+- [x] Use proxy for dashboard feed playback while keeping master available for full-quality review/download. `getPreferredDiveVideoPlaybackUrl` prefers a ready proxy and falls back to the canonical master.
 
 ### Phase 3 - Server overlay exports
 
-- [ ] Generate overlay-burned MP4 from master + `DiveTimeline` using FFmpeg filters or rendered overlay frames.
-- [ ] Preserve source audio.
+- [ ] ⚠️ Essential before Phase 3 completion: generate overlay-burned MP4 from master + `DiveTimeline` using FFmpeg filters or rendered overlay frames.
+- [ ] ⚠️ Essential before Phase 3 completion: preserve source audio.
 - [ ] Produce 720p and 1080p exports for both portrait and landscape presentation.
-- [ ] Version overlay styles so old videos can be re-exported consistently.
+- [x] Version overlay styles so old videos can be re-exported consistently. New videos store `overlayStyleVersion` from `SERVER_OVERLAY_STYLE_VERSION`.
 - [ ] Treat overlay download artifacts as disposable/rebuildable with temporary retention.
 - [ ] Add `Request overlay export` / `Retry export` semantics in the UI.
 - [ ] Remove or demote client-side canvas baking once server overlay is reliable.
 
 ### Phase 4 - Queue hardening and observability
 
-- [ ] Add job retry limits, dead-letter state, and admin diagnostics.
+- [ ] ⚠️ Essential before production-scale processing: add job retry limits, dead-letter state, and admin diagnostics. Current worker marks failures `retryable`, but does not yet enforce retry limits or dead-lettering.
 - [ ] Add upload and processing event logs per video.
 - [ ] Add orphan cleanup for incomplete multipart uploads, local pending records, and stale derivative artifacts.
 - [ ] Add temporary-retention cleanup for disposable overlay downloads.
