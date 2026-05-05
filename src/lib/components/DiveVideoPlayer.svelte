@@ -13,6 +13,8 @@
 -->
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
+	import { doc, onSnapshot } from 'firebase/firestore';
+	import { db } from '$lib/firebase';
 	import type { DiveTimeline, DiveVideo } from '$lib/types';
 	import {
 		distanceAt,
@@ -55,6 +57,10 @@
 	}
 
 	let { video, srcUrl, posterUrl, compact = false, fullscreenOnPlay = false }: Props = $props();
+	function initialLiveVideo(): DiveVideo {
+		return video;
+	}
+	let liveVideo = $state<DiveVideo>(initialLiveVideo());
 
 	let videoEl: HTMLVideoElement | undefined = $state();
 	let containerEl: HTMLDivElement | undefined = $state();
@@ -63,6 +69,14 @@
 	let rvfcHandle: number | null = null;
 
 	let showOverlay = $state(true);
+
+	onMount(() => {
+		const unsubscribe = onSnapshot(doc(db, 'diveVideos', video.id), (snapshot) => {
+			if (!snapshot.exists()) return;
+			liveVideo = { id: snapshot.id, ...snapshot.data() } as DiveVideo;
+		});
+		return unsubscribe;
+	});
 
 	/**
 	 * Pseudo-fullscreen state, driven by the `diveVideoBehavior` action via
@@ -138,8 +152,8 @@
 		exitDiveFullscreen(containerEl ?? null);
 	}
 
-	const timeline: DiveTimeline = $derived(video.timeline);
-	const poolLength: number = $derived(video.poolLength);
+	const timeline: DiveTimeline = $derived(liveVideo.timeline);
+	const poolLength: number = $derived(liveVideo.poolLength);
 
 	// Live overlay values.
 	// `currentMs` is mediaTime relative to the start of the recording. The
@@ -155,16 +169,16 @@
 	// Lap count shown = laps already completed by this point in the recording.
 	const lapsCompleted = $derived(timeline.laps.filter((l) => l.atMs <= currentMs).length);
 
-	const totalDurationMs = $derived(totalTimeMs(timeline) || video.durationSeconds * 1000);
+	const totalDurationMs = $derived(totalTimeMs(timeline) || liveVideo.durationSeconds * 1000);
 
 	// Orientation-aware display transform. For legacy clips without the
 	// new metadata fields, this returns the same landscape layout the
 	// player has always used, so existing videos keep rendering as before.
 	const displayTransform = $derived(
 		displayTransformFor({
-			displayOrientation: video.displayOrientation,
-			displayRotationDeg: video.displayRotationDeg,
-			assetOrientation: video.assetOrientation
+			displayOrientation: liveVideo.displayOrientation,
+			displayRotationDeg: liveVideo.displayRotationDeg,
+			assetOrientation: liveVideo.assetOrientation
 		})
 	);
 
@@ -220,7 +234,7 @@
 	let downloading = $state(false);
 	let requestingServerOverlay = $state(false);
 	let exportProgress = $state(0); // 0..1 while baking
-	const overlayDownloadStatus = $derived(video.processingState?.overlayDownload ?? 'not-requested');
+	const overlayDownloadStatus = $derived(liveVideo.processingState?.overlayDownload ?? 'not-requested');
 
 	function fileExtensionFromMime(mime: string): string {
 		if (mime.includes('mp4')) return 'mp4';
@@ -360,9 +374,9 @@
 	}
 
 	function suggestedFileName(mime: string, withOverlay: boolean): string {
-		const stamp = video.recordedAt?.toDate?.().toISOString?.().replace(/[:.]/g, '-') ?? 'dive';
+		const stamp = liveVideo.recordedAt?.toDate?.().toISOString?.().replace(/[:.]/g, '-') ?? 'dive';
 		const tag = withOverlay ? 'overlay' : 'clean';
-		return `overdive-${video.discipline}-${tag}-${stamp}.${fileExtensionFromMime(mime)}`;
+		return `overdive-${liveVideo.discipline}-${tag}-${stamp}.${fileExtensionFromMime(mime)}`;
 	}
 
 	function clickDownloadUrl(url: string, fileName: string): void {
@@ -382,10 +396,10 @@
 		preparedShareFile = null;
 
 		try {
-			const fileName = suggestedFileName(video.mimeType, false);
-			const url = await getDiveVideoDirectDownloadUrl(video, fileName);
+			const fileName = suggestedFileName(liveVideo.mimeType, false);
+			const url = await getDiveVideoDirectDownloadUrl(liveVideo, fileName);
 			clickDownloadUrl(url, fileName);
-			exportDiagnostic = `Original download started (${formatBytes(video.sizeBytes)}).`;
+			exportDiagnostic = `Original download started (${formatBytes(liveVideo.sizeBytes)}).`;
 		} catch (err) {
 			downloadError = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -419,7 +433,7 @@
 					await nav.share({
 						files: [file],
 						title: 'Dive video',
-						text: `${video.discipline} dive`
+						text: `${liveVideo.discipline} dive`
 					});
 					return;
 				} catch (err) {
@@ -530,8 +544,8 @@
 				off.addEventListener('error', onErr);
 			});
 
-			const w = off.videoWidth || video.widthPx || 1280;
-			const h = off.videoHeight || video.heightPx || 720;
+			const w = off.videoWidth || liveVideo.widthPx || 1280;
+			const h = off.videoHeight || liveVideo.heightPx || 720;
 
 			const canvas = document.createElement('canvas');
 			canvas.width = w;
@@ -553,7 +567,7 @@
 			if (!mimeType) throw new Error('No supported MediaRecorder mime type');
 
 			const outputResolution = resolutionPresetForDimensions(w, h);
-			const outputQuality = video.qualityPreset ?? DEFAULT_VIDEO_QUALITY_PRESET;
+			const outputQuality = liveVideo.qualityPreset ?? DEFAULT_VIDEO_QUALITY_PRESET;
 			const requestedVideoBitrateBps = bitrateForResolution(outputResolution, outputQuality);
 			audioHandle = options.preserveAudio ? await captureAudioFromElement(off) : null;
 			const capture = captureCanvasStream(canvas, options.allowManualFrameRequest);
@@ -570,7 +584,7 @@
 				if (e.data && e.data.size > 0) chunks.push(e.data);
 			};
 
-			const durationMs = (off.duration || video.durationSeconds || 0) * 1000;
+			const durationMs = (off.duration || liveVideo.durationSeconds || 0) * 1000;
 
 			const offR = off as VideoWithRvfc;
 			const useRvfc = typeof offR.requestVideoFrameCallback === 'function';
@@ -800,15 +814,15 @@
 				await nav.share({
 					files: [preparedShareFile],
 					title: 'Dive video',
-					text: `${video.discipline} dive`
+					text: `${liveVideo.discipline} dive`
 				});
 				preparedShareFile = null;
 				return;
 			}
 
 			exportDiagnostic = null;
-			if (video.sizeBytes > MAX_BROWSER_OVERLAY_EXPORT_BYTES) {
-				downloadError = `This clip is ${formatBytes(video.sizeBytes)}, which is too large for reliable in-browser overlay export. Use Download original for now.`;
+			if (liveVideo.sizeBytes > MAX_BROWSER_OVERLAY_EXPORT_BYTES) {
+				downloadError = `This clip is ${formatBytes(liveVideo.sizeBytes)}, which is too large for reliable in-browser overlay export. Use Download original for now.`;
 				return;
 			}
 
@@ -818,7 +832,7 @@
 			exportDiagnostic = `Overlay export requested ${formatMbps(
 				baked.requestedVideoBitrateBps
 			)}, actual ${formatMbps(
-				video.durationSeconds > 0 ? Math.round((blob.size * 8) / video.durationSeconds) : undefined
+				liveVideo.durationSeconds > 0 ? Math.round((blob.size * 8) / liveVideo.durationSeconds) : undefined
 			)}. ${baked.audioPreserved ? 'Audio preserved.' : 'Audio unavailable in browser export.'} ${
 				baked.manualFrameRequest ? 'Manual frame pacing.' : 'Fixed-rate canvas pacing.'
 			}${baked.reliableMode ? ' Reliable iOS export mode.' : ''}${
@@ -859,7 +873,7 @@
 					await nav.share({
 						files: [file],
 						title: 'Dive video',
-						text: `${video.discipline} dive`
+						text: `${liveVideo.discipline} dive`
 					});
 					if (iosSaveToPhotosBlocked) {
 						downloadError =
@@ -913,8 +927,8 @@
 		requestingServerOverlay = true;
 		downloadError = null;
 		try {
-			await requestDiveVideoOverlayDownload(video.id);
-			exportDiagnostic = 'Server overlay export queued. Refresh this video after processing to download the ready MP4.';
+			await requestDiveVideoOverlayDownload(liveVideo.id);
+			exportDiagnostic = 'Server overlay export queued. The download button will update when it is ready.';
 		} catch (err) {
 			downloadError = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -936,17 +950,21 @@
 			await nav.share({
 				files: [preparedServerOverlayFile],
 				title: 'Dive video',
-				text: `${video.discipline} dive`
+				text: `${liveVideo.discipline} dive`
 			});
 			preparedServerOverlayFile = null;
 			return;
 		}
 
-		if (overlayDownloadStatus === 'queued' || overlayDownloadStatus === 'processing') {
+		if (overlayDownloadStatus === 'queued') {
 			exportDiagnostic = 'Overlay video is processing in the background.';
 			return;
 		}
-		if (overlayDownloadStatus === 'retryable' || overlayDownloadStatus === 'not-requested') {
+		if (
+			overlayDownloadStatus === 'retryable' ||
+			overlayDownloadStatus === 'not-requested' ||
+			overlayDownloadStatus === 'processing'
+		) {
 			await requestServerOverlay();
 			return;
 		}
@@ -954,8 +972,8 @@
 		downloading = true;
 		downloadError = null;
 		try {
-			const fileName = `overdive-overlay-${video.discipline}-${video.id}.mp4`;
-			const url = await getDiveVideoBurnedDownloadUrl(video);
+			const fileName = `overdive-overlay-${liveVideo.discipline}-${liveVideo.id}.mp4`;
+			const url = await getDiveVideoBurnedDownloadUrl(liveVideo);
 			await shareOrDownloadVideoUrl({
 				url,
 				fileName,
@@ -1104,7 +1122,7 @@
 			type="button"
 			class="pill pill-primary"
 			onclick={downloadServerOverlay}
-			disabled={downloading || requestingServerOverlay || overlayDownloadStatus === 'queued' || overlayDownloadStatus === 'processing'}
+			disabled={downloading || requestingServerOverlay || overlayDownloadStatus === 'queued'}
 		>
 			{#if downloading}
 				<span class="pill-spinner" aria-hidden="true"></span>
@@ -1115,10 +1133,10 @@
 			{:else if preparedServerOverlayFile}
 				<span aria-hidden="true">⬇︎</span>
 				<span>Share overlay video</span>
-			{:else if overlayDownloadStatus === 'retryable'}
+			{:else if overlayDownloadStatus === 'retryable' || overlayDownloadStatus === 'processing'}
 				<span aria-hidden="true">↻</span>
 				<span>Retry overlay export</span>
-			{:else if overlayDownloadStatus === 'queued' || overlayDownloadStatus === 'processing'}
+			{:else if overlayDownloadStatus === 'queued'}
 				<span class="pill-spinner" aria-hidden="true"></span>
 				<span>Overlay processing...</span>
 			{:else if overlayDownloadStatus === 'ready'}

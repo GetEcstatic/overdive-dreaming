@@ -222,6 +222,8 @@ Use social-app expectations:
 
 **Phase 3 follow-up completed in this pass:** server overlay HUD timing/style alignment, share-first save flow for overlay downloads, no forced popup tab for downloads, automatic overlay job queueing after upload, and simplified player actions: `Download with overlay` / `Download without overlay`.
 
+**Production fix from first eager-overlay test:** automatic overlay jobs exposed that the Functions v2 worker was running FFmpeg work with 1 GiB memory and default high concurrency, which can terminate the instance and leave a video stuck in `processing`. The media worker now runs FFmpeg jobs with 2 GiB memory and concurrency 1, stale `processing` jobs can be reclaimed after 15 minutes, and `DiveVideoPlayer` subscribes to its `diveVideos/{id}` document so the processing pill updates to ready/retryable without a manual refresh. The UI also lets a stuck `processing` overlay be retried by creating a fresh overlay job.
+
 **Next Phase 3 work:** deploy the eager overlay worker update, run another real-video smoke test on iPhone and Android, show live processing status without requiring refresh, add 1080p exports, and compare the burned HUD against the dashboard HUD frame-by-frame on portrait and landscape clips.
 
 ### Phase 4 - Queue hardening and observability

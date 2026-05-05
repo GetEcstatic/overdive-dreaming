@@ -37,6 +37,7 @@ interface MediaProcessingJobDoc {
 	type: DiveVideoProcessingJob;
 	status: 'queued' | 'processing' | 'ready' | 'failed' | 'retryable';
 	attempts?: number;
+	claimedAt?: FirebaseFirestore.Timestamp;
 }
 
 interface DiveVideoDoc {
@@ -138,6 +139,12 @@ function isImplementedAutomaticJob(type: DiveVideoProcessingJob): boolean {
 		type === 'generate-playback-proxy' ||
 		type === 'generate-overlay-download'
 	);
+}
+
+function isStaleProcessingJob(job: MediaProcessingJobDoc, nowMs = Date.now()): boolean {
+	const claimedAt = job.claimedAt;
+	if (!claimedAt || typeof claimedAt.toMillis !== 'function') return false;
+	return nowMs - claimedAt.toMillis() > 15 * 60 * 1000;
 }
 
 function frameRate(value: string | undefined): number | undefined {
@@ -392,7 +399,7 @@ async function claimJob(args: {
 			throw new HttpsError('permission-denied', 'You do not own this media processing job');
 		}
 		if (job.status === 'ready') return { ...job, id: snap.id };
-		if (job.status === 'processing') {
+		if (job.status === 'processing' && !isStaleProcessingJob(job)) {
 			throw new HttpsError('failed-precondition', 'Media processing job is already running');
 		}
 		transaction.update(jobRef, {
@@ -833,7 +840,8 @@ export const processMediaJob = onCall(
 	{
 		secrets: [WASABI_ACCESS_KEY_ID, WASABI_SECRET_ACCESS_KEY],
 		timeoutSeconds: 540,
-		memory: '1GiB'
+		memory: '2GiB',
+		concurrency: 1
 	},
 	async (request) => {
 		const uid = requireUid(request.auth);
@@ -848,7 +856,8 @@ export const onMediaProcessingJobCreated = onDocumentCreated(
 		document: 'mediaProcessingJobs/{jobId}',
 		secrets: [WASABI_ACCESS_KEY_ID, WASABI_SECRET_ACCESS_KEY],
 		timeoutSeconds: 540,
-		memory: '1GiB'
+		memory: '2GiB',
+		concurrency: 1
 	},
 	async (event) => {
 		const snap = event.data;
