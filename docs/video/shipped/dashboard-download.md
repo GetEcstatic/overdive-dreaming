@@ -1,5 +1,11 @@
 # Dashboard Video Download Plan
 
+## 2026-05-05 Follow-Up: Owner-Only Save Actions
+
+Download actions are owner-only. If a video appears on someone else's account or shared/gift review surface, playback remains available but `Download with overlay`, `Download without overlay`, and overlay export retry/prepare actions are hidden.
+
+Original clean-video downloads now use the same share-first `File` flow as server-baked overlay downloads. On Apple devices this opens the native share sheet so the user can save directly to Photos/Videos when the file type is accepted, with an object-URL download fallback for browsers without file sharing.
+
 ## Problem
 
 Dashboard dive videos have two download paths today:

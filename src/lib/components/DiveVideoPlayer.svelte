@@ -15,6 +15,7 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { doc, onSnapshot } from 'firebase/firestore';
 	import { db } from '$lib/firebase';
+	import { user } from '$lib/stores/auth';
 	import type { DiveTimeline, DiveVideo } from '$lib/types';
 	import {
 		distanceAt,
@@ -200,6 +201,9 @@
 	const fullscreenControlsVisible = $derived(
 		isFullscreen && (showFullscreenControls || !isPlaying || isScrubbing)
 	);
+	const canDownloadVideo = $derived(
+		$user?.uid === liveVideo.ownerId || $user?.uid === liveVideo.userId
+	);
 
 	// Orientation-aware display transform. For legacy clips without the
 	// new metadata fields, this returns the same landscape layout the
@@ -312,6 +316,7 @@
 	let downloadError = $state<string | null>(null);
 	let exportDiagnostic = $state<string | null>(null);
 	let preparedShareFile = $state<File | null>(null);
+	let preparedOriginalFile = $state<File | null>(null);
 	let preparedServerOverlayFile = $state<File | null>(null);
 	let downloading = $state(false);
 	let requestingServerOverlay = $state(false);
@@ -470,8 +475,39 @@
 		a.remove();
 	}
 
+	async function sharePreparedVideo(file: File, unavailableMessage: string): Promise<boolean> {
+		const nav = navigator as Navigator & {
+			canShare?: (data: { files: File[] }) => boolean;
+			share?: (data: { files: File[]; title?: string; text?: string }) => Promise<void>;
+		};
+		if (typeof nav.share !== 'function' || !nav.canShare?.({ files: [file] })) {
+			downloadError = unavailableMessage;
+			return false;
+		}
+		await nav.share({
+			files: [file],
+			title: 'Dive video',
+			text: `${liveVideo.discipline} dive`
+		});
+		return true;
+	}
+
 	async function downloadOriginalVideo(): Promise<void> {
 		if (downloading) return;
+		if (!canDownloadVideo) return;
+		if (preparedOriginalFile) {
+			try {
+				const shared = await sharePreparedVideo(
+					preparedOriginalFile,
+					'This browser cannot share the prepared original video file.'
+				);
+				if (shared) preparedOriginalFile = null;
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : String(err);
+				if (!/abort/i.test(msg)) downloadError = msg;
+			}
+			return;
+		}
 		downloading = true;
 		downloadError = null;
 		exportDiagnostic = null;
@@ -480,8 +516,14 @@
 		try {
 			const fileName = suggestedFileName(liveVideo.mimeType, false);
 			const url = await getDiveVideoDirectDownloadUrl(liveVideo, fileName);
-			clickDownloadUrl(url, fileName);
-			exportDiagnostic = `Original download started (${formatBytes(liveVideo.sizeBytes)}).`;
+			await shareOrDownloadVideoUrl({
+				url,
+				fileName,
+				mime: liveVideo.mimeType || 'video/mp4',
+				fallbackError: 'Original video is ready. Tap Share original video to open the share sheet.',
+				preparedKind: 'original'
+			});
+			if (!downloadError) exportDiagnostic = `Original video ready (${formatBytes(liveVideo.sizeBytes)}).`;
 		} catch (err) {
 			downloadError = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -494,6 +536,7 @@
 		fileName: string;
 		mime: string;
 		fallbackError: string;
+		preparedKind: 'original' | 'server-overlay';
 	}): Promise<void> {
 		const nav = navigator as Navigator & {
 			canShare?: (data: { files: File[] }) => boolean;
@@ -503,8 +546,13 @@
 		try {
 			const response = await fetch(args.url);
 			if (!response.ok) throw new Error(`Download failed with HTTP ${response.status}`);
-			const blob = new Blob([await response.blob()], { type: args.mime });
-			const file = new File([blob], args.fileName, { type: args.mime });
+			let blob = await response.blob();
+			let mime = args.mime;
+			const sniffed = await sniffVideoContainer(blob);
+			if (sniffed.mime) mime = sniffed.mime;
+			if (blob.type !== mime) blob = new Blob([blob], { type: mime });
+			const fileName = args.fileName.replace(/\.(mp4|webm|bin)$/i, `.${fileExtensionFromMime(mime)}`);
+			const file = new File([blob], fileName, { type: mime });
 
 			if (
 				typeof nav.share === 'function' &&
@@ -523,7 +571,8 @@
 					const name = (err as { name?: string } | null)?.name ?? '';
 					if (/abort/i.test(msg) || name === 'AbortError') return;
 					if (name === 'NotAllowedError' || /not allowed/i.test(msg)) {
-						preparedServerOverlayFile = file;
+						if (args.preparedKind === 'original') preparedOriginalFile = file;
+						else preparedServerOverlayFile = file;
 						downloadError = args.fallbackError;
 						return;
 					}
@@ -532,7 +581,7 @@
 			}
 
 			const objectUrl = URL.createObjectURL(blob);
-			clickDownloadUrl(objectUrl, args.fileName);
+			clickDownloadUrl(objectUrl, fileName);
 			setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 		} catch {
 			clickDownloadUrl(args.url, args.fileName);
@@ -1006,6 +1055,7 @@
 
 	async function requestServerOverlay(): Promise<void> {
 		if (requestingServerOverlay) return;
+		if (!canDownloadVideo) return;
 		requestingServerOverlay = true;
 		downloadError = null;
 		try {
@@ -1020,21 +1070,13 @@
 
 	async function downloadServerOverlay(): Promise<void> {
 		if (downloading || requestingServerOverlay) return;
+		if (!canDownloadVideo) return;
 		if (preparedServerOverlayFile) {
-			const nav = navigator as Navigator & {
-				canShare?: (data: { files: File[] }) => boolean;
-				share?: (data: { files: File[]; title?: string; text?: string }) => Promise<void>;
-			};
-			if (typeof nav.share !== 'function' || !nav.canShare?.({ files: [preparedServerOverlayFile] })) {
-				downloadError = 'This browser cannot share the prepared overlay video file.';
-				return;
-			}
-			await nav.share({
-				files: [preparedServerOverlayFile],
-				title: 'Dive video',
-				text: `${liveVideo.discipline} dive`
-			});
-			preparedServerOverlayFile = null;
+			const shared = await sharePreparedVideo(
+				preparedServerOverlayFile,
+				'This browser cannot share the prepared overlay video file.'
+			);
+			if (shared) preparedServerOverlayFile = null;
 			return;
 		}
 
@@ -1060,7 +1102,8 @@
 				url,
 				fileName,
 				mime: 'video/mp4',
-				fallbackError: 'Overlay export is ready. Tap Share overlay video to open the share sheet.'
+				fallbackError: 'Overlay export is ready. Tap Share overlay video to open the share sheet.',
+				preparedKind: 'server-overlay'
 			});
 		} catch (err) {
 			downloadError = err instanceof Error ? err.message : String(err);
@@ -1235,45 +1278,47 @@
 			<span>{showOverlay ? 'Hide overlay' : 'Show overlay'}</span>
 		</button>
 
-		<button
-			type="button"
-			class="pill pill-primary"
-			onclick={downloadServerOverlay}
-			disabled={downloading || requestingServerOverlay || overlayDownloadStatus === 'queued'}
-		>
-			{#if downloading}
-				<span class="pill-spinner" aria-hidden="true"></span>
-				<span>Preparing…</span>
-			{:else if requestingServerOverlay}
-				<span class="pill-spinner" aria-hidden="true"></span>
-				<span>Queueing...</span>
-			{:else if preparedServerOverlayFile}
-				<span aria-hidden="true">⬇︎</span>
-				<span>Share overlay video</span>
-			{:else if overlayDownloadStatus === 'retryable' || overlayDownloadStatus === 'processing'}
-				<span aria-hidden="true">↻</span>
-				<span>Retry overlay export</span>
-			{:else if overlayDownloadStatus === 'queued'}
-				<span class="pill-spinner" aria-hidden="true"></span>
-				<span>Overlay processing...</span>
-			{:else if overlayDownloadStatus === 'ready'}
-				<span aria-hidden="true">⬇︎</span>
-				<span>Download with overlay</span>
-			{:else}
-				<span aria-hidden="true">☁</span>
-				<span>Prepare overlay export</span>
-			{/if}
-		</button>
+		{#if canDownloadVideo}
+			<button
+				type="button"
+				class="pill pill-primary"
+				onclick={downloadServerOverlay}
+				disabled={downloading || requestingServerOverlay || overlayDownloadStatus === 'queued'}
+			>
+				{#if downloading}
+					<span class="pill-spinner" aria-hidden="true"></span>
+					<span>Preparing…</span>
+				{:else if requestingServerOverlay}
+					<span class="pill-spinner" aria-hidden="true"></span>
+					<span>Queueing...</span>
+				{:else if preparedServerOverlayFile}
+					<span aria-hidden="true">⬇︎</span>
+					<span>Share overlay video</span>
+				{:else if overlayDownloadStatus === 'retryable' || overlayDownloadStatus === 'processing'}
+					<span aria-hidden="true">↻</span>
+					<span>Retry overlay export</span>
+				{:else if overlayDownloadStatus === 'queued'}
+					<span class="pill-spinner" aria-hidden="true"></span>
+					<span>Overlay processing...</span>
+				{:else if overlayDownloadStatus === 'ready'}
+					<span aria-hidden="true">⬇︎</span>
+					<span>Download with overlay</span>
+				{:else}
+					<span aria-hidden="true">☁</span>
+					<span>Prepare overlay export</span>
+				{/if}
+			</button>
 
-		<button
-			type="button"
-			class="pill"
-			onclick={downloadOriginalVideo}
-			disabled={downloading || requestingServerOverlay}
-		>
-			<span aria-hidden="true">⬇︎</span>
-			<span>Download without overlay</span>
-		</button>
+			<button
+				type="button"
+				class="pill"
+				onclick={downloadOriginalVideo}
+				disabled={downloading || requestingServerOverlay}
+			>
+				<span aria-hidden="true">⬇︎</span>
+				<span>{preparedOriginalFile ? 'Share original video' : 'Download without overlay'}</span>
+			</button>
+		{/if}
 
 		{#if downloadError}
 			<p class="download-error">{downloadError}</p>
