@@ -568,7 +568,8 @@ async function generateOverlayDownload(args: {
 	}
 	const ownerId = args.video.ownerId ?? args.video.userId;
 	if (!ownerId) throw new HttpsError('failed-precondition', 'Dive video has no owner');
-	const outputDimensions = scaledDimensions(rotatedDimensions(args.video));
+	const outputDimensions = scaledDimensions(rotatedDimensions(args.video), 720);
+	const boundedDurationSeconds = Math.max(1, Math.ceil((args.video.durationSeconds ?? 0) + 1));
 	return withMasterFile(args.video, async (inputPath) => {
 		const outputPath = join(tmpdir(), `overdive-overlay-${randomUUID()}.mp4`);
 		const assPath = join(tmpdir(), `overdive-overlay-${randomUUID()}.ass`);
@@ -591,26 +592,37 @@ async function generateOverlayDownload(args: {
 			].join(',');
 			await execFileAsync(ffmpeg, [
 				'-y',
+				'-fflags',
+				'+genpts',
 				'-i',
 				inputPath,
+				'-t',
+				String(boundedDurationSeconds),
+				'-map',
+				'0:v:0',
+				'-map',
+				'0:a:0?',
 				'-vf',
 				filterChain,
 				'-c:v',
 				'libx264',
 				'-preset',
-				'veryfast',
+				'ultrafast',
 				'-crf',
-				'23',
+				'28',
 				'-pix_fmt',
 				'yuv420p',
 				'-c:a',
 				'aac',
 				'-b:a',
-				'128k',
+				'96k',
+				'-shortest',
+				'-max_muxing_queue_size',
+				'1024',
 				'-movflags',
 				'+faststart',
 				outputPath
-			]);
+			], { timeout: 8 * 60 * 1000, maxBuffer: 10 * 1024 * 1024 });
 
 			const bytes = await readFile(outputPath);
 			const key = `users/${ownerId}/videos/${args.videoId}/overlay/download.mp4`;
