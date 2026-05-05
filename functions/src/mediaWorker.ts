@@ -49,6 +49,7 @@ interface DiveVideoDoc {
 	storageProvider?: 'wasabi' | 'firebase-storage';
 	mimeType?: string;
 	sizeBytes?: number;
+	actualAverageBitrateBps?: number;
 	widthPx?: number;
 	heightPx?: number;
 	durationSeconds?: number;
@@ -243,6 +244,19 @@ function scaledDimensions(dimensions: { width: number; height: number }, maxEdge
 		width: even(dimensions.width * ratio),
 		height: even(dimensions.height * ratio)
 	};
+}
+
+function overlayMaxEdge(video: DiveVideoDoc): 540 | 720 {
+	const sizeBytes = video.cleanObject?.sizeBytes ?? video.sizeBytes ?? 0;
+	const durationSeconds = video.durationSeconds ?? 0;
+	const inferredBitrateBps =
+		sizeBytes > 0 && durationSeconds > 0 ? (sizeBytes * 8) / durationSeconds : undefined;
+	const bitrateBps = video.actualAverageBitrateBps ?? inferredBitrateBps ?? 0;
+	const highRiskSource =
+		sizeBytes > 500 * 1024 * 1024 ||
+		bitrateBps > 18_000_000 ||
+		(durationSeconds > 180 && sizeBytes > 350 * 1024 * 1024);
+	return highRiskSource ? 540 : 720;
 }
 
 function diveElapsedAt(timeline: DiveTimeline, atMs: number): number {
@@ -568,7 +582,7 @@ async function generateOverlayDownload(args: {
 	}
 	const ownerId = args.video.ownerId ?? args.video.userId;
 	if (!ownerId) throw new HttpsError('failed-precondition', 'Dive video has no owner');
-	const outputDimensions = scaledDimensions(rotatedDimensions(args.video), 540);
+	const outputDimensions = scaledDimensions(rotatedDimensions(args.video), overlayMaxEdge(args.video));
 	const boundedDurationSeconds = Math.max(1, Math.ceil((args.video.durationSeconds ?? 0) + 1));
 	return withMasterFile(args.video, async (inputPath) => {
 		const outputPath = join(tmpdir(), `overdive-overlay-${randomUUID()}.mp4`);
