@@ -36,6 +36,7 @@ import {
 	createWasabiUpload,
 	deleteWasabiObject,
 	getWasabiReadUrl,
+	requestWasabiOverlayDownload,
 	uploadWithSignedUrl
 } from '$lib/media/client';
 import {
@@ -214,6 +215,23 @@ export async function getDiveVideoPlaybackProxyUrl(video: DiveVideo): Promise<st
 	return read.url;
 }
 
+export async function getDiveVideoBurnedDownloadUrl(video: DiveVideo): Promise<string> {
+	if (!video.burnedObject?.key && !video.storagePathBurned) {
+		throw new Error('Dive video has no burned overlay export');
+	}
+	if (video.storageProvider === 'wasabi' || video.burnedObject?.provider === 'wasabi') {
+		const read = await getWasabiReadUrl({
+			kind: 'dive-video-burned',
+			videoId: video.id,
+			key: video.burnedObject?.key ?? video.storagePathBurned,
+			bucket: video.burnedObject?.bucket,
+			downloadFileName: `overdive-overlay-${video.discipline}-${video.id}.mp4`
+		});
+		return read.url;
+	}
+	return getDownloadURL(storageRef(storage, video.storagePathBurned as string));
+}
+
 export async function getPreferredDiveVideoPlaybackUrl(video: DiveVideo): Promise<string> {
 	if (video.processingState?.playbackProxy === 'ready') {
 		try {
@@ -223,6 +241,10 @@ export async function getPreferredDiveVideoPlaybackUrl(video: DiveVideo): Promis
 		}
 	}
 	return getDiveVideoDownloadUrl(video);
+}
+
+export async function requestDiveVideoOverlayDownload(videoId: string): Promise<void> {
+	await requestWasabiOverlayDownload(videoId);
 }
 
 export async function updateDiveVideoUploadStatus(

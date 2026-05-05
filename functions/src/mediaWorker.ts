@@ -16,6 +16,7 @@ import {
 	WASABI_SECRET_ACCESS_KEY
 } from './wasabiClient.js';
 import type { DiveVideoProcessingJob } from './mediaProcessingJobs.js';
+import type { DiveTimeline } from './lib/timelineToRoutineLog.js';
 
 const require = createRequire(import.meta.url);
 const ffmpegPath = require('ffmpeg-static') as string | null;
@@ -51,6 +52,10 @@ interface DiveVideoDoc {
 	heightPx?: number;
 	durationSeconds?: number;
 	actualFrameRate?: number;
+	discipline?: 'DYN' | 'DYNB' | 'DNF';
+	poolLength?: number;
+	timeline?: DiveTimeline;
+	overlayStyleVersion?: string;
 }
 
 interface DiveVideoArtifactRef {
@@ -124,7 +129,12 @@ function stateKeyFor(type: DiveVideoProcessingJob): string | null {
 }
 
 function isImplementedAutomaticJob(type: DiveVideoProcessingJob): boolean {
-	return type === 'probe-master' || type === 'generate-thumbnail' || type === 'generate-playback-proxy';
+	return (
+		type === 'probe-master' ||
+		type === 'generate-thumbnail' ||
+		type === 'generate-playback-proxy' ||
+		type === 'generate-overlay-download'
+	);
 }
 
 function frameRate(value: string | undefined): number | undefined {
@@ -160,6 +170,104 @@ function withoutUndefined(fields: Record<string, unknown>): Record<string, unkno
 	return Object.fromEntries(
 		Object.entries(fields).filter(([, value]) => value !== undefined)
 	);
+}
+
+function formatAssTime(seconds: number): string {
+	const clamped = Math.max(0, seconds);
+	const hours = Math.floor(clamped / 3600);
+	const minutes = Math.floor((clamped % 3600) / 60);
+	const secs = Math.floor(clamped % 60);
+	const centiseconds = Math.floor((clamped % 1) * 100);
+	return `${hours}:${minutes.toString().padStart(2, '0')}:${secs
+		.toString()
+		.padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}`;
+}
+
+function escapeAssText(value: string): string {
+	return value.replace(/[{}]/g, '').replace(/\r?\n/g, ' ');
+}
+
+function formatHudTime(ms: number): string {
+	const seconds = Math.floor(Math.max(0, ms) / 1000);
+	const minutes = Math.floor(seconds / 60).toString().padStart(2, '0');
+	const secs = (seconds % 60).toString().padStart(2, '0');
+	const tenths = Math.floor((Math.max(0, ms) % 1000) / 100);
+	return `${minutes}:${secs}.${tenths}`;
+}
+
+function diveElapsedAt(timeline: DiveTimeline, atMs: number): number {
+	if (atMs <= timeline.diveStartMs) return 0;
+	const end = timeline.diveEndMs > 0 ? timeline.diveEndMs : atMs;
+	return Math.max(0, Math.min(atMs, end) - timeline.diveStartMs);
+}
+
+function distanceAt(timeline: DiveTimeline, atMs: number, poolLength: number): number {
+	const samples = timeline.samples;
+	if (samples && samples.length > 0) {
+		const before = [...samples].reverse().find((sample) => sample.atMs <= atMs);
+		const after = samples.find((sample) => sample.atMs >= atMs);
+		if (!before) return 0;
+		if (!after || after.atMs === before.atMs) return before.distanceM;
+		const progress = (atMs - before.atMs) / (after.atMs - before.atMs);
+		return before.distanceM + (after.distanceM - before.distanceM) * progress;
+	}
+
+	const previousLap = [...timeline.laps].reverse().find((lap) => lap.atMs <= atMs);
+	if (!previousLap) return 0;
+	const nextLap = timeline.laps.find((lap) => lap.atMs > atMs);
+	if (!nextLap) return previousLap.cumulativeDistanceM;
+	const progress = (atMs - previousLap.atMs) / (nextLap.atMs - previousLap.atMs);
+	return previousLap.cumulativeDistanceM + poolLength * progress;
+}
+
+function speedAt(timeline: DiveTimeline, atMs: number, poolLength: number): number {
+	const samples = timeline.samples;
+	if (samples && samples.length > 0) {
+		const closest = [...samples].reverse().find((sample) => sample.atMs <= atMs) ?? samples[0];
+		return closest.speedMs;
+	}
+	const currentLap = [...timeline.laps].reverse().find((lap) => lap.atMs <= atMs);
+	if (!currentLap || currentLap.splitMs <= 0) return 0;
+	return poolLength / (currentLap.splitMs / 1000);
+}
+
+function overlayAss(args: {
+	timeline: DiveTimeline;
+	poolLength: number;
+	discipline: string;
+	durationSeconds: number;
+}): string {
+	const durationSeconds = Math.max(args.durationSeconds, args.timeline.diveEndMs / 1000, 1);
+	const events: string[] = [];
+	for (let second = 0; second < Math.ceil(durationSeconds); second += 1) {
+		const atMs = second * 1000;
+		const endSeconds = Math.min(durationSeconds, second + 1);
+		const distance = distanceAt(args.timeline, atMs, args.poolLength);
+		const speed = speedAt(args.timeline, atMs, args.poolLength);
+		const laps = args.timeline.laps.filter((lap) => lap.atMs <= atMs).length;
+		const text = escapeAssText(
+			`${args.discipline}  Time ${formatHudTime(diveElapsedAt(args.timeline, atMs))}  ` +
+				`Distance ${distance.toFixed(1)} m\\NLap ${laps}/${args.timeline.laps.length}  ` +
+				`${speed.toFixed(2)} m/s`
+		);
+		events.push(
+			`Dialogue: 0,${formatAssTime(second)},${formatAssTime(endSeconds)},HUD,,0,0,0,,${text}`
+		);
+	}
+
+	return `[Script Info]
+ScriptType: v4.00+
+PlayResX: 1280
+PlayResY: 720
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: HUD,Arial,32,&H00F8FAFC,&H000000FF,&H800F172A,&HAA0F172A,1,0,0,0,100,100,0,0,3,2,0,7,24,24,24,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+${events.join('\n')}
+`;
 }
 
 function masterObject(video: DiveVideoDoc): { bucket: string; key: string; contentType?: string } {
@@ -351,6 +459,81 @@ async function generatePlaybackProxy(args: {
 	});
 }
 
+async function generateOverlayDownload(args: {
+	videoId: string;
+	video: DiveVideoDoc;
+}): Promise<DiveVideoArtifactRef> {
+	const { ffmpeg, ffprobe } = assertWorkerBinaries();
+	const object = masterObject(args.video);
+	if (!args.video.timeline) {
+		throw new HttpsError('failed-precondition', 'Dive video has no timeline for overlay export');
+	}
+	const ownerId = args.video.ownerId ?? args.video.userId;
+	if (!ownerId) throw new HttpsError('failed-precondition', 'Dive video has no owner');
+	return withMasterFile(args.video, async (inputPath) => {
+		const outputPath = join(tmpdir(), `overdive-overlay-${randomUUID()}.mp4`);
+		const assPath = join(tmpdir(), `overdive-overlay-${randomUUID()}.ass`);
+		try {
+			await writeFile(
+				assPath,
+				overlayAss({
+					timeline: args.video.timeline as DiveTimeline,
+					poolLength: args.video.poolLength ?? 25,
+					discipline: args.video.discipline ?? 'DYN',
+					durationSeconds: args.video.durationSeconds ?? 0
+				})
+			);
+			await execFileAsync(ffmpeg, [
+				'-y',
+				'-i',
+				inputPath,
+				'-vf',
+				`subtitles=${assPath},scale=1280:1280:force_original_aspect_ratio=decrease:force_divisible_by=2`,
+				'-c:v',
+				'libx264',
+				'-preset',
+				'veryfast',
+				'-crf',
+				'23',
+				'-pix_fmt',
+				'yuv420p',
+				'-c:a',
+				'aac',
+				'-b:a',
+				'128k',
+				'-movflags',
+				'+faststart',
+				outputPath
+			]);
+
+			const bytes = await readFile(outputPath);
+			const key = `users/${ownerId}/videos/${args.videoId}/overlay/download.mp4`;
+			await putObjectBytes({ bucket: object.bucket, key, body: bytes, contentType: 'video/mp4' });
+			const probe = await probeMasterFile({ ffprobe, inputPath: outputPath });
+			return withoutUndefined({
+				kind: 'overlay-download',
+				profile: 'overlay-mp4-720p',
+				object: {
+					provider: 'wasabi',
+					bucket: object.bucket,
+					key,
+					contentType: 'video/mp4',
+					sizeBytes: bytes.byteLength
+				},
+				widthPx: probe.widthPx,
+				heightPx: probe.heightPx,
+				durationSeconds: probe.durationSeconds,
+				sizeBytes: bytes.byteLength,
+				contentType: 'video/mp4',
+				styleVersion: args.video.overlayStyleVersion,
+				disposable: true
+			}) as unknown as DiveVideoArtifactRef;
+		} finally {
+			await Promise.all([rm(outputPath, { force: true }), rm(assPath, { force: true })]);
+		}
+	});
+}
+
 async function probeMasterFile(args: {
 	ffprobe: string;
 	inputPath: string;
@@ -381,6 +564,16 @@ function withPlaybackProxyArtifact(
 	return [
 		...(artifacts ?? []).filter((artifact) => artifact.kind !== 'playback-proxy'),
 		proxy
+	];
+}
+
+function withArtifact(
+	artifacts: DiveVideoArtifactRef[] | undefined,
+	artifact: DiveVideoArtifactRef
+): DiveVideoArtifactRef[] {
+	return [
+		...(artifacts ?? []).filter((existing) => existing.kind !== artifact.kind),
+		artifact
 	];
 }
 
@@ -463,6 +656,16 @@ async function runMediaJob(args: { jobId: string; uid?: string }): Promise<{
 				'processingState.pendingJobs': FieldValue.arrayRemove(job.type),
 				updatedAt: FieldValue.serverTimestamp()
 			});
+		} else if (job.type === 'generate-overlay-download') {
+			const overlay = await generateOverlayDownload({ videoId: job.videoId, video });
+			await videoRef.update({
+				storagePathBurned: overlay.object.key,
+				burnedObject: overlay.object,
+				artifacts: withArtifact(video.artifacts, overlay),
+				'processingState.overlayDownload': 'ready',
+				'processingState.pendingJobs': FieldValue.arrayRemove(job.type),
+				updatedAt: FieldValue.serverTimestamp()
+			});
 		} else {
 			throw new HttpsError(
 				'failed-precondition',
@@ -482,6 +685,50 @@ async function runMediaJob(args: { jobId: string; uid?: string }): Promise<{
 		throw err;
 	}
 }
+
+export const requestOverlayDownload = onCall(
+	{
+		secrets: [WASABI_ACCESS_KEY_ID, WASABI_SECRET_ACCESS_KEY],
+		timeoutSeconds: 60,
+		memory: '256MiB'
+	},
+	async (request) => {
+		const uid = requireUid(request.auth);
+		const data = asRecord(request.data);
+		const videoId = requiredString(data, 'videoId');
+		const db = getFirestore();
+		const videoRef = db.collection('diveVideos').doc(videoId);
+		const jobRef = db.collection('mediaProcessingJobs').doc();
+		const jobId = jobRef.id;
+		const videoSnap = await videoRef.get();
+		if (!videoSnap.exists) throw new HttpsError('not-found', 'Dive video not found');
+		const video = videoSnap.data() as DiveVideoDoc;
+		const ownerId = video.ownerId ?? video.userId;
+		if (ownerId !== uid) {
+			throw new HttpsError('permission-denied', 'Only the video owner can request overlay export');
+		}
+		await Promise.all([
+			jobRef.set(
+				{
+					videoId,
+					ownerId,
+					type: 'generate-overlay-download',
+					status: 'queued',
+					attempts: 0,
+					createdAt: FieldValue.serverTimestamp(),
+					updatedAt: FieldValue.serverTimestamp()
+				},
+				{ merge: true }
+			),
+			videoRef.update({
+				'processingState.overlayDownload': 'queued',
+				'processingState.pendingJobs': FieldValue.arrayUnion('generate-overlay-download'),
+				updatedAt: FieldValue.serverTimestamp()
+			})
+		]);
+		return { jobId, queued: true };
+	}
+);
 
 export const processMediaJob = onCall(
 	{

@@ -30,7 +30,11 @@
 		exitDiveFullscreen,
 		DIVE_FS_EVENT
 	} from '$lib/stores/videoPlayback';
-	import { getDiveVideoDirectDownloadUrl } from '$lib/services/diveVideos';
+	import {
+		getDiveVideoBurnedDownloadUrl,
+		getDiveVideoDirectDownloadUrl,
+		requestDiveVideoOverlayDownload
+	} from '$lib/services/diveVideos';
 
 	const MAX_BROWSER_OVERLAY_EXPORT_BYTES = 200 * 1024 * 1024;
 
@@ -213,6 +217,7 @@
 	let exportDiagnostic = $state<string | null>(null);
 	let preparedShareFile = $state<File | null>(null);
 	let downloading = $state(false);
+	let requestingServerOverlay = $state(false);
 	let exportProgress = $state(0); // 0..1 while baking
 
 	function fileExtensionFromMime(mime: string): string {
@@ -729,7 +734,6 @@
 			await downloadOriginalVideo();
 			return;
 		}
-
 		downloading = true;
 		downloadError = null;
 		exportProgress = 0;
@@ -852,7 +856,37 @@
 			downloading = false;
 			exportProgress = 0;
 		}
-	}</script>
+	}
+
+	async function requestServerOverlay(): Promise<void> {
+		if (requestingServerOverlay) return;
+		requestingServerOverlay = true;
+		downloadError = null;
+		try {
+			await requestDiveVideoOverlayDownload(video.id);
+			exportDiagnostic = 'Server overlay export queued. Refresh this video after processing to download the ready MP4.';
+		} catch (err) {
+			downloadError = err instanceof Error ? err.message : String(err);
+		} finally {
+			requestingServerOverlay = false;
+		}
+	}
+
+	async function downloadServerOverlay(): Promise<void> {
+		downloadError = null;
+		try {
+			const url = await getDiveVideoBurnedDownloadUrl(video);
+			const anchor = document.createElement('a');
+			anchor.href = url;
+			anchor.download = `overdive-overlay-${video.discipline}-${video.id}.mp4`;
+			document.body.appendChild(anchor);
+			anchor.click();
+			anchor.remove();
+		} catch (err) {
+			downloadError = err instanceof Error ? err.message : String(err);
+		}
+	}
+</script>
 
 <div
 	bind:this={containerEl}
@@ -1009,11 +1043,47 @@
 		</button>
 
 		{#if showOverlay}
+			{#if video.processingState?.overlayDownload === 'ready'}
+				<button
+					type="button"
+					class="pill"
+					onclick={downloadServerOverlay}
+					disabled={downloading || requestingServerOverlay}
+				>
+					<span aria-hidden="true">☁</span>
+					<span>Download server overlay</span>
+				</button>
+			{/if}
+
+			<button
+				type="button"
+				class="pill"
+				onclick={requestServerOverlay}
+				disabled={downloading || requestingServerOverlay || video.processingState?.overlayDownload === 'queued' || video.processingState?.overlayDownload === 'processing'}
+			>
+				{#if requestingServerOverlay}
+					<span class="pill-spinner" aria-hidden="true"></span>
+					<span>Queueing...</span>
+				{:else if video.processingState?.overlayDownload === 'retryable'}
+					<span aria-hidden="true">↻</span>
+					<span>Retry server overlay</span>
+				{:else if video.processingState?.overlayDownload === 'processing' || video.processingState?.overlayDownload === 'queued'}
+					<span aria-hidden="true">⌛</span>
+					<span>Server overlay queued</span>
+				{:else if video.processingState?.overlayDownload === 'ready'}
+					<span aria-hidden="true">✓</span>
+					<span>Server overlay ready</span>
+				{:else}
+					<span aria-hidden="true">☁</span>
+					<span>Request server overlay</span>
+				{/if}
+			</button>
+
 			<button
 				type="button"
 				class="pill"
 				onclick={downloadOriginalVideo}
-				disabled={downloading}
+				disabled={downloading || requestingServerOverlay}
 			>
 				<span aria-hidden="true">⬇︎</span>
 				<span>Download original</span>

@@ -210,13 +210,17 @@ Use social-app expectations:
 
 ### Phase 3 - Server overlay exports
 
-- [ ] ⚠️ Essential before Phase 3 completion: generate overlay-burned MP4 from master + `DiveTimeline` using FFmpeg filters or rendered overlay frames.
-- [ ] ⚠️ Essential before Phase 3 completion: preserve source audio.
-- [ ] Produce 720p and 1080p exports for both portrait and landscape presentation.
+- [x] ⚠️ Essential before Phase 3 completion: generate overlay-burned MP4 from master + `DiveTimeline` using FFmpeg filters or rendered overlay frames. First pass implemented as a requested `generate-overlay-download` worker job that burns a timeline-driven ASS HUD into a 720p MP4.
+- [x] ⚠️ Essential before Phase 3 completion: preserve source audio. First pass transcodes/muxes source audio to AAC in the server overlay download artifact.
+- [ ] Produce 720p and 1080p exports for both portrait and landscape presentation. First pass produces a 720p overlay download artifact; 1080p and portrait-specific framing remain pending.
 - [x] Version overlay styles so old videos can be re-exported consistently. New videos store `overlayStyleVersion` from `SERVER_OVERLAY_STYLE_VERSION`.
-- [ ] Treat overlay download artifacts as disposable/rebuildable with temporary retention.
-- [ ] Add `Request overlay export` / `Retry export` semantics in the UI.
+- [x] Treat overlay download artifacts as disposable/rebuildable with temporary retention. First pass stores overlay-download artifacts with `disposable: true`; explicit expiry/cleanup still belongs to Phase 4 retention work.
+- [x] Add `Request overlay export` / `Retry export` semantics in the UI. The player can queue/retry the server overlay download job while retaining the current browser export path.
 - [ ] Remove or demote client-side canvas baking once server overlay is reliable.
+
+**Current status (2026-05-05):** first-pass server overlay export is implemented but not yet validated against real uploaded footage. `requestOverlayDownload` creates a fresh `generate-overlay-download` job for each request/retry, the Firestore queue trigger processes that job automatically, and the worker writes a 720p `overlay/download.mp4` Wasabi artifact while preserving audio via AAC. `DiveVideoPlayer` can request/retry the job and download the ready burned artifact after a refresh. This is enough to start production smoke testing, but it should be treated as a Phase 3 alpha path until the FFmpeg subtitles filter, audio preservation, and generated HUD layout are verified on iPhone/Android source clips.
+
+**Next Phase 3 work:** deploy `requestOverlayDownload`, run one real-video smoke test end-to-end, show live processing status without requiring refresh, add 1080p and portrait-aware framing, and decide whether the browser canvas export should be demoted once server output is trustworthy.
 
 ### Phase 4 - Queue hardening and observability
 

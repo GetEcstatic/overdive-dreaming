@@ -41,14 +41,14 @@
 		{
 			"label": "deploy media worker functions",
 			"type": "shell",
-			"command": "firebase deploy --only functions:processMediaJob,functions:onMediaProcessingJobCreated,functions:completeDiveVideoMultipartUpload",
+			"command": "firebase deploy --only functions:processMediaJob,functions:onMediaProcessingJobCreated,functions:requestOverlayDownload,functions:completeDiveVideoMultipartUpload",
 			"problemMatcher": [],
 			"group": "build"
 		},
 		{
 			"label": "list deployed media functions",
 			"type": "shell",
-			"command": "firebase functions:list | grep -E 'processMediaJob|onMediaProcessingJobCreated|completeDiveVideoMultipartUpload|Function'",
+			"command": "firebase functions:list | grep -E 'processMediaJob|onMediaProcessingJobCreated|requestOverlayDownload|completeDiveVideoMultipartUpload|Function'",
 			"problemMatcher": [],
 			"group": "build"
 		},

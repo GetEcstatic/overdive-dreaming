@@ -68,6 +68,10 @@ const abortMultipartUploadFn = httpsCallable<
 	{ videoId: string; bucket: string; key: string; uploadId: string },
 	{ aborted: boolean }
 >(functions, 'abortDiveVideoMultipartUpload');
+const requestOverlayDownloadFn = httpsCallable<
+	{ videoId: string },
+	{ jobId: string; queued: boolean }
+>(functions, 'requestOverlayDownload');
 
 export async function createWasabiUpload(args: CreateUploadArgs): Promise<SignedUpload> {
 	return (await createMediaUploadFn(args)).data;
@@ -177,4 +181,11 @@ export async function abortWasabiMultipartUpload(args: {
 	uploadId: string;
 }): Promise<void> {
 	await abortMultipartUploadFn(args);
+}
+
+export async function requestWasabiOverlayDownload(videoId: string): Promise<{
+	jobId: string;
+	queued: boolean;
+}> {
+	return (await requestOverlayDownloadFn({ videoId })).data;
 }
