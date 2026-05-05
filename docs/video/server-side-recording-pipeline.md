@@ -401,3 +401,109 @@ Required proof before continuing:
 - [ ] Billing/runtime looks acceptable for at least a few real videos.
 
 Once those are true, continue with 720p playback-proxy generation. Overlay export should remain after proxy generation because it is more expensive and easier to get wrong.
+
+## 17. Tom Steps To Deploy And Test The Functions V2 Worker
+
+These steps test the economical Functions v2 + Firestore job-doc path against real Wasabi media before building playback proxies or overlay exports.
+
+### A. Pre-flight checks
+
+- [x] Confirm you are logged in to Firebase CLI with the account that owns the Overdive project:
+   ```bash
+   firebase login
+   ```
+- [x] Confirm the active Firebase project is the Overdive project:
+   ```bash
+   firebase use
+   ```
+- [x] Confirm the functions package builds locally:
+   ```bash
+   npm --prefix functions run build
+   ```
+- [x] Confirm the Wasabi secrets already exist for Cloud Functions:
+   ```bash
+   firebase functions:secrets:access WASABI_ACCESS_KEY_ID
+   firebase functions:secrets:access WASABI_SECRET_ACCESS_KEY
+   ```
+- [x] If either secret is missing, set it before deploy. Not needed on 2026-05-05; both secrets were present:
+   ```bash
+   firebase functions:secrets:set WASABI_ACCESS_KEY_ID
+   firebase functions:secrets:set WASABI_SECRET_ACCESS_KEY
+   ```
+
+### B. Deploy only the worker-related functions
+
+Deploy the media worker and multipart completion path first, rather than all functions:
+
+```bash
+firebase deploy --only functions:processMediaJob,functions:completeDiveVideoMultipartUpload
+```
+
+Status on 2026-05-05: deployed and confirmed with `firebase functions:list`.
+
+- [x] `processMediaJob` — v2 callable, `us-central1`, Node.js 22, 1 GiB memory.
+- [x] `completeDiveVideoMultipartUpload` — v2 callable, `us-central1`, Node.js 22, 256 MiB memory.
+
+If Firebase reports that another updated function is required because of shared code or secrets, deploy the smallest listed set it asks for. Avoid deploying unrelated app hosting or Firestore rules during this test.
+
+### C. Create a real test video
+
+1. Open Overdive normally.
+2. Record a short dynamic dive video, ideally 5-10 seconds, to keep the first FFmpeg test cheap.
+3. Wait for the upload to finish.
+4. In Firestore, open the new `diveVideos/{videoId}` document and confirm:
+   - `uploadStatus` is `uploaded`;
+   - `processingState.master` is `ready`;
+   - `processingState.thumbnail` is `queued`;
+   - `processingState.pendingJobs` includes `probe-master` and `generate-thumbnail`.
+5. Open `mediaProcessingJobs` and find the deterministic jobs:
+   - `{videoId}_probe-master`
+   - `{videoId}_generate-thumbnail`
+
+### D. Run the worker manually
+
+Call `processMediaJob` from an authenticated Overdive app context. The function requires Firebase Auth, so a generic unauthenticated Cloud Console test call is expected to fail. For the first test, use a temporary owner-only test button or a tiny dev-only route that calls the deployed callable for the signed-in user.
+
+Call it twice:
+
+```json
+{ "jobId": "VIDEO_ID_probe-master" }
+```
+
+Then:
+
+```json
+{ "jobId": "VIDEO_ID_generate-thumbnail" }
+```
+
+Expected result for each call:
+
+- the callable returns `status: "ready"`;
+- the matching `mediaProcessingJobs/{jobId}` doc changes to `status: "ready"`;
+- `attempts` increments once;
+- `completedAt` is set.
+
+### E. Verify the video document and UI
+
+After the probe job:
+
+- `diveVideos/{videoId}.processingState.master` remains `ready`;
+- probe-derived metadata such as dimensions, duration, or frame rate is present/updated where available.
+
+After the thumbnail job:
+
+- `diveVideos/{videoId}.processingState.thumbnail` is `ready`;
+- `thumbnailObject` is set with a Wasabi bucket/key;
+- the Wasabi object exists at `users/{ownerId}/videos/{videoId}/thumb.jpg`;
+- the dashboard/session video player shows the thumbnail poster once the page reloads.
+
+### F. Check logs and costs
+
+1. Check function logs:
+   ```bash
+   firebase functions:log --only processMediaJob
+   ```
+2. Confirm there are no repeated retries or `retryable` job states.
+3. Check Firebase/GCP billing after a few test videos.
+4. If probe + thumbnail is reliable and cheap, continue to the 720p playback-proxy phase.
+5. If FFmpeg binary size, timeout, memory, or cold starts are painful, stop and move the same Firestore job contract to Cloud Run.
