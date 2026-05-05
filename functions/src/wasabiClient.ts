@@ -93,6 +93,37 @@ export async function deleteObject(args: { bucket: string; key: string }): Promi
 	await getWasabiClient().send(new DeleteObjectCommand({ Bucket: args.bucket, Key: args.key }));
 }
 
+export async function getObjectBytes(args: { bucket: string; key: string }): Promise<Uint8Array> {
+	const result = await getWasabiClient().send(
+		new GetObjectCommand({ Bucket: args.bucket, Key: args.key })
+	);
+	if (!result.Body) throw new Error('Wasabi object response had no body');
+	if ('transformToByteArray' in result.Body) {
+		return result.Body.transformToByteArray();
+	}
+	const chunks: Buffer[] = [];
+	for await (const chunk of result.Body as AsyncIterable<Uint8Array>) {
+		chunks.push(Buffer.from(chunk));
+	}
+	return Buffer.concat(chunks);
+}
+
+export async function putObjectBytes(args: {
+	bucket: string;
+	key: string;
+	body: Uint8Array;
+	contentType: string;
+}): Promise<void> {
+	await getWasabiClient().send(
+		new PutObjectCommand({
+			Bucket: args.bucket,
+			Key: args.key,
+			Body: args.body,
+			ContentType: args.contentType
+		})
+	);
+}
+
 export async function createMultipartUpload(args: {
 	bucket: string;
 	key: string;

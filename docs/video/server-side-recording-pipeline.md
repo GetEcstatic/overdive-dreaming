@@ -310,14 +310,16 @@ Phase 0 has started in the current codebase: shared media-processing types, arti
 - [x] New `DiveVideo` records now start with processing state.
 - [x] Completed uploads now mark the clean master as ready and queue lightweight server jobs in Firestore data.
 - [x] Multipart upload completion now creates deterministic `mediaProcessingJobs` docs for probe, thumbnail, and playback-proxy work.
+- [x] Added a Functions v2 `processMediaJob` worker for probe and thumbnail jobs.
+- [x] Added server-side job claiming/idempotency for worker invocations.
 
 ## 13. Required Next
 
 - [x] Choose the economical first worker path: Firebase Functions v2 + Firestore jobs.
 - [x] Register only the service required for that first path: existing Functions v2 setup.
-- [ ] Add a minimal media worker that can read a master video, run `ffprobe`, write probe metadata, and generate a thumbnail.
+- [x] Add a minimal media worker that can read a master video, run `ffprobe`, write probe metadata, and generate a thumbnail.
 - [x] Add server-side deterministic job creation so repeat upload completion does not duplicate queued job documents.
-- [ ] Add server-side job claiming/idempotency so repeat worker invocations do not duplicate artifacts or corrupt state.
+- [x] Add server-side job claiming/idempotency so repeat worker invocations do not duplicate artifacts or corrupt state.
 - [ ] Add signed artifact reads for thumbnail and playback proxy variants.
 - [ ] Update dashboard/session UI to prefer thumbnail/proxy artifacts when ready and fall back cleanly to current master playback.
 - [ ] Add server-side overlay export request flow after thumbnail/proxy is proven.
@@ -363,9 +365,9 @@ Firebase deploys usually prompt for missing APIs, but enabling them intentionall
 
 - [x] The functions package already uses `firebase-functions` v7, which supports v2 APIs.
 - [x] The functions package already targets Node 22.
-- [ ] Add the first v2 function using imports from `firebase-functions/v2/*`, such as `onCall` or `onRequest`.
-- [ ] Keep the first function small: claim one Firestore job, run probe/thumbnail work, update `DiveVideo.processingState`.
-- [ ] Build locally with `npm --prefix functions run build` before deploy.
+- [x] Add the first v2 function using imports from `firebase-functions/v2/*`, such as `onCall` or `onRequest`.
+- [x] Keep the first function small: claim one Firestore job, run probe/thumbnail work, update `DiveVideo.processingState`.
+- [x] Build locally with `npm --prefix functions run build` before deploy.
 - [ ] Deploy only functions with `firebase deploy --only functions` once ready.
 
 ### Cost controls for the first experiment
