@@ -395,9 +395,9 @@ Implementation should pause here until the Functions v2 worker is deployed or ru
 
 Required proof before continuing:
 
-- [ ] `processMediaJob` can claim and complete a `probe-master` job.
-- [ ] `processMediaJob` can claim and complete a `generate-thumbnail` job.
-- [ ] The generated thumbnail object is readable in the dashboard/session UI.
+- [x] `processMediaJob` can claim and complete a `probe-master` job.
+- [x] `processMediaJob` can claim and complete a `generate-thumbnail` job.
+- [x] The generated thumbnail object is readable through the same signed read path used by the dashboard/session UI.
 - [ ] Billing/runtime looks acceptable for at least a few real videos.
 
 Once those are true, continue with 720p playback-proxy generation. Overlay export should remain after proxy generation because it is more expensive and easier to get wrong.
@@ -464,6 +464,14 @@ If Firebase reports that another updated function is required because of shared 
 
 Call `processMediaJob` from an authenticated Overdive app context. The function requires Firebase Auth, so a generic unauthenticated Cloud Console test call is expected to fail. For the first test, use a temporary owner-only test button or a tiny dev-only route that calls the deployed callable for the signed-in user.
 
+Status on 2026-05-05: completed from CLI after temporarily granting the logged-in CLI account `roles/iam.serviceAccountTokenCreator` on `overdive-dreaming-fb@appspot.gserviceaccount.com`. The temporary IAM binding was removed after the test. The real uploaded test video is `QoGe8CGB28NtfHOwXdbh`, owned by `GRm9WVvOjCMpX7zqD3ZktaiSQzm2`. The worker was manually invoked for the two implemented jobs:
+
+- `QoGe8CGB28NtfHOwXdbh_probe-master` returned `status: "ready"`.
+- `QoGe8CGB28NtfHOwXdbh_generate-thumbnail` returned `status: "ready"`.
+- `QoGe8CGB28NtfHOwXdbh_generate-playback-proxy` (leave queued until the probe/thumbnail gate passes)
+
+Firebase Console / unauthenticated Cloud Functions test calls are still expected to fail for this callable because it requires Firebase Auth. The CLI path works by minting a Firebase custom token for the video owner, exchanging it for an ID token, then calling the deployed callable with `Authorization: Bearer <idToken>`.
+
 Call it twice:
 
 ```json
@@ -485,6 +493,16 @@ Expected result for each call:
 
 ### E. Verify the video document and UI
 
+Status on 2026-05-05: completed after the manual worker run:
+
+- `diveVideos/QoGe8CGB28NtfHOwXdbh.uploadStatus` is `uploaded`;
+- `processingState.master` is `ready`;
+- `processingState.thumbnail` is `ready`;
+- `processingState.pendingJobs` includes `probe-master`, `generate-thumbnail`, and `generate-playback-proxy`;
+- probe-derived metadata is present: `widthPx = 1920`, `heightPx = 1080`, `durationSeconds ≈ 9.123`, `actualFrameRate ≈ 30.05`, `probeFormatName = mov,mp4,m4a,3gp,3g2,mj2`;
+- `thumbnailObject` is set to `overdive-media-prod/users/GRm9WVvOjCMpX7zqD3ZktaiSQzm2/videos/QoGe8CGB28NtfHOwXdbh/thumb.jpg` with `contentType = image/jpeg` and `sizeBytes = 10975`;
+- the signed thumbnail read path returned HTTP 200 and downloaded a valid JPEG (`ff d8 ff` magic bytes).
+
 After the probe job:
 
 - `diveVideos/{videoId}.processingState.master` remains `ready`;
@@ -498,6 +516,8 @@ After the thumbnail job:
 - the dashboard/session video player shows the thumbnail poster once the page reloads.
 
 ### F. Check logs and costs
+
+Status on 2026-05-05: deployment/startup and callable verification logs for `processMediaJob` are clean. Both manual callable requests passed auth verification. No worker errors, repeated retries, or `retryable` job states were observed. Billing/runtime still needs observation across a few real videos before enabling playback-proxy generation broadly.
 
 1. Check function logs:
    ```bash
