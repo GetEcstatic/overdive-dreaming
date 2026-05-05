@@ -38,6 +38,10 @@ import {
 	getWasabiReadUrl,
 	uploadWithSignedUrl
 } from '$lib/media/client';
+import {
+	initialDiveVideoProcessingState,
+	SERVER_OVERLAY_STYLE_VERSION
+} from '$lib/media/processing';
 import type {
 	DiveVideo,
 	DiveVideoFormData,
@@ -79,6 +83,8 @@ export async function createDiveVideo(
 		...videoData,
 		id: videoId,
 		storagePathClean,
+		processingState: videoData.processingState ?? initialDiveVideoProcessingState(),
+		overlayStyleVersion: videoData.overlayStyleVersion ?? SERVER_OVERLAY_STYLE_VERSION,
 		createdAt: serverTimestamp(),
 		updatedAt: serverTimestamp()
 	};
@@ -370,6 +376,12 @@ export async function deleteDiveVideo(video: DiveVideo): Promise<void> {
 	await deleteDoc(doc(db, COLLECTION, video.id));
 }
 
+export async function deleteDiveVideosForSession(sessionId: string): Promise<number> {
+	const videos = await listDiveVideosForSession(sessionId);
+	await Promise.all(videos.map((video) => deleteDiveVideo(video)));
+	return videos.length;
+}
+
 /**
  * Client-side retention reaper.
  *
@@ -499,6 +511,8 @@ export function buildDiveVideoFormData(args: {
 		actualFrameRate: args.actualFrameRate,
 		retentionTier: 'keep-last-5',
 		uploadStatus: 'pending',
+		processingState: initialDiveVideoProcessingState(),
+		overlayStyleVersion: SERVER_OVERLAY_STYLE_VERSION,
 		timeline: args.timeline
 	};
 }

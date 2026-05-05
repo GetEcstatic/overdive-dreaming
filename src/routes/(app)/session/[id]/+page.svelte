@@ -16,6 +16,7 @@
 	import { shareCard, downloadShareCard } from '$lib/utils/shareCard';
 	import { parseBiometricCsv } from '$lib/utils/biometricCsvParser';
 	import { formatAttemptBadge } from '$lib/utils/attemptCategories';
+	import { deleteDiveVideosForSession } from '$lib/services/diveVideos';
 	import type { RoutineLog, Discipline, BiometricReading } from '$lib/types';
 	import CommentSection from '$lib/components/CommentSection.svelte';
 	import SessionDiveVideos from '$lib/components/SessionDiveVideos.svelte';
@@ -172,6 +173,7 @@
 		try {
 			const disciplines: Discipline[] = log.disciplineUsed ? [log.disciplineUsed] : [];
 
+			await deleteDiveVideosForSession(log.id);
 			await deleteRoutineLog(log.id);
 
 			// Clean up photo from storage

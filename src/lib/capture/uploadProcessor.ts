@@ -22,6 +22,10 @@ import {
 	type UploadedPart
 } from '$lib/media/client';
 import {
+	masterDiveVideoArtifact,
+	uploadedDiveVideoProcessingState
+} from '$lib/media/processing';
+import {
 	listPendingUploads,
 	markAttempt,
 	removePendingUpload,
@@ -191,8 +195,21 @@ async function uploadOne(
 		details: { storagePath: wasabiUpload.key, bucket: wasabiUpload.bucket }
 	});
 
-	// 3. Flip status to 'uploaded' and remove from queue.
-	await updateDiveVideoUploadStatus(videoId, 'uploaded');
+	// 3. Flip status to 'uploaded', queue lightweight server-side processing,
+	// and remove from the local queue. The actual worker lands separately.
+	await updateDiveVideoUploadStatus(videoId, 'uploaded', {
+		processingState: uploadedDiveVideoProcessingState(),
+		artifacts: [
+			masterDiveVideoArtifact({
+				object: cleanObject,
+				widthPx: entry.metadata.widthPx,
+				heightPx: entry.metadata.heightPx,
+				durationSeconds: entry.metadata.durationSeconds,
+				sizeBytes: entry.blob.size,
+				contentType: entry.mimeType
+			})
+		]
+	});
 	logUploadDiagnostic({
 		level: 'info',
 		step: 'firestore:uploaded',

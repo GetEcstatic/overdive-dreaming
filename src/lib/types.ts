@@ -1001,6 +1001,64 @@ export type DiveVideoRetentionTier = 'keep-last-5' | 'pinned';
 export type DiveVideoGiftStatus = 'pending' | 'accepted' | 'declined';
 export type DiveVideoDiscipline = 'DYN' | 'DYNB' | 'DNF';
 
+export type DiveVideoProcessingStatus =
+	| 'not-requested'
+	| 'queued'
+	| 'processing'
+	| 'ready'
+	| 'failed'
+	| 'retryable';
+
+export type DiveVideoProcessingJob =
+	| 'probe-master'
+	| 'generate-thumbnail'
+	| 'generate-playback-proxy'
+	| 'generate-overlay-preview'
+	| 'generate-overlay-download';
+
+export type DiveVideoArtifactKind =
+	| 'master'
+	| 'thumbnail'
+	| 'playback-proxy'
+	| 'overlay-preview'
+	| 'overlay-download'
+	| 'hls-manifest';
+
+export type DiveVideoArtifactProfile =
+	| 'original'
+	| 'thumb-jpeg'
+	| 'mp4-720p'
+	| 'mp4-1080p'
+	| 'hls-adaptive'
+	| 'overlay-mp4-720p'
+	| 'overlay-mp4-1080p';
+
+export interface DiveVideoProcessingState {
+	master: DiveVideoProcessingStatus;
+	thumbnail: DiveVideoProcessingStatus;
+	playbackProxy: DiveVideoProcessingStatus;
+	overlayPreview: DiveVideoProcessingStatus;
+	overlayDownload: DiveVideoProcessingStatus;
+	pendingJobs?: DiveVideoProcessingJob[];
+	lastError?: string;
+	lastErrorAt?: Timestamp;
+}
+
+export interface DiveVideoArtifactRef {
+	kind: DiveVideoArtifactKind;
+	profile: DiveVideoArtifactProfile;
+	object: MediaObjectRef;
+	widthPx?: number;
+	heightPx?: number;
+	durationSeconds?: number;
+	sizeBytes?: number;
+	contentType?: string;
+	styleVersion?: string;
+	disposable?: boolean;
+	expiresAt?: Timestamp;
+	createdAt?: Timestamp;
+}
+
 /**
  * Upload lifecycle state of the video blob itself.
  * - 'pending': blob lives in IndexedDB, not yet uploaded
@@ -1082,6 +1140,9 @@ export interface DiveVideo {
 
 	// Upload lifecycle
 	uploadStatus: DiveVideoUploadStatus;
+	processingState?: DiveVideoProcessingState;
+	artifacts?: DiveVideoArtifactRef[];
+	overlayStyleVersion?: string;
 
 	// Timeline — the key analytics artifact
 	timeline: DiveTimeline;

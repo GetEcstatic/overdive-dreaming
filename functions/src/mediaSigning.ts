@@ -13,6 +13,10 @@ import {
 	WASABI_ACCESS_KEY_ID,
 	WASABI_SECRET_ACCESS_KEY
 } from './wasabiClient.js';
+import {
+	enqueueUploadProcessingJobs,
+	uploadedDiveVideoProcessingState
+} from './mediaProcessingJobs.js';
 
 const UPLOAD_URL_EXPIRES_SECONDS = 15 * 60;
 const READ_URL_EXPIRES_SECONDS = 60 * 60;
@@ -495,6 +499,7 @@ export const completeDiveVideoMultipartUpload = onCall(callableOptions, async (r
 	const expectedPrefix = `users/${diveVideoOwner(snap)}/videos/${videoId}/`;
 	assertWasabiKey({ bucket, key, expectedPrefix });
 	assertExistingDiveVideoObject({ snap, kind: 'dive-video-clean', bucket, key });
+	const ownerId = diveVideoOwner(snap);
 	const existingCleanObject = (snap.data() as { cleanObject?: MediaObjectRef } | undefined)?.cleanObject;
 	try {
 		await completeMultipartUpload({
@@ -517,8 +522,10 @@ export const completeDiveVideoMultipartUpload = onCall(callableOptions, async (r
 			existingCleanObject?.bucket === bucket && existingCleanObject.key === key
 				? existingCleanObject
 				: { provider: 'wasabi', bucket, key },
+		processingState: uploadedDiveVideoProcessingState(),
 		updatedAt: FieldValue.serverTimestamp()
 	});
+	await enqueueUploadProcessingJobs({ videoId, ownerId });
 	return { uploaded: true };
 });
 
