@@ -32,7 +32,14 @@ const createMediaUploadFn = httpsCallable<CreateUploadArgs, SignedUpload>(
 	'createMediaUpload'
 );
 const getMediaReadUrlFn = httpsCallable<
-	{ kind: MediaKind; routineLogId?: string; videoId?: string; key?: string; bucket?: string },
+	{
+		kind: MediaKind;
+		routineLogId?: string;
+		videoId?: string;
+		key?: string;
+		bucket?: string;
+		downloadFileName?: string;
+	},
 	SignedRead
 >(functions, 'getMediaReadUrl');
 const deleteMediaObjectFn = httpsCallable<
@@ -72,6 +79,7 @@ export async function getWasabiReadUrl(args: {
 	videoId?: string;
 	key?: string;
 	bucket?: string;
+	downloadFileName?: string;
 }): Promise<SignedRead> {
 	return (await getMediaReadUrlFn(args)).data;
 }

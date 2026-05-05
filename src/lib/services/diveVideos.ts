@@ -165,6 +165,23 @@ export async function getDiveVideoDownloadUrl(videoOrStoragePath: DiveVideo | st
 	return getDownloadURL(storageRef(storage, videoOrStoragePath));
 }
 
+export async function getDiveVideoDirectDownloadUrl(
+	video: DiveVideo,
+	downloadFileName: string
+): Promise<string> {
+	if (video.storageProvider === 'wasabi' || video.cleanObject?.provider === 'wasabi') {
+		const read = await getWasabiReadUrl({
+			kind: 'dive-video-clean',
+			videoId: video.id,
+			key: video.cleanObject?.key ?? video.storagePathClean,
+			bucket: video.cleanObject?.bucket,
+			downloadFileName
+		});
+		return read.url;
+	}
+	return getDownloadURL(storageRef(storage, video.storagePathClean));
+}
+
 export async function updateDiveVideoUploadStatus(
 	videoId: string,
 	status: DiveVideoUploadStatus,

@@ -74,10 +74,17 @@ export async function signGetObject(args: {
 	bucket: string;
 	key: string;
 	expiresInSeconds: number;
+	responseContentDisposition?: string;
+	responseContentType?: string;
 }): Promise<string> {
 	return getSignedUrl(
 		getWasabiClient(),
-		new GetObjectCommand({ Bucket: args.bucket, Key: args.key }),
+		new GetObjectCommand({
+			Bucket: args.bucket,
+			Key: args.key,
+			ResponseContentDisposition: args.responseContentDisposition,
+			ResponseContentType: args.responseContentType
+		}),
 		{ expiresIn: args.expiresInSeconds }
 	);
 }

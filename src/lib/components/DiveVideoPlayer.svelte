@@ -30,6 +30,9 @@
 		exitDiveFullscreen,
 		DIVE_FS_EVENT
 	} from '$lib/stores/videoPlayback';
+	import { getDiveVideoDirectDownloadUrl } from '$lib/services/diveVideos';
+
+	const MAX_BROWSER_OVERLAY_EXPORT_BYTES = 200 * 1024 * 1024;
 
 	interface Props {
 		video: DiveVideo;
@@ -198,8 +201,9 @@
 	});
 
 	// -----------------------------------------------------------------------
-	// Download-to-Photos: `navigator.share({ files })` with `<a download>`
-	// fallback. See docs/Dynamic video feature.md §7 and QA checklist.
+	// Downloads: original videos stream directly from storage; overlay exports
+	// still use `navigator.share({ files })` with an `<a download>` fallback.
+	// See docs/Dynamic video feature.md §7 and QA checklist.
 	// When `showOverlay` is true, the clip is re-rendered through a canvas
 	// so the HUD is burned into every exported frame.
 	// -----------------------------------------------------------------------
@@ -222,6 +226,12 @@
 	function formatMbps(bitsPerSecond: number | undefined): string {
 		if (!bitsPerSecond || bitsPerSecond <= 0) return 'unknown bitrate';
 		return `${(bitsPerSecond / 1_000_000).toFixed(1)} Mbps`;
+	}
+
+	function formatBytes(bytes: number | undefined): string {
+		if (!bytes || bytes <= 0) return 'unknown size';
+		const mb = bytes / (1024 * 1024);
+		return `${mb.toFixed(mb >= 100 ? 0 : 1)} MB`;
 	}
 
 	type CanvasVideoTrackWithRequestFrame = MediaStreamTrack & {
@@ -346,10 +356,34 @@
 		return `overdive-${video.discipline}-${tag}-${stamp}.${fileExtensionFromMime(mime)}`;
 	}
 
-	async function fetchBlob(): Promise<Blob> {
-		const res = await fetch(srcUrl);
-		if (!res.ok) throw new Error(`Download failed (${res.status})`);
-		return await res.blob();
+	function clickDownloadUrl(url: string, fileName: string): void {
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = fileName;
+		a.rel = 'noopener';
+		a.target = '_blank';
+		document.body.appendChild(a);
+		a.click();
+		a.remove();
+	}
+
+	async function downloadOriginalVideo(): Promise<void> {
+		if (downloading) return;
+		downloading = true;
+		downloadError = null;
+		exportDiagnostic = null;
+		preparedShareFile = null;
+
+		try {
+			const fileName = suggestedFileName(video.mimeType, false);
+			const url = await getDiveVideoDirectDownloadUrl(video, fileName);
+			clickDownloadUrl(url, fileName);
+			exportDiagnostic = `Original download started (${formatBytes(video.sizeBytes)}).`;
+		} catch (err) {
+			downloadError = err instanceof Error ? err.message : String(err);
+		} finally {
+			downloading = false;
+		}
 	}
 
 	/**
@@ -689,6 +723,11 @@
 
 	async function downloadToPhotos(): Promise<void> {
 		if (downloading) return;
+		if (!showOverlay) {
+			await downloadOriginalVideo();
+			return;
+		}
+
 		downloading = true;
 		downloadError = null;
 		exportProgress = 0;
@@ -712,25 +751,23 @@
 			}
 
 			exportDiagnostic = null;
-			let blob: Blob;
-			let mime: string;
-			if (showOverlay) {
-				const baked = await renderWithOverlay();
-				blob = baked.blob;
-				mime = baked.mime;
-				exportDiagnostic = `Overlay export requested ${formatMbps(
-					baked.requestedVideoBitrateBps
-				)}, actual ${formatMbps(
-					video.durationSeconds > 0 ? Math.round((blob.size * 8) / video.durationSeconds) : undefined
-				)}. ${baked.audioPreserved ? 'Audio preserved.' : 'Audio unavailable in browser export.'} ${
-					baked.manualFrameRequest ? 'Manual frame pacing.' : 'Fixed-rate canvas pacing.'
-				}${baked.reliableMode ? ' Reliable iOS export mode.' : ''}${
-					baked.retried ? ' Retried with compatible export mode.' : ''
-				}`;
-			} else {
-				blob = await fetchBlob();
-				mime = video.mimeType;
+			if (video.sizeBytes > MAX_BROWSER_OVERLAY_EXPORT_BYTES) {
+				downloadError = `This clip is ${formatBytes(video.sizeBytes)}, which is too large for reliable in-browser overlay export. Use Download original for now.`;
+				return;
 			}
+
+			const baked = await renderWithOverlay();
+			let blob: Blob = baked.blob;
+			let mime: string = baked.mime;
+			exportDiagnostic = `Overlay export requested ${formatMbps(
+				baked.requestedVideoBitrateBps
+			)}, actual ${formatMbps(
+				video.durationSeconds > 0 ? Math.round((blob.size * 8) / video.durationSeconds) : undefined
+			)}. ${baked.audioPreserved ? 'Audio preserved.' : 'Audio unavailable in browser export.'} ${
+				baked.manualFrameRequest ? 'Manual frame pacing.' : 'Fixed-rate canvas pacing.'
+			}${baked.reliableMode ? ' Reliable iOS export mode.' : ''}${
+				baked.retried ? ' Retried with compatible export mode.' : ''
+			}`;
 
 			// Trust the bytes, not the metadata. iOS only exposes "Save Video"
 			// (→ Photos) in the share sheet when the File.type matches the real
@@ -785,7 +822,7 @@
 					}
 					preparedShareFile = file;
 					downloadError =
-						'Export is ready. Tap Save to Photos again to open the iOS share sheet.';
+						'Export is ready. Tap Share prepared video to open the iOS share sheet.';
 					return;
 				}
 			}
@@ -959,11 +996,26 @@
 			{:else if preparedShareFile}
 				<span aria-hidden="true">⬇︎</span>
 				<span>Share prepared video</span>
+			{:else if showOverlay}
+				<span aria-hidden="true">⬇︎</span>
+				<span>Export overlay</span>
 			{:else}
 				<span aria-hidden="true">⬇︎</span>
-				<span>Save to Photos</span>
+				<span>Download original</span>
 			{/if}
 		</button>
+
+		{#if showOverlay}
+			<button
+				type="button"
+				class="pill"
+				onclick={downloadOriginalVideo}
+				disabled={downloading}
+			>
+				<span aria-hidden="true">⬇︎</span>
+				<span>Download original</span>
+			</button>
+		{/if}
 
 		{#if downloadError}
 			<p class="download-error">{downloadError}</p>
@@ -1197,7 +1249,7 @@
 
 	/*
 	 * Pill-styled action buttons beneath the video (Hide/Show overlay,
-	 * Save to Photos). Plain CSS so they render correctly regardless of
+	 * download/export actions). Plain CSS so they render correctly regardless of
 	 * whether Tailwind utilities are compiled for this file.
 	 */
 	.player-actions {

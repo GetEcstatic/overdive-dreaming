@@ -77,6 +77,14 @@ function extensionForContentType(contentType: string): string {
 	return 'bin';
 }
 
+function safeDownloadFileName(value: string): string {
+	return value
+		.replace(/[\\/\u0000-\u001f\u007f]/g, '-')
+		.replace(/[";]/g, '')
+		.trim()
+		.slice(0, 180) || 'overdive-video.bin';
+}
+
 function validateMediaPolicy(kind: MediaKind, contentType: string, sizeBytes: number): void {
 	if (kind === 'session-photo' || kind === 'dive-video-thumb') {
 		if (!contentType.startsWith('image/')) {
@@ -326,12 +334,17 @@ export const getMediaReadUrl = onCall(callableOptions, async (request) => {
 		requestedKey: optionalString(data, 'key'),
 		expectedPrefix
 	});
+	const downloadFileName = optionalString(data, 'downloadFileName');
 	let url: string;
 	try {
 		url = await signGetObject({
 			bucket,
 			key,
-			expiresInSeconds: READ_URL_EXPIRES_SECONDS
+			expiresInSeconds: READ_URL_EXPIRES_SECONDS,
+			responseContentDisposition: downloadFileName
+				? `attachment; filename="${safeDownloadFileName(downloadFileName)}"`
+				: undefined,
+			responseContentType: ref?.contentType
 		});
 	} catch (err) {
 		rethrowMediaBackendError('create signed read URL', err);
