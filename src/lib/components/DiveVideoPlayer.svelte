@@ -86,6 +86,10 @@
 	 */
 	let isFullscreen = $state(false);
 	let fullscreenMode = $state<'landscape' | 'portrait' | null>(null);
+	let showFullscreenControls = $state(true);
+	let isScrubbing = $state(false);
+	let scrubPreviewMs = $state(0);
+	let fullscreenControlsTimer: ReturnType<typeof setTimeout> | null = null;
 
 	/**
 	 * User-configurable fit mode: `cover` fills the screen with no black bars
@@ -121,6 +125,7 @@
 		const ce = e as CustomEvent<{ fullscreen: boolean; mode?: 'landscape' | 'portrait' | null }>;
 		isFullscreen = !!ce.detail?.fullscreen;
 		fullscreenMode = ce.detail?.mode ?? null;
+		revealFullscreenControls();
 	}
 
 	$effect(() => {
@@ -136,6 +141,7 @@
 
 	function onPlayStateChange() {
 		isPlaying = !!videoEl && !videoEl.paused && !videoEl.ended;
+		revealFullscreenControls();
 	}
 
 	function togglePlay() {
@@ -170,6 +176,30 @@
 	const lapsCompleted = $derived(timeline.laps.filter((l) => l.atMs <= currentMs).length);
 
 	const totalDurationMs = $derived(totalTimeMs(timeline) || liveVideo.durationSeconds * 1000);
+	const mediaDurationMs = $derived(
+		Math.max(
+			0,
+			Number.isFinite(videoEl?.duration ?? NaN) && (videoEl?.duration ?? 0) > 0
+				? (videoEl?.duration ?? 0) * 1000
+				: totalDurationMs
+		)
+	);
+	const scrubMs = $derived(isScrubbing ? scrubPreviewMs : currentMs);
+	const scrubProgress = $derived(
+		mediaDurationMs > 0 ? Math.max(0, Math.min(1, scrubMs / mediaDurationMs)) : 0
+	);
+	const totalDistance = $derived(
+		Math.max(
+			0,
+			distanceAt(timeline, Math.max(0, totalDurationMs), poolLength),
+			...(timeline.samples?.map((sample) => sample.distanceM) ?? []),
+			...timeline.laps.map((lap) => lap.cumulativeDistanceM)
+		)
+	);
+	const scrubDistance = $derived(distanceAt(timeline, Math.max(0, scrubMs), poolLength));
+	const fullscreenControlsVisible = $derived(
+		isFullscreen && (showFullscreenControls || !isPlaying || isScrubbing)
+	);
 
 	// Orientation-aware display transform. For legacy clips without the
 	// new metadata fields, this returns the same landscape layout the
@@ -188,6 +218,57 @@
 		const ss = (secs % 60).toString().padStart(2, '0');
 		const tenths = Math.floor((ms % 1000) / 100);
 		return `${mm}:${ss}.${tenths}`;
+	}
+
+	function formatDistanceLabel(meters: number): string {
+		if (!Number.isFinite(meters) || meters <= 0) return '0m';
+		return `${Math.round(meters)}m`;
+	}
+
+	function clearFullscreenControlsTimer(): void {
+		if (!fullscreenControlsTimer) return;
+		clearTimeout(fullscreenControlsTimer);
+		fullscreenControlsTimer = null;
+	}
+
+	function revealFullscreenControls(): void {
+		showFullscreenControls = true;
+		clearFullscreenControlsTimer();
+		if (!isFullscreen || !isPlaying || isScrubbing) return;
+		fullscreenControlsTimer = setTimeout(() => {
+			if (isPlaying && !isScrubbing) showFullscreenControls = false;
+		}, 2600);
+	}
+
+	function onFullscreenPointerActivity(): void {
+		if (!isFullscreen) return;
+		revealFullscreenControls();
+	}
+
+	function seekToProgress(progress: number): void {
+		const clamped = Math.max(0, Math.min(1, progress));
+		const targetMs = clamped * mediaDurationMs;
+		scrubPreviewMs = targetMs;
+		currentMs = targetMs;
+		if (videoEl && mediaDurationMs > 0) {
+			videoEl.currentTime = targetMs / 1000;
+		}
+	}
+
+	function onScrubInput(event: Event): void {
+		const input = event.currentTarget as HTMLInputElement;
+		seekToProgress(Number(input.value) / 1000);
+	}
+
+	function beginScrub(): void {
+		isScrubbing = true;
+		scrubPreviewMs = currentMs;
+		revealFullscreenControls();
+	}
+
+	function endScrub(): void {
+		isScrubbing = false;
+		revealFullscreenControls();
 	}
 
 	type VideoWithRvfc = HTMLVideoElement & {
@@ -214,6 +295,7 @@
 	}
 
 	onDestroy(() => {
+		clearFullscreenControlsTimer();
 		if (videoEl && rvfcHandle !== null) {
 			const el = videoEl as VideoWithRvfc;
 			el.cancelVideoFrameCallback?.(rvfcHandle);
@@ -994,6 +1076,8 @@
 	style="position: relative; --dive-video-fit: {fitMode}; aspect-ratio: {displayTransform.aspectRatio};"
 	data-fullscreen-root
 	data-display-orientation={displayTransform.hudMode}
+	onpointermove={onFullscreenPointerActivity}
+	onpointerdown={onFullscreenPointerActivity}
 >
 	<!-- svelte-ignore a11y_media_has_caption -->
 	<video
@@ -1061,44 +1145,77 @@
 		  (hidden above) so they don't visually fight the HUD. Positioned at
 		  the bottom with safe-area padding.
 		-->
-		<div class="fs-controls">
-			<button
-				type="button"
-				class="fs-btn"
-				aria-label={isPlaying ? 'Pause' : 'Play'}
-				onclick={togglePlay}
-			>
-				{isPlaying ? '❚❚' : '▶'}
-			</button>
-			<button
-				type="button"
-				class="fs-btn"
-				aria-label={fitMode === 'cover' ? 'Switch to fit (letterbox)' : 'Switch to fill'}
-				aria-pressed={fitMode === 'cover'}
-				onclick={toggleFit}
-				title={fitMode === 'cover' ? 'Fill' : 'Fit'}
-			>
-				{fitMode === 'cover' ? '▣' : '▢'}
-			</button>
-			<button
-				type="button"
-				class="fs-btn"
-				aria-label={showOverlay ? 'Hide overlay' : 'Show overlay'}
-				aria-pressed={showOverlay}
-				onclick={() => (showOverlay = !showOverlay)}
-			>
-				HUD
-			</button>
-			{#if fullscreenMode !== 'portrait'}
+		<div
+			class="fs-controls"
+			class:fs-controls-visible={fullscreenControlsVisible}
+			style="--scrub-progress-percent: {scrubProgress * 100}%;"
+		>
+			<div class="fs-scrubber" class:fs-scrubber-active={isScrubbing}>
+				<div
+					class="fs-scrub-badge"
+					style="left: calc({scrubProgress * 100}%);"
+				>
+					{formatDistanceLabel(scrubDistance)}
+				</div>
+				<input
+					class="fs-scrub-input"
+					type="range"
+					min="0"
+					max="1000"
+					step="1"
+					value={Math.round(scrubProgress * 1000)}
+					aria-label="Scrub dive video by distance"
+					onpointerdown={beginScrub}
+					onpointerup={endScrub}
+					onpointercancel={endScrub}
+					onblur={endScrub}
+					oninput={onScrubInput}
+				/>
+				<div class="fs-scrub-labels">
+					<span>0m</span>
+					<span>{formatDistanceLabel(totalDistance)}</span>
+				</div>
+			</div>
+
+			<div class="fs-button-row">
 				<button
 					type="button"
-					class="fs-btn fs-btn-exit"
-					aria-label="Exit fullscreen"
-					onclick={exitFullscreen}
+					class="fs-btn"
+					aria-label={isPlaying ? 'Pause' : 'Play'}
+					onclick={togglePlay}
 				>
-					✕
+					{isPlaying ? '❚❚' : '▶'}
 				</button>
-			{/if}
+				<button
+					type="button"
+					class="fs-btn"
+					aria-label={fitMode === 'cover' ? 'Switch to fit (letterbox)' : 'Switch to fill'}
+					aria-pressed={fitMode === 'cover'}
+					onclick={toggleFit}
+					title={fitMode === 'cover' ? 'Fill' : 'Fit'}
+				>
+					{fitMode === 'cover' ? '▣' : '▢'}
+				</button>
+				<button
+					type="button"
+					class="fs-btn"
+					aria-label={showOverlay ? 'Hide overlay' : 'Show overlay'}
+					aria-pressed={showOverlay}
+					onclick={() => (showOverlay = !showOverlay)}
+				>
+					HUD
+				</button>
+				{#if fullscreenMode !== 'portrait'}
+					<button
+						type="button"
+						class="fs-btn fs-btn-exit"
+						aria-label="Exit fullscreen"
+						onclick={exitFullscreen}
+					>
+						✕
+					</button>
+				{/if}
+			</div>
 		</div>
 	{/if}
 </div>
@@ -1261,19 +1378,127 @@
 		bottom: 0;
 		z-index: 11;
 		display: flex;
+		flex-direction: column;
 		justify-content: center;
 		align-items: center;
-		gap: 0.6rem;
+		gap: 0.7rem;
 		padding:
-			0.5rem
+			2.2rem
 			max(0.75rem, env(safe-area-inset-right))
-			max(0.5rem, env(safe-area-inset-bottom))
+			max(0.75rem, env(safe-area-inset-bottom))
 			max(0.75rem, env(safe-area-inset-left));
 		background: linear-gradient(
 			to top,
-			rgba(0, 0, 0, 0.55) 0%,
+			rgba(0, 0, 0, 0.72) 0%,
+			rgba(0, 0, 0, 0.42) 58%,
 			rgba(0, 0, 0, 0) 100%
 		);
+		opacity: 0;
+		pointer-events: none;
+		transform: translateY(12px);
+		transition:
+			opacity 0.18s ease,
+			transform 0.18s ease;
+	}
+	.fs-controls-visible {
+		opacity: 1;
+		pointer-events: auto;
+		transform: translateY(0);
+	}
+	.fs-button-row {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		gap: 0.6rem;
+		width: min(100%, 34rem);
+	}
+	.fs-scrubber {
+		position: relative;
+		width: min(100%, 34rem);
+		padding-top: 1.35rem;
+	}
+	.fs-scrub-input {
+		--track-height: 6px;
+		width: 100%;
+		height: 32px;
+		margin: 0;
+		appearance: none;
+		-webkit-appearance: none;
+		background: transparent;
+		cursor: pointer;
+		touch-action: none;
+	}
+	.fs-scrub-input::-webkit-slider-runnable-track {
+		height: var(--track-height);
+		border-radius: 9999px;
+		background: linear-gradient(
+			to right,
+			var(--color-primary) 0%,
+			var(--color-primary) var(--scrub-progress-percent),
+			rgba(226, 232, 240, 0.34) var(--scrub-progress-percent),
+			rgba(226, 232, 240, 0.34) 100%
+		);
+	}
+	.fs-scrub-input::-moz-range-track {
+		height: var(--track-height);
+		border-radius: 9999px;
+		background: rgba(226, 232, 240, 0.34);
+	}
+	.fs-scrub-input::-moz-range-progress {
+		height: var(--track-height);
+		border-radius: 9999px;
+		background: var(--color-primary);
+	}
+	.fs-scrub-input::-webkit-slider-thumb {
+		appearance: none;
+		-webkit-appearance: none;
+		width: 22px;
+		height: 22px;
+		margin-top: -8px;
+		border-radius: 9999px;
+		border: 3px solid #0f172a;
+		background: var(--color-primary);
+		box-shadow: 0 0 0 3px rgba(248, 250, 252, 0.22);
+	}
+	.fs-scrub-input::-moz-range-thumb {
+		width: 22px;
+		height: 22px;
+		border-radius: 9999px;
+		border: 3px solid #0f172a;
+		background: var(--color-primary);
+		box-shadow: 0 0 0 3px rgba(248, 250, 252, 0.22);
+	}
+	.fs-scrub-badge {
+		position: absolute;
+		top: 0;
+		transform: translateX(-50%);
+		padding: 0.28rem 0.48rem;
+		border-radius: 9999px;
+		background: rgba(15, 23, 42, 0.86);
+		border: 1px solid rgba(255, 255, 255, 0.18);
+		color: #f8fafc;
+		font-size: 0.76rem;
+		font-weight: 800;
+		font-variant-numeric: tabular-nums;
+		line-height: 1;
+		white-space: nowrap;
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+		opacity: 0;
+		transition: opacity 0.15s ease;
+	}
+	.fs-scrubber-active .fs-scrub-badge,
+	.fs-scrubber:focus-within .fs-scrub-badge {
+		opacity: 1;
+	}
+	.fs-scrub-labels {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-top: -0.15rem;
+		color: rgba(241, 245, 249, 0.78);
+		font-size: 0.74rem;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
 	}
 	.fs-btn {
 		display: inline-flex;
