@@ -203,7 +203,7 @@ Use social-app expectations:
 
 ### Phase 2 - Playback proxy
 
-- [ ] ⚠️ Essential: generate mobile-friendly fast-start MP4 proxy artifacts first. `generate-playback-proxy` is queued but not implemented; it was intentionally left queued during the probe/thumbnail gate.
+- [x] ⚠️ Essential: generate mobile-friendly fast-start MP4 proxy artifacts first. `generate-playback-proxy` is implemented in the Firebase Functions v2 media worker, writes `users/{ownerId}/videos/{videoId}/proxy/720p.mp4`, stores the artifact metadata, and marks `processingState.playbackProxy` ready.
 - [x] Preserve the artifact model so HLS can be added later without changing `DiveVideo` ownership or upload flow.
 - [x] Add signed URL helper for proxy artifacts.
 - [x] Use proxy for dashboard feed playback while keeping master available for full-quality review/download. `getPreferredDiveVideoPlaybackUrl` prefers a ready proxy and falls back to the canonical master.

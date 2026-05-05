@@ -43,6 +43,7 @@ interface DiveVideoDoc {
 	userId?: string;
 	storagePathClean?: string;
 	cleanObject?: MediaObjectRef;
+	artifacts?: DiveVideoArtifactRef[];
 	storageProvider?: 'wasabi' | 'firebase-storage';
 	mimeType?: string;
 	sizeBytes?: number;
@@ -50,6 +51,21 @@ interface DiveVideoDoc {
 	heightPx?: number;
 	durationSeconds?: number;
 	actualFrameRate?: number;
+}
+
+interface DiveVideoArtifactRef {
+	kind: 'master' | 'thumbnail' | 'playback-proxy' | 'overlay-preview' | 'overlay-download' | 'hls-manifest';
+	profile: 'original' | 'thumb-jpeg' | 'mp4-720p' | 'mp4-1080p' | 'hls-adaptive' | 'overlay-mp4-720p' | 'overlay-mp4-1080p';
+	object: MediaObjectRef;
+	widthPx?: number;
+	heightPx?: number;
+	durationSeconds?: number;
+	sizeBytes?: number;
+	contentType?: string;
+	styleVersion?: string;
+	disposable?: boolean;
+	expiresAt?: FirebaseFirestore.Timestamp;
+	createdAt?: FirebaseFirestore.Timestamp;
 }
 
 interface ProbeSideData {
@@ -108,7 +124,7 @@ function stateKeyFor(type: DiveVideoProcessingJob): string | null {
 }
 
 function isImplementedAutomaticJob(type: DiveVideoProcessingJob): boolean {
-	return type === 'probe-master' || type === 'generate-thumbnail';
+	return type === 'probe-master' || type === 'generate-thumbnail' || type === 'generate-playback-proxy';
 }
 
 function frameRate(value: string | undefined): number | undefined {
@@ -270,6 +286,104 @@ async function generateThumbnail(args: {
 	});
 }
 
+async function generatePlaybackProxy(args: {
+	videoId: string;
+	video: DiveVideoDoc;
+}): Promise<DiveVideoArtifactRef> {
+	const { ffmpeg, ffprobe } = assertWorkerBinaries();
+	const object = masterObject(args.video);
+	return withMasterFile(args.video, async (inputPath) => {
+		const outputPath = join(tmpdir(), `overdive-proxy-${randomUUID()}.mp4`);
+		try {
+			await execFileAsync(ffmpeg, [
+				'-y',
+				'-i',
+				inputPath,
+				'-map',
+				'0:v:0',
+				'-map',
+				'0:a?',
+				'-vf',
+				'scale=1280:1280:force_original_aspect_ratio=decrease:force_divisible_by=2',
+				'-c:v',
+				'libx264',
+				'-preset',
+				'veryfast',
+				'-crf',
+				'28',
+				'-pix_fmt',
+				'yuv420p',
+				'-c:a',
+				'aac',
+				'-b:a',
+				'96k',
+				'-movflags',
+				'+faststart',
+				outputPath
+			]);
+
+			const bytes = await readFile(outputPath);
+			const ownerId = args.video.ownerId ?? args.video.userId;
+			if (!ownerId) throw new HttpsError('failed-precondition', 'Dive video has no owner');
+			const key = `users/${ownerId}/videos/${args.videoId}/proxy/720p.mp4`;
+			await putObjectBytes({ bucket: object.bucket, key, body: bytes, contentType: 'video/mp4' });
+
+			const probe = await probeMasterFile({ ffprobe, inputPath: outputPath });
+			return withoutUndefined({
+				kind: 'playback-proxy',
+				profile: 'mp4-720p',
+				object: {
+					provider: 'wasabi',
+					bucket: object.bucket,
+					key,
+					contentType: 'video/mp4',
+					sizeBytes: bytes.byteLength
+				},
+				widthPx: probe.widthPx,
+				heightPx: probe.heightPx,
+				durationSeconds: probe.durationSeconds,
+				sizeBytes: bytes.byteLength,
+				contentType: 'video/mp4'
+			}) as unknown as DiveVideoArtifactRef;
+		} finally {
+			await rm(outputPath, { force: true });
+		}
+	});
+}
+
+async function probeMasterFile(args: {
+	ffprobe: string;
+	inputPath: string;
+}): Promise<Record<string, unknown>> {
+	const { stdout } = await execFileAsync(args.ffprobe, [
+		'-v',
+		'error',
+		'-print_format',
+		'json',
+		'-show_format',
+		'-show_streams',
+		args.inputPath
+	]);
+	const output = JSON.parse(stdout) as ProbeOutput;
+	const videoStream = output.streams?.find((stream) => stream.codec_type === 'video');
+	const durationSeconds = Number(output.format?.duration);
+	return withoutUndefined({
+		widthPx: videoStream?.width,
+		heightPx: videoStream?.height,
+		durationSeconds: Number.isFinite(durationSeconds) ? durationSeconds : undefined
+	});
+}
+
+function withPlaybackProxyArtifact(
+	artifacts: DiveVideoArtifactRef[] | undefined,
+	proxy: DiveVideoArtifactRef
+): DiveVideoArtifactRef[] {
+	return [
+		...(artifacts ?? []).filter((artifact) => artifact.kind !== 'playback-proxy'),
+		proxy
+	];
+}
+
 async function markFailed(args: {
 	jobId: string;
 	videoId: string;
@@ -323,6 +437,7 @@ async function runMediaJob(args: { jobId: string; uid?: string }): Promise<{
 			await videoRef.update({
 				...probe,
 				'processingState.master': 'ready',
+				'processingState.pendingJobs': FieldValue.arrayRemove(job.type),
 				updatedAt: FieldValue.serverTimestamp()
 			});
 		} else if (job.type === 'generate-thumbnail') {
@@ -337,6 +452,15 @@ async function runMediaJob(args: { jobId: string; uid?: string }): Promise<{
 					sizeBytes: thumbnail.sizeBytes
 				},
 				'processingState.thumbnail': 'ready',
+				'processingState.pendingJobs': FieldValue.arrayRemove(job.type),
+				updatedAt: FieldValue.serverTimestamp()
+			});
+		} else if (job.type === 'generate-playback-proxy') {
+			const proxy = await generatePlaybackProxy({ videoId: job.videoId, video });
+			await videoRef.update({
+				artifacts: withPlaybackProxyArtifact(video.artifacts, proxy),
+				'processingState.playbackProxy': 'ready',
+				'processingState.pendingJobs': FieldValue.arrayRemove(job.type),
 				updatedAt: FieldValue.serverTimestamp()
 			});
 		} else {
