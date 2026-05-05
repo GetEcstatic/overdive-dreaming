@@ -84,6 +84,7 @@ Designs that are largely settled. Read for context, not as a roadmap.
 Completed plans, kept for traceability. Source of truth is the code, not these docs.
 
 ### Video
+- [Fullscreen distance scrubber](video/fullscreen-distance-scrubber.md) — dashboard fullscreen video timeline with distance markers and scrub preview
 - [Dynamic recorder UX](video/shipped/dynamic-recorder-ux.md) — single-button flow, auto-advance, undo
 - [Fullscreen single-button recorder](video/shipped/fullscreen-single-button.md) — landscape primary, long-press end
 - [Overlay export — audio + photos](video/shipped/overlay-export-audio-photos.md) — frame pacing & audio routing
