@@ -324,6 +324,8 @@ Phase 0 has started in the current codebase: shared media-processing types, arti
 - [x] Add server-side job claiming/idempotency so repeat worker invocations do not duplicate artifacts or corrupt state.
 - [x] Add signed artifact reads for thumbnail and playback proxy variants.
 - [x] Update dashboard/session UI to prefer thumbnail/proxy artifacts when ready and fall back cleanly to current master playback.
+- [ ] Deploy Functions v2 worker and live-test `processMediaJob` against a real uploaded Wasabi video.
+- [ ] Add 720p playback-proxy generation after probe/thumbnail worker is proven in production or emulator-equivalent testing.
 - [ ] Add server-side overlay export request flow after thumbnail/proxy is proven.
 
 ## 14. Things For Tom To Do
@@ -386,3 +388,16 @@ Firebase deploys usually prompt for missing APIs, but enabling them intentionall
 - If packaging FFmpeg, timeout, memory, or cold starts are painful, keep the same Firestore job contract and move execution to Cloud Run + Firestore job docs.
 - If automatic processing volume grows, add Pub/Sub later.
 - If overlay export retry/rate limiting becomes important, add Cloud Tasks later.
+
+## 16. Current Implementation Gate
+
+Implementation should pause here until the Functions v2 worker is deployed or run in an emulator-equivalent environment with real Wasabi secrets and a real uploaded video.
+
+Required proof before continuing:
+
+- [ ] `processMediaJob` can claim and complete a `probe-master` job.
+- [ ] `processMediaJob` can claim and complete a `generate-thumbnail` job.
+- [ ] The generated thumbnail object is readable in the dashboard/session UI.
+- [ ] Billing/runtime looks acceptable for at least a few real videos.
+
+Once those are true, continue with 720p playback-proxy generation. Overlay export should remain after proxy generation because it is more expensive and easier to get wrong.
