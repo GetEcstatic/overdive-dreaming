@@ -312,6 +312,7 @@ Phase 0 has started in the current codebase: shared media-processing types, arti
 - [x] Multipart upload completion now creates deterministic `mediaProcessingJobs` docs for probe, thumbnail, and playback-proxy work.
 - [x] Added a Functions v2 `processMediaJob` worker for probe and thumbnail jobs.
 - [x] Added server-side job claiming/idempotency for worker invocations.
+- [x] Added signed read support for generated thumbnail and playback-proxy artifacts.
 
 ## 13. Required Next
 
@@ -320,7 +321,7 @@ Phase 0 has started in the current codebase: shared media-processing types, arti
 - [x] Add a minimal media worker that can read a master video, run `ffprobe`, write probe metadata, and generate a thumbnail.
 - [x] Add server-side deterministic job creation so repeat upload completion does not duplicate queued job documents.
 - [x] Add server-side job claiming/idempotency so repeat worker invocations do not duplicate artifacts or corrupt state.
-- [ ] Add signed artifact reads for thumbnail and playback proxy variants.
+- [x] Add signed artifact reads for thumbnail and playback proxy variants.
 - [ ] Update dashboard/session UI to prefer thumbnail/proxy artifacts when ready and fall back cleanly to current master playback.
 - [ ] Add server-side overlay export request flow after thumbnail/proxy is proven.
 

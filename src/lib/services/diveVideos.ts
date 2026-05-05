@@ -188,6 +188,32 @@ export async function getDiveVideoDirectDownloadUrl(
 	return getDownloadURL(storageRef(storage, video.storagePathClean));
 }
 
+export async function getDiveVideoThumbnailUrl(video: DiveVideo): Promise<string> {
+	if (video.storageProvider === 'wasabi' || video.thumbnailObject?.provider === 'wasabi') {
+		const read = await getWasabiReadUrl({
+			kind: 'dive-video-thumb',
+			videoId: video.id,
+			key: video.thumbnailObject?.key ?? video.thumbnailPath,
+			bucket: video.thumbnailObject?.bucket
+		});
+		return read.url;
+	}
+	if (!video.thumbnailPath) throw new Error('Dive video has no thumbnail');
+	return getDownloadURL(storageRef(storage, video.thumbnailPath));
+}
+
+export async function getDiveVideoPlaybackProxyUrl(video: DiveVideo): Promise<string> {
+	const proxy = video.artifacts?.find((artifact) => artifact.kind === 'playback-proxy');
+	if (!proxy?.object?.key) throw new Error('Dive video has no playback proxy');
+	const read = await getWasabiReadUrl({
+		kind: 'dive-video-playback-proxy',
+		videoId: video.id,
+		key: proxy.object.key,
+		bucket: proxy.object.bucket
+	});
+	return read.url;
+}
+
 export async function updateDiveVideoUploadStatus(
 	videoId: string,
 	status: DiveVideoUploadStatus,

@@ -28,6 +28,7 @@ type MediaKind =
 	| 'session-photo'
 	| 'dive-video-clean'
 	| 'dive-video-thumb'
+	| 'dive-video-playback-proxy'
 	| 'dive-video-burned';
 
 interface MediaObjectRef {
@@ -99,7 +100,11 @@ function validateMediaPolicy(kind: MediaKind, contentType: string, sizeBytes: nu
 		}
 		return;
 	}
-	if (kind === 'dive-video-clean' || kind === 'dive-video-burned') {
+	if (
+		kind === 'dive-video-clean' ||
+		kind === 'dive-video-burned' ||
+		kind === 'dive-video-playback-proxy'
+	) {
 		if (!contentType.startsWith('video/')) {
 			throw new HttpsError('invalid-argument', 'Object must be a video');
 		}
@@ -137,6 +142,10 @@ function videoThumbKey(uid: string, videoId: string): string {
 
 function videoBurnedKey(uid: string, videoId: string): string {
 	return `users/${uid}/videos/${videoId}/burned.mp4`;
+}
+
+function videoPlaybackProxyKey(uid: string, videoId: string): string {
+	return `users/${uid}/videos/${videoId}/proxy/720p.mp4`;
 }
 
 async function assertRoutineLogAccess(args: {
@@ -238,10 +247,16 @@ function assertExistingDiveVideoObject(args: {
 		cleanObject?: MediaObjectRef;
 		thumbnailObject?: MediaObjectRef;
 		burnedObject?: MediaObjectRef;
+		artifacts?: Array<{ kind?: string; object?: MediaObjectRef }>;
 	} | undefined;
+	const playbackProxyObject = video?.artifacts?.find(
+		(artifact) => artifact.kind === 'playback-proxy'
+	)?.object;
 	const ref =
 		args.kind === 'dive-video-thumb'
 			? video?.thumbnailObject
+			: args.kind === 'dive-video-playback-proxy'
+				? playbackProxyObject
 			: args.kind === 'dive-video-burned'
 				? video?.burnedObject
 				: video?.cleanObject;
@@ -279,6 +294,7 @@ export const createMediaUpload = onCall(callableOptions, async (request) => {
 		const videoId = requiredString(data, 'videoId');
 		await assertDiveVideoAccess({ uid, videoId, write: true });
 		if (kind === 'dive-video-thumb') key = videoThumbKey(uid, videoId);
+		else if (kind === 'dive-video-playback-proxy') key = videoPlaybackProxyKey(uid, videoId);
 		else if (kind === 'dive-video-burned') key = videoBurnedKey(uid, videoId);
 		else key = videoCleanKey(uid, videoId, contentType);
 	}
@@ -323,10 +339,16 @@ export const getMediaReadUrl = onCall(callableOptions, async (request) => {
 			cleanObject?: MediaObjectRef;
 			thumbnailObject?: MediaObjectRef;
 			burnedObject?: MediaObjectRef;
+			artifacts?: Array<{ kind?: string; object?: MediaObjectRef }>;
 		};
+		const playbackProxyObject = video.artifacts?.find(
+			(artifact) => artifact.kind === 'playback-proxy'
+		)?.object;
 		ref =
 			kind === 'dive-video-thumb'
 				? video.thumbnailObject
+				: kind === 'dive-video-playback-proxy'
+					? playbackProxyObject
 				: kind === 'dive-video-burned'
 					? video.burnedObject
 					: video.cleanObject;
@@ -376,10 +398,16 @@ export const deleteMediaObject = onCall(callableOptions, async (request) => {
 			cleanObject?: MediaObjectRef;
 			thumbnailObject?: MediaObjectRef;
 			burnedObject?: MediaObjectRef;
+			artifacts?: Array<{ kind?: string; object?: MediaObjectRef }>;
 		};
+		const playbackProxyObject = video.artifacts?.find(
+			(artifact) => artifact.kind === 'playback-proxy'
+		)?.object;
 		ref =
 			kind === 'dive-video-thumb'
 				? video.thumbnailObject
+				: kind === 'dive-video-playback-proxy'
+					? playbackProxyObject
 				: kind === 'dive-video-burned'
 					? video.burnedObject
 					: video.cleanObject;

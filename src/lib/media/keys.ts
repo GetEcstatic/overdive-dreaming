@@ -4,6 +4,7 @@ export type MediaKind =
 	| 'session-photo'
 	| 'dive-video-clean'
 	| 'dive-video-thumb'
+	| 'dive-video-playback-proxy'
 	| 'dive-video-burned';
 
 export interface MediaUploadRequest {
