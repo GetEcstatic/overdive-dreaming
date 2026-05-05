@@ -568,7 +568,7 @@ async function generateOverlayDownload(args: {
 	}
 	const ownerId = args.video.ownerId ?? args.video.userId;
 	if (!ownerId) throw new HttpsError('failed-precondition', 'Dive video has no owner');
-	const outputDimensions = scaledDimensions(rotatedDimensions(args.video), 720);
+	const outputDimensions = scaledDimensions(rotatedDimensions(args.video), 540);
 	const boundedDurationSeconds = Math.max(1, Math.ceil((args.video.durationSeconds ?? 0) + 1));
 	return withMasterFile(args.video, async (inputPath) => {
 		const outputPath = join(tmpdir(), `overdive-overlay-${randomUUID()}.mp4`);
@@ -853,6 +853,7 @@ export const processMediaJob = onCall(
 		secrets: [WASABI_ACCESS_KEY_ID, WASABI_SECRET_ACCESS_KEY],
 		timeoutSeconds: 540,
 		memory: '4GiB',
+		cpu: 2,
 		concurrency: 1
 	},
 	async (request) => {
@@ -869,6 +870,7 @@ export const onMediaProcessingJobCreated = onDocumentCreated(
 		secrets: [WASABI_ACCESS_KEY_ID, WASABI_SECRET_ACCESS_KEY],
 		timeoutSeconds: 540,
 		memory: '4GiB',
+		cpu: 2,
 		concurrency: 1
 	},
 	async (event) => {
