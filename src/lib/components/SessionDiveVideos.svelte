@@ -13,7 +13,8 @@
 	import { user } from '$lib/stores/auth';
 	import {
 		listDiveVideosForSession,
-		getDiveVideoDownloadUrl,
+		getDiveVideoThumbnailUrl,
+		getPreferredDiveVideoPlaybackUrl,
 		deleteDiveVideo,
 		pinDiveVideo
 	} from '$lib/services/diveVideos';
@@ -35,6 +36,7 @@
 
 	let videos = $state<DiveVideo[]>([]);
 	let urlMap = $state<Record<string, string>>({});
+	let posterMap = $state<Record<string, string>>({});
 	let loading = $state(true);
 	let loadError = $state<string | null>(null);
 	let busyVideoId = $state<string | null>(null);
@@ -89,12 +91,23 @@
 				}
 			}
 
-			// Resolve download URLs lazily but in parallel.
+			// Resolve preferred playback URLs and thumbnails lazily but in parallel.
 			const entries = await Promise.all(
 				list.map(async (v) => {
 					if (v.uploadStatus !== 'uploaded') return [v.id, ''] as const;
 					try {
-						const url = await getDiveVideoDownloadUrl(v);
+						const url = await getPreferredDiveVideoPlaybackUrl(v);
+						return [v.id, url] as const;
+					} catch {
+						return [v.id, ''] as const;
+					}
+				})
+			);
+			const posterEntries = await Promise.all(
+				list.map(async (v) => {
+					if (!v.thumbnailObject && !v.thumbnailPath) return [v.id, ''] as const;
+					try {
+						const url = await getDiveVideoThumbnailUrl(v);
 						return [v.id, url] as const;
 					} catch {
 						return [v.id, ''] as const;
@@ -102,6 +115,7 @@
 				})
 			);
 			urlMap = Object.fromEntries(entries);
+			posterMap = Object.fromEntries(posterEntries);
 		} catch (err) {
 			loadError = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -191,7 +205,7 @@
 				{#each videos as video (video.id)}
 					<div class="video-card">
 						{#if video.uploadStatus === 'uploaded' && urlMap[video.id]}
-							<DiveVideoPlayer {video} srcUrl={urlMap[video.id]} />
+							<DiveVideoPlayer {video} srcUrl={urlMap[video.id]} posterUrl={posterMap[video.id]} />
 						{:else if video.uploadStatus === 'pending' || video.uploadStatus === 'uploading'}
 							<div class="pending-card">
 								<div class="pending-label">Uploading…</div>

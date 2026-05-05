@@ -38,6 +38,8 @@
 		video: DiveVideo;
 		/** Pre-resolved Storage download URL for the clean video. */
 		srcUrl: string;
+		/** Optional signed thumbnail/poster URL for faster feed/session rendering. */
+		posterUrl?: string;
 		/**
 		 * Compact variant for feed cards: hides the summary + actions card
 		 * (HUD toggle, download button, export progress). The HUD overlay on
@@ -48,7 +50,7 @@
 		fullscreenOnPlay?: boolean;
 	}
 
-	let { video, srcUrl, compact = false, fullscreenOnPlay = false }: Props = $props();
+	let { video, srcUrl, posterUrl, compact = false, fullscreenOnPlay = false }: Props = $props();
 
 	let videoEl: HTMLVideoElement | undefined = $state();
 	let containerEl: HTMLDivElement | undefined = $state();
@@ -863,6 +865,7 @@
 	<video
 		bind:this={videoEl}
 		src={srcUrl}
+		poster={posterUrl}
 		class="h-full w-full"
 		style="object-fit: {isFullscreen ? 'var(--dive-video-fit, cover)' : 'contain'}; transform: {displayTransform.transform}; transform-origin: center;"
 		controls={!isFullscreen}

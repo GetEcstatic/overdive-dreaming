@@ -214,6 +214,17 @@ export async function getDiveVideoPlaybackProxyUrl(video: DiveVideo): Promise<st
 	return read.url;
 }
 
+export async function getPreferredDiveVideoPlaybackUrl(video: DiveVideo): Promise<string> {
+	if (video.processingState?.playbackProxy === 'ready') {
+		try {
+			return await getDiveVideoPlaybackProxyUrl(video);
+		} catch {
+			// Fall through to the canonical master if the derivative is stale/missing.
+		}
+	}
+	return getDiveVideoDownloadUrl(video);
+}
+
 export async function updateDiveVideoUploadStatus(
 	videoId: string,
 	status: DiveVideoUploadStatus,

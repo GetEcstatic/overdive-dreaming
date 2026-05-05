@@ -19,7 +19,8 @@
 	import DiveVideoPlayer from '$lib/components/DiveVideoPlayer.svelte';
 	import {
 		listDiveVideosForSession,
-		getDiveVideoDownloadUrl
+		getDiveVideoThumbnailUrl,
+		getPreferredDiveVideoPlaybackUrl
 	} from '$lib/services/diveVideos';
 	import type { DiveVideo } from '$lib/types';
 
@@ -274,6 +275,7 @@
 	);
 	let diveVideo = $state<DiveVideo | null>(null);
 	let diveVideoUrl = $state<string | null>(null);
+	let diveVideoPosterUrl = $state<string | null>(null);
 	let sessionPhotoUrl = $state<string | null>(log.photoUrl ?? null);
 
 	onMount(() => {
@@ -309,8 +311,12 @@
 					videos.find((v) => v.retentionTier === 'pinned') ?? videos[0];
 				diveVideo = pick;
 				if (pick.uploadStatus === 'uploaded') {
-					const url = await getDiveVideoDownloadUrl(pick);
+					const url = await getPreferredDiveVideoPlaybackUrl(pick);
 					if (!cancelled) diveVideoUrl = url;
+					if (pick.thumbnailObject || pick.thumbnailPath) {
+						const posterUrl = await getDiveVideoThumbnailUrl(pick).catch(() => null);
+						if (!cancelled) diveVideoPosterUrl = posterUrl;
+					}
 				}
 			} catch (err) {
 				console.warn('[SessionCard] failed to load dive video preview', err);
@@ -470,11 +476,17 @@
 						  the IntersectionObserver so only the on-screen
 						  card takes over.
 						-->
-						<DiveVideoPlayer video={diveVideo} srcUrl={diveVideoUrl} fullscreenOnPlay />
+						<DiveVideoPlayer
+							video={diveVideo}
+							srcUrl={diveVideoUrl}
+							posterUrl={diveVideoPosterUrl ?? undefined}
+							fullscreenOnPlay
+						/>
 					{:else}
 						<!-- svelte-ignore a11y_media_has_caption -->
 						<video
 							src={diveVideoUrl}
+							poster={diveVideoPosterUrl ?? undefined}
 							class="dive-video-player"
 							controls
 							playsinline

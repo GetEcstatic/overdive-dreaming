@@ -313,6 +313,7 @@ Phase 0 has started in the current codebase: shared media-processing types, arti
 - [x] Added a Functions v2 `processMediaJob` worker for probe and thumbnail jobs.
 - [x] Added server-side job claiming/idempotency for worker invocations.
 - [x] Added signed read support for generated thumbnail and playback-proxy artifacts.
+- [x] Dashboard/session playback now prefers ready playback proxies and uses generated thumbnails as posters when available.
 
 ## 13. Required Next
 
@@ -322,7 +323,7 @@ Phase 0 has started in the current codebase: shared media-processing types, arti
 - [x] Add server-side deterministic job creation so repeat upload completion does not duplicate queued job documents.
 - [x] Add server-side job claiming/idempotency so repeat worker invocations do not duplicate artifacts or corrupt state.
 - [x] Add signed artifact reads for thumbnail and playback proxy variants.
-- [ ] Update dashboard/session UI to prefer thumbnail/proxy artifacts when ready and fall back cleanly to current master playback.
+- [x] Update dashboard/session UI to prefer thumbnail/proxy artifacts when ready and fall back cleanly to current master playback.
 - [ ] Add server-side overlay export request flow after thumbnail/proxy is proven.
 
 ## 14. Things For Tom To Do
