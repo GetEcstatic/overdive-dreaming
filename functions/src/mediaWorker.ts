@@ -840,7 +840,7 @@ export const processMediaJob = onCall(
 	{
 		secrets: [WASABI_ACCESS_KEY_ID, WASABI_SECRET_ACCESS_KEY],
 		timeoutSeconds: 540,
-		memory: '2GiB',
+		memory: '4GiB',
 		concurrency: 1
 	},
 	async (request) => {
@@ -856,7 +856,7 @@ export const onMediaProcessingJobCreated = onDocumentCreated(
 		document: 'mediaProcessingJobs/{jobId}',
 		secrets: [WASABI_ACCESS_KEY_ID, WASABI_SECRET_ACCESS_KEY],
 		timeoutSeconds: 540,
-		memory: '2GiB',
+		memory: '4GiB',
 		concurrency: 1
 	},
 	async (event) => {
