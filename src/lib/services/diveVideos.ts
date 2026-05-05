@@ -66,6 +66,19 @@ function thumbnailPathFor(userId: string, videoId: string): string {
 	return `users/${userId}/videos/${videoId}/thumb.jpg`;
 }
 
+function artifactMediaKind(kind: string | undefined):
+	| 'dive-video-clean'
+	| 'dive-video-thumb'
+	| 'dive-video-playback-proxy'
+	| 'dive-video-burned'
+	| null {
+	if (kind === 'master') return 'dive-video-clean';
+	if (kind === 'thumbnail') return 'dive-video-thumb';
+	if (kind === 'playback-proxy') return 'dive-video-playback-proxy';
+	if (kind === 'overlay-download' || kind === 'overlay-preview') return 'dive-video-burned';
+	return null;
+}
+
 /**
  * Create the Firestore `DiveVideo` document. Upload of the actual media blob
  * is a separate step so callers can wire it up to a progress UI.
@@ -391,44 +404,70 @@ export async function listDiveVideosForSession(sessionId: string): Promise<DiveV
  */
 export async function deleteDiveVideo(video: DiveVideo): Promise<void> {
 	const deletions: Promise<unknown>[] = [];
-	if (video.storageProvider === 'wasabi' || video.cleanObject?.provider === 'wasabi') {
+	const deletedWasabiKeys = new Set<string>();
+	const deletedStoragePaths = new Set<string>();
+
+	function deleteWasabiOnce(args: {
+		kind: 'dive-video-clean' | 'dive-video-thumb' | 'dive-video-playback-proxy' | 'dive-video-burned';
+		key?: string;
+		bucket?: string;
+	}): void {
+		if (!args.key) return;
+		const id = `${args.bucket ?? ''}:${args.key}`;
+		if (deletedWasabiKeys.has(id)) return;
+		deletedWasabiKeys.add(id);
 		deletions.push(
 			deleteWasabiObject({
-				kind: 'dive-video-clean',
+				kind: args.kind,
 				videoId: video.id,
-				key: video.cleanObject?.key ?? video.storagePathClean,
-				bucket: video.cleanObject?.bucket
+				key: args.key,
+				bucket: args.bucket
 			}).catch(() => null)
 		);
+	}
+
+	function deleteStorageOnce(path: string | undefined): void {
+		if (!path || deletedStoragePaths.has(path)) return;
+		deletedStoragePaths.add(path);
+		deletions.push(deleteObject(storageRef(storage, path)).catch(() => null));
+	}
+
+	if (video.storageProvider === 'wasabi' || video.cleanObject?.provider === 'wasabi') {
+		deleteWasabiOnce({
+			kind: 'dive-video-clean',
+			key: video.cleanObject?.key ?? video.storagePathClean,
+			bucket: video.cleanObject?.bucket
+		});
 		if (video.burnedObject || video.storagePathBurned) {
-			deletions.push(
-				deleteWasabiObject({
-					kind: 'dive-video-burned',
-					videoId: video.id,
-					key: video.burnedObject?.key ?? video.storagePathBurned,
-					bucket: video.burnedObject?.bucket
-				}).catch(() => null)
-			);
+			deleteWasabiOnce({
+				kind: 'dive-video-burned',
+				key: video.burnedObject?.key ?? video.storagePathBurned,
+				bucket: video.burnedObject?.bucket
+			});
 		}
 		if (video.thumbnailObject || video.thumbnailPath) {
-			deletions.push(
-				deleteWasabiObject({
-					kind: 'dive-video-thumb',
-					videoId: video.id,
-					key: video.thumbnailObject?.key ?? video.thumbnailPath,
-					bucket: video.thumbnailObject?.bucket
-				}).catch(() => null)
-			);
+			deleteWasabiOnce({
+				kind: 'dive-video-thumb',
+				key: video.thumbnailObject?.key ?? video.thumbnailPath,
+				bucket: video.thumbnailObject?.bucket
+			});
+		}
+		for (const artifact of video.artifacts ?? []) {
+			const kind = artifactMediaKind(artifact.kind);
+			if (!kind || artifact.object?.provider !== 'wasabi') continue;
+			deleteWasabiOnce({ kind, key: artifact.object.key, bucket: artifact.object.bucket });
 		}
 	} else {
-		deletions.push(deleteObject(storageRef(storage, video.storagePathClean)).catch(() => null));
-		if (video.storagePathBurned) {
-			deletions.push(
-				deleteObject(storageRef(storage, video.storagePathBurned)).catch(() => null)
-			);
-		}
-		if (video.thumbnailPath) {
-			deletions.push(deleteObject(storageRef(storage, video.thumbnailPath)).catch(() => null));
+		deleteStorageOnce(video.storagePathClean);
+		deleteStorageOnce(video.storagePathBurned);
+		deleteStorageOnce(video.thumbnailPath);
+		for (const artifact of video.artifacts ?? []) {
+			if (artifact.object?.provider === 'wasabi') {
+				const kind = artifactMediaKind(artifact.kind);
+				if (kind) deleteWasabiOnce({ kind, key: artifact.object.key, bucket: artifact.object.bucket });
+			} else if (artifact.object?.key) {
+				deleteStorageOnce(artifact.object.key);
+			}
 		}
 	}
 	await Promise.all(deletions);
