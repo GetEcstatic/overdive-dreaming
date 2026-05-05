@@ -56,6 +56,9 @@ interface DiveVideoDoc {
 	poolLength?: number;
 	timeline?: DiveTimeline;
 	overlayStyleVersion?: string;
+	displayOrientation?: 'landscape' | 'portrait-left' | 'portrait-right';
+	displayRotationDeg?: 0 | 90 | 180 | 270;
+	assetOrientation?: 'landscape' | 'portrait';
 }
 
 interface DiveVideoArtifactRef {
@@ -195,6 +198,46 @@ function formatHudTime(ms: number): string {
 	return `${minutes}:${secs}.${tenths}`;
 }
 
+function even(value: number): number {
+	const rounded = Math.max(2, Math.round(value));
+	return rounded % 2 === 0 ? rounded : rounded - 1;
+}
+
+function displayRotationDeg(video: DiveVideoDoc): 0 | 90 | 180 | 270 {
+	if (video.displayOrientation === 'portrait-left') return video.displayRotationDeg ?? 90;
+	if (video.displayOrientation === 'portrait-right') return video.displayRotationDeg ?? 270;
+	return 0;
+}
+
+function displayRotationFilters(video: DiveVideoDoc): string[] {
+	const rotation = displayRotationDeg(video);
+	if (rotation === 90) return ['transpose=1'];
+	if (rotation === 270) return ['transpose=2'];
+	if (rotation === 180) return ['hflip', 'vflip'];
+	return [];
+}
+
+function rotatedDimensions(video: DiveVideoDoc): { width: number; height: number } {
+	const sourceWidth = video.widthPx && video.widthPx > 0 ? video.widthPx : 1280;
+	const sourceHeight = video.heightPx && video.heightPx > 0 ? video.heightPx : 720;
+	const rotation = displayRotationDeg(video);
+	if (rotation === 90 || rotation === 270) {
+		return { width: sourceHeight, height: sourceWidth };
+	}
+	return { width: sourceWidth, height: sourceHeight };
+}
+
+function scaledDimensions(dimensions: { width: number; height: number }, maxEdge = 1280): {
+	width: number;
+	height: number;
+} {
+	const ratio = Math.min(1, maxEdge / Math.max(dimensions.width, dimensions.height));
+	return {
+		width: even(dimensions.width * ratio),
+		height: even(dimensions.height * ratio)
+	};
+}
+
 function diveElapsedAt(timeline: DiveTimeline, atMs: number): number {
 	if (atMs <= timeline.diveStartMs) return 0;
 	const end = timeline.diveEndMs > 0 ? timeline.diveEndMs : atMs;
@@ -231,38 +274,86 @@ function speedAt(timeline: DiveTimeline, atMs: number, poolLength: number): numb
 	return poolLength / (currentLap.splitMs / 1000);
 }
 
+function roundedRectAssPath(width: number, height: number, radius: number): string {
+	const r = Math.min(radius, width / 2, height / 2);
+	return [
+		`m ${r} 0`,
+		`l ${width - r} 0`,
+		`b ${width} 0 ${width} 0 ${width} ${r}`,
+		`l ${width} ${height - r}`,
+		`b ${width} ${height} ${width} ${height} ${width - r} ${height}`,
+		`l ${r} ${height}`,
+		`b 0 ${height} 0 ${height} 0 ${height - r}`,
+		`l 0 ${r}`,
+		`b 0 0 0 0 ${r} 0`
+	].join(' ');
+}
+
 function overlayAss(args: {
 	timeline: DiveTimeline;
 	poolLength: number;
 	discipline: string;
 	durationSeconds: number;
+	width: number;
+	height: number;
 }): string {
 	const durationSeconds = Math.max(args.durationSeconds, args.timeline.diveEndMs / 1000, 1);
 	const events: string[] = [];
-	for (let second = 0; second < Math.ceil(durationSeconds); second += 1) {
-		const atMs = second * 1000;
-		const endSeconds = Math.min(durationSeconds, second + 1);
+	const scale = Math.max(0.85, Math.min(2.25, args.height / 720));
+	const boxX = Math.round(8 * scale);
+	const boxY = Math.round(12 * scale);
+	const isPortrait = args.height > args.width;
+	const boxW = isPortrait
+		? args.width - 2 * boxX
+		: Math.min(Math.round(args.width * 0.62), args.width - boxX * 2);
+	const padX = Math.round(14 * scale);
+	const padY = Math.round(9 * scale);
+	const labelSize = Math.round(10 * scale);
+	const valueSize = Math.round(22 * scale);
+	const subSize = Math.round(12 * scale);
+	const valueGap = Math.round(5 * scale);
+	const subGap = Math.round(9 * scale);
+	const boxH = padY * 2 + labelSize + valueGap + valueSize + subGap + subSize;
+	const radius = Math.round(14 * scale);
+	const innerX = boxX + padX;
+	const innerY = boxY + padY;
+	const rightX = boxX + boxW - padX;
+	const valueY = innerY + labelSize + valueGap;
+	const subY = valueY + valueSize + subGap;
+
+	for (let tick = 0; tick < Math.ceil(durationSeconds * 10); tick += 1) {
+		const startSeconds = tick / 10;
+		const atMs = startSeconds * 1000;
+		const endSeconds = Math.min(durationSeconds, (tick + 1) / 10);
 		const distance = distanceAt(args.timeline, atMs, args.poolLength);
 		const speed = speedAt(args.timeline, atMs, args.poolLength);
 		const laps = args.timeline.laps.filter((lap) => lap.atMs <= atMs).length;
-		const text = escapeAssText(
-			`${args.discipline}  Time ${formatHudTime(diveElapsedAt(args.timeline, atMs))}  ` +
-				`Distance ${distance.toFixed(1)} m\\NLap ${laps}/${args.timeline.laps.length}  ` +
-				`${speed.toFixed(2)} m/s`
-		);
+		const start = formatAssTime(startSeconds);
+		const end = formatAssTime(endSeconds);
+		const bgShape = roundedRectAssPath(boxW, boxH, radius);
 		events.push(
-			`Dialogue: 0,${formatAssTime(second)},${formatAssTime(endSeconds)},HUD,,0,0,0,,${text}`
+			`Dialogue: 0,${start},${end},HUDBG,,0,0,0,,{\\an7\\pos(${boxX},${boxY})\\p1}${bgShape}`,
+			`Dialogue: 1,${start},${end},HUDLabel,,0,0,0,,{\\an7\\pos(${innerX},${innerY})}TIME`,
+			`Dialogue: 1,${start},${end},HUDLabel,,0,0,0,,{\\an9\\pos(${rightX},${innerY})}DISTANCE`,
+			`Dialogue: 1,${start},${end},HUDValue,,0,0,0,,{\\an7\\pos(${innerX},${valueY})}${escapeAssText(formatHudTime(diveElapsedAt(args.timeline, atMs)))}`,
+			`Dialogue: 1,${start},${end},HUDValue,,0,0,0,,{\\an9\\pos(${rightX},${valueY})}${escapeAssText(`${distance.toFixed(1)} m`)}`,
+			`Dialogue: 1,${start},${end},HUDSub,,0,0,0,,{\\an7\\pos(${innerX},${subY})}${escapeAssText(`Lap ${laps}/${args.timeline.laps.length}`)}`,
+			`Dialogue: 1,${start},${end},HUDSubMono,,0,0,0,,{\\an9\\pos(${rightX},${subY})}${escapeAssText(`${speed.toFixed(2)} m/s`)}`
 		);
 	}
 
 	return `[Script Info]
 ScriptType: v4.00+
-PlayResX: 1280
-PlayResY: 720
+PlayResX: ${args.width}
+PlayResY: ${args.height}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: HUD,Arial,32,&H00F8FAFC,&H000000FF,&H800F172A,&HAA0F172A,1,0,0,0,100,100,0,0,3,2,0,7,24,24,24,1
+Style: HUDBG,Arial,1,&H732A170F,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
+Style: HUDLabel,Arial,${labelSize},&H00E1D5CB,&H000000FF,&H00000000,&H00000000,1,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
+Style: HUDValue,Menlo,${valueSize},&H00FCFAF8,&H000000FF,&H00000000,&H00000000,1,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
+Style: HUDSub,Arial,${subSize},&H00E1D5CB,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
+Style: HUDSubMono,Menlo,${subSize},&H00E1D5CB,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -470,6 +561,7 @@ async function generateOverlayDownload(args: {
 	}
 	const ownerId = args.video.ownerId ?? args.video.userId;
 	if (!ownerId) throw new HttpsError('failed-precondition', 'Dive video has no owner');
+	const outputDimensions = scaledDimensions(rotatedDimensions(args.video));
 	return withMasterFile(args.video, async (inputPath) => {
 		const outputPath = join(tmpdir(), `overdive-overlay-${randomUUID()}.mp4`);
 		const assPath = join(tmpdir(), `overdive-overlay-${randomUUID()}.ass`);
@@ -480,15 +572,22 @@ async function generateOverlayDownload(args: {
 					timeline: args.video.timeline as DiveTimeline,
 					poolLength: args.video.poolLength ?? 25,
 					discipline: args.video.discipline ?? 'DYN',
-					durationSeconds: args.video.durationSeconds ?? 0
+					durationSeconds: args.video.durationSeconds ?? 0,
+					width: outputDimensions.width,
+					height: outputDimensions.height
 				})
 			);
+			const filterChain = [
+				...displayRotationFilters(args.video),
+				`scale=${outputDimensions.width}:${outputDimensions.height}`,
+				`subtitles=${assPath}`
+			].join(',');
 			await execFileAsync(ffmpeg, [
 				'-y',
 				'-i',
 				inputPath,
 				'-vf',
-				`subtitles=${assPath},scale=1280:1280:force_original_aspect_ratio=decrease:force_divisible_by=2`,
+				filterChain,
 				'-c:v',
 				'libx264',
 				'-preset',

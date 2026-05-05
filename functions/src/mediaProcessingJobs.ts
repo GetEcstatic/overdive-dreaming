@@ -42,7 +42,8 @@ export interface MediaProcessingJobPayload {
 const LIGHTWEIGHT_UPLOAD_JOBS: DiveVideoProcessingJob[] = [
 	'probe-master',
 	'generate-thumbnail',
-	'generate-playback-proxy'
+	'generate-playback-proxy',
+	'generate-overlay-download'
 ];
 
 export function uploadedDiveVideoProcessingState(): DiveVideoProcessingState {
@@ -51,7 +52,7 @@ export function uploadedDiveVideoProcessingState(): DiveVideoProcessingState {
 		thumbnail: 'queued',
 		playbackProxy: 'queued',
 		overlayPreview: 'not-requested',
-		overlayDownload: 'not-requested',
+		overlayDownload: 'queued',
 		pendingJobs: LIGHTWEIGHT_UPLOAD_JOBS
 	};
 }

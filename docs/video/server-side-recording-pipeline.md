@@ -210,17 +210,19 @@ Use social-app expectations:
 
 ### Phase 3 - Server overlay exports
 
-- [x] ⚠️ Essential before Phase 3 completion: generate overlay-burned MP4 from master + `DiveTimeline` using FFmpeg filters or rendered overlay frames. First pass implemented as a requested `generate-overlay-download` worker job that burns a timeline-driven ASS HUD into a 720p MP4.
+- [x] ⚠️ Essential before Phase 3 completion: generate overlay-burned MP4 from master + `DiveTimeline` using FFmpeg filters or rendered overlay frames. Implemented as an automatic `generate-overlay-download` worker job that burns a timeline-driven ASS HUD into a 720p MP4.
 - [x] ⚠️ Essential before Phase 3 completion: preserve source audio. First pass transcodes/muxes source audio to AAC in the server overlay download artifact.
-- [ ] Produce 720p and 1080p exports for both portrait and landscape presentation. First pass produces a 720p overlay download artifact; 1080p and portrait-specific framing remain pending.
+- [ ] Produce 720p and 1080p exports for both portrait and landscape presentation. Current worker produces a 720p overlay download artifact and rotates portrait-intended landscape assets into the same display orientation used by the dashboard; 1080p remains pending.
 - [x] Version overlay styles so old videos can be re-exported consistently. New videos store `overlayStyleVersion` from `SERVER_OVERLAY_STYLE_VERSION`.
 - [x] Treat overlay download artifacts as disposable/rebuildable with temporary retention. First pass stores overlay-download artifacts with `disposable: true`; explicit expiry/cleanup still belongs to Phase 4 retention work.
-- [x] Add `Request overlay export` / `Retry export` semantics in the UI. The player can queue/retry the server overlay download job while retaining the current browser export path.
-- [ ] Remove or demote client-side canvas baking once server overlay is reliable.
+- [x] Add download UI semantics for ready/processing/retryable overlay exports. The player now presents the processed overlay as `Download with overlay`, the clean master as `Download without overlay`, and keeps retry behavior for older/failed exports.
+- [x] Remove or demote client-side canvas baking once server overlay is reliable. The browser canvas path remains in code as a fallback implementation, but the visible primary UI now uses server-generated overlay downloads.
 
-**Current status (2026-05-05):** first-pass server overlay export is implemented but not yet validated against real uploaded footage. `requestOverlayDownload` creates a fresh `generate-overlay-download` job for each request/retry, the Firestore queue trigger processes that job automatically, and the worker writes a 720p `overlay/download.mp4` Wasabi artifact while preserving audio via AAC. `DiveVideoPlayer` can request/retry the job and download the ready burned artifact after a refresh. This is enough to start production smoke testing, but it should be treated as a Phase 3 alpha path until the FFmpeg subtitles filter, audio preservation, and generated HUD layout are verified on iPhone/Android source clips.
+**Current status (2026-05-05):** server overlay export has been validated on a newly uploaded dive video for queueing, download readiness, and clear audio. The remaining quality gap was that the burned HUD used a separate one-line layout and whole-second sampling rather than matching the dashboard HUD. The worker now generates overlay ASS from the same HUD data model as `DiveVideoPlayer`: dashboard display rotation, compact top-left/portrait-wide HUD geometry, matching labels/value/subtext structure, tabular timing, rounded translucent HUD backing, and tenth-second updates. Upload completion now queues `generate-overlay-download` automatically alongside probe, thumbnail, and playback proxy work so new videos prepare the processed overlay in the background.
 
-**Next Phase 3 work:** deploy `requestOverlayDownload`, run one real-video smoke test end-to-end, show live processing status without requiring refresh, add 1080p and portrait-aware framing, and decide whether the browser canvas export should be demoted once server output is trustworthy.
+**Phase 3 follow-up completed in this pass:** server overlay HUD timing/style alignment, share-first save flow for overlay downloads, no forced popup tab for downloads, automatic overlay job queueing after upload, and simplified player actions: `Download with overlay` / `Download without overlay`.
+
+**Next Phase 3 work:** deploy the eager overlay worker update, run another real-video smoke test on iPhone and Android, show live processing status without requiring refresh, add 1080p exports, and compare the burned HUD against the dashboard HUD frame-by-frame on portrait and landscape clips.
 
 ### Phase 4 - Queue hardening and observability
 
@@ -257,7 +259,7 @@ These decisions come from the answered questions and should guide the first impl
 5. **Overlay versions:** version overlay styles so old videos can be re-exported consistently.
 6. **Derivative retention:** generated overlay downloads are disposable/rebuildable. Use temporary retention for recently requested exports rather than storing every burned export forever.
 7. **Cost posture:** prioritize low cost while the app is not revenue-generating. Avoid automatic generation of expensive artifacts that the user may never need.
-8. **Automatic processing:** start lightweight processing immediately after upload. Generate probe metadata, thumbnail, and playback proxy automatically; generate high-quality overlay downloads on demand unless usage shows they should be eager.
+8. **Automatic processing:** start processing immediately after upload. Generate probe metadata, thumbnail, playback proxy, and the 720p overlay download automatically so the user normally only sees ready download actions.
 9. **Gift ownership:** once gifted, the video and overlay/timeline data should become exclusively the athlete's. Export requests after acceptance should run under the athlete-owned copy.
 10. **Auth future:** keep Firebase Auth for now but avoid baking it into media-worker internals. The media API should be adaptable to another auth/token layer later.
 

@@ -23,8 +23,13 @@ export function uploadedDiveVideoProcessingState(): DiveVideoProcessingState {
 		thumbnail: 'queued',
 		playbackProxy: 'queued',
 		overlayPreview: 'not-requested',
-		overlayDownload: 'not-requested',
-		pendingJobs: ['probe-master', 'generate-thumbnail', 'generate-playback-proxy']
+		overlayDownload: 'queued',
+		pendingJobs: [
+			'probe-master',
+			'generate-thumbnail',
+			'generate-playback-proxy',
+			'generate-overlay-download'
+		]
 	};
 }
 
