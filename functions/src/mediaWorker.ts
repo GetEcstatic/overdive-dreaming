@@ -262,9 +262,8 @@ function overlayExportProfile(video: DiveVideoDoc): {
 	const suspectCodec = codecDescription.includes('opus');
 	const highRiskSource =
 		suspectCodec ||
-		sizeBytes > 500 * 1024 * 1024 ||
-		bitrateBps > 18_000_000 ||
-		(durationSeconds > 180 && sizeBytes > 350 * 1024 * 1024);
+		(sizeBytes > 650 * 1024 * 1024 && bitrateBps > 20_000_000) ||
+		(sizeBytes > 900 * 1024 * 1024);
 	if (highRiskSource) return { maxEdge: 540, profile: 'overlay-mp4-540p' };
 	if (sizeBytes > 250 * 1024 * 1024 || durationSeconds > 180 || bitrateBps > 12_000_000) {
 		return { maxEdge: 720, profile: 'overlay-mp4-720p' };
