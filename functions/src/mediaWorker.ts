@@ -22,6 +22,18 @@ const require = createRequire(import.meta.url);
 const ffmpegPath = require('ffmpeg-static') as string | null;
 const ffprobeStatic = require('ffprobe-static') as { path?: string };
 const execFileAsync = promisify(execFile);
+const OVERLAY_STYLE_VERSION = 'overdive-overlay-v2';
+
+const HUD_REFERENCE_SHORT_EDGE_PX = 390;
+const CSS_PX_PER_REM = 16;
+
+function rem(value: number): number {
+	return value * CSS_PX_PER_REM;
+}
+
+function scaledCssPx(value: number, scale: number): number {
+	return Math.round(value * scale);
+}
 
 interface MediaObjectRef {
 	provider?: 'wasabi';
@@ -342,27 +354,33 @@ function overlayAss(args: {
 }): string {
 	const durationSeconds = Math.max(args.durationSeconds, args.timeline.diveEndMs / 1000, 1);
 	const events: string[] = [];
-	const scale = Math.max(0.5, Math.min(2.25, args.height / 720));
 	const isPortrait = args.height > args.width;
-	const boxX = Math.round((isPortrait ? 12 : 8) * scale);
-	const boxY = Math.round(12 * scale);
+	const scale = Math.max(
+		0.5,
+		Math.min(2.5, (isPortrait ? args.width : args.height) / HUD_REFERENCE_SHORT_EDGE_PX)
+	);
+	const boxX = scaledCssPx(isPortrait ? rem(0.75) : rem(0.5), scale);
+	const boxY = scaledCssPx(rem(0.75), scale);
 	const boxW = isPortrait
 		? args.width - 2 * boxX
 		: Math.min(Math.round(args.width * 0.62), args.width - boxX * 2);
-	const padX = Math.round((isPortrait ? 17 : 14) * scale);
-	const padY = Math.round((isPortrait ? 12 : 9) * scale);
-	const labelSize = Math.round((isPortrait ? 11 : 10) * scale);
-	const valueSize = Math.round((isPortrait ? 30 : 22) * scale);
-	const subSize = Math.round((isPortrait ? 14 : 12) * scale);
-	const valueGap = Math.round(5 * scale);
-	const subGap = Math.round(9 * scale);
-	const boxH = padY * 2 + labelSize + valueGap + valueSize + subGap + subSize;
-	const radius = Math.round(14 * scale);
+	const padX = scaledCssPx(isPortrait ? rem(1.05) : rem(0.85), scale);
+	const padY = scaledCssPx(isPortrait ? rem(0.75) : rem(0.55), scale);
+	const labelSize = scaledCssPx(isPortrait ? rem(0.7) : rem(0.64), scale);
+	const valueSize = scaledCssPx(isPortrait ? rem(1.9) : rem(1.35), scale);
+	const subSize = scaledCssPx(isPortrait ? rem(0.85) : rem(0.76), scale);
+	const labelLineHeight = scaledCssPx((isPortrait ? rem(0.7) : rem(0.64)) * 1.2, scale);
+	const valueLineHeight = scaledCssPx((isPortrait ? rem(1.9) : rem(1.35)) * 1.1, scale);
+	const subLineHeight = scaledCssPx((isPortrait ? rem(0.85) : rem(0.76)) * 1.2, scale);
+	const subMarginTop = scaledCssPx(rem(0.4), scale);
+	const boxH = padY * 2 + labelLineHeight + valueLineHeight + subMarginTop + subLineHeight;
+	const radius = scaledCssPx(14, scale);
+	const labelSpacing = Math.max(0, labelSize * 0.08).toFixed(2);
 	const innerX = boxX + padX;
 	const innerY = boxY + padY;
 	const rightX = boxX + boxW - padX;
-	const valueY = innerY + labelSize + valueGap;
-	const subY = valueY + valueSize + subGap;
+	const valueY = innerY + labelLineHeight;
+	const subY = valueY + valueLineHeight + subMarginTop;
 
 	for (let tick = 0; tick < Math.ceil(durationSeconds * 10); tick += 1) {
 		const startSeconds = tick / 10;
@@ -393,7 +411,7 @@ PlayResY: ${args.height}
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: HUDBG,Arial,1,&H732A170F,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
-Style: HUDLabel,Arial,${labelSize},&H00E1D5CB,&H000000FF,&H00000000,&H00000000,1,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
+Style: HUDLabel,Arial,${labelSize},&H00E1D5CB,&H000000FF,&H00000000,&H00000000,1,0,0,0,100,100,${labelSpacing},0,1,0,0,7,0,0,0,1
 Style: HUDValue,Menlo,${valueSize},&H00FCFAF8,&H000000FF,&H00000000,&H00000000,1,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 Style: HUDSub,Arial,${subSize},&H00E1D5CB,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 Style: HUDSubMono,Menlo,${subSize},&H00E1D5CB,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
@@ -680,7 +698,7 @@ async function generateOverlayDownload(args: {
 				durationSeconds: probe.durationSeconds,
 				sizeBytes: bytes.byteLength,
 				contentType: 'video/mp4',
-				styleVersion: args.video.overlayStyleVersion,
+				styleVersion: OVERLAY_STYLE_VERSION,
 				disposable: true
 			}) as unknown as DiveVideoArtifactRef;
 		} finally {
