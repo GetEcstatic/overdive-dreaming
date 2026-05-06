@@ -90,6 +90,7 @@
 	let showFullscreenControls = $state(true);
 	let isScrubbing = $state(false);
 	let scrubPreviewMs = $state(0);
+	let portraitSwipeStart: { x: number; y: number } | null = null;
 	let fullscreenControlsTimer: ReturnType<typeof setTimeout> | null = null;
 
 	/**
@@ -247,6 +248,30 @@
 	function onFullscreenPointerActivity(): void {
 		if (!isFullscreen) return;
 		revealFullscreenControls();
+	}
+
+	function onFullscreenPointerDown(event: PointerEvent): void {
+		onFullscreenPointerActivity();
+		if (!isFullscreen || fullscreenMode !== 'portrait' || isScrubbing) return;
+		if (event.pointerType === 'mouse') return;
+		const target = event.target;
+		if (target instanceof Element && target.closest('.fs-controls')) return;
+		portraitSwipeStart = { x: event.clientX, y: event.clientY };
+	}
+
+	function onFullscreenPointerMove(event: PointerEvent): void {
+		onFullscreenPointerActivity();
+		if (!portraitSwipeStart || !isFullscreen || fullscreenMode !== 'portrait') return;
+		const deltaX = event.clientX - portraitSwipeStart.x;
+		const deltaY = event.clientY - portraitSwipeStart.y;
+		if (deltaY > 96 && deltaY > Math.abs(deltaX) * 1.4) {
+			portraitSwipeStart = null;
+			exitFullscreen();
+		}
+	}
+
+	function clearPortraitSwipe(): void {
+		portraitSwipeStart = null;
 	}
 
 	function seekToProgress(progress: number): void {
@@ -1124,8 +1149,10 @@
 	style="position: relative; --dive-video-fit: {fitMode}; aspect-ratio: {displayTransform.aspectRatio};"
 	data-fullscreen-root
 	data-display-orientation={displayTransform.hudMode}
-	onpointermove={onFullscreenPointerActivity}
-	onpointerdown={onFullscreenPointerActivity}
+	onpointermove={onFullscreenPointerMove}
+	onpointerdown={onFullscreenPointerDown}
+	onpointerup={clearPortraitSwipe}
+	onpointercancel={clearPortraitSwipe}
 >
 	<!-- svelte-ignore a11y_media_has_caption -->
 	<video
@@ -1146,25 +1173,20 @@
 
 	{#if showOverlay}
 		<!--
-		  HUD overlay: compact variant of the recording HUD, sized to stay
-		  out of the way in both portrait and landscape replay. The HUD is
-		  anchored to the *container* (display coordinates), so when the
-		  inner <video> is rotated by displayTransform, the HUD stays
-		  upright relative to the user's intended framing automatically.
-		  In fullscreen landscape, shift to top-center and respect safe-
-		  area insets so the overlay clears notches / Dynamic Island.
+		  Recording HUD match. The overlay is anchored to the container so it
+		  stays upright even when displayTransform rotates the inner video.
 		-->
 		<div
 			class="dive-hud"
-			class:dive-hud-fullscreen={isFullscreen}
-			class:dive-hud-portrait={displayTransform.hudMode === 'portrait'}
+			class:dive-hud-landscape={fullscreenMode === 'landscape' ||
+				(!isFullscreen && displayTransform.hudMode === 'landscape')}
 		>
 			<div class="dive-hud-row">
-				<div>
+				<div class="dive-hud-cell">
 					<div class="dive-hud-label">Time</div>
 					<div class="dive-hud-value">{formatMs(elapsedMs)}</div>
 				</div>
-				<div style="text-align: right;">
+				<div class="dive-hud-cell right">
 					<div class="dive-hud-label">Distance</div>
 					<div class="dive-hud-value">{distance.toFixed(1)} m</div>
 				</div>
@@ -1177,17 +1199,6 @@
 	{/if}
 
 	{#if isFullscreen}
-		{#if fullscreenMode === 'portrait'}
-			<button
-				type="button"
-				class="fs-portrait-close"
-				aria-label="Exit fullscreen"
-				onclick={exitFullscreen}
-			>
-				✕
-			</button>
-		{/if}
-
 		<!--
 		  Custom landscape control bar. Replaces the native <video> controls
 		  (hidden above) so they don't visually fight the HUD. Positioned at
@@ -1319,45 +1330,29 @@
 {/if}
 
 <style>
-	/*
-	 * HUD overlay. In the inline (non-fullscreen) player it sits at the
-	 * top-left; in fullscreen it shifts to top-center with safe-area padding
-	 * so it clears the notch / Dynamic Island in landscape.
-	 */
+	/* Match the recording HUD in DiveRecorder.svelte. */
 	.dive-hud {
 		position: absolute;
-		left: 0.5rem;
-		right: auto;
-		top: 0.75rem;
-		width: min(62%, calc(100% - 1rem));
+		left: 0.75rem;
+		right: 0.75rem;
+		top: max(0.75rem, env(safe-area-inset-top));
+		width: auto;
 		z-index: 10;
 		pointer-events: none;
-		padding: 0.55rem 0.85rem;
+		padding: 0.75rem 1.05rem;
 		border-radius: 14px;
 		background: rgba(15, 23, 42, 0.55);
 		backdrop-filter: blur(8px);
 		-webkit-backdrop-filter: blur(8px);
 		color: #f1f5f9;
 	}
-	.dive-hud-fullscreen {
+	.dive-hud-landscape {
 		left: max(0.5rem, env(safe-area-inset-left));
+		right: auto;
 		top: max(0.75rem, env(safe-area-inset-top));
-		width: min(62vw, 28rem);
-		max-width: calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 1rem);
-		background: rgba(15, 23, 42, 0.55);
-	}
-	/*
-	 * Portrait display mode (landscape asset rotated into a portrait
-	 * viewport, or a true portrait asset). Add a touch more horizontal
-	 * inset because the rotated video's letterboxing eats less side space
-	 * and the HUD risks sitting visually on top of the diver.
-	 */
-	.dive-hud-portrait:not(.dive-hud-fullscreen) {
-		left: 0.75rem;
-		right: 0.75rem;
-		top: 0.75rem;
 		width: auto;
-		padding: 0.75rem 1.05rem;
+		max-width: 62%;
+		padding: 0.55rem 0.85rem;
 	}
 	.dive-hud-row {
 		display: flex;
@@ -1365,16 +1360,18 @@
 		align-items: baseline;
 		gap: 1.25rem;
 	}
+	.dive-hud-cell.right {
+		text-align: right;
+	}
 	.dive-hud-label {
-		font-size: 0.64rem;
+		font-size: 0.7rem;
 		text-transform: uppercase;
-		letter-spacing: 0.06em;
+		letter-spacing: 0.08em;
 		color: #cbd5e1;
-		line-height: 1;
 	}
 	.dive-hud-value {
 		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-		font-size: 1.35rem;
+		font-size: 1.9rem;
 		font-variant-numeric: tabular-nums;
 		line-height: 1.1;
 	}
@@ -1383,17 +1380,17 @@
 		justify-content: space-between;
 		gap: 1.25rem;
 		color: #cbd5e1;
-		font-size: 0.76rem;
+		font-size: 0.85rem;
 		margin-top: 0.4rem;
 	}
-	.dive-hud-portrait:not(.dive-hud-fullscreen) .dive-hud-label {
-		font-size: 0.7rem;
+	.dive-hud-landscape .dive-hud-label {
+		font-size: 0.64rem;
 	}
-	.dive-hud-portrait:not(.dive-hud-fullscreen) .dive-hud-value {
-		font-size: 1.9rem;
+	.dive-hud-landscape .dive-hud-value {
+		font-size: 1.35rem;
 	}
-	.dive-hud-portrait:not(.dive-hud-fullscreen) .dive-hud-sub {
-		font-size: 0.85rem;
+	.dive-hud-landscape .dive-hud-sub {
+		font-size: 0.76rem;
 	}
 	.dive-hud-mono {
 		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -1570,32 +1567,6 @@
 	.fs-btn-exit {
 		margin-left: auto;
 		background: rgba(15, 23, 42, 0.75);
-	}
-	.fs-portrait-close {
-		position: absolute;
-		top: max(0.75rem, env(safe-area-inset-top));
-		right: max(0.75rem, env(safe-area-inset-right));
-		z-index: 12;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 40px;
-		height: 40px;
-		border-radius: 9999px;
-		border: 1px solid rgba(255, 255, 255, 0.24);
-		background: rgba(15, 23, 42, 0.75);
-		color: #f1f5f9;
-		font: inherit;
-		font-size: 1rem;
-		font-weight: 700;
-		line-height: 1;
-		cursor: pointer;
-		backdrop-filter: blur(6px);
-		-webkit-backdrop-filter: blur(6px);
-		-webkit-tap-highlight-color: transparent;
-	}
-	.fs-portrait-close:active {
-		transform: scale(0.95);
 	}
 
 	/*
