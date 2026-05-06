@@ -50,6 +50,7 @@ interface DiveVideoDoc {
 	mimeType?: string;
 	sizeBytes?: number;
 	actualAverageBitrateBps?: number;
+	probeAudioCodec?: string;
 	widthPx?: number;
 	heightPx?: number;
 	durationSeconds?: number;
@@ -65,7 +66,7 @@ interface DiveVideoDoc {
 
 interface DiveVideoArtifactRef {
 	kind: 'master' | 'thumbnail' | 'playback-proxy' | 'overlay-preview' | 'overlay-download' | 'hls-manifest';
-	profile: 'original' | 'thumb-jpeg' | 'mp4-720p' | 'mp4-1080p' | 'hls-adaptive' | 'overlay-mp4-720p' | 'overlay-mp4-1080p';
+	profile: 'original' | 'thumb-jpeg' | 'mp4-720p' | 'mp4-1080p' | 'hls-adaptive' | 'overlay-mp4-540p' | 'overlay-mp4-720p' | 'overlay-mp4-1080p';
 	object: MediaObjectRef;
 	widthPx?: number;
 	heightPx?: number;
@@ -246,17 +247,29 @@ function scaledDimensions(dimensions: { width: number; height: number }, maxEdge
 	};
 }
 
-function overlayMaxEdge(video: DiveVideoDoc): 540 | 720 {
+function overlayExportProfile(video: DiveVideoDoc): {
+	maxEdge: 540 | 720 | 1080;
+	profile: 'overlay-mp4-540p' | 'overlay-mp4-720p' | 'overlay-mp4-1080p';
+} {
 	const sizeBytes = video.cleanObject?.sizeBytes ?? video.sizeBytes ?? 0;
 	const durationSeconds = video.durationSeconds ?? 0;
 	const inferredBitrateBps =
 		sizeBytes > 0 && durationSeconds > 0 ? (sizeBytes * 8) / durationSeconds : undefined;
 	const bitrateBps = video.actualAverageBitrateBps ?? inferredBitrateBps ?? 0;
+	const codecDescription = `${video.mimeType ?? ''} ${video.cleanObject?.contentType ?? ''} ${
+		video.probeAudioCodec ?? ''
+	}`.toLowerCase();
+	const suspectCodec = codecDescription.includes('opus');
 	const highRiskSource =
+		suspectCodec ||
 		sizeBytes > 500 * 1024 * 1024 ||
 		bitrateBps > 18_000_000 ||
 		(durationSeconds > 180 && sizeBytes > 350 * 1024 * 1024);
-	return highRiskSource ? 540 : 720;
+	if (highRiskSource) return { maxEdge: 540, profile: 'overlay-mp4-540p' };
+	if (sizeBytes > 250 * 1024 * 1024 || durationSeconds > 180 || bitrateBps > 12_000_000) {
+		return { maxEdge: 720, profile: 'overlay-mp4-720p' };
+	}
+	return { maxEdge: 1080, profile: 'overlay-mp4-1080p' };
 }
 
 function diveElapsedAt(timeline: DiveTimeline, atMs: number): number {
@@ -582,7 +595,8 @@ async function generateOverlayDownload(args: {
 	}
 	const ownerId = args.video.ownerId ?? args.video.userId;
 	if (!ownerId) throw new HttpsError('failed-precondition', 'Dive video has no owner');
-	const outputDimensions = scaledDimensions(rotatedDimensions(args.video), overlayMaxEdge(args.video));
+	const exportProfile = overlayExportProfile(args.video);
+	const outputDimensions = scaledDimensions(rotatedDimensions(args.video), exportProfile.maxEdge);
 	const boundedDurationSeconds = Math.max(1, Math.ceil((args.video.durationSeconds ?? 0) + 1));
 	return withMasterFile(args.video, async (inputPath) => {
 		const outputPath = join(tmpdir(), `overdive-overlay-${randomUUID()}.mp4`);
@@ -644,7 +658,7 @@ async function generateOverlayDownload(args: {
 			const probe = await probeMasterFile({ ffprobe, inputPath: outputPath });
 			return withoutUndefined({
 				kind: 'overlay-download',
-				profile: 'overlay-mp4-720p',
+				profile: exportProfile.profile,
 				object: {
 					provider: 'wasabi',
 					bucket: object.bucket,

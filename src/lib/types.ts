@@ -1030,6 +1030,7 @@ export type DiveVideoArtifactProfile =
 	| 'mp4-720p'
 	| 'mp4-1080p'
 	| 'hls-adaptive'
+	| 'overlay-mp4-540p'
 	| 'overlay-mp4-720p'
 	| 'overlay-mp4-1080p';
 
