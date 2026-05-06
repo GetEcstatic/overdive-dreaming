@@ -62,6 +62,26 @@ function cleanPathFor(userId: string, videoId: string, mimeType: string): string
 	return `users/${userId}/videos/${videoId}/clean.${fileExtensionFor(mimeType)}`;
 }
 
+function stripUndefinedFields(value: unknown): unknown {
+	if (value === undefined) return undefined;
+	if (value === null) return null;
+	if (value instanceof Timestamp) return value;
+	if (Array.isArray(value)) {
+		return value
+			.map((item) => stripUndefinedFields(item))
+			.filter((item) => item !== undefined);
+	}
+	if (typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+		const cleaned: Record<string, unknown> = {};
+		for (const [key, nested] of Object.entries(value)) {
+			const stripped = stripUndefinedFields(nested);
+			if (stripped !== undefined) cleaned[key] = stripped;
+		}
+		return cleaned;
+	}
+	return value;
+}
+
 function thumbnailPathFor(userId: string, videoId: string): string {
 	return `users/${userId}/videos/${videoId}/thumb.jpg`;
 }
@@ -88,17 +108,18 @@ export async function createDiveVideo(
 ): Promise<string> {
 	const docRef = doc(collection(db, COLLECTION));
 	const videoId = docRef.id;
+	const cleanVideoData = stripUndefinedFields(videoData) as typeof videoData;
 
 	const storagePathClean =
-		videoData.storagePathClean ??
-		cleanPathFor(videoData.userId, videoId, videoData.mimeType);
+		cleanVideoData.storagePathClean ??
+		cleanPathFor(cleanVideoData.userId, videoId, cleanVideoData.mimeType);
 
 	const payload = {
-		...videoData,
+		...cleanVideoData,
 		id: videoId,
 		storagePathClean,
-		processingState: videoData.processingState ?? initialDiveVideoProcessingState(),
-		overlayStyleVersion: videoData.overlayStyleVersion ?? SERVER_OVERLAY_STYLE_VERSION,
+		processingState: cleanVideoData.processingState ?? initialDiveVideoProcessingState(),
+		overlayStyleVersion: cleanVideoData.overlayStyleVersion ?? SERVER_OVERLAY_STYLE_VERSION,
 		createdAt: serverTimestamp(),
 		updatedAt: serverTimestamp()
 	};
