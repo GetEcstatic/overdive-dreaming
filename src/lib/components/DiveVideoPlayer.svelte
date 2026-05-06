@@ -520,7 +520,7 @@
 				url,
 				fileName,
 				mime: liveVideo.mimeType || 'video/mp4',
-				fallbackError: 'Original video is ready. Tap Share original video to open the share sheet.',
+				fallbackError: 'Original video is ready. Tap Download to open the share sheet.',
 				preparedKind: 'original'
 			});
 			if (!downloadError) exportDiagnostic = `Original video ready (${formatBytes(liveVideo.sizeBytes)}).`;
@@ -1102,7 +1102,7 @@
 				url,
 				fileName,
 				mime: 'video/mp4',
-				fallbackError: 'Overlay export is ready. Tap Share overlay video to open the share sheet.',
+				fallbackError: 'Overlay export is ready. Tap Download to open the share sheet.',
 				preparedKind: 'server-overlay'
 			});
 		} catch (err) {
@@ -1110,6 +1110,14 @@
 		} finally {
 			downloading = false;
 		}
+	}
+
+	async function downloadCurrentVideo(): Promise<void> {
+		if (showOverlay) {
+			await downloadServerOverlay();
+			return;
+		}
+		await downloadOriginalVideo();
 	}
 </script>
 
@@ -1282,41 +1290,25 @@
 			<button
 				type="button"
 				class="pill pill-primary"
-				onclick={downloadServerOverlay}
-				disabled={downloading || requestingServerOverlay || overlayDownloadStatus === 'queued'}
+				onclick={downloadCurrentVideo}
+				disabled={downloading || requestingServerOverlay || (showOverlay && overlayDownloadStatus === 'queued')}
 			>
 				{#if downloading}
 					<span class="pill-spinner" aria-hidden="true"></span>
 					<span>Preparing…</span>
-				{:else if requestingServerOverlay}
+				{:else if showOverlay && requestingServerOverlay}
 					<span class="pill-spinner" aria-hidden="true"></span>
 					<span>Queueing...</span>
-				{:else if preparedServerOverlayFile}
-					<span aria-hidden="true">⬇︎</span>
-					<span>Share overlay video</span>
-				{:else if overlayDownloadStatus === 'retryable' || overlayDownloadStatus === 'processing'}
-					<span aria-hidden="true">↻</span>
-					<span>Retry overlay export</span>
-				{:else if overlayDownloadStatus === 'queued'}
+				{:else if showOverlay && overlayDownloadStatus === 'queued'}
 					<span class="pill-spinner" aria-hidden="true"></span>
 					<span>Overlay processing...</span>
-				{:else if overlayDownloadStatus === 'ready'}
+				{:else if showOverlay && (overlayDownloadStatus === 'not-requested' || overlayDownloadStatus === 'retryable' || overlayDownloadStatus === 'processing')}
 					<span aria-hidden="true">⬇︎</span>
-					<span>Download with overlay</span>
+					<span>Download</span>
 				{:else}
-					<span aria-hidden="true">☁</span>
-					<span>Prepare overlay export</span>
+					<span aria-hidden="true">⬇︎</span>
+					<span>Download</span>
 				{/if}
-			</button>
-
-			<button
-				type="button"
-				class="pill"
-				onclick={downloadOriginalVideo}
-				disabled={downloading || requestingServerOverlay}
-			>
-				<span aria-hidden="true">⬇︎</span>
-				<span>{preparedOriginalFile ? 'Share original video' : 'Download without overlay'}</span>
 			</button>
 		{/if}
 
