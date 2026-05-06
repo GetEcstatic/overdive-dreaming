@@ -346,18 +346,18 @@ function overlayAss(args: {
 }): string {
 	const durationSeconds = Math.max(args.durationSeconds, args.timeline.diveEndMs / 1000, 1);
 	const events: string[] = [];
-	const scale = Math.max(0.85, Math.min(2.25, args.height / 720));
-	const boxX = Math.round(8 * scale);
-	const boxY = Math.round(12 * scale);
+	const scale = Math.max(0.5, Math.min(2.25, args.height / 720));
 	const isPortrait = args.height > args.width;
+	const boxX = Math.round((isPortrait ? 12 : 8) * scale);
+	const boxY = Math.round(12 * scale);
 	const boxW = isPortrait
 		? args.width - 2 * boxX
 		: Math.min(Math.round(args.width * 0.62), args.width - boxX * 2);
-	const padX = Math.round(14 * scale);
-	const padY = Math.round(9 * scale);
-	const labelSize = Math.round(10 * scale);
-	const valueSize = Math.round(22 * scale);
-	const subSize = Math.round(12 * scale);
+	const padX = Math.round((isPortrait ? 17 : 14) * scale);
+	const padY = Math.round((isPortrait ? 12 : 9) * scale);
+	const labelSize = Math.round((isPortrait ? 11 : 10) * scale);
+	const valueSize = Math.round((isPortrait ? 30 : 22) * scale);
+	const subSize = Math.round((isPortrait ? 14 : 12) * scale);
 	const valueGap = Math.round(5 * scale);
 	const subGap = Math.round(9 * scale);
 	const boxH = padY * 2 + labelSize + valueGap + valueSize + subGap + subSize;
