@@ -55,9 +55,24 @@
 		compact?: boolean;
 		/** Dashboard feed opt-in: entering locked playback immediately on portrait play. */
 		fullscreenOnPlay?: boolean;
+		/** Disable rotation-driven fullscreen while preserving explicit play fullscreen. */
+		allowAutoFullscreen?: boolean;
+		/** Hide native inline controls and use Overdive controls in the video frame. */
+		customInlineControls?: boolean;
+		/** Place overlay/download actions inside the video frame instead of below it. */
+		inlineActions?: boolean;
 	}
 
-	let { video, srcUrl, posterUrl, compact = false, fullscreenOnPlay = false }: Props = $props();
+	let {
+		video,
+		srcUrl,
+		posterUrl,
+		compact = false,
+		fullscreenOnPlay = false,
+		allowAutoFullscreen,
+		customInlineControls = false,
+		inlineActions = false
+	}: Props = $props();
 	function initialLiveVideo(): DiveVideo {
 		return video;
 	}
@@ -202,6 +217,11 @@
 	const fullscreenControlsVisible = $derived(
 		isFullscreen && (showFullscreenControls || !isPlaying || isScrubbing)
 	);
+	const autoFullscreenEnabled = $derived(allowAutoFullscreen ?? !compact);
+	const nativeControlsVisible = $derived(!isFullscreen && !customInlineControls);
+	const showPlayerActions = $derived(!compact);
+	const showInlineActions = $derived(showPlayerActions && inlineActions);
+	const showBelowActions = $derived(showPlayerActions && !inlineActions);
 	const canDownloadVideo = $derived(
 		$user?.uid === liveVideo.ownerId || $user?.uid === liveVideo.userId
 	);
@@ -272,6 +292,11 @@
 
 	function clearPortraitSwipe(): void {
 		portraitSwipeStart = null;
+	}
+
+	function onInlineVideoClick(): void {
+		if (!customInlineControls || isFullscreen) return;
+		void togglePlay();
 	}
 
 	function seekToProgress(progress: number): void {
@@ -1161,15 +1186,27 @@
 		poster={posterUrl}
 		class="h-full w-full"
 		style="object-fit: {isFullscreen ? 'var(--dive-video-fit, cover)' : 'contain'}; transform: {displayTransform.transform}; transform-origin: center;"
-		controls={!isFullscreen}
+		controls={nativeControlsVisible}
 		playsinline
+		onclick={onInlineVideoClick}
 		ontimeupdate={onTimeUpdate}
 		onplay={onPlayStateChange}
 		onpause={onPlayStateChange}
 		onended={onPlayStateChange}
 		onloadedmetadata={() => videoEl && scheduleRvfc(videoEl as VideoWithRvfc)}
-		use:diveVideoBehavior={{ allowAutoFullscreen: !compact, allowPortraitPlayFullscreen: fullscreenOnPlay }}
+		use:diveVideoBehavior={{ allowAutoFullscreen: autoFullscreenEnabled, allowPortraitPlayFullscreen: fullscreenOnPlay }}
 	></video>
+
+	{#if customInlineControls && !isFullscreen && !isPlaying}
+		<button
+			type="button"
+			class="inline-play-button"
+			aria-label="Play dive video"
+			onclick={togglePlay}
+		>
+			<span aria-hidden="true">▶</span>
+		</button>
+	{/if}
 
 	{#if showOverlay}
 		<!--
@@ -1277,9 +1314,58 @@
 			</div>
 		</div>
 	{/if}
+
+	{#if showInlineActions}
+		<div class="player-actions player-actions-overlay">
+			<button
+				type="button"
+				class="pill pill-toggle"
+				class:pill-active={showOverlay}
+				onclick={() => (showOverlay = !showOverlay)}
+				disabled={downloading}
+				aria-pressed={showOverlay}
+			>
+				<span class="pill-dot" class:pill-dot-active={showOverlay}></span>
+				<span>{showOverlay ? 'Hide overlay' : 'Show overlay'}</span>
+			</button>
+
+			{#if canDownloadVideo}
+				<button
+					type="button"
+					class="pill pill-primary"
+					onclick={downloadCurrentVideo}
+					disabled={downloading || requestingServerOverlay || (showOverlay && overlayDownloadStatus === 'queued')}
+				>
+					{#if downloading}
+						<span class="pill-spinner" aria-hidden="true"></span>
+						<span>Preparing…</span>
+					{:else if showOverlay && requestingServerOverlay}
+						<span class="pill-spinner" aria-hidden="true"></span>
+						<span>Queueing...</span>
+					{:else if showOverlay && overlayDownloadStatus === 'queued'}
+						<span class="pill-spinner" aria-hidden="true"></span>
+						<span>Overlay processing...</span>
+					{:else if showOverlay && (overlayDownloadStatus === 'not-requested' || overlayDownloadStatus === 'retryable' || overlayDownloadStatus === 'processing')}
+						<span aria-hidden="true">⬇︎</span>
+						<span>Download</span>
+					{:else}
+						<span aria-hidden="true">⬇︎</span>
+						<span>Download</span>
+					{/if}
+				</button>
+			{/if}
+
+			{#if downloadError}
+				<p class="download-error">{downloadError}</p>
+			{/if}
+			{#if exportDiagnostic && !downloadError}
+				<p class="export-diagnostic">{exportDiagnostic}</p>
+			{/if}
+		</div>
+	{/if}
 </div>
 
-{#if !compact}
+{#if showBelowActions}
 	<!-- Overlay toggle — standalone pill button directly below the video. -->
 	<div class="player-actions">
 		<button
@@ -1395,6 +1481,36 @@
 	.dive-hud-mono {
 		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 		font-variant-numeric: tabular-nums;
+	}
+	.inline-play-button {
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		z-index: 12;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 4rem;
+		height: 4rem;
+		transform: translate(-50%, -50%);
+		border: 1px solid rgba(255, 255, 255, 0.28);
+		border-radius: 9999px;
+		background: rgba(15, 23, 42, 0.72);
+		color: #f8fafc;
+		font: inherit;
+		font-size: 1.6rem;
+		line-height: 1;
+		cursor: pointer;
+		box-shadow: 0 18px 40px rgba(0, 0, 0, 0.34);
+		backdrop-filter: blur(8px);
+		-webkit-backdrop-filter: blur(8px);
+		-webkit-tap-highlight-color: transparent;
+	}
+	.inline-play-button span {
+		transform: translateX(0.08em);
+	}
+	.inline-play-button:active {
+		transform: translate(-50%, -50%) scale(0.96);
 	}
 
 	/*
@@ -1630,6 +1746,40 @@
 		justify-content: center;
 		align-items: center;
 		margin-top: 0.9rem;
+	}
+	.player-actions-overlay {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 12;
+		justify-content: flex-end;
+		padding: 2.4rem 0.65rem 0.65rem;
+		margin-top: 0;
+		background: linear-gradient(
+			to top,
+			rgba(0, 0, 0, 0.62) 0%,
+			rgba(0, 0, 0, 0.32) 55%,
+			rgba(0, 0, 0, 0) 100%
+		);
+		pointer-events: none;
+	}
+	.player-actions-overlay > * {
+		pointer-events: auto;
+	}
+	.player-actions-overlay .pill {
+		min-height: 36px;
+		padding: 0.56rem 0.82rem;
+		font-size: 0.78rem;
+		box-shadow: 0 10px 28px rgba(0, 0, 0, 0.26);
+	}
+	.player-actions-overlay .download-error,
+	.player-actions-overlay .export-diagnostic {
+		flex-basis: 100%;
+		margin: 0;
+		padding: 0 0.15rem;
+		text-align: right;
+		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
 	}
 	.pill {
 		display: inline-flex;

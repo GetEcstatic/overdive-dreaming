@@ -351,7 +351,7 @@
 	// <a>) so the inline dive-video player can receive taps without the
 	// surrounding anchor hijacking the gesture on mobile Safari. Any click
 	// whose target is inside the .dive-video region is ignored here and left
-	// to the native <video controls> to handle.
+	// to the custom video controls to handle.
 	function isInsideVideo(el: EventTarget | null): boolean {
 		if (!(el instanceof Element)) return false;
 		return el.closest('.dive-video') !== null;
@@ -482,25 +482,25 @@
 			{#if diveVideoUrl}
 				<!--
 				  The `.dive-video` marker class is used by handleCardClick /
-				  handleCardKey to ignore taps in this region so the native
-				  <video controls> stays fully interactive.
+				  handleCardKey to ignore taps in this region so the custom
+				  player controls stay fully interactive.
 				-->
 				<div class="dive-video">
 					{#if diveVideo}
 						<!--
-						  Render the full DiveVideoPlayer in the feed so the
-						  landscape-rotation fullscreen behavior matches the
-						  session detail page exactly (same component, same
-						  props). Rotating the phone to landscape promotes
-						  this card's video to pseudo-fullscreen, gated by
-						  the IntersectionObserver so only the on-screen
-						  card takes over.
+						  Dashboard cards use the custom player inline, but opt out
+						  of rotation-driven fullscreen so browsing the feed stays
+						  stable. Pressing play still promotes mobile portrait
+						  playback into the custom fullscreen player.
 						-->
 						<DiveVideoPlayer
 							video={diveVideo}
 							srcUrl={diveVideoUrl}
 							posterUrl={diveVideoPosterUrl ?? undefined}
+							allowAutoFullscreen={false}
+							customInlineControls
 							fullscreenOnPlay
+							inlineActions
 						/>
 					{:else}
 						<!-- svelte-ignore a11y_media_has_caption -->
