@@ -24,6 +24,7 @@ This is not a video quality problem and is not caused by the overlay export tier
 - Raise the automatic queue retry ceiling from 5 to 50 attempts so interrupted uploads can continue across repeated PWA pauses.
 - Expand the upload drainer beyond `online` events to also run on `focus`, `pageshow`, and `visibilitychange` back to visible.
 - Add an automatic-drain guard so lifecycle events do not start competing drains.
+- Store mutable retry/upload state in a small IndexedDB side store, separate from the large saved video Blob, so manual retry and part-progress updates do not force the browser to re-store a 300-500 MB Blob.
 
 ## Existing Stuck Videos
 

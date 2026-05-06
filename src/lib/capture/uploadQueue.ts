@@ -14,8 +14,9 @@ import type { UploadedPart } from '$lib/media/client';
 import { logUploadDiagnostic } from './uploadDiagnostics';
 
 const DB_NAME = 'overdive-upload-queue';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE = 'pending-videos';
+const STATE_STORE = 'pending-video-state';
 
 /**
  * Convert metadata into a structured-clone-safe plain object before writing
@@ -90,6 +91,10 @@ export interface PendingUpload {
 	attempts: number;
 }
 
+type PendingUploadState = Partial<
+	Pick<PendingUpload, 'remoteVideoId' | 'intendedStoragePath' | 'lastError' | 'wasabiUpload' | 'attempts'>
+> & { localId: string };
+
 function openDb(): Promise<IDBDatabase> {
 	return new Promise((resolve, reject) => {
 		const req = indexedDB.open(DB_NAME, DB_VERSION);
@@ -97,6 +102,9 @@ function openDb(): Promise<IDBDatabase> {
 			const db = req.result;
 			if (!db.objectStoreNames.contains(STORE)) {
 				db.createObjectStore(STORE, { keyPath: 'localId' });
+			}
+			if (!db.objectStoreNames.contains(STATE_STORE)) {
+				db.createObjectStore(STATE_STORE, { keyPath: 'localId' });
 			}
 		};
 		req.onsuccess = () => resolve(req.result);
@@ -106,6 +114,35 @@ function openDb(): Promise<IDBDatabase> {
 
 function tx(db: IDBDatabase, mode: IDBTransactionMode): IDBObjectStore {
 	return db.transaction(STORE, mode).objectStore(STORE);
+}
+
+async function readAllStates(db: IDBDatabase): Promise<Map<string, PendingUploadState>> {
+	const states = await new Promise<PendingUploadState[]>((resolve, reject) => {
+		const req = db.transaction(STATE_STORE, 'readonly').objectStore(STATE_STORE).getAll();
+		req.onsuccess = () => resolve(req.result as PendingUploadState[]);
+		req.onerror = () => reject(req.error);
+	});
+	return new Map(states.map((state) => [state.localId, state]));
+}
+
+async function writeState(localId: string, patch: Partial<PendingUploadState>): Promise<void> {
+	const db = await openDb();
+	await new Promise<void>((resolve, reject) => {
+		const writeTx = db.transaction(STATE_STORE, 'readwrite');
+		const store = writeTx.objectStore(STATE_STORE);
+		const getReq = store.get(localId);
+		getReq.onsuccess = () => {
+			const current = (getReq.result as PendingUploadState | undefined) ?? { localId };
+			const putReq = store.put({ ...current, ...patch, localId });
+			putReq.onerror = () => reject(putReq.error);
+		};
+		getReq.onerror = () => reject(getReq.error);
+		writeTx.oncomplete = () => resolve();
+		writeTx.onerror = () => reject(writeTx.error);
+		writeTx.onabort = () =>
+			reject(writeTx.error ?? new Error('IndexedDB transaction aborted'));
+	});
+	db.close();
 }
 
 function generateLocalId(): string {
@@ -256,17 +293,23 @@ export async function listPendingUploads(): Promise<PendingUpload[]> {
 			req.onerror = () => reject(req.error);
 		}
 	);
+	const states = await readAllStates(db);
 	db.close();
 	return entries
-		.map((e) => ({ ...e, metadata: deserializeMetadata(e.metadata) }))
+		.map((e) => ({
+			...e,
+			...(states.get(e.localId) ?? {}),
+			metadata: deserializeMetadata(e.metadata)
+		}))
 		.sort((a, b) => a.createdAt - b.createdAt);
 }
 
 export async function removePendingUpload(localId: string): Promise<void> {
 	const db = await openDb();
 	await new Promise<void>((resolve, reject) => {
-		const writeTx = db.transaction(STORE, 'readwrite');
+		const writeTx = db.transaction([STORE, STATE_STORE], 'readwrite');
 		const req = writeTx.objectStore(STORE).delete(localId);
+		writeTx.objectStore(STATE_STORE).delete(localId);
 		req.onerror = () => reject(req.error);
 		writeTx.oncomplete = () => resolve();
 		writeTx.onerror = () => reject(writeTx.error);
@@ -283,28 +326,9 @@ export async function removePendingUpload(localId: string): Promise<void> {
 }
 
 export async function markAttempt(localId: string, error?: string): Promise<void> {
-	const db = await openDb();
-	await new Promise<void>((resolve, reject) => {
-		const writeTx = db.transaction(STORE, 'readwrite');
-		const store = writeTx.objectStore(STORE);
-		const getReq = store.get(localId);
-		getReq.onsuccess = () => {
-			const entry = getReq.result as PendingUpload | undefined;
-			if (!entry) {
-				return;
-			}
-			entry.attempts += 1;
-			entry.lastError = error;
-			const putReq = store.put(entry);
-			putReq.onerror = () => reject(putReq.error);
-		};
-		getReq.onerror = () => reject(getReq.error);
-		writeTx.oncomplete = () => resolve();
-		writeTx.onerror = () => reject(writeTx.error);
-		writeTx.onabort = () =>
-			reject(writeTx.error ?? new Error('IndexedDB transaction aborted'));
-	});
-	db.close();
+	const entry = (await listPendingUploads()).find((upload) => upload.localId === localId);
+	if (!entry) return;
+	await writeState(localId, { attempts: entry.attempts + 1, lastError: error });
 	logUploadDiagnostic({
 		level: 'warn',
 		step: 'queue:attempt',
@@ -318,24 +342,7 @@ export async function updatePendingUpload(
 	localId: string,
 	patch: Partial<Pick<PendingUpload, 'remoteVideoId' | 'intendedStoragePath' | 'lastError' | 'wasabiUpload'>>
 ): Promise<void> {
-	const db = await openDb();
-	await new Promise<void>((resolve, reject) => {
-		const writeTx = db.transaction(STORE, 'readwrite');
-		const store = writeTx.objectStore(STORE);
-		const getReq = store.get(localId);
-		getReq.onsuccess = () => {
-			const entry = getReq.result as PendingUpload | undefined;
-			if (!entry) return;
-			const putReq = store.put({ ...entry, ...patch });
-			putReq.onerror = () => reject(putReq.error);
-		};
-		getReq.onerror = () => reject(getReq.error);
-		writeTx.oncomplete = () => resolve();
-		writeTx.onerror = () => reject(writeTx.error);
-		writeTx.onabort = () =>
-			reject(writeTx.error ?? new Error('IndexedDB transaction aborted'));
-	});
-	db.close();
+	await writeState(localId, patch);
 }
 
 /**
@@ -344,38 +351,11 @@ export async function updatePendingUpload(
  * that hit MAX_ATTEMPTS.
  */
 export async function resetAttempts(localId?: string): Promise<void> {
-	const db = await openDb();
-	await new Promise<void>((resolve, reject) => {
-		const store = tx(db, 'readwrite');
-		const getReq = localId ? store.get(localId) : store.getAll();
-		getReq.onsuccess = () => {
-			const result = getReq.result as PendingUpload | PendingUpload[] | undefined;
-			const entries = Array.isArray(result) ? result : result ? [result] : [];
-			if (entries.length === 0) {
-				resolve();
-				return;
-			}
-			let remaining = entries.length;
-			let errored = false;
-			for (const entry of entries) {
-				entry.attempts = 0;
-				entry.lastError = undefined;
-				const putReq = store.put(entry);
-				putReq.onsuccess = () => {
-					remaining -= 1;
-					if (remaining === 0 && !errored) resolve();
-				};
-				putReq.onerror = () => {
-					if (!errored) {
-						errored = true;
-						reject(putReq.error);
-					}
-				};
-			}
-		};
-		getReq.onerror = () => reject(getReq.error);
-	});
-	db.close();
+	const entries = await listPendingUploads();
+	const targetIds = entries
+		.filter((entry) => !localId || entry.localId === localId)
+		.map((entry) => entry.localId);
+	await Promise.all(targetIds.map((id) => writeState(id, { attempts: 0, lastError: undefined })));
 }
 
 /**
