@@ -277,6 +277,11 @@
 	let diveVideoUrl = $state<string | null>(null);
 	let diveVideoPosterUrl = $state<string | null>(null);
 	let sessionPhotoUrl = $state<string | null>(log.photoUrl ?? null);
+	const showDiveVideoUploadStatus = $derived(
+		diveVideo?.uploadStatus === 'pending' ||
+			diveVideo?.uploadStatus === 'uploading' ||
+			diveVideo?.uploadStatus === 'failed'
+	);
 
 	onMount(() => {
 		if (log.photoObject?.provider !== 'wasabi') return;
@@ -457,7 +462,7 @@
 	</div>
 
 	<!-- Media Section -->
-	{#if sessionPhotoUrl || log.youtubeUrl || diveVideoUrl}
+	{#if sessionPhotoUrl || log.youtubeUrl || diveVideoUrl || showDiveVideoUploadStatus}
 		<div class="media-section">
 			{#if diveVideoUrl}
 				<!--
@@ -494,6 +499,24 @@
 							use:diveVideoBehavior={{ allowPortraitPlayFullscreen: true }}
 						></video>
 					{/if}
+				</div>
+			{:else if diveVideo && showDiveVideoUploadStatus}
+				<div class="dive-video">
+					<div class="upload-status-card" class:failed={diveVideo.uploadStatus === 'failed'}>
+						<div class="upload-status-icon" aria-hidden="true">
+							{diveVideo.uploadStatus === 'failed' ? '!' : 'UP'}
+						</div>
+						<div>
+							<div class="upload-status-label">
+								{diveVideo.uploadStatus === 'failed' ? 'Upload failed' : 'Video uploading'}
+							</div>
+							<div class="upload-status-sub">
+								{diveVideo.uploadStatus === 'failed'
+									? "We'll retry next time you're online."
+									: 'Leave the app open to finish this upload.'}
+							</div>
+						</div>
+					</div>
 				</div>
 			{/if}
 
@@ -1147,6 +1170,53 @@
 		height: auto;
 		display: block;
 		background: black;
+	}
+
+	.upload-status-card {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 0.95rem 1rem;
+		border: 1px dashed rgba(20, 184, 166, 0.35);
+		border-radius: 8px;
+		background: rgba(20, 184, 166, 0.08);
+		cursor: default;
+	}
+
+	.upload-status-card.failed {
+		border-color: rgba(239, 68, 68, 0.4);
+		background: rgba(239, 68, 68, 0.08);
+	}
+
+	.upload-status-icon {
+		width: 2rem;
+		height: 2rem;
+		border-radius: 999px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		flex: 0 0 auto;
+		background: rgba(20, 184, 166, 0.18);
+		color: var(--color-primary);
+		font-weight: 800;
+	}
+
+	.upload-status-card.failed .upload-status-icon {
+		background: rgba(239, 68, 68, 0.18);
+		color: #fca5a5;
+	}
+
+	.upload-status-label {
+		font-weight: 650;
+		color: var(--color-text);
+		font-size: 0.9rem;
+	}
+
+	.upload-status-sub {
+		color: var(--color-text-muted);
+		font-size: 0.8rem;
+		line-height: 1.35;
+		margin-top: 0.1rem;
 	}
 
 	/* Desktop enhancements */
