@@ -18,7 +18,7 @@
 	import CommentSection from '$lib/components/CommentSection.svelte';
 	import DiveVideoPlayer from '$lib/components/DiveVideoPlayer.svelte';
 	import {
-		listDiveVideosForSession,
+		subscribeDiveVideosForSession,
 		getDiveVideoThumbnailUrl,
 		getPreferredDiveVideoPlaybackUrl
 	} from '$lib/services/diveVideos';
@@ -306,29 +306,44 @@
 
 	onMount(() => {
 		if (!isDynamicDiscipline) return;
-		let cancelled = false;
-		(async () => {
-			try {
-				const videos = await listDiveVideosForSession(log.id);
-				if (cancelled || videos.length === 0) return;
-				// Prefer the pinned one, else newest.
-				const pick =
-					videos.find((v) => v.retentionTier === 'pinned') ?? videos[0];
-				diveVideo = pick;
-				if (pick.uploadStatus === 'uploaded') {
-					const url = await getPreferredDiveVideoPlaybackUrl(pick);
-					if (!cancelled) diveVideoUrl = url;
-					if (pick.thumbnailObject || pick.thumbnailPath) {
-						const posterUrl = await getDiveVideoThumbnailUrl(pick).catch(() => null);
-						if (!cancelled) diveVideoPosterUrl = posterUrl;
-					}
+		let loadToken = 0;
+		const unsubscribe = subscribeDiveVideosForSession(
+			log.id,
+			(videos) => {
+				const token = ++loadToken;
+				if (videos.length === 0) {
+					diveVideo = null;
+					diveVideoUrl = null;
+					diveVideoPosterUrl = null;
+					return;
 				}
-			} catch (err) {
-				console.warn('[SessionCard] failed to load dive video preview', err);
-			}
-		})();
+
+				const pick = videos.find((v) => v.retentionTier === 'pinned') ?? videos[0];
+				diveVideo = pick;
+				diveVideoUrl = null;
+				diveVideoPosterUrl = null;
+				if (pick.uploadStatus !== 'uploaded') return;
+
+				void (async () => {
+					try {
+						const url = await getPreferredDiveVideoPlaybackUrl(pick);
+						const posterUrl =
+							pick.thumbnailObject || pick.thumbnailPath
+								? await getDiveVideoThumbnailUrl(pick).catch(() => null)
+								: null;
+						if (token !== loadToken) return;
+						diveVideoUrl = url;
+						diveVideoPosterUrl = posterUrl;
+					} catch (err) {
+						console.warn('[SessionCard] failed to load dive video preview', err);
+					}
+				})();
+			},
+			(err) => console.warn('[SessionCard] failed to load dive video preview', err)
+		);
 		return () => {
-			cancelled = true;
+			loadToken += 1;
+			unsubscribe();
 		};
 	});
 

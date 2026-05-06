@@ -12,7 +12,7 @@
 	import { goto } from '$app/navigation';
 	import { user } from '$lib/stores/auth';
 	import {
-		listDiveVideosForSession,
+		subscribeDiveVideosForSession,
 		getDiveVideoThumbnailUrl,
 		getPreferredDiveVideoPlaybackUrl,
 		deleteDiveVideo,
@@ -66,14 +66,30 @@
 	}
 
 	$effect(() => {
-		void loadVideos(routineLogId);
-	});
-
-	async function loadVideos(sessionId: string): Promise<void> {
+		if (!isDynamic) return;
+		let loadToken = 0;
 		loading = true;
 		loadError = null;
+		const unsubscribe = subscribeDiveVideosForSession(
+			routineLogId,
+			(list) => {
+				const token = ++loadToken;
+				void resolveVideoList(list, () => token === loadToken);
+			},
+			(err) => {
+				loadError = err.message;
+				loading = false;
+			}
+		);
+		return () => {
+			loadToken += 1;
+			unsubscribe();
+		};
+	});
+
+	async function resolveVideoList(list: DiveVideo[], isCurrent: () => boolean): Promise<void> {
+		loadError = null;
 		try {
-			const list = await listDiveVideosForSession(sessionId);
 			videos = list;
 
 			// Detect a gifted dive: any attached video where the recorder
@@ -114,12 +130,13 @@
 					}
 				})
 			);
+			if (!isCurrent()) return;
 			urlMap = Object.fromEntries(entries);
 			posterMap = Object.fromEntries(posterEntries);
 		} catch (err) {
 			loadError = err instanceof Error ? err.message : String(err);
 		} finally {
-			loading = false;
+			if (isCurrent()) loading = false;
 		}
 	}
 

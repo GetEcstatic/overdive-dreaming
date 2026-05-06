@@ -19,8 +19,10 @@ import {
 	where,
 	orderBy,
 	limit,
+	onSnapshot,
 	Timestamp,
-	serverTimestamp
+	serverTimestamp,
+	type Unsubscribe
 } from 'firebase/firestore';
 import {
 	ref as storageRef,
@@ -417,6 +419,25 @@ export async function listDiveVideosForSession(sessionId: string): Promise<DiveV
 	);
 	const snap = await getDocs(q);
 	return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<DiveVideo, 'id'>) }));
+}
+
+export function subscribeDiveVideosForSession(
+	sessionId: string,
+	onVideos: (videos: DiveVideo[]) => void,
+	onError?: (error: Error) => void
+): Unsubscribe {
+	const q = query(
+		collection(db, COLLECTION),
+		where('sessionId', '==', sessionId),
+		orderBy('recordedAt', 'desc')
+	);
+	return onSnapshot(
+		q,
+		(snap) => {
+			onVideos(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<DiveVideo, 'id'>) })));
+		},
+		(error) => onError?.(error)
+	);
 }
 
 /**
