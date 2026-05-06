@@ -258,7 +258,8 @@ export function primaryActionSpec(state: RecorderState): PrimaryActionSpec {
 			const targetM = nextWaypointM(state);
 			return {
 				action: 'waypoint',
-				label: `Waypoint ${formatMetersPlain(targetM)} m`,
+				label: 'Tap to mark',
+				sub: `Waypoint ${formatMetersPlain(targetM)} m / hold to end dive`,
 				disabled: false,
 				supportsLongPressEndDive: true
 			};

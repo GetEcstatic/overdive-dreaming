@@ -697,7 +697,7 @@
 				oncontextmenu={(e) => e.preventDefault()}
 				onclick={handlePrimaryAction}
 				aria-label={primaryAction.supportsLongPressEndDive
-					? `${primaryAction.label}. Hold to end dive.`
+					? `${primaryAction.label}. ${primaryAction.sub ?? 'Hold to end dive.'}`
 					: primaryAction.label}
 			>
 				<span class="btn-main">
@@ -708,9 +708,7 @@
 						{endDiveHeld
 							? 'end dive'
 							: primaryAction.supportsLongPressEndDive
-								? primaryAction.sub
-									? `${primaryAction.sub} · hold end`
-									: 'hold end'
+								? primaryAction.sub ?? 'Hold to end dive'
 								: primaryAction.sub}
 					</span>
 				{/if}
@@ -853,16 +851,20 @@
 	.toast {
 		position: absolute;
 		left: 50%;
-		bottom: 1rem;
+		top: calc(max(0.75rem, env(safe-area-inset-top)) + 6.25rem);
 		transform: translateX(-50%);
+		width: max-content;
+		max-width: min(28rem, calc(100vw - 2rem));
 		background: rgba(234, 179, 8, 0.95);
 		color: #1f2937;
-		padding: 0.45rem 0.8rem;
-		border-radius: 999px;
+		padding: 0.55rem 0.85rem;
+		border-radius: 14px;
 		font-size: 0.85rem;
 		font-weight: 600;
+		line-height: 1.25;
+		text-align: center;
 		pointer-events: none;
-		z-index: 5;
+		z-index: 7;
 	}
 
 	.overlay {
