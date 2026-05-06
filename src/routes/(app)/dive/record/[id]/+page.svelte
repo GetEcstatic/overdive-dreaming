@@ -15,9 +15,13 @@
 	import DiveRecorder from '$lib/components/DiveRecorder.svelte';
 	import AthletePicker from '$lib/components/AthletePicker.svelte';
 	import NumberWheelInput from '$lib/components/NumberWheelInput.svelte';
-	import { buildDiveVideoFormData, listDiveVideosForSession } from '$lib/services/diveVideos';
+	import {
+		buildDiveVideoFormData,
+		createDiveVideo,
+		listDiveVideosForSession
+	} from '$lib/services/diveVideos';
 	import { AUTO_REAR_CAMERA } from '$lib/capture/cameraDevices';
-	import { canWriteToIndexedDB, enqueueUpload } from '$lib/capture/uploadQueue';
+	import { canWriteToIndexedDB, enqueueUpload, updatePendingUpload } from '$lib/capture/uploadQueue';
 	import { drainUploadQueue } from '$lib/capture/uploadProcessor';
 	import { logUploadDiagnostic } from '$lib/capture/uploadDiagnostics';
 	import { summariseTimeline, totalDistanceM } from '$lib/capture/timeline';
@@ -101,7 +105,6 @@
 
 	let capture = $state<CaptureResult | null>(null);
 	let saveError = $state<string | null>(null);
-	let uploadProgress = $state(0);
 	let storageHealthy = $state<boolean | null>(null);
 
 	const canStartRecording = $derived(Boolean(discipline && poolLength && waypointsPerLap));
@@ -240,7 +243,6 @@
 		}
 		stage = 'saving';
 		saveError = null;
-		uploadProgress = 0;
 		try {
 			logUploadDiagnostic({
 				level: 'info',
@@ -293,46 +295,40 @@
 				}
 			});
 
-			// Drive the upload to completion here so the user gets real
-			// progress + clear error surfacing. The queue is still durable
-			// across app reloads (see `installOnlineDrainer`), but keeping the
-			// user on this screen while the blob uploads avoids the "stuck at
-			// Uploading…" experience on the session page.
-			const result = await drainUploadQueue(
-				(p) => {
-					if (p.localId === pending.localId) uploadProgress = p.fraction;
-				},
-				{ localIds: [pending.localId] }
-			);
-
-			// We just enqueued exactly one item, so `uploaded === 0` means our
-			// item didn't make it to Storage — either it failed (counted in
-			// `failed`), was skipped (past MAX_ATTEMPTS), or the queue was
-			// silently empty when drain ran. All three are user-visible failures.
-			if (result.uploaded === 0) {
-				const detail =
-					result.errors[0] ??
-					(result.skipped > 0
-						? 'queue items past retry limit — go to Profile › Pending video uploads to retry'
-						: 'upload did not run (browser storage may have rejected the queue write)');
-				logUploadDiagnostic({
-					level: 'error',
-					step: 'record-save:failed',
-					message: 'Record page upload did not complete',
-					localId: pending.localId,
-					details: result
-				});
-				throw new Error(
-					`Upload failed: ${detail}. The dive is saved locally and will retry when you reopen the app.`
-				);
-			}
+			const videoId = await createDiveVideo({ ...metadata });
+			await updatePendingUpload(pending.localId, { remoteVideoId: videoId });
 			logUploadDiagnostic({
 				level: 'info',
-				step: 'record-save:uploaded',
-				message: 'Record page upload completed',
+				step: 'record-save:remote-created',
+				message: 'Record page created dive video before background upload',
 				localId: pending.localId,
-				details: result
+				videoId
 			});
+
+			void drainUploadQueue(undefined, { localIds: [pending.localId] })
+				.then((result) => {
+					logUploadDiagnostic({
+						level: result.uploaded > 0 ? 'info' : 'warn',
+						step: 'record-save:background-upload',
+						message:
+							result.uploaded > 0
+								? 'Record page background upload completed'
+								: 'Record page background upload did not complete',
+						localId: pending.localId,
+						videoId,
+						details: result
+					});
+				})
+				.catch((err) => {
+					logUploadDiagnostic({
+						level: 'error',
+						step: 'record-save:background-upload',
+						message: 'Record page background upload failed',
+						localId: pending.localId,
+						videoId,
+						details: { error: err instanceof Error ? err.message : String(err) }
+					});
+				});
 
 			// Stash a pre-fill bundle for the dive-log form on the
 			// session page. This is pure data — the form picks it up by
@@ -756,9 +752,7 @@
 					onclick={save}
 					disabled={stage === 'saving' || !capture}
 				>
-					{stage === 'saving'
-						? `Saving… ${Math.round(uploadProgress * 100)}%`
-						: 'Save dive'}
+					{stage === 'saving' ? 'Saving locally…' : 'Save dive'}
 				</button>
 			</div>
 		</div>
