@@ -62,6 +62,7 @@ interface DiveVideoDoc {
 	displayOrientation?: 'landscape' | 'portrait-left' | 'portrait-right';
 	displayRotationDeg?: 0 | 90 | 180 | 270;
 	assetOrientation?: 'landscape' | 'portrait';
+	probeRotationDeg?: 0 | 90 | 180 | 270;
 }
 
 interface DiveVideoArtifactRef {
@@ -234,6 +235,19 @@ function rotatedDimensions(video: DiveVideoDoc): { width: number; height: number
 		return { width: sourceHeight, height: sourceWidth };
 	}
 	return { width: sourceWidth, height: sourceHeight };
+}
+
+function displayDimensions(video: DiveVideoDoc): { width: number; height: number } {
+	const dimensions = rotatedDimensions(video);
+	const shouldDisplayPortrait =
+		video.displayOrientation === 'portrait-left' || video.displayOrientation === 'portrait-right';
+	if (shouldDisplayPortrait && dimensions.width > dimensions.height) {
+		return { width: dimensions.height, height: dimensions.width };
+	}
+	if (!shouldDisplayPortrait && dimensions.height > dimensions.width) {
+		return { width: dimensions.height, height: dimensions.width };
+	}
+	return dimensions;
 }
 
 function scaledDimensions(dimensions: { width: number; height: number }, maxEdge = 1280): {
@@ -595,7 +609,7 @@ async function generateOverlayDownload(args: {
 	const ownerId = args.video.ownerId ?? args.video.userId;
 	if (!ownerId) throw new HttpsError('failed-precondition', 'Dive video has no owner');
 	const exportProfile = overlayExportProfile(args.video);
-	const outputDimensions = scaledDimensions(rotatedDimensions(args.video), exportProfile.maxEdge);
+	const outputDimensions = scaledDimensions(displayDimensions(args.video), exportProfile.maxEdge);
 	const boundedDurationSeconds = Math.max(1, Math.ceil((args.video.durationSeconds ?? 0) + 1));
 	return withMasterFile(args.video, async (inputPath) => {
 		const outputPath = join(tmpdir(), `overdive-overlay-${randomUUID()}.mp4`);
