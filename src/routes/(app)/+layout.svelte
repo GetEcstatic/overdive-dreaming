@@ -54,8 +54,8 @@
 		});
 
 		// Drain any pending video uploads left over from a previous session
-		// (network drop, app close mid-upload, etc.) and listen for the
-		// browser coming back online so we retry without user intervention.
+		// (network drop, app close mid-upload, etc.) and listen for browser/PWA
+		// resume signals so we retry without user intervention.
 		const cleanupOnlineDrainer = installOnlineDrainer();
 		drainUploadQueue().catch((err) =>
 			console.warn('[app-layout] boot upload drain failed', err)

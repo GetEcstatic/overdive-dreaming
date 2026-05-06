@@ -34,9 +34,10 @@ import {
 } from './uploadQueue';
 import { logUploadDiagnostic } from './uploadDiagnostics';
 
-const MAX_ATTEMPTS = 5;
+const MAX_ATTEMPTS = 50;
 const DEFAULT_PART_SIZE_BYTES = 8 * 1024 * 1024;
 const RETENTION_KEEP_COUNT = 100;
+let automaticDrain: Promise<unknown> | null = null;
 
 export interface UploadProgress {
 	localId: string;
@@ -323,17 +324,31 @@ export async function drainUploadQueue(
 }
 
 /**
- * Install a window-level listener that drains the queue whenever the app
- * comes back online. Safe to call once at app boot.
+ * Install window-level listeners that drain the queue whenever the app gets
+ * a useful resume signal. Safe to call once at app boot.
  */
 export function installOnlineDrainer(): () => void {
 	if (typeof window === 'undefined') return () => undefined;
 	const handler = () => {
-		drainUploadQueue().catch((err) => {
+		if (automaticDrain) return;
+		automaticDrain = drainUploadQueue().catch((err) => {
 			// eslint-disable-next-line no-console
 			console.warn('[uploadProcessor] drain failed', err);
+		}).finally(() => {
+			automaticDrain = null;
 		});
 	};
+	const visibilityHandler = () => {
+		if (document.visibilityState === 'visible') handler();
+	};
 	window.addEventListener('online', handler);
-	return () => window.removeEventListener('online', handler);
+	window.addEventListener('focus', handler);
+	window.addEventListener('pageshow', handler);
+	document.addEventListener('visibilitychange', visibilityHandler);
+	return () => {
+		window.removeEventListener('online', handler);
+		window.removeEventListener('focus', handler);
+		window.removeEventListener('pageshow', handler);
+		document.removeEventListener('visibilitychange', visibilityHandler);
+	};
 }
