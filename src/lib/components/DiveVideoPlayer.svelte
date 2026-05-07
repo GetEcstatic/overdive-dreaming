@@ -282,7 +282,7 @@
 	const autoFullscreenEnabled = $derived(allowAutoFullscreen ?? !compact);
 	const nativeControlsVisible = $derived(!isFullscreen && !customInlineControls);
 	const showPlayerActions = $derived(!compact);
-	const showInlineActions = $derived(showPlayerActions && inlineActions);
+	const showInlineActions = $derived(showPlayerActions && inlineActions && !isFullscreen);
 	const showBelowActions = $derived(showPlayerActions && !inlineActions);
 	const portraitFullscreenAllowed = $derived(fullscreenOnPlay || tapToFullscreen);
 	const canDownloadVideo = $derived(
