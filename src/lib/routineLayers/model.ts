@@ -47,7 +47,12 @@ export type CanonicalMetricKey =
 	| 'joyScale'
 	| 'basalMood'
 	| 'notes'
-	| 'poolLengthMeters';
+	| 'poolLengthMeters'
+	| 'totalRoutineTimeSeconds'
+	| 'cumulativeDiveTimeSeconds'
+	| 'cumulativeRestSeconds'
+	| 'longestHoldSeconds'
+	| 'contractionsOnsetSeconds';
 
 export type LayerDurationTarget =
 	| { mode: 'open' }
@@ -208,17 +213,17 @@ export function deriveMetricProfile(layers: RoutineAuthoringLayer[]): RoutineMet
 	}
 
 	if (hasStatic) {
-		geek.push('minSpO2', 'minHeartRate');
+		geek.push('minSpO2', 'minHeartRate', 'contractionsOnsetSeconds');
 	}
 
 	if (hasDry) {
-		standard.push('minSpO2');
+		standard.push('minSpO2', 'minHeartRate');
 		geek.push('timeBelowSpO2Threshold', 'minHeartRate');
 	}
 
 	if (hasRepeat) {
-		standard.push('repsCompleted');
-		geek.push('restSeconds');
+		standard.push('repsCompleted', 'restSeconds', 'totalRoutineTimeSeconds', 'cumulativeDiveTimeSeconds');
+		geek.push('cumulativeRestSeconds');
 	}
 
 	return {
@@ -252,10 +257,18 @@ export function deriveDisplayMetrics(layers: RoutineAuthoringLayer[]): DisplayMe
 	const hasDynamic = classifications.disciplineGroups.includes('dynamic') || classifications.disciplineGroups.includes('dynamicTraining');
 
 	if (classifications.intervalLike || classifications.tableLike) {
+		if (!hasDynamic && classifications.dryCapable) {
+			return {
+				hero: 'longestHoldSeconds',
+				secondary: 'cumulativeDiveTimeSeconds',
+				tertiary: 'timeBelowSpO2Threshold'
+			};
+		}
+
 		return {
-			hero: 'repsCompleted',
-			secondary: hasDynamic ? 'distanceMeters' : 'durationSeconds',
-			tertiary: 'rpe'
+			hero: hasDynamic ? 'totalRoutineTimeSeconds' : 'cumulativeDiveTimeSeconds',
+			secondary: hasDynamic ? 'distanceMeters' : 'longestHoldSeconds',
+			tertiary: hasDynamic ? 'speedPerLap' : 'repsCompleted'
 		};
 	}
 
@@ -269,8 +282,8 @@ export function deriveDisplayMetrics(layers: RoutineAuthoringLayer[]): DisplayMe
 
 	return {
 		hero: 'durationSeconds',
-		secondary: 'safetyOutcome',
-		tertiary: 'rpe'
+		secondary: 'breathingTechnique',
+		tertiary: 'minHeartRate'
 	};
 }
 

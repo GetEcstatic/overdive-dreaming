@@ -8,7 +8,7 @@ import {
 	groupDiscipline,
 	validateRoutineLayers
 } from './model';
-import { dynamicMaxExample, staticMaxExample, starterMaxRoutineExamples } from './defaults';
+import { defaultRoutineExamples, dynamicMaxExample, staticMaxExample } from './defaults';
 import type { RoutineAuthoringLayer } from './model';
 
 const openDuration = { mode: 'open' } as const;
@@ -124,23 +124,48 @@ describe('deriveMetricProfile / tags / display', () => {
 
 		expect(profile.standard).toEqual(expect.arrayContaining(['durationSeconds', 'breatheUpSeconds', 'safetyOutcome']));
 		expect(profile.standard).not.toContain('distanceMeters');
-		expect(profile.geek).toEqual(expect.arrayContaining(['minSpO2', 'minHeartRate']));
+		expect(profile.geek).toEqual(expect.arrayContaining(['minSpO2', 'minHeartRate', 'contractionsOnsetSeconds']));
 		expect(deriveDefaultTags(layers)).toEqual(expect.arrayContaining(['static', 'max']));
 		expect(deriveDisplayMetrics(layers)).toEqual({
 			hero: 'durationSeconds',
-			secondary: 'safetyOutcome',
-			tertiary: 'rpe'
+			secondary: 'breathingTechnique',
+			tertiary: 'minHeartRate'
 		});
 	});
 
-	it('keeps the starter fixture set limited to Dynamic Max and Static Max', () => {
-		expect(starterMaxRoutineExamples.map((example) => example.id)).toEqual(['dynamic-max', 'static-max']);
+	it('validates and classifies all completed default routine fixtures', () => {
+		expect(defaultRoutineExamples.map((example) => example.id)).toEqual([
+			'dynamic-max',
+			'static-max',
+			'dynamic-sweet-16',
+			'static-two-breath-table',
+			'dry-rv-table'
+		]);
 
-		for (const example of starterMaxRoutineExamples) {
+		for (const example of defaultRoutineExamples) {
 			expect(validateRoutineLayers(example.layers)).toEqual([]);
-			expect(expandRoutineLayers(example.layers)).toHaveLength(1);
-			expect(deriveRoutineClassifications(example.layers).maxLike).toBe(true);
+			expect(example.standardMetrics.length).toBeGreaterThan(0);
+			expect(example.geekMetrics.length).toBeGreaterThan(0);
+			expect(example.defaultTags.length).toBeGreaterThan(0);
 		}
+
+		expect(expandRoutineLayers(defaultRoutineExamples[0].layers)).toHaveLength(1);
+		expect(expandRoutineLayers(defaultRoutineExamples[1].layers)).toHaveLength(1);
+		expect(expandRoutineLayers(defaultRoutineExamples[2].layers)).toHaveLength(16);
+		expect(expandRoutineLayers(defaultRoutineExamples[3].layers)).toHaveLength(10);
+		expect(expandRoutineLayers(defaultRoutineExamples[4].layers)).toHaveLength(8);
+
+		expect(deriveRoutineClassifications(defaultRoutineExamples[2].layers)).toMatchObject({
+			intervalLike: true,
+			tableLike: true,
+			disciplineGroups: ['dynamic']
+		});
+		expect(deriveRoutineClassifications(defaultRoutineExamples[4].layers)).toMatchObject({
+			intervalLike: true,
+			tableLike: true,
+			dryCapable: true,
+			disciplineGroups: ['static']
+		});
 	});
 });
 

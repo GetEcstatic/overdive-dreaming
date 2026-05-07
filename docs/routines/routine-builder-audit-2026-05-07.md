@@ -588,12 +588,12 @@ This keeps the planning ambitious while making the implementation reversible.
 - [x] Add pure transforms for grouping, repeat expansion, validation, classification, metric suggestions, tag suggestions, and display suggestions.
 - [x] Add first unit tests for Dynamic Max and Static Max metric/tag/display suggestions plus validation failures.
 - [x] Document implementation slice 1 and its no-persistence boundary.
-- [x] Model the first two default routines as local fixtures: Dynamic Max and Static Max.
-- [x] Add tests that validate and classify the Dynamic Max and Static Max fixtures.
-- [ ] Defer Dynamic Sweet 16, Static 2-Breath Table, and Dry RV Table fixtures until Tom finishes detailing them.
+- [x] Model all five completed scaffold routines as local fixtures: Dynamic Max, Static Max, Dynamic Sweet 16, Static 2-Breath Table, and Dry RV Table.
+- [x] Add tests that validate, expand, and classify all five default routine fixtures.
 - [ ] Add pure transform examples for legacy projection from existing `RoutineTemplate` shapes.
 - [ ] Add tests for legacy projection without mutating existing data.
 - [ ] Add a developer-only prototype surface for inspecting layer rows and derived suggestions.
+- [ ] First browser-visible checkpoint: the developer-only prototype surface. Until this item, changes are pure model/test work only and will not appear in the app UI.
 - [ ] Compare new layer-derived outputs with current builder outputs.
 - [ ] Decide persistence coexistence strategy: adapter-only, dual-write, or new-shape-only for new routines.
 - [ ] Only after the above, start replacing production builder flows.
@@ -618,6 +618,20 @@ Current boundary:
 - This module is not yet imported by Svelte components or Firestore adapters.
 - The metric/tag/display derivations are first-pass defaults intended to be revised as more default routines are modeled.
 - Legacy projection from current `RoutineTemplate` and `RoutineLog` is still a later slice.
+
+### Slice 2: Default Routine Fixtures
+
+Implemented scope:
+
+- Added local fixture data for the completed default routine scaffolds: Dynamic Max, Static Max, Dynamic Sweet 16, Static 2-Breath Table, and Dry RV Table.
+- Captured each fixture's layer structure, standard metrics, geek metrics, display emphasis, default tags, selectable tags, and safety/context notes.
+- Added tests that validate all fixtures, confirm expected repeat expansion counts, and check basic classifications.
+
+Browser visibility:
+
+- These first two slices are intentionally not visible in the browser. They are pure model/test groundwork.
+- The first point where a visible browser feature should appear is the checklist item `Add a developer-only prototype surface for inspecting layer rows and derived suggestions`.
+- That prototype should still be local-only and non-persistent: it should read the fixture/model data and render it for inspection without replacing the production routine builder.
 
 ## Existing Data Compatibility And Migration Planning
 
@@ -800,7 +814,7 @@ For each default routine, fill in:
 | Layers                   | One DYN layer; *open breathe-up duration*; open dive target for distance and/or duration; effort max; FL unless changed.<br><br>*Just thinking about this... although the layer is DYN, do we actually want a different routine for every single dynamic discipline? Or do we want a dynamic layer and then a user selectable DYN/DYNB/DNF/TORT call at the time of logging the routine.* |
 | Open vs fixed values     | Breathe-up likely open; dive distance/duration open.                                                                                                                                                                                                                                                                                                                                      |
 | Standard metrics         | Distance, duration, pool length, notes, safety outcome, *Breathe-up duration*, *RPE, Enjoyment, basal mood, Buddy name*                                                                                                                                                                                                                                                                   |
-| Geek metrics             | Lap times, speed, kicks per lap, heart rate *throughout the hold (this could be imported)*, SpO2 *throughout the hold (this could be imported)*, *Minimum HR, minimum Spo2, breathing technique, hours since last meal, water temp, HRV, Basal HR, Equipment used, Facial gear used, body weight, FVC (liters), FVC with packing, Packing volume %*                                       |
+| Geek metrics             | Lap times, speed, kicks per lap, heart rate *throughout the hold (this could be imported)*, SpO2 *throughout the hold (this could be imported)*, *Minimum HR, minimum Spo2, breathing technique, hours since last meal, water temp, HRV, Basal HR, Equipment used, Facial gear used, body weight, FVC (liters), FVC with packing, Packing volume %*, Contraction onset                    |
 | Dashboard hero metric    | Distance.                                                                                                                                                                                                                                                                                                                                                                                 |
 | Secondary display metric | Duration and *(Tertiary)* average speed.                                                                                                                                                                                                                                                                                                                                                  |
 | Default tags             | `max`, `dynamic`. *ideally user would be able to select max/sub max on recording to avoid needing a separate routine for submax*                                                                                                                                                                                                                                                          |
@@ -887,71 +901,71 @@ Fundamental implication: the layer is not just a row of fixed instructions. It i
 
 #### Static Max Scaffold
 
-| Field                    | Draft / Tom input needed                                                                                                                                                                                                                                                                                                                                         |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Routine name             | Static max                                                                                                                                                                                                                                                                                                                                                       |
-| Purpose                  | Measure best STA hold duration.                                                                                                                                                                                                                                                                                                                                  |
-| Layers                   | One STA layer; breathe-up open; duration-only open dive target; effort max/submax; FL unless changed.                                                                                                                                                                                                                                                            |
-| Open vs fixed values     | Breathe-up open or fixed by routine variant; hold duration open.                                                                                                                                                                                                                                                                                                 |
-| Standard metrics         | Duration, wet/dry, notes, safety outcome, *Breathe-up duration*, *RPE, Enjoyment, basal mood, Buddy name*                                                                                                                                                                                                                                                        |
-| Geek metrics             | Contractions, SpO2, HR, recovery quality, <br>heart rate *throughout the hold (this could be imported)*, SpO2 *throughout the hold (this could be imported)*, *Minimum HR, minimum Spo2, breathing technique, hours since last meal, water temp, HRV, Basal HR, Equipment used, Facial gear used, body weight, FVC (liters), FVC with packing, Packing volume %* |
-| Dashboard hero metric    | Duration                                                                                                                                                                                                                                                                                                                                                         |
-| Secondary display metric | breathing technique. *Tertiary metric: minimum HR*                                                                                                                                                                                                                                                                                                               |
-| Default tags             | `max`, `static`.                                                                                                                                                                                                                                                                                                                                                 |
-| Selectable tags          | `pb-attempt`, `competition`, `dry`, `wet`, `experimental`.                                                                                                                                                                                                                                                                                                       |
-| Safety/context fields    | Buddy for wet; dry import/capture fields for dry.                                                                                                                                                                                                                                                                                                                |
-| Existing-data mapping    | Current max-attempt STA routine.                                                                                                                                                                                                                                                                                                                                 |
+| Field                    | Draft / Tom input needed                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Routine name             | Static max                                                                                                                                                                                                                                                                                                                                                                          |
+| Purpose                  | Measure best STA hold duration.                                                                                                                                                                                                                                                                                                                                                     |
+| Layers                   | One STA layer; breathe-up open; duration-only open dive target; effort max/submax; FL unless changed.                                                                                                                                                                                                                                                                               |
+| Open vs fixed values     | Breathe-up open or fixed by routine variant; hold duration open.                                                                                                                                                                                                                                                                                                                    |
+| Standard metrics         | Duration, wet/dry, notes, safety outcome, *Breathe-up duration*, *RPE, Enjoyment, basal mood, Buddy name*                                                                                                                                                                                                                                                                           |
+| Geek metrics             | Contractions, SpO2, HR, recovery quality, <br>heart rate *throughout the hold (this could be imported)*, SpO2 *throughout the hold (this could be imported)*, *Minimum HR, minimum Spo2, breathing technique, hours since last meal, water temp, HRV, Basal HR, Equipment used, Facial gear used, body weight, FVC (liters), FVC with packing, Packing volume %*, Contraction onset |
+| Dashboard hero metric    | Duration                                                                                                                                                                                                                                                                                                                                                                            |
+| Secondary display metric | breathing technique. *Tertiary metric: minimum HR*                                                                                                                                                                                                                                                                                                                                  |
+| Default tags             | `max`, `static`.                                                                                                                                                                                                                                                                                                                                                                    |
+| Selectable tags          | `pb-attempt`, `competition`, `dry`, `wet`, `experimental`.                                                                                                                                                                                                                                                                                                                          |
+| Safety/context fields    | Buddy for wet; dry import/capture fields for dry.                                                                                                                                                                                                                                                                                                                                   |
+| Existing-data mapping    | Current max-attempt STA routine.                                                                                                                                                                                                                                                                                                                                                    |
 
 #### Dynamic Sweet 16 Scaffold
 
-| Field                    | Draft / Tom input needed                                                                                                                                                                                                                                |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Routine name             | Dynamic Sweet 16                                                                                                                                                                                                                                        |
-| Purpose                  | Repeated dynamic work for CO2/endurance tolerance.                                                                                                                                                                                                      |
-| Layers                   | One DYN layer repeated 16 times; open distance ; rest/breathe-up open                                                                                                                                                                                   |
-| Open vs fixed values     | Open distance per rep; rest/breathe-up open                                                                                                                                                                                                             |
-| Standard metrics         | Reps completed, total distance,  total time for the routine (lower times are better), rest time, notes.                                                                                                                                                 |
-| Geek metrics             | Time per lap, speed per lap, kicks, HR if available, *Minimum HR, minimum Spo2, breathing technique, hours since last meal, water temp, HRV, Basal HR, Equipment used, Facial gear used, body weight, FVC (liters), FVC with packing, Packing volume %* |
-| Dashboard hero metric    | Total time                                                                                                                                                                                                                                              |
-| Secondary display metric | Total distance. *Tertiary display metric: *                                                                                                                                                                                                             |
-| Default tags             | `co2`, `endurance`, `dynamic`.                                                                                                                                                                                                                          |
-| Selectable tags          | `technique`, `submax`, `hard`, `easy`, `experimental`.                                                                                                                                                                                                  |
-| Safety/context fields    | Pool length, buddy, samba/BO optional.                                                                                                                                                                                                                  |
-| Existing-data mapping    | Current interval-series dynamic routine with `numberOfReps` and `repDistance`.                                                                                                                                                                          |
+| Field                    | Draft / Tom input needed                                                                                                                                                                                                                                                                            |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Routine name             | Dynamic Sweet 16                                                                                                                                                                                                                                                                                    |
+| Purpose                  | Repeated dynamic work for CO2/endurance tolerance.                                                                                                                                                                                                                                                  |
+| Layers                   | One DYN layer repeated 16 times; open distance ; rest/breathe-up open                                                                                                                                                                                                                               |
+| Open vs fixed values     | Open distance per rep; rest/breathe-up open                                                                                                                                                                                                                                                         |
+| Standard metrics         | Reps completed, total distance,  total time for the routine (lower times are better), rest time, notes.                                                                                                                                                                                             |
+| Geek metrics             | Time per lap, speed per lap, kicks, HR if available, *Minimum HR, minimum Spo2, breathing technique, hours since last meal, water temp, HRV, Basal HR, Equipment used, Facial gear used, body weight, FVC (liters), FVC with packing, Packing volume %*, cumulative dive time, cumulative rest time |
+| Dashboard hero metric    | Total time                                                                                                                                                                                                                                                                                          |
+| Secondary display metric | Total distance. *Tertiary display metric: average speed*                                                                                                                                                                                                                                            |
+| Default tags             | `co2`, `endurance`, `dynamic`.                                                                                                                                                                                                                                                                      |
+| Selectable tags          | `technique`, co2 training, resilience, lactic training, hard`, `easy`, `experimental`.                                                                                                                                                                                                              |
+| Safety/context fields    | Pool length, buddy, samba/BO optional.                                                                                                                                                                                                                                                              |
+| Existing-data mapping    | Current interval-series dynamic routine with `numberOfReps` and `repDistance`.                                                                                                                                                                                                                      |
 
 #### Static 2-Breath Table Scaffold
 
-| Field                    | Draft / Tom input needed |
-| ------------------------ | ------------------------ |
-| Routine name             | Static 2-breath table    |
-| Purpose                  | STA table using constrained breathe-up/recovery. |
-| Layers                   | STA layer or progressive STA layers; repeat count and hold durations need Tom confirmation. |
-| Open vs fixed values     | Breathe-up/rest likely fixed by 2-breath rule; hold duration may be fixed/progressive/open depending protocol. |
-| Standard metrics         | Reps completed, hold duration, total hold time, notes. |
-| Geek metrics             | Contractions, SpO2, HR, time below SpO2 threshold, recovery quality. |
-| Dashboard hero metric    | Total hold time or reps completed. |
-| Secondary display metric | Longest hold or completion count. |
-| Default tags             | `co2`, `static`, `table`. |
-| Selectable tags          | `rv`, `frc`, `submax`, `technique`, `hard`, `easy`. |
-| Safety/context fields    | Dry/wet, buddy if wet, dry capture/import if dry. |
-| Existing-data mapping    | Current static interval/table routine. |
+| Field                    | Draft / Tom input needed                                                                                                                     |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Routine name             | Static 2-breath table                                                                                                                        |
+| Purpose                  | STA table using constrained breathe-up/recovery.                                                                                             |
+| Layers                   | STA layer or progressive STA layers; repeat count and hold durations. *Confirm: however each layer could have different rest/hold durations* |
+| Open vs fixed values     | Breathe-up/rest likely fixed by 2-breath rule; hold duration may be fixed/progressive/open depending protocol.                               |
+| Standard metrics         | Reps completed, hold duration, total hold time, notes.                                                                                       |
+| Geek metrics             | Contraction onset, SpO2, HR, time below SpO2 threshold, recovery quality.                                                                    |
+| Dashboard hero metric    | Total hold time or reps completed.                                                                                                           |
+| Secondary display metric | Longest hold or completion count.                                                                                                            |
+| Default tags             | `co2`, `static`, `table`.                                                                                                                    |
+| Selectable tags          | `rv`, `frc`, `submax`, `technique`, `hard`, `easy`.                                                                                          |
+| Safety/context fields    | Dry/wet, buddy if wet, dry capture/import if dry.                                                                                            |
+| Existing-data mapping    | Current static interval/table routine.                                                                                                       |
 
 #### Dry RV Table Scaffold
 
-| Field                    | Draft / Tom input needed |
-| ------------------------ | ------------------------ |
-| Routine name             | Dry RV table             |
-| Purpose                  | Dry RV work with physiology tracking and possible embedded max attempt. |
-| Layers                   | STA dry RV layers; exact repeat/progression and max-attempt layer position need Tom confirmation. |
-| Open vs fixed values     | Breathe-up/hold targets need protocol detail; effort likely mostly standard with one optional max layer. |
-| Standard metrics         | Hold duration, reps completed, lung volume RV, dry flag, notes. |
-| Geek metrics             | SpO2, HR, time below SpO2 threshold, contractions, recovery quality, packing/FVC if relevant. |
-| Dashboard hero metric    | Total hold time or time below SpO2 threshold. |
-| Secondary display metric | Longest RV hold or min SpO2. |
-| Default tags             | `dry`, `rv`, `static`, `table`. |
-| Selectable tags          | `max`, `submax`, `o2`, `co2`, `experimental`. |
-| Safety/context fields    | Dry capture/import source, sensor availability, notes. |
-| Existing-data mapping    | Current dry STA routine plus Stamina CSV import path. |
+| Field                    | Draft / Tom input needed                                                                                                               |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Routine name             | Dry RV table                                                                                                                           |
+| Purpose                  | Dry RV work with physiology tracking and possible embedded max attempt.                                                                |
+| Layers                   | STA dry RV layers; 8 reps total; open breathe and hold time; max attempt hold could be any, so calculated afterwards from longest hold |
+| Open vs fixed values     | Breathe-up/hold targets open; effort likely mostly standard with one optional max layer.                                               |
+| Standard metrics         | Hold duration, reps completed, lung volume RV, dry flag, minimum spo2, minimum HR, notes.                                              |
+| Geek metrics             | SpO2, HR, time below SpO2 threshold, contractions, recovery quality,                                                                   |
+| Dashboard hero metric    | Longest RV hold                                                                                                                        |
+| Secondary display metric | Total cumulative RV hold time; Tertiary: cumulative time below 70% spo2                                                                |
+| Default tags             | `dry`, `rv`, `static`, `table`.                                                                                                        |
+| Selectable tags          | `max`, `submax`, `o2`, `co2`, `experimental`.                                                                                          |
+| Safety/context fields    | Dry capture/import source, sensor availability, notes.                                                                                 |
+| Existing-data mapping    | Current dry STA routine plus Stamina CSV import path.                                                                                  |
 
 ### Step 2 Questions For Tom
 
