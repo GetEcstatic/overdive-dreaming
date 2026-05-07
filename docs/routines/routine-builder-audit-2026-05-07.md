@@ -594,8 +594,8 @@ This keeps the planning ambitious while making the implementation reversible.
 - [x] Add tests for legacy projection without mutating existing data.
 - [x] Add a developer-only prototype surface for inspecting layer rows and derived suggestions.
 - [x] First browser-visible checkpoint: the developer-only prototype surface. Until this item, changes are pure model/test work only and will not appear in the app UI.
-- [ ] Compare new layer-derived outputs with current builder outputs.
-- [ ] Decide persistence coexistence strategy: adapter-only, dual-write, or new-shape-only for new routines.
+- [x] Compare new layer-derived outputs with current seeded default routine outputs.
+- [x] Decide initial persistence coexistence strategy: adapter-only until prototype review.
 - [ ] Only after the above, start replacing production builder flows.
 
 ### Slice 1: Local Routine Layer Model Prototype
@@ -660,6 +660,49 @@ Current boundary:
 - The prototype is read-only and non-persistent.
 - It does not replace the production routine builder or change normal navigation.
 - It exists to inspect the model in-browser before production UI work begins.
+
+### Slice 5: Comparison With Current Seeded Defaults
+
+Current seeded defaults live in `scripts/seed-data.ts`. The comparison below is intentionally about default routine shape and output emphasis, not production migration.
+
+| Routine area | Current seeded default | New layer fixture | Important difference |
+| ------------ | ---------------------- | ----------------- | -------------------- |
+| Dynamic max | `system-dynamic-max`; DYN/DYNB/DNF; tags `max-attempt`, `pb`; hero distance, secondary time. | `dynamic-max`; default DYN with DYN/DYNB/DNF/TORT selectable; tags `max`, `dynamic`; hero distance, secondary duration, tertiary speed. | New model adds TORT and stores the log-time selectable discipline concept explicitly instead of multiplying templates. |
+| Static max | `system-static-max`; STA; tags `max-attempt`, `pb`; hero time, secondary breathe-up. | `static-max`; STA; tags `max`, `static`; hero duration, secondary breathing technique, tertiary minimum HR. | New scaffold tracks a broader physiology/context surface and treats breathe-up as a standard logged metric rather than the main secondary display. |
+| Dynamic Sweet 16 | `system-sweet-16`; DYN/DYNB/DNF; fixed `repDistance: 50`; `numberOfReps: 16`; hero total time, secondary average per rep. | `dynamic-sweet-16`; DYN fixed for now; open distance; repeat 16; hero total routine time, secondary distance, tertiary average speed. | Tom's scaffold makes distance open per rep, while the existing seed prescribes 50m. This is a deliberate model change to preserve athlete discretion. |
+| Static 2-Breath | `system-gentle-2-breath`; STA; 10 reps; target 1:30 exists in description but not as a persisted table/target field. | `static-two-breath-table`; STA; 10 fixed 1:30 reps in the layer fixture; hero cumulative hold time. | New fixture makes the 1:30 prescription explicit in layer data instead of relying on description text. |
+| Dry RV table | `system-rv-breath-hold`; STA; dry biometric tracking; 11 reps; 3 minute rest; tags `dry`, `o2`, `advanced`, `biometric`; hero longest hold. | `dry-rv-table`; STA; dry RV; 8 open reps; tags `dry`, `rv`, `static`, `table`; hero longest hold, secondary cumulative RV hold, tertiary time below SpO2 threshold. | New scaffold is RV-specific, open-ended, and closer to Tom's 8-rep description; existing seed is a broader dry biometric routine. |
+
+Resulting implementation decision:
+
+- Keep the current seeded routines untouched for now.
+- Use `projectLegacyRoutineToLayers` to inspect/compare old seeded routines against the new model.
+- Treat the new default fixtures as the local target model, not as a production seed replacement yet.
+- Defer persistence changes until the prototype view and legacy projection comparisons are reviewed in-browser.
+
+### Slice 6: Persistence Coexistence Decision
+
+Initial decision: use an adapter-only coexistence strategy.
+
+This means:
+
+- Existing `RoutineTemplate` and `RoutineLog` documents remain the production source of truth.
+- The new layer model is used locally for fixtures, pure transforms, developer inspection, and read-only legacy projection.
+- No dual-write is introduced yet.
+- No new-shape-only production writes are introduced yet.
+- No Firestore migration or backfill is run.
+
+Why this is the safest next step:
+
+- The data shape is still being reviewed through fixtures and the prototype surface.
+- Existing training history stays untouched.
+- The app can compare old and new interpretations before committing to storage changes.
+
+Decision point before changing persistence:
+
+- Review the prototype route with real seeded routines and fixture routines.
+- Confirm the logger shape for planned vs actual result rows.
+- Decide whether production should continue writing old shape plus derived adapters, dual-write old and new shapes, or write only the new layer shape for newly-created routines.
 
 ## Existing Data Compatibility And Migration Planning
 
