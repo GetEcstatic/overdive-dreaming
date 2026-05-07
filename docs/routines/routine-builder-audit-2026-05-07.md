@@ -592,8 +592,8 @@ This keeps the planning ambitious while making the implementation reversible.
 - [x] Add tests that validate, expand, and classify all five default routine fixtures.
 - [x] Add pure transform examples for legacy projection from existing `RoutineTemplate` shapes.
 - [x] Add tests for legacy projection without mutating existing data.
-- [ ] Add a developer-only prototype surface for inspecting layer rows and derived suggestions.
-- [ ] First browser-visible checkpoint: the developer-only prototype surface. Until this item, changes are pure model/test work only and will not appear in the app UI.
+- [x] Add a developer-only prototype surface for inspecting layer rows and derived suggestions.
+- [x] First browser-visible checkpoint: the developer-only prototype surface. Until this item, changes are pure model/test work only and will not appear in the app UI.
 - [ ] Compare new layer-derived outputs with current builder outputs.
 - [ ] Decide persistence coexistence strategy: adapter-only, dual-write, or new-shape-only for new routines.
 - [ ] Only after the above, start replacing production builder flows.
@@ -646,6 +646,20 @@ Current boundary:
 
 - Projection is read-only and pure. It does not write to Firestore, migrate existing documents, or change production rendering.
 - Projection is intentionally conservative: variable table rows project one-to-one rather than trying to compress repeated rows automatically.
+
+### Slice 4: Browser-Visible Developer Prototype
+
+Implemented scope:
+
+- Added an unlinked authenticated route at `/routines/layer-prototype`.
+- The route renders the local default routine fixtures, authoring layers, expanded row counts, classifications, metrics, tags, and display suggestions.
+- This is the first browser-visible checkpoint in the checklist.
+
+Current boundary:
+
+- The prototype is read-only and non-persistent.
+- It does not replace the production routine builder or change normal navigation.
+- It exists to inspect the model in-browser before production UI work begins.
 
 ## Existing Data Compatibility And Migration Planning
 
