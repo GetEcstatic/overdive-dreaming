@@ -8,6 +8,7 @@ import {
 	groupDiscipline,
 	validateRoutineLayers
 } from './model';
+import { dynamicMaxExample, staticMaxExample, starterMaxRoutineExamples } from './defaults';
 import type { RoutineAuthoringLayer } from './model';
 
 const openDuration = { mode: 'open' } as const;
@@ -48,43 +49,33 @@ describe('groupDiscipline', () => {
 
 describe('expandRoutineLayers', () => {
 	it('keeps a Dynamic Max routine as one loggable row', () => {
-		const rows = expandRoutineLayers([dynamicMaxLayer()]);
+		const rows = expandRoutineLayers(dynamicMaxExample.layers);
 
 		expect(rows).toHaveLength(1);
 		expect(rows[0]).toMatchObject({
-			planRowId: 'dynamic-max:1',
-			sourceLayerId: 'dynamic-max',
+			planRowId: 'dynamic-max-layer-1:1',
+			sourceLayerId: 'dynamic-max-layer-1',
 			repIndex: 1,
 			globalRowIndex: 1
 		});
 	});
 
-	it('expands a compact Sweet 16 layer into stable per-rep rows', () => {
-		const sweet16 = dynamicMaxLayer({
-			id: 'sweet-16',
-			disciplineSelectionMode: 'fixed',
-			allowedDisciplines: undefined,
-			attributes: {
-				lungVolume: 'FL',
-				effort: 'standard',
-				environment: 'wet',
-				repeatCount: 16
-			},
-			analyticsRole: 'working-rep'
+	it('keeps a Static Max routine as one loggable row', () => {
+		const rows = expandRoutineLayers(staticMaxExample.layers);
+
+		expect(rows).toHaveLength(1);
+		expect(rows[0]).toMatchObject({
+			planRowId: 'static-max-layer-1:1',
+			sourceLayerId: 'static-max-layer-1',
+			repIndex: 1,
+			globalRowIndex: 1
 		});
-
-		const rows = expandRoutineLayers([sweet16]);
-
-		expect(rows).toHaveLength(16);
-		expect(rows[0].planRowId).toBe('sweet-16:1');
-		expect(rows[15].planRowId).toBe('sweet-16:16');
-		expect(rows[15].globalRowIndex).toBe(16);
 	});
 });
 
 describe('deriveRoutineClassifications', () => {
 	it('classifies Dynamic Max as max-like and TORT-capable through allowed choices', () => {
-		expect(deriveRoutineClassifications([dynamicMaxLayer()])).toMatchObject({
+		expect(deriveRoutineClassifications(dynamicMaxExample.layers)).toMatchObject({
 			maxLike: true,
 			intervalLike: false,
 			tableLike: false,
@@ -96,42 +87,15 @@ describe('deriveRoutineClassifications', () => {
 		});
 	});
 
-	it('classifies a dry RV table with an embedded max layer as hybrid-like', () => {
-		const dryRvWork: RoutineAuthoringLayer = {
-			id: 'dry-rv-work',
-			discipline: 'STA',
-			disciplineSelectionMode: 'fixed',
-			breatheUp: { mode: 'fixed', seconds: 30 },
-			dive: { duration: { mode: 'fixed', seconds: 90 } },
-			attributes: {
-				lungVolume: 'RV',
-				effort: 'standard',
-				environment: 'dry',
-				repeatCount: 4
-			},
-			analyticsRole: 'working-rep',
-			locks: {}
-		};
-		const dryRvMax = dynamicMaxLayer({
-			id: 'dry-rv-max',
-			discipline: 'STA',
-			disciplineSelectionMode: 'fixed',
-			allowedDisciplines: undefined,
-			dive: { duration: openDuration },
-			attributes: {
-				lungVolume: 'RV',
-				effort: 'max',
-				environment: 'dry',
-				repeatCount: 1
-			}
-		});
-
-		expect(deriveRoutineClassifications([dryRvWork, dryRvMax])).toMatchObject({
-			maxLike: false,
+	it('classifies Static Max as a single static max attempt', () => {
+		expect(deriveRoutineClassifications(staticMaxExample.layers)).toMatchObject({
+			maxLike: true,
 			intervalLike: false,
-			tableLike: true,
-			hybridLike: true,
-			dryCapable: true,
+			tableLike: false,
+			hybridLike: false,
+			mixedDiscipline: false,
+			dryCapable: false,
+			containsTort: false,
 			disciplineGroups: ['static']
 		});
 	});
@@ -139,11 +103,11 @@ describe('deriveRoutineClassifications', () => {
 
 describe('deriveMetricProfile / tags / display', () => {
 	it('suggests Dynamic Max metrics, tags, and display defaults', () => {
-		const layers = [dynamicMaxLayer()];
+		const layers = dynamicMaxExample.layers;
 		const profile = deriveMetricProfile(layers);
 
 		expect(profile.standard).toEqual(
-		expect.arrayContaining(['distanceMeters', 'durationSeconds', 'breatheUpSeconds', 'rpe', 'joyScale', 'buddyName'])
+			expect.arrayContaining(['distanceMeters', 'durationSeconds', 'breatheUpSeconds', 'rpe', 'joyScale', 'buddyName'])
 		);
 		expect(profile.geek).toEqual(expect.arrayContaining(['lapTimes', 'speedPerLap', 'heartRateSeries', 'spO2Series']));
 		expect(deriveDefaultTags(layers)).toEqual(expect.arrayContaining(['dynamic', 'tort', 'max']));
@@ -154,24 +118,29 @@ describe('deriveMetricProfile / tags / display', () => {
 		});
 	});
 
-	it('suggests dry physiology metrics for dry routines', () => {
-		const layer = dynamicMaxLayer({
-			discipline: 'STA',
-			disciplineSelectionMode: 'fixed',
-			allowedDisciplines: undefined,
-			dive: { duration: openDuration },
-			attributes: {
-				lungVolume: 'RV',
-				effort: 'standard',
-				environment: 'dry',
-				repeatCount: 3
-			}
-		});
-		const profile = deriveMetricProfile([layer]);
+	it('suggests Static Max metrics, tags, and display defaults', () => {
+		const layers = staticMaxExample.layers;
+		const profile = deriveMetricProfile(layers);
 
-		expect(profile.standard).toEqual(expect.arrayContaining(['minSpO2', 'repsCompleted']));
-		expect(profile.geek).toEqual(expect.arrayContaining(['timeBelowSpO2Threshold', 'minHeartRate', 'restSeconds']));
-		expect(deriveDefaultTags([layer])).toEqual(expect.arrayContaining(['static', 'dry', 'table']));
+		expect(profile.standard).toEqual(expect.arrayContaining(['durationSeconds', 'breatheUpSeconds', 'safetyOutcome']));
+		expect(profile.standard).not.toContain('distanceMeters');
+		expect(profile.geek).toEqual(expect.arrayContaining(['minSpO2', 'minHeartRate']));
+		expect(deriveDefaultTags(layers)).toEqual(expect.arrayContaining(['static', 'max']));
+		expect(deriveDisplayMetrics(layers)).toEqual({
+			hero: 'durationSeconds',
+			secondary: 'safetyOutcome',
+			tertiary: 'rpe'
+		});
+	});
+
+	it('keeps the starter fixture set limited to Dynamic Max and Static Max', () => {
+		expect(starterMaxRoutineExamples.map((example) => example.id)).toEqual(['dynamic-max', 'static-max']);
+
+		for (const example of starterMaxRoutineExamples) {
+			expect(validateRoutineLayers(example.layers)).toEqual([]);
+			expect(expandRoutineLayers(example.layers)).toHaveLength(1);
+			expect(deriveRoutineClassifications(example.layers).maxLike).toBe(true);
+		}
 	});
 });
 
