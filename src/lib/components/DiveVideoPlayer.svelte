@@ -228,6 +228,7 @@
 
 	function requestInlineFullscreen(): void {
 		if (!tapToFullscreen) return;
+		fitMode = 'cover';
 		inlineMuted = false;
 		if (videoEl) {
 			videoEl.muted = false;
