@@ -7,11 +7,19 @@
 	import { onAuthStateChanged, getRedirectResult } from 'firebase/auth';
 	import BottomNav from '$lib/components/BottomNav.svelte';
 	import { drainUploadQueue, installOnlineDrainer } from '$lib/capture/uploadProcessor';
+	import { uploadQueueStatus } from '$lib/capture/uploadStatus';
 	import { diveRecording } from '$lib/stores/videoPlayback';
 
 	let { children } = $props();
 	let mobileMenuOpen = $state(false);
 	let isRecording = $derived($diveRecording > 0);
+	const showUploadBanner = $derived(!isRecording && ($uploadQueueStatus.active || $uploadQueueStatus.pendingCount > 0));
+	const uploadPercent = $derived(Math.round($uploadQueueStatus.fraction * 100));
+
+	function formatUploadBytes(bytes: number): string {
+		if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+		return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+	}
 
 	onMount(() => {
 		// On iOS standalone PWAs, Google sign-in uses signInWithRedirect.
@@ -103,6 +111,31 @@
 
 		<div class="gradient-divider" class:recording-hidden={isRecording}></div>
 
+		{#if showUploadBanner}
+			<section class="upload-banner" class:active={$uploadQueueStatus.active} aria-live="polite">
+				<div class="upload-banner-copy">
+					<strong>
+						{$uploadQueueStatus.active ? 'Uploading dive video' : 'Dive video waiting to upload'}
+					</strong>
+					<span>
+						{#if $uploadQueueStatus.active}
+							Keep Overdive open and the screen awake until this finishes.
+						{:else}
+							{$uploadQueueStatus.pendingCount} pending · {formatUploadBytes($uploadQueueStatus.pendingBytes)}. Upload resumes when this app is open and online.
+						{/if}
+					</span>
+				</div>
+				{#if $uploadQueueStatus.active && $uploadQueueStatus.bytesTotal > 0}
+					<div class="upload-banner-progress" aria-label={`Upload ${uploadPercent}% complete`}>
+						<div style={`width: ${uploadPercent}%`}></div>
+					</div>
+				{/if}
+				{#if $uploadQueueStatus.lastError}
+					<span class="upload-banner-error">Last error: {$uploadQueueStatus.lastError}</span>
+				{/if}
+			</section>
+		{/if}
+
 		<div class="content-pad">
 			{@render children()}
 		</div>
@@ -159,6 +192,57 @@
 		border-radius: 12px;
 		padding: 1rem 1.5rem;
 		margin-bottom: 2rem;
+	}
+
+	.upload-banner {
+		border: 1px solid rgba(20, 184, 166, 0.26);
+		background: rgba(15, 23, 42, 0.9);
+		border-radius: 8px;
+		padding: 0.8rem 0.9rem;
+		margin-bottom: 1rem;
+		box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+	}
+
+	.upload-banner.active {
+		border-color: rgba(20, 184, 166, 0.46);
+	}
+
+	.upload-banner-copy {
+		display: grid;
+		gap: 0.25rem;
+	}
+
+	.upload-banner-copy strong {
+		font-size: 0.9rem;
+		color: var(--color-text);
+	}
+
+	.upload-banner-copy span,
+	.upload-banner-error {
+		font-size: 0.78rem;
+		line-height: 1.35;
+		color: var(--color-text-muted);
+	}
+
+	.upload-banner-progress {
+		height: 4px;
+		overflow: hidden;
+		border-radius: 999px;
+		background: rgba(148, 163, 184, 0.16);
+		margin-top: 0.75rem;
+	}
+
+	.upload-banner-progress div {
+		height: 100%;
+		border-radius: inherit;
+		background: linear-gradient(90deg, var(--color-primary), var(--color-secondary));
+		transition: width 160ms ease;
+	}
+
+	.upload-banner-error {
+		display: block;
+		margin-top: 0.55rem;
+		color: #fca5a5;
 	}
 
 	.top-nav.recording-hidden,

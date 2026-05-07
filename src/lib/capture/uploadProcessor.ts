@@ -33,9 +33,11 @@ import {
 	type PendingUpload
 } from './uploadQueue';
 import { logUploadDiagnostic } from './uploadDiagnostics';
+import { requestWakeLock, type WakeLockHandle } from './wakeLock';
+import { resetUploadQueueStatus, updateUploadQueueStatus } from './uploadStatus';
 
 const MAX_ATTEMPTS = 50;
-const DEFAULT_PART_SIZE_BYTES = 8 * 1024 * 1024;
+const DEFAULT_PART_SIZE_BYTES = 5 * 1024 * 1024;
 const RETENTION_KEEP_COUNT = 100;
 let automaticDrain: Promise<unknown> | null = null;
 
@@ -48,10 +50,32 @@ export interface UploadProgress {
 
 export type UploadProgressListener = (p: UploadProgress) => void;
 
+function queueBytes(items: PendingUpload[]): number {
+	return items.reduce((sum, item) => sum + item.sizeBytes, 0);
+}
+
+async function requestUploadWakeLock(): Promise<WakeLockHandle | null> {
+	if (typeof document === 'undefined') return null;
+	if (document.visibilityState !== 'visible') return null;
+	return requestWakeLock();
+}
+
 async function uploadOne(
 	entry: PendingUpload,
 	onProgress?: UploadProgressListener
 ): Promise<void> {
+	const alreadySent = (entry.wasabiUpload?.uploadedParts ?? []).reduce(
+		(sum, part) => sum + part.sizeBytes,
+		0
+	);
+	updateUploadQueueStatus({
+		active: true,
+		activeLocalId: entry.localId,
+		bytesSent: alreadySent,
+		bytesTotal: entry.blob.size,
+		fraction: entry.blob.size > 0 ? alreadySent / entry.blob.size : 0,
+		lastError: undefined
+	});
 	logUploadDiagnostic({
 		level: 'info',
 		step: 'upload:start',
@@ -169,6 +193,14 @@ async function uploadOne(
 			bytesTotal: entry.blob.size,
 			fraction: entry.blob.size > 0 ? bytesSent / entry.blob.size : 0
 		});
+		updateUploadQueueStatus({
+			active: true,
+			activeLocalId: entry.localId,
+			bytesSent,
+			bytesTotal: entry.blob.size,
+			fraction: entry.blob.size > 0 ? bytesSent / entry.blob.size : 0,
+			lastError: undefined
+		});
 		logUploadDiagnostic({
 			level: 'info',
 			step: 'storage:part',
@@ -260,67 +292,98 @@ export async function drainUploadQueue(
 	onProgress?: UploadProgressListener,
 	options: { localIds?: string[] } = {}
 ): Promise<{ uploaded: number; failed: number; skipped: number; errors: string[] }> {
+	const wakeLock = await requestUploadWakeLock();
 	const requested = options.localIds ? new Set(options.localIds) : null;
 	const items = (await listPendingUploads()).filter((item) =>
 		requested ? requested.has(item.localId) : true
 	);
+	const allQueued = await listPendingUploads();
+	updateUploadQueueStatus({
+		active: items.length > 0,
+		pendingCount: allQueued.length,
+		pendingBytes: queueBytes(allQueued),
+		bytesSent: 0,
+		bytesTotal: items[0]?.sizeBytes ?? 0,
+		fraction: 0,
+		lastError: undefined
+	});
 	const shouldLogDrain = items.length > 0 || Boolean(requested);
-	if (shouldLogDrain) {
-		logUploadDiagnostic({
-			level: 'info',
-			step: 'drain:start',
-			message: 'Draining upload queue',
-			details: {
-				itemCount: items.length,
-				localIds: items.map((item) => item.localId),
-				filtered: Boolean(requested)
-			}
-		});
-	}
 	let uploaded = 0;
 	let failed = 0;
 	let skipped = 0;
 	const errors: string[] = [];
-
-	for (const entry of items) {
-		if (entry.attempts >= MAX_ATTEMPTS) {
-			skipped += 1;
-			continue;
-		}
-		try {
-			await uploadOne(entry, onProgress);
-			uploaded += 1;
-		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
-			// eslint-disable-next-line no-console
-			console.error('[uploadProcessor] upload failed', entry.localId, err);
-			await markAttempt(entry.localId, message);
+	try {
+		if (shouldLogDrain) {
 			logUploadDiagnostic({
-				level: 'error',
-				step: 'upload:failed',
-				message: 'Queued upload failed',
-				localId: entry.localId,
-				videoId: entry.remoteVideoId,
+				level: 'info',
+				step: 'drain:start',
+				message: 'Draining upload queue',
 				details: {
-					error: message,
-					name: err instanceof Error ? err.name : undefined
+					itemCount: items.length,
+					localIds: items.map((item) => item.localId),
+					filtered: Boolean(requested),
+					wakeLockActive: Boolean(wakeLock?.isActive)
 				}
 			});
-			failed += 1;
-			errors.push(message);
-			// Continue with next entry; we try again on the next drain.
 		}
-	}
 
-	if (shouldLogDrain) {
-		logUploadDiagnostic({
-			level: failed > 0 ? 'warn' : 'info',
-			step: 'drain:complete',
-			message: 'Upload queue drain finished',
-			details: { uploaded, failed, skipped, errors }
-		});
+		for (const entry of items) {
+			if (entry.attempts >= MAX_ATTEMPTS) {
+				skipped += 1;
+				continue;
+			}
+			try {
+				await uploadOne(entry, onProgress);
+				uploaded += 1;
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				// eslint-disable-next-line no-console
+				console.error('[uploadProcessor] upload failed', entry.localId, err);
+				await markAttempt(entry.localId, message);
+				updateUploadQueueStatus({ lastError: message });
+				logUploadDiagnostic({
+					level: 'error',
+					step: 'upload:failed',
+					message: 'Queued upload failed',
+					localId: entry.localId,
+					videoId: entry.remoteVideoId,
+					details: {
+						error: message,
+						name: err instanceof Error ? err.name : undefined
+					}
+				});
+				failed += 1;
+				errors.push(message);
+				// Continue with next entry; we try again on the next drain.
+			}
+		}
+
+		if (shouldLogDrain) {
+			logUploadDiagnostic({
+				level: failed > 0 ? 'warn' : 'info',
+				step: 'drain:complete',
+				message: 'Upload queue drain finished',
+				details: { uploaded, failed, skipped, errors }
+			});
+		}
+		return { uploaded, failed, skipped, errors };
+	} finally {
+		const remaining = await listPendingUploads().catch(() => []);
+		if (remaining.length === 0) {
+			resetUploadQueueStatus();
+		} else {
+			updateUploadQueueStatus({
+				active: false,
+				activeLocalId: undefined,
+				pendingCount: remaining.length,
+				pendingBytes: queueBytes(remaining),
+				bytesSent: 0,
+				bytesTotal: 0,
+				fraction: 0
+			});
+		}
+		await wakeLock?.release().catch(() => undefined);
 	}
-	return { uploaded, failed, skipped, errors };
 }
 
 /**
