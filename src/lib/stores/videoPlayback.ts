@@ -65,10 +65,9 @@ export interface FullscreenDecisionInput {
  * same page don't fight for the screen.
  */
 export function shouldEnterFullscreen(input: FullscreenDecisionInput): boolean {
-	if (!input.allowAutoFullscreen) return false;
 	if (!input.isVisible) return false;
 	if (input.userEscaped) return false;
-	if (input.isLandscape) return true;
+	if (input.allowAutoFullscreen && input.isLandscape) return true;
 	if (input.allowPortraitPlayFullscreen && input.portraitPlayRequested) return true;
 	return false;
 }
@@ -90,8 +89,10 @@ export const DIVE_FS_EVENT = 'divefullscreenchange';
 export interface DiveVideoBehaviorOptions {
 	/** Feed-card / compact players skip auto-fullscreen on rotation. */
 	allowAutoFullscreen?: boolean;
-	/** Feed players can enter locked playback immediately from portrait play. */
+	/** Can a deliberate portrait play/tap request enter locked playback? */
 	allowPortraitPlayFullscreen?: boolean;
+	/** Should a normal play event request portrait fullscreen? */
+	requestFullscreenOnPlay?: boolean;
 }
 
 /**
@@ -119,6 +120,7 @@ export const diveVideoBehavior: Action<HTMLVideoElement, DiveVideoBehaviorOption
 ) => {
 	let allowAutoFullscreen = options.allowAutoFullscreen ?? true;
 	let allowPortraitPlayFullscreen = options.allowPortraitPlayFullscreen ?? false;
+	let requestFullscreenOnPlay = options.requestFullscreenOnPlay ?? allowPortraitPlayFullscreen;
 	let playing = false;
 	let pseudoFs = false;
 	let isVisible = true; // assume visible until IO says otherwise
@@ -145,7 +147,7 @@ export const diveVideoBehavior: Action<HTMLVideoElement, DiveVideoBehaviorOption
 			playing = true;
 			videoPlayback.begin();
 		}
-		if (allowPortraitPlayFullscreen && isMobileLikeDevice() && !detectLandscape()) {
+		if (requestFullscreenOnPlay && isMobileLikeDevice() && !detectLandscape()) {
 			portraitPlayRequested = true;
 			userEscaped = false;
 		}
@@ -279,9 +281,15 @@ export const diveVideoBehavior: Action<HTMLVideoElement, DiveVideoBehaviorOption
 	// without needing a direct ref to this action's closure.
 	type ContainerWithExit = HTMLElement & {
 		__diveExitFullscreen?: () => void;
+		__diveRequestFullscreen?: () => void;
 	};
 	const el0 = container() as ContainerWithExit | null;
 	if (el0) {
+		el0.__diveRequestFullscreen = () => {
+			portraitPlayRequested = true;
+			userEscaped = false;
+			applyDecision();
+		};
 		el0.__diveExitFullscreen = () => {
 			userEscaped = true;
 			portraitPlayRequested = false;
@@ -338,6 +346,8 @@ export const diveVideoBehavior: Action<HTMLVideoElement, DiveVideoBehaviorOption
 		update(newOptions: DiveVideoBehaviorOptions | undefined) {
 			allowAutoFullscreen = newOptions?.allowAutoFullscreen ?? true;
 			allowPortraitPlayFullscreen = newOptions?.allowPortraitPlayFullscreen ?? false;
+			requestFullscreenOnPlay =
+				newOptions?.requestFullscreenOnPlay ?? allowPortraitPlayFullscreen;
 			applyDecision();
 		},
 		destroy() {
@@ -351,6 +361,7 @@ export const diveVideoBehavior: Action<HTMLVideoElement, DiveVideoBehaviorOption
 			io?.disconnect();
 			const el = container() as ContainerWithExit | null;
 			if (el && el.__diveExitFullscreen) delete el.__diveExitFullscreen;
+			if (el && el.__diveRequestFullscreen) delete el.__diveRequestFullscreen;
 			exitPseudoFullscreen();
 			if (playing) {
 				playing = false;
@@ -369,4 +380,15 @@ export function exitDiveFullscreen(container: HTMLElement | null | undefined): v
 	if (!container) return;
 	const withExit = container as HTMLElement & { __diveExitFullscreen?: () => void };
 	withExit.__diveExitFullscreen?.();
+}
+
+/**
+ * Imperatively request pseudo-fullscreen from a user gesture, without relying
+ * on a native play event. Used by dashboard cards where inline autoplay and
+ * tap-to-fullscreen are intentionally separate gestures.
+ */
+export function requestDiveFullscreen(container: HTMLElement | null | undefined): void {
+	if (!container) return;
+	const withRequest = container as HTMLElement & { __diveRequestFullscreen?: () => void };
+	withRequest.__diveRequestFullscreen?.();
 }

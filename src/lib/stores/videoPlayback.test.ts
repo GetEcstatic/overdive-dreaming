@@ -55,6 +55,18 @@ describe('shouldEnterFullscreen', () => {
 		expect(shouldEnterFullscreen({ ...base, allowAutoFullscreen: false })).toBe(false);
 	});
 
+	test('portrait play request can enter fullscreen when auto-rotation fullscreen is disabled', () => {
+		expect(
+			shouldEnterFullscreen({
+				...base,
+				isLandscape: false,
+				allowAutoFullscreen: false,
+				allowPortraitPlayFullscreen: true,
+				portraitPlayRequested: true
+			})
+		).toBe(true);
+	});
+
 	test('all gates combined: portrait + invisible + escaped → still false', () => {
 		expect(
 			shouldEnterFullscreen({
