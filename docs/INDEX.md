@@ -90,7 +90,7 @@ Completed plans, kept for traceability. Source of truth is the code, not these d
 - [Overlay export — audio + photos](video/shipped/overlay-export-audio-photos.md) — frame pacing & audio routing
 - [Large video upload fix](video/shipped/large-upload-fix.md) — removed the 500 MB cap
 - [Dashboard download](video/shipped/dashboard-download.md) — signed-URL direct downloads
-- [Dashboard custom player](video/shipped/dashboard-custom-player.md) — inline custom player controls with play-to-fullscreen dashboard behavior
+- [Dashboard custom player](video/shipped/dashboard-custom-player.md) — inline custom controls, single-video autoplay, and tap-to-fullscreen dashboard behavior
 - [Gifted dive attach](video/shipped/gifted-dive-attach.md) — atomic accept + create-log + attach
 
 ---

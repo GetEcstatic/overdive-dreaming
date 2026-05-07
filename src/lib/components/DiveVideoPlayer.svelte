@@ -11,6 +11,46 @@
   canvas + MediaRecorder pipeline so it survives export to Photos / share
   sheets.
 -->
+<script lang="ts" module>
+	const DASHBOARD_AUTOPLAY_MIN_RATIO = 0.65;
+	let dashboardAutoplayInstance = 0;
+
+	interface DashboardAutoplayEntry {
+		id: string;
+		ratio: number;
+		play: () => void;
+		pause: () => void;
+	}
+
+	const dashboardAutoplayEntries = new Map<string, DashboardAutoplayEntry>();
+	let activeDashboardAutoplayId: string | null = null;
+
+	function refreshDashboardAutoplay(): void {
+		const next =
+			[...dashboardAutoplayEntries.values()]
+				.filter((entry) => entry.ratio >= DASHBOARD_AUTOPLAY_MIN_RATIO)
+				.sort((a, b) => b.ratio - a.ratio)[0]?.id ?? null;
+
+		activeDashboardAutoplayId = next;
+		for (const entry of dashboardAutoplayEntries.values()) {
+			if (entry.id === activeDashboardAutoplayId) entry.play();
+			else entry.pause();
+		}
+	}
+
+	function pauseDashboardAutoplay(): void {
+		activeDashboardAutoplayId = null;
+		for (const entry of dashboardAutoplayEntries.values()) entry.pause();
+	}
+
+	function dashboardAutoplayDisabledByPreferences(): boolean {
+		if (typeof window === 'undefined') return true;
+		const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+		const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
+		return reducedMotion || connection?.saveData === true;
+	}
+</script>
+
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
 	import { doc, onSnapshot } from 'firebase/firestore';
@@ -31,6 +71,7 @@
 	import {
 		diveVideoBehavior,
 		exitDiveFullscreen,
+		requestDiveFullscreen,
 		DIVE_FS_EVENT
 	} from '$lib/stores/videoPlayback';
 	import {
@@ -61,6 +102,12 @@
 		customInlineControls?: boolean;
 		/** Place overlay/download actions inside the video frame instead of below it. */
 		inlineActions?: boolean;
+		/** Muted single-card autoplay for dashboard feed playback. */
+		dashboardAutoplay?: boolean;
+		/** Pressing inline video opens custom fullscreen instead of toggling inline playback. */
+		tapToFullscreen?: boolean;
+		/** Mute the inline video while dashboard autoplay owns playback. */
+		mutedInline?: boolean;
 	}
 
 	let {
@@ -71,7 +118,10 @@
 		fullscreenOnPlay = false,
 		allowAutoFullscreen,
 		customInlineControls = false,
-		inlineActions = false
+		inlineActions = false,
+		dashboardAutoplay = false,
+		tapToFullscreen = false,
+		mutedInline = false
 	}: Props = $props();
 	function initialLiveVideo(): DiveVideo {
 		return video;
@@ -82,6 +132,7 @@
 	let containerEl: HTMLDivElement | undefined = $state();
 	let currentMs = $state(0);
 	let isPlaying = $state(false);
+	let inlineMuted = $state(false);
 	let rvfcHandle: number | null = null;
 
 	let showOverlay = $state(true);
@@ -175,6 +226,16 @@
 		exitDiveFullscreen(containerEl ?? null);
 	}
 
+	function requestInlineFullscreen(): void {
+		if (!tapToFullscreen) return;
+		inlineMuted = false;
+		if (videoEl) {
+			videoEl.muted = false;
+			if (videoEl.paused || videoEl.ended) videoEl.play().catch(() => {});
+		}
+		requestDiveFullscreen(containerEl ?? null);
+	}
+
 	const timeline: DiveTimeline = $derived(liveVideo.timeline);
 	const poolLength: number = $derived(liveVideo.poolLength);
 
@@ -222,6 +283,7 @@
 	const showPlayerActions = $derived(!compact);
 	const showInlineActions = $derived(showPlayerActions && inlineActions);
 	const showBelowActions = $derived(showPlayerActions && !inlineActions);
+	const portraitFullscreenAllowed = $derived(fullscreenOnPlay || tapToFullscreen);
 	const canDownloadVideo = $derived(
 		$user?.uid === liveVideo.ownerId || $user?.uid === liveVideo.userId
 	);
@@ -296,8 +358,58 @@
 
 	function onInlineVideoClick(): void {
 		if (!customInlineControls || isFullscreen) return;
+		if (tapToFullscreen) {
+			requestInlineFullscreen();
+			return;
+		}
 		void togglePlay();
 	}
+
+	onMount(() => {
+		if (!dashboardAutoplay) return;
+		if (dashboardAutoplayDisabledByPreferences()) return;
+		if (!containerEl) return;
+
+		const id = `${video.id}:${dashboardAutoplayInstance++}`;
+		const entry: DashboardAutoplayEntry = {
+			id,
+			ratio: 0,
+			play: () => {
+				if (!videoEl || isFullscreen) return;
+				inlineMuted = mutedInline;
+				videoEl.muted = mutedInline;
+				if (videoEl.paused || videoEl.ended) videoEl.play().catch(() => {});
+			},
+			pause: () => {
+				if (!videoEl || isFullscreen || videoEl.paused) return;
+				videoEl.pause();
+			}
+		};
+		dashboardAutoplayEntries.set(id, entry);
+
+		const observer = new IntersectionObserver(
+			(entries) => {
+				const observed = entries[0];
+				entry.ratio = observed?.isIntersecting ? observed.intersectionRatio : 0;
+				refreshDashboardAutoplay();
+			},
+			{ threshold: [0, 0.35, 0.65, 0.85, 1] }
+		);
+		observer.observe(containerEl);
+
+		const onVisibilityChange = () => {
+			if (document.hidden) pauseDashboardAutoplay();
+			else refreshDashboardAutoplay();
+		};
+		document.addEventListener('visibilitychange', onVisibilityChange);
+
+		return () => {
+			observer.disconnect();
+			document.removeEventListener('visibilitychange', onVisibilityChange);
+			dashboardAutoplayEntries.delete(id);
+			refreshDashboardAutoplay();
+		};
+	});
 
 	function seekToProgress(progress: number): void {
 		const clamped = Math.max(0, Math.min(1, progress));
@@ -1187,6 +1299,7 @@
 		class="h-full w-full"
 		style="object-fit: {isFullscreen ? 'var(--dive-video-fit, cover)' : 'contain'}; transform: {displayTransform.transform}; transform-origin: center;"
 		controls={nativeControlsVisible}
+		muted={inlineMuted}
 		playsinline
 		onclick={onInlineVideoClick}
 		ontimeupdate={onTimeUpdate}
@@ -1194,7 +1307,11 @@
 		onpause={onPlayStateChange}
 		onended={onPlayStateChange}
 		onloadedmetadata={() => videoEl && scheduleRvfc(videoEl as VideoWithRvfc)}
-		use:diveVideoBehavior={{ allowAutoFullscreen: autoFullscreenEnabled, allowPortraitPlayFullscreen: fullscreenOnPlay }}
+		use:diveVideoBehavior={{
+			allowAutoFullscreen: autoFullscreenEnabled,
+			allowPortraitPlayFullscreen: portraitFullscreenAllowed,
+			requestFullscreenOnPlay: fullscreenOnPlay
+		}}
 	></video>
 
 	{#if customInlineControls && !isFullscreen && !isPlaying}
@@ -1202,7 +1319,7 @@
 			type="button"
 			class="inline-play-button"
 			aria-label="Play dive video"
-			onclick={togglePlay}
+			onclick={tapToFullscreen ? requestInlineFullscreen : togglePlay}
 		>
 			<span aria-hidden="true">▶</span>
 		</button>
