@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dynamic Max Layer Mockup</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #101418;
+        --panel: #171d22;
+        --panel-2: #1f272e;
+        --line: #33414b;
+        --text: #edf3f7;
+        --muted: #9facb7;
+        --accent: #40c7b0;
+        --accent-2: #6ea8fe;
+        --warn: #f1c96b;
+        --chip: #26323a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        padding: 32px;
+      }
+
+      main {
+        max-width: 1120px;
+        margin: 0 auto;
+      }
+
+      h1,
+      h2,
+      p {
+        margin: 0;
+      }
+
+      .header {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+
+      .title-stack {
+        display: grid;
+        gap: 8px;
+      }
+
+      h1 {
+        font-size: 28px;
+        font-weight: 720;
+      }
+
+      .subtitle {
+        color: var(--muted);
+        font-size: 15px;
+      }
+
+      .status-pill {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--muted);
+        padding: 8px 12px;
+        font-size: 13px;
+        white-space: nowrap;
+      }
+
+      .builder-shell {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        overflow: hidden;
+      }
+
+      .toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+        background: #141a1f;
+      }
+
+      .routine-name {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 680;
+      }
+
+      .routine-name span:first-child {
+        display: grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        background: rgba(64, 199, 176, 0.16);
+        color: var(--accent);
+      }
+
+      .toolbar-actions {
+        display: flex;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .layer-row {
+        display: grid;
+        grid-template-columns: 92px repeat(4, minmax(0, 1fr)) 96px;
+        min-height: 176px;
+      }
+
+      .cell {
+        border-right: 1px solid var(--line);
+        padding: 14px;
+        display: grid;
+        align-content: start;
+        gap: 12px;
+      }
+
+      .cell:last-child {
+        border-right: 0;
+      }
+
+      .layer-index {
+        background: #13191e;
+      }
+
+      .label {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 680;
+        letter-spacing: 0;
+        text-transform: uppercase;
+      }
+
+      .main-value {
+        font-size: 18px;
+        font-weight: 720;
+        line-height: 1.2;
+      }
+
+      .support {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.35;
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .chip {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--chip);
+        color: var(--text);
+        padding: 5px 8px;
+        font-size: 12px;
+        line-height: 1;
+      }
+
+      .chip.selected {
+        border-color: rgba(64, 199, 176, 0.7);
+        background: rgba(64, 199, 176, 0.16);
+        color: #bff6ec;
+      }
+
+      .chip.choice {
+        color: var(--muted);
+      }
+
+      .ingredient-card {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel-2);
+        padding: 12px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .ingredient-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .lock-state {
+        color: var(--accent-2);
+        font-size: 12px;
+        white-space: nowrap;
+      }
+
+      .repeat-box {
+        display: grid;
+        place-items: center;
+        min-height: 100%;
+        text-align: center;
+        gap: 8px;
+      }
+
+      .repeat-count {
+        display: grid;
+        place-items: center;
+        width: 52px;
+        height: 52px;
+        border-radius: 8px;
+        border: 1px solid rgba(241, 201, 107, 0.55);
+        background: rgba(241, 201, 107, 0.12);
+        color: #ffe7a3;
+        font-size: 22px;
+        font-weight: 780;
+      }
+
+      .below-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(260px, 0.45fr);
+        gap: 14px;
+        padding: 14px;
+        border-top: 1px solid var(--line);
+      }
+
+      .summary-panel {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #141a1f;
+        padding: 14px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .summary-line {
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.45;
+      }
+
+      .summary-line strong {
+        color: var(--text);
+      }
+
+      .table-builder {
+        overflow: hidden;
+      }
+
+      .table-head {
+        display: grid;
+        grid-template-columns: 72px minmax(0, 1fr) 96px;
+        border-bottom: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 680;
+        text-transform: uppercase;
+      }
+
+      .table-head > div {
+        padding: 11px 14px;
+      }
+
+      .single-layer-row {
+        display: grid;
+        grid-template-columns: 72px minmax(0, 1fr) 96px;
+        min-height: 116px;
+      }
+
+      .row-number,
+      .row-repeat {
+        display: grid;
+        place-items: center;
+        background: #12181d;
+        border-right: 1px solid var(--line);
+      }
+
+      .row-repeat {
+        border-right: 0;
+        border-left: 1px solid var(--line);
+      }
+
+      .number-pill,
+      .repeat-pill {
+        display: grid;
+        place-items: center;
+        width: 42px;
+        height: 42px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        font-weight: 780;
+      }
+
+      .repeat-pill {
+        border-color: rgba(241, 201, 107, 0.7);
+        background: rgba(241, 201, 107, 0.12);
+        color: #ffe7a3;
+      }
+
+      .layer-chain {
+        display: flex;
+        align-items: end;
+        padding: 18px 20px;
+        overflow-x: auto;
+      }
+
+      .segment-stack {
+        display: grid;
+        align-items: end;
+        gap: 6px;
+        margin-left: -13px;
+      }
+
+      .segment-stack:first-child {
+        margin-left: 0;
+      }
+
+      .variable-stack {
+        display: grid;
+        gap: 4px;
+        padding: 0 12px 0 18px;
+      }
+
+      .variable-chip {
+        height: 22px;
+        display: grid;
+        align-items: center;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        border-radius: 4px;
+        background: #222a31;
+        color: #dce8ef;
+        padding: 0 9px;
+        font-size: 10px;
+        font-weight: 720;
+        line-height: 1;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .block {
+        min-width: 172px;
+        min-height: 62px;
+        padding: 10px 18px 10px 22px;
+        display: grid;
+        align-content: center;
+        gap: 4px;
+        color: #ffffff;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+        clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 0 100%, 18px 50%);
+      }
+
+      .block:first-child {
+        margin-left: 0;
+        border-top-left-radius: 8px;
+        border-bottom-left-radius: 8px;
+        clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 0 100%);
+      }
+
+      .block:last-child {
+        min-width: 150px;
+        border-top-right-radius: 8px;
+        border-bottom-right-radius: 8px;
+      }
+
+      .discipline {
+        background: #2b8bd8;
+      }
+
+      .breathe {
+        background: #2a9d8f;
+      }
+
+      .dive {
+        background: #d68c35;
+      }
+
+      .setup {
+        background: #8d72d9;
+      }
+
+      .attributes {
+        background: #8d72d9;
+      }
+
+      .repeat {
+        background: #c7a33a;
+        color: #14120a;
+      }
+
+      .block-label {
+        font-size: 11px;
+        font-weight: 740;
+        opacity: 0.82;
+        text-transform: uppercase;
+      }
+
+      .block-value {
+        font-size: 17px;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+
+      .block-note {
+        font-size: 12px;
+        opacity: 0.86;
+        white-space: nowrap;
+      }
+
+      .under-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 14px 20px 18px 92px;
+        border-top: 1px solid var(--line);
+      }
+
+      .choice-chip {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--muted);
+        padding: 7px 10px;
+        font-size: 13px;
+        background: #12181d;
+      }
+
+      .choice-chip strong {
+        color: var(--text);
+        font-weight: 720;
+      }
+
+      @media (max-width: 900px) {
+        body {
+          padding: 18px;
+        }
+
+        .header,
+        .toolbar,
+        .below-row {
+          grid-template-columns: 1fr;
+          align-items: start;
+        }
+
+        .header,
+        .toolbar {
+          display: grid;
+        }
+
+        .layer-row {
+          grid-template-columns: 1fr;
+        }
+
+        .cell {
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .cell:last-child {
+          border-bottom: 0;
+        }
+
+        .table-head,
+        .single-layer-row {
+          grid-template-columns: 54px minmax(0, 1fr) 70px;
+        }
+
+        .layer-chain {
+          padding: 18px 14px;
+        }
+
+        .block {
+          min-width: 154px;
+        }
+
+        .variable-chip {
+          font-size: 9px;
+        }
+
+        .under-row {
+          padding-left: 14px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header class="header">
+        <div class="title-stack">
+          <h1>Dynamic Max Layer</h1>
+          <p class="subtitle">A compact single-row layer, built from Scratch-like ingredient blocks.</p>
+        </div>
+        <div class="status-pill">Concept mockup: table builder layer</div>
+      </header>
+
+      <section class="builder-shell" aria-label="Dynamic Max layer mockup">
+          <section class="table-builder" aria-label="Dynamic Max compact layer mockup">
+            <div class="table-head">
+              <div>Layer</div>
+              <div>Constructed layer</div>
+              <div>Repeat</div>
+            </div>
+
+            <div class="single-layer-row">
+              <div class="row-number"><div class="number-pill">1</div></div>
+
+              <div class="layer-chain" aria-label="Dynamic Max layer ingredients">
+                <div class="segment-stack">
+                  <div class="variable-stack">
+                    <div class="variable-chip">Selectable family</div>
+                  </div>
+                  <div class="block discipline">
+                    <div class="block-label">Discipline</div>
+                    <div class="block-value">DYNAMICS</div>
+                  </div>
+                </div>
+
+                <div class="segment-stack">
+                  <div class="variable-stack">
+                    <div class="variable-chip">Open duration</div>
+                  </div>
+                  <div class="block breathe">
+                    <div class="block-label">Breathe-up</div>
+                    <div class="block-value">BREATHE-UP</div>
+                  </div>
+                </div>
+
+                <div class="segment-stack">
+                  <div class="variable-stack">
+                    <div class="variable-chip">Max</div>
+                    <div class="variable-chip">Open distance</div>
+                    <div class="variable-chip">Open time</div>
+                  </div>
+                  <div class="block dive">
+                    <div class="block-label">Dive</div>
+                    <div class="block-value">DIVE</div>
+                  </div>
+                </div>
+
+                <div class="segment-stack">
+                  <div class="variable-stack">
+                    <div class="variable-chip">FL</div>
+                  </div>
+                  <div class="block attributes">
+                    <div class="block-label">Attributes</div>
+                    <div class="block-value">FULL LUNGS</div>
+                  </div>
+                </div>
+
+              </div>
+
+              <div class="row-repeat"><div class="repeat-pill">1x</div></div>
+            </div>
+
+            <div class="under-row">
+              <div class="choice-chip"><strong>Discipline choices:</strong> DYN / DYNB / DNF / TORT</div>
+              <div class="choice-chip"><strong>Effort choices:</strong> max / submax / standard</div>
+              <div class="choice-chip"><strong>Locked by coach:</strong> none in this example</div>
+            </div>
+          </section>
+
+
+        <div class="below-row">
+          <div class="summary-panel">
+            <h2>Layer sentence</h2>
+            <p class="summary-line">
+              <strong>Layer 1:</strong> one dynamic-family max attempt, defaulting to DYN on full lungs, with open breathe-up and open dive endpoint.
+            </p>
+          </div>
+
+          <div class="summary-panel">
+            <h2>Log-time choices</h2>
+            <p class="summary-line">
+              Athlete can confirm or change discipline and effort if the coach has not locked those ingredients.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
