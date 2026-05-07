@@ -578,6 +578,29 @@ The safest first implementation shape would be:
 
 This keeps the planning ambitious while making the implementation reversible.
 
+## Implementation Log
+
+### Slice 1: Local Routine Layer Model Prototype
+
+Safety setup:
+
+- Work started on branch `routine-layer-model-local-prototype`, not `main`.
+- Planning docs and visual mockup were committed before code changes so the design baseline is recoverable independently.
+- The first code slice is local-only: no Firestore schema change, no production persistence, no deployed route, and no replacement of the existing routine builder.
+
+Implemented scope:
+
+- Added a pure TypeScript routine layer model in `src/lib/routineLayers/model.ts`.
+- Added plain-data lifecycle shapes for compact authoring layers and expanded plan rows.
+- Added pure transforms for discipline grouping, repeat expansion, validation, routine classification, metric suggestions, default tag suggestions, and display metric suggestions.
+- Added Vitest coverage in `src/lib/routineLayers/model.test.ts` using Dynamic Max, Dynamic Sweet 16, and Dry RV table pressure-test cases.
+
+Current boundary:
+
+- This module is not yet imported by Svelte components or Firestore adapters.
+- The metric/tag/display derivations are first-pass defaults intended to be revised as more default routines are modeled.
+- Legacy projection from current `RoutineTemplate` and `RoutineLog` is still a later slice.
+
 ## Existing Data Compatibility And Migration Planning
 
 Existing user data must be treated as durable training history. The new model should not require deleting or rewriting current routines before users can keep using the app.
