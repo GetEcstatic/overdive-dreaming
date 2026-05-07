@@ -4,7 +4,7 @@ export type DisciplineSelectionMode = 'fixed' | 'log-time-selectable';
 export type LayerValueMode = 'fixed' | 'open';
 export type LayerEffort = 'max' | 'submax' | 'standard';
 export type LungVolume = 'FL' | 'FRC' | 'RV';
-export type TrainingEnvironment = 'wet' | 'dry';
+export type TrainingEnvironment = 'wet' | 'dry' | 'both';
 export type LayerIngredient = 'discipline' | 'breatheUp' | 'dive' | 'attributes' | 'repeat';
 export type LayerAnalyticsRole =
 	| 'warmup'
@@ -191,7 +191,7 @@ export function deriveRoutineClassifications(layers: RoutineAuthoringLayer[]): R
 		tableLike: layers.length > 1 || expandedRowCount > 1,
 		hybridLike: expandedRowCount > 1 && (hasMaxLayer || hasSubmaxLayer),
 		mixedDiscipline: groups.length > 1 || plannedDisciplines.size > 1,
-		dryCapable: layers.some((layer) => layer.attributes.environment === 'dry'),
+		dryCapable: layers.some((layer) => layer.attributes.environment === 'dry' || layer.attributes.environment === 'both'),
 		containsTort: allPossibleDisciplines.has('TORT'),
 		disciplineGroups: groups
 	};

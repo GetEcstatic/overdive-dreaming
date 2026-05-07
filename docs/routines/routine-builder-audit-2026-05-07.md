@@ -590,8 +590,8 @@ This keeps the planning ambitious while making the implementation reversible.
 - [x] Document implementation slice 1 and its no-persistence boundary.
 - [x] Model all five completed scaffold routines as local fixtures: Dynamic Max, Static Max, Dynamic Sweet 16, Static 2-Breath Table, and Dry RV Table.
 - [x] Add tests that validate, expand, and classify all five default routine fixtures.
-- [ ] Add pure transform examples for legacy projection from existing `RoutineTemplate` shapes.
-- [ ] Add tests for legacy projection without mutating existing data.
+- [x] Add pure transform examples for legacy projection from existing `RoutineTemplate` shapes.
+- [x] Add tests for legacy projection without mutating existing data.
 - [ ] Add a developer-only prototype surface for inspecting layer rows and derived suggestions.
 - [ ] First browser-visible checkpoint: the developer-only prototype surface. Until this item, changes are pure model/test work only and will not appear in the app UI.
 - [ ] Compare new layer-derived outputs with current builder outputs.
@@ -632,6 +632,20 @@ Browser visibility:
 - These first two slices are intentionally not visible in the browser. They are pure model/test groundwork.
 - The first point where a visible browser feature should appear is the checklist item `Add a developer-only prototype surface for inspecting layer rows and derived suggestions`.
 - That prototype should still be local-only and non-persistent: it should read the fixture/model data and render it for inspection without replacing the production routine builder.
+
+### Slice 3: Legacy Routine Projection
+
+Implemented scope:
+
+- Added `projectLegacyRoutineToLayers(routine)` in `src/lib/routineLayers/legacy.ts`.
+- Projects legacy max attempts, uniform interval routines, variable table rows, and hybrid max-rep routines into the local layer model.
+- Preserves existing `wet`, `dry`, and `both` training environment values in projected layers.
+- Added tests for dynamic max, Dynamic Sweet 16-style uniform intervals, static table rows, and hybrid max row projection.
+
+Current boundary:
+
+- Projection is read-only and pure. It does not write to Firestore, migrate existing documents, or change production rendering.
+- Projection is intentionally conservative: variable table rows project one-to-one rather than trying to compress repeated rows automatically.
 
 ## Existing Data Compatibility And Migration Planning
 
