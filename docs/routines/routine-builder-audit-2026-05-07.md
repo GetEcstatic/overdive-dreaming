@@ -281,7 +281,16 @@ Progress - 2026-05-08:
 
 Next roadmap step:
 
-- [ ] Decide the first production integration point for reading v2 layer contracts without writing them to Firestore yet.
+- [x] Decide the first production integration point for reading v2 layer contracts without writing them to Firestore yet.
+- [x] Added a pure `RoutineLayerReadModel` that resolves either stored v2 layers or legacy projections into the same layer/read shape.
+- [x] Added a read-only Firestore helper, `getRoutineLayerReadModel`, beside `getRoutine` so deployed surfaces can begin reading layer models without changing create/update paths.
+- [x] Added tests for v2 read models, legacy read models, and dynamic max recognition through the read projection.
+- [x] Validation: focused routine layer tests pass with 32 tests across model, legacy, contract, read model, sentence, and modifiers.
+- [x] Validation: `npm run check` reports 0 errors and the existing 101 warnings.
+
+Next roadmap step:
+
+- [ ] Start consuming the read model from a developer-only or feature-flagged production surface before writing v2 layer templates.
 
 ## 1.3 Current modifier-only checklist
 

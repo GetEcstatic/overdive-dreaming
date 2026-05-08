@@ -55,6 +55,8 @@ import {
 	prepareLogForWrite,
 	prepareRoutineForWrite
 } from '$lib/utils/migration';
+import { buildRoutineLayerReadModel } from '$lib/routineLayers/readModel';
+import type { RoutineLayerReadModel } from '$lib/routineLayers/readModel';
 
 // ============================================================================
 // ROUTINE TEMPLATES
@@ -115,6 +117,18 @@ export async function getRoutineOrPlaceholder(routineId: string): Promise<Routin
 
 	// Return a placeholder routine for orphaned sessions
 	return createPlaceholderRoutine(routineId);
+}
+
+/**
+ * Read-only layer-model view of a routine template.
+ * Keeps Firestore writes on the existing RoutineTemplate shape while deployed
+ * screens start consuming either stored v2 layers or legacy projections.
+ */
+export async function getRoutineLayerReadModel(routineId: string): Promise<RoutineLayerReadModel | null> {
+	const routine = await getRoutine(routineId);
+	if (!routine) return null;
+
+	return buildRoutineLayerReadModel(routine);
 }
 
 /**
