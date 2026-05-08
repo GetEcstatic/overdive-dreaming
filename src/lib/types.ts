@@ -554,6 +554,18 @@ export interface RoutineLogPlanRow {
 	analyticsRole?: string;
 }
 
+export interface RoutineLogResultRow {
+	planRowId: string;
+	sourceLayerId: string;
+	repIndex: number;
+	globalRowIndex: number;
+	completed: boolean;
+	actualDurationSeconds?: number;
+	actualDistanceMeters?: number;
+	actualRestSeconds?: number;
+	notes?: string;
+}
+
 export interface RoutineLog {
 	id: string;
 	routineId: string; // References routines/{routineId}
@@ -623,6 +635,7 @@ export interface RoutineLog {
 	// OR summary metrics (quick poolside entry)
 	summary?: RoutineLogSummary;
 	plannedRows?: RoutineLogPlanRow[];
+	resultRows?: RoutineLogResultRow[];
 
 	// Routine-level data (not per-lap)
 	breathingTechnique?: BreathingTechnique;

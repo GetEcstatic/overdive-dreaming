@@ -23,7 +23,7 @@
 	import { deriveAttemptCategory } from '$lib/utils/attemptCategories';
 	import { getTimeOfDay } from '$lib/utils/sessions';
 	import { clearDashboardCache } from '$lib/utils/dashboardCache';
-	import { buildRoutineLogPlanRows } from '$lib/routineLayers/logPlan';
+	import { buildInitialRoutineLogResultRows, buildRoutineLogPlanRows } from '$lib/routineLayers/logPlan';
 	import RoutineSelector from '$lib/components/RoutineSelector.svelte';
 	import QuickLogForm, { type LogFormData } from '$lib/components/QuickLogForm.svelte';
 	import DiveBuddyPicker from '$lib/components/DiveBuddyPicker.svelte';
@@ -303,6 +303,15 @@
 				}
 			}
 
+			const plannedRows = buildRoutineLogPlanRows(routine);
+			const resultRows = buildInitialRoutineLogResultRows(plannedRows, {
+				repsCompleted: logData.repsCompleted,
+				totalTimeSeconds: logData.totalTime,
+				totalDistanceMeters: logData.totalDistance,
+				repDurationSeconds: logData.repDuration,
+				repDistanceMeters: logData.repDistance
+			});
+
 			// 3. Build routine log data, filtering out undefined values
 				const routineLogData: any = {
 					routineId: routine.id,
@@ -311,7 +320,8 @@
 				timeOfDay,
 					sessionGroup,
 					disciplineUsed: logData.disciplineUsed,
-					plannedRows: buildRoutineLogPlanRows(routine),
+					plannedRows,
+					resultRows,
 					attemptConditions: category.conditions,
 					pbCategoryKey: category.key,
 					pbCategoryLabel: category.label,
