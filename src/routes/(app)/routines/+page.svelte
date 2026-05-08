@@ -13,10 +13,11 @@
 		searchPublicUsersByDisplayName,
 		getSessionCountForRoutine
 	} from '$lib/firestore';
-	import type { RoutineTemplate, RoutineTemplateFormData, PublicUserProfile } from '$lib/types';
+	import type { RoutineTemplate, PublicUserProfile } from '$lib/types';
 	import { goto } from '$app/navigation';
 	import { isAdmin } from '$lib/utils/admin';
 	import { buildRoutineLayerReadModel } from '$lib/routineLayers/readModel';
+	import { buildRoutineTemplateTransferData } from '$lib/routineLayers/transfer';
 
 	let routines = $state<RoutineTemplate[]>([]);
 	let loading = $state(true);
@@ -147,25 +148,7 @@
 
 		try {
 			isSending = true;
-			const routineData = {
-				name: sendingRoutine.name,
-				description: sendingRoutine.description,
-				disciplines: sendingRoutine.disciplines,
-				tags: sendingRoutine.tags,
-				restBetweenReps: sendingRoutine.restBetweenReps,
-				repDistance: sendingRoutine.repDistance,
-				numberOfReps: sendingRoutine.numberOfReps,
-				table: sendingRoutine.table,
-				trackingConfig: sendingRoutine.trackingConfig,
-				displayConfig: sendingRoutine.displayConfig,
-				instructionalVideoUrl: sendingRoutine.instructionalVideoUrl
-			};
-
-			const filteredRoutineData = Object.fromEntries(
-				Object.entries(routineData).filter(([, value]) => value !== undefined)
-			) as RoutineTemplateFormData;
-
-			await createRoutine(recipient.userId, filteredRoutineData);
+			await createRoutine(recipient.userId, buildRoutineTemplateTransferData(sendingRoutine));
 			closeSendModal();
 			alert(`Routine sent to ${recipient.displayName}`);
 		} catch (err) {
