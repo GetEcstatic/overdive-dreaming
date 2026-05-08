@@ -27,6 +27,38 @@ First something to address for the STA 2-breath routine. I think this routine wo
 - *I desktop mode, the pill boxes overflow the segment cards which is messy. This needs to be sorted.*
 - *There's a lot of information on the screen all at once for a single layer. I'm wondering how to reduce the clutter. I think users will panic if they see this at present.*
 
+## Recommendation for compact multi-layer overview
+
+I agree with the direction: multi-layer routines need a layer overview first, with segments revealed only for the selected layer. The current segment row works as an editor surface, but it should not be the always-visible overview once routines have more than one layer.
+
+Recommended shape:
+
+- Show a compact vertical layer list for each routine.
+- Each layer row should have a human name, a short generated summary, a rep count, and a few tiny segment indicators.
+- Clicking a layer opens that layer's five segment cards and modifier editor.
+- On mobile, keep only one layer expanded at a time by default.
+- On desktop, it is acceptable to allow more than one expanded layer later, but start with one selected layer to keep the mental model simple.
+
+Layer naming is worthwhile. It teaches users that layers are meaningful routine phases, not just technical rows. For the Static 2-Breath fixture, use names like:
+
+- `Initial breathe-up and hold`
+- `2-breath reps`
+
+Better suggestion: combine explicit names with generated fallback labels. The data model can allow an optional `name`, while the UI can still generate a fallback when no name is supplied, such as `Layer 2 · 9 reps · STA · 0:30 breathe-up`. That avoids forcing every user to name every layer before the prototype has proved the flow.
+
+Implementation plan for the next pass:
+
+- Add optional local-only layer names to the fixture/model surface if the existing type can accept them cleanly.
+- Give the Static 2-Breath layers the two example names above.
+- Replace the always-expanded per-layer segment rows with a compact layer overview.
+- Keep selected layer state separate from selected segment state: routine > layer > segment.
+- Render segment indicators in the collapsed layer row as small labeled status markers, not full cards.
+- Show the full five segment cards only for the selected layer.
+- Preserve the existing selected segment editor panel underneath the expanded layer.
+- Validate on mobile-width CSS specifically, because this change is mainly about scroll length and orientation.
+
+Decision: implement this before adding richer modifier types. It addresses information architecture and mobile density, which are more foundational than adding breath-count or endpoint modifiers.
+
 ## Implementation plan from first review gate
 
 ### Decision summary
