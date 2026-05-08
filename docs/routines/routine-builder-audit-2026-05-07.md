@@ -163,6 +163,36 @@ Commit plan:
   - `Split static two-breath layers`
   - `Simplify layer modifier display`
 
+### 1.2.8 Recommendation: dive recording links for dynamic max layers
+
+Yes: any routine with a dynamic max attempt layer should expose an option to link a dive recording. I would not treat this as a tracked metric combination. It is better modeled as a media attachment capability derived from the layer shape.
+
+Recommended split:
+
+- In the routine/layer builder, show that a layer can request or allow a recording link.
+- In the actual logging/session flow, attach the recording to the expanded result row for that attempt.
+- In the media/video system, keep the recording object independent and link it by ID/reference.
+
+Why this belongs partly in the builder:
+
+- The builder knows the intent: `dynamic` discipline plus `max-attempt` role.
+- A coach may want to prescribe that a max attempt should be recorded.
+- The layer overview can show a small capability marker such as `recording optional` or `recording required`.
+
+Why the final link should live on the result row, not only the template:
+
+- The actual video belongs to a completed attempt, not to the reusable routine template.
+- A repeated or multi-layer routine may produce several expanded rows, but only some attempts may have recordings.
+- Keeping the media reference on the result row avoids duplicating or mutating the template when an athlete logs a session.
+
+Suggested modifier shape for later:
+
+- Segment: probably `Dive`, because recording is attached to the dive attempt itself.
+- Modifier: `Recording link` with values like `none`, `optional`, `required`.
+- Dependency: dynamic discipline group and max-attempt layer role.
+
+Decision for now: record this as a layer modifier/capability idea, but do not implement it before the basic segment/layer editor feels settled. This is not a tracked metric matrix item.
+
 ## 1.3 Current modifier-only checklist
 
 This is the current checklist to use. Ignore the older tracked-metric sections for now; they are useful background but not the active implementation track.
