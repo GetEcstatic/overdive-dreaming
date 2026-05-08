@@ -1,4 +1,4 @@
-import type { ActivityType, Discipline, RoutineTemplate, TableRow, TrainingEnvironment } from '$lib/types';
+import type { ActivityType, Discipline, DisplayConfig, MetricType, RoutineTemplate, TableRow, TrainingEnvironment } from '$lib/types';
 import { projectLegacyRoutineToLayers } from './legacy';
 import {
 	deriveDefaultTags,
@@ -10,6 +10,7 @@ import {
 } from './model';
 import type {
 	DisplayMetricSuggestion,
+	CanonicalMetricKey,
 	RoutineAuthoringLayer,
 	RoutineClassifications,
 	RoutineLayerValidationIssue,
@@ -50,6 +51,74 @@ export type LegacyRoutineProjection = {
 	defaultTags: string[];
 	display: DisplayMetricSuggestion;
 	metricProfile: RoutineMetricProfile;
+};
+
+export type LayerLegacyRoutineTemplateFields = {
+	disciplines: Discipline[];
+	activityType: ActivityType;
+	trainingEnvironment?: TrainingEnvironment;
+	restBetweenReps?: number;
+	repDistance?: number;
+	numberOfReps?: number;
+	table?: { rows: TableRow[] };
+	tags: string[];
+	defaultTags: string[];
+	displayConfig: DisplayConfig;
+};
+
+const metricTypeByCanonicalKey: Partial<Record<CanonicalMetricKey, MetricType>> = {
+	durationSeconds: 'totalTime',
+	distanceMeters: 'totalDistance',
+	repsCompleted: 'repsCompleted',
+	restSeconds: 'avgRestBetweenLaps',
+	breatheUpSeconds: 'initialBreatheUpTime',
+	lapTimes: 'avgTimePerLap',
+	speedPerLap: 'avgSpeedMs',
+	breathingTechnique: 'breathingTechnique',
+	waterTemperatureCelsius: 'waterTemperature',
+	hrv: 'hrv',
+	restingHeartRate: 'restingHeartRate',
+	packingVolumePercent: 'packingVolume',
+	totalRoutineTimeSeconds: 'sessionDuration',
+	cumulativeDiveTimeSeconds: 'cumulativeHoldTime',
+	longestHoldSeconds: 'longestHold',
+	contractionsOnsetSeconds: 'contractionsOnsetTime'
+};
+
+const metricLabels: Record<MetricType, string> = {
+	totalDistance: 'Distance',
+	totalTime: 'Time',
+	repsCompleted: 'Reps',
+	totalRepDistance: 'Total Rep Distance',
+	repDuration: 'Rep Duration',
+	avgTimePerLap: 'Avg Lap Time',
+	avgTimePerRep: 'Avg Rep Time',
+	avgRestBetweenLaps: 'Rest',
+	totalBreathHoldTime: 'Breath Hold Time',
+	totalBreathingTime: 'Breathing Time',
+	totalBreaths: 'Breaths',
+	poolLength: 'Pool Length',
+	initialBreatheUpTime: 'Breathe-up',
+	waterTemperature: 'Water Temperature',
+	contractionsOnsetTime: 'Contractions',
+	restingHeartRate: 'Resting HR',
+	hrv: 'HRV',
+	packingVolume: 'Packing',
+	diveDuration: 'Dive Duration',
+	diveDistance: 'Dive Distance',
+	holdDuration: 'Hold Duration',
+	lapDistance: 'Lap Distance',
+	cumulativeHoldTime: 'Cumulative Hold',
+	cumulativeDistance: 'Cumulative Distance',
+	sessionDuration: 'Session Duration',
+	longestHold: 'Longest Hold',
+	avgSpeed: 'Avg Speed',
+	maxRepSpeed: 'Fastest Rep',
+	minRepSpeed: 'Slowest Rep',
+	avgSpeedMs: 'Avg Speed',
+	fastestLapSpeedMs: 'Fastest Lap',
+	slowestLapSpeedMs: 'Slowest Lap',
+	breathingTechnique: 'Breathing Technique'
 };
 
 export function buildLayerRoutineTemplateContract(layers: RoutineAuthoringLayer[]): LayerRoutineTemplateContract {
@@ -139,6 +208,46 @@ export function projectLayersToLegacyRoutineProjection(layers: RoutineAuthoringL
 		display: deriveDisplayMetrics(layers),
 		metricProfile: deriveMetricProfile(layers)
 	};
+}
+
+export function projectLayersToLegacyRoutineTemplateFields(
+	layers: RoutineAuthoringLayer[]
+): LayerLegacyRoutineTemplateFields {
+	const projection = projectLayersToLegacyRoutineProjection(layers);
+	const heroMetric = metricTypeForCanonical(projection.display.hero, 'totalTime');
+	const secondaryMetric = metricTypeForCanonical(
+		projection.display.secondary,
+		heroMetric === 'totalDistance' ? 'totalTime' : 'totalDistance'
+	);
+	const tertiaryMetric = projection.display.tertiary
+		? metricTypeForCanonical(projection.display.tertiary, undefined)
+		: undefined;
+
+	return {
+		disciplines: projection.disciplines,
+		activityType: projection.activityType,
+		trainingEnvironment: projection.trainingEnvironment,
+		restBetweenReps: projection.restBetweenReps,
+		repDistance: projection.repDistance,
+		numberOfReps: projection.numberOfReps,
+		table: projection.table,
+		tags: projection.defaultTags,
+		defaultTags: projection.defaultTags,
+		displayConfig: {
+			heroMetric,
+			heroMetricLabel: metricLabels[heroMetric],
+			secondaryMetric,
+			secondaryMetricLabel: metricLabels[secondaryMetric],
+			tertiaryMetric,
+			tertiaryMetricLabel: tertiaryMetric ? metricLabels[tertiaryMetric] : undefined
+		}
+	};
+}
+
+function metricTypeForCanonical(canonical: CanonicalMetricKey | undefined, fallback: MetricType): MetricType;
+function metricTypeForCanonical(canonical: CanonicalMetricKey | undefined, fallback: undefined): MetricType | undefined;
+function metricTypeForCanonical(canonical: CanonicalMetricKey | undefined, fallback: MetricType | undefined): MetricType | undefined {
+	return canonical ? metricTypeByCanonicalKey[canonical] ?? fallback : fallback;
 }
 
 function projectDisciplines(layers: RoutineAuthoringLayer[]): Discipline[] {

@@ -7,6 +7,7 @@ import {
 	getRoutineTemplateLayers,
 	hasLayerRoutineTemplateContract,
 	projectLayersToLegacyRoutineProjection,
+	projectLayersToLegacyRoutineTemplateFields,
 	validateLayerRoutineTemplateContract,
 	withLayerRoutineTemplateContract
 } from './contract';
@@ -94,6 +95,25 @@ describe('layer routine template contract', () => {
 			repNumber: 2,
 			restBefore: 30,
 			targetDuration: 90
+		});
+	});
+
+	it('projects layers to legacy routine template fields for compatibility writes', () => {
+		const fields = projectLayersToLegacyRoutineTemplateFields(staticTwoBreathTableExample.layers);
+
+		expect(fields.disciplines).toEqual(['STA']);
+		expect(fields.activityType).toBe('structured-intervals');
+		expect(fields.tags).toEqual(['static', 'table']);
+		expect(fields.defaultTags).toEqual(['static', 'table']);
+		expect(fields.table?.rows).toHaveLength(10);
+		expect(fields.numberOfReps).toBeUndefined();
+		expect(fields.displayConfig).toMatchObject({
+			heroMetric: 'cumulativeHoldTime',
+			heroMetricLabel: 'Cumulative Hold',
+			secondaryMetric: 'longestHold',
+			secondaryMetricLabel: 'Longest Hold',
+			tertiaryMetric: 'repsCompleted',
+			tertiaryMetricLabel: 'Reps'
 		});
 	});
 

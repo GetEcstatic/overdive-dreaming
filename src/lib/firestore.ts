@@ -57,7 +57,10 @@ import {
 } from '$lib/utils/migration';
 import { buildRoutineLayerReadModel } from '$lib/routineLayers/readModel';
 import type { RoutineLayerReadModel } from '$lib/routineLayers/readModel';
-import { buildLayerRoutineTemplateContract } from '$lib/routineLayers/contract';
+import {
+	buildLayerRoutineTemplateContract,
+	projectLayersToLegacyRoutineTemplateFields
+} from '$lib/routineLayers/contract';
 import type { RoutineAuthoringLayer } from '$lib/routineLayers/model';
 
 // ============================================================================
@@ -143,8 +146,18 @@ export async function writeRoutineLayerTemplateContract(
 ): Promise<void> {
 	const docRef = doc(db, 'routines', routineId);
 	const contract = buildLayerRoutineTemplateContract(layers);
+	const legacyFields = projectLayersToLegacyRoutineTemplateFields(layers);
+	const legacyUpdates: Record<string, unknown> = {
+		...legacyFields,
+		trainingEnvironment: legacyFields.trainingEnvironment ?? deleteField(),
+		restBetweenReps: legacyFields.restBetweenReps ?? deleteField(),
+		repDistance: legacyFields.repDistance ?? deleteField(),
+		numberOfReps: legacyFields.numberOfReps ?? deleteField(),
+		table: legacyFields.table ?? deleteField()
+	};
 
 	await updateDoc(docRef, {
+		...legacyUpdates,
 		...contract,
 		updatedAt: serverTimestamp()
 	});
