@@ -8,6 +8,7 @@
 		expandRoutineLayers,
 		validateRoutineLayers
 	} from '$lib/routineLayers/model';
+	import { buildLayerSentence } from '$lib/routineLayers/sentence';
 
 	const prototypeRows = defaultRoutineExamples.map((example) => ({
 		example,
@@ -16,7 +17,8 @@
 		derivedMetrics: deriveMetricProfile(example.layers),
 		derivedTags: deriveDefaultTags(example.layers),
 		derivedDisplay: deriveDisplayMetrics(example.layers),
-		validationIssues: validateRoutineLayers(example.layers)
+		validationIssues: validateRoutineLayers(example.layers),
+		layerSentences: example.layers.map((layer, index) => buildLayerSentence(layer, index))
 	}));
 
 	function formatBoolean(value: boolean): string {
@@ -72,18 +74,25 @@
 				</div>
 
 				<div class="layer-strip" aria-label="Authoring layers">
-					{#each row.example.layers as layer}
-						<div class="layer-line">
-							<span>{layer.discipline}</span>
-							<span>{layer.breatheUp.mode} breathe-up</span>
-							<span>
-								{layer.dive.distance ? `${layer.dive.distance.mode} distance` : 'no distance'}
-							</span>
-							<span>
-								{layer.dive.duration ? `${layer.dive.duration.mode} duration` : 'no duration'}
-							</span>
-							<span>{layer.attributes.lungVolume} · {layer.attributes.effort}</span>
-							<span>{layer.attributes.repeatCount}x</span>
+					{#each row.layerSentences as sentence}
+						<div class="layer-sentence" aria-label={sentence.label}>
+							<div class="layer-label">{sentence.label}</div>
+							<div class="sentence-grid">
+								{#each sentence.segments as segment}
+									<div class:locked={segment.locked} class="sentence-segment">
+										<div class="segment-topline">
+											<span class="segment-label">{segment.label}</span>
+											<span class="lock-state">{segment.locked ? 'locked' : 'unlocked'}</span>
+										</div>
+										<strong>{segment.summary}</strong>
+										<div class="segment-details">
+											{#each segment.details.filter((detail) => detail !== segment.summary) as detail}
+												<span>{detail}</span>
+											{/each}
+										</div>
+									</div>
+								{/each}
+							</div>
 						</div>
 					{/each}
 				</div>
@@ -109,8 +118,8 @@
 						</dl>
 					</div>
 
-					<div class="detail-block wide">
-						<h3>Metrics</h3>
+					<details class="detail-block wide metrics-detail">
+						<summary>Metrics</summary>
 						<div class="chip-row">
 							{#each row.example.standardMetrics as metric}
 								<span class="metric-chip standard">{metric}</span>
@@ -121,7 +130,7 @@
 								<span class="metric-chip geek">{metric}</span>
 							{/each}
 						</div>
-					</div>
+					</details>
 
 					<div class="detail-block wide">
 						<h3>Tags</h3>
@@ -269,21 +278,80 @@
 		border-bottom: 1px solid rgba(148, 163, 184, 0.18);
 	}
 
-	.layer-line {
+	.layer-sentence {
 		display: grid;
-		grid-template-columns: 0.7fr repeat(5, minmax(0, 1fr));
-		gap: 1px;
-		border: 1px solid rgba(148, 163, 184, 0.18);
-		border-radius: 6px;
-		overflow-x: auto;
-		background: rgba(148, 163, 184, 0.18);
+		gap: 10px;
 	}
 
-	.layer-line span {
-		background: #111827;
-		padding: 9px;
+	.layer-label {
+		color: var(--color-text-muted);
 		font-size: 0.78rem;
-		white-space: nowrap;
+		font-weight: 700;
+		text-transform: uppercase;
+	}
+
+	.sentence-grid {
+		display: grid;
+		grid-template-columns: repeat(5, minmax(148px, 1fr));
+		gap: 8px;
+		overflow-x: auto;
+	}
+
+	.sentence-segment {
+		display: grid;
+		align-content: start;
+		gap: 8px;
+		min-height: 112px;
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		border-radius: 8px;
+		background: #111827;
+		padding: 10px;
+	}
+
+	.sentence-segment.locked {
+		border-color: rgba(250, 204, 21, 0.42);
+		background: rgba(113, 63, 18, 0.24);
+	}
+
+	.segment-topline {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+	}
+
+	.segment-label,
+	.lock-state {
+		color: var(--color-text-muted);
+		font-size: 0.78rem;
+	}
+
+	.segment-label {
+		font-weight: 700;
+	}
+
+	.lock-state {
+		font-size: 0.72rem;
+	}
+
+	.sentence-segment strong {
+		font-size: 0.94rem;
+		line-height: 1.25;
+	}
+
+	.segment-details {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 5px;
+	}
+
+	.segment-details span {
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		border-radius: 999px;
+		color: var(--color-text-muted);
+		font-size: 0.7rem;
+		line-height: 1;
+		padding: 5px 7px;
 	}
 
 	.detail-grid {
@@ -302,6 +370,21 @@
 
 	.detail-block.wide {
 		grid-column: 1 / -1;
+	}
+
+	details.detail-block {
+		display: block;
+	}
+
+	.metrics-detail summary {
+		cursor: pointer;
+		font-size: 0.9rem;
+		font-weight: 700;
+		list-style-position: inside;
+	}
+
+	.metrics-detail[open] summary {
+		margin-bottom: 10px;
 	}
 
 	h3 {
@@ -363,16 +446,13 @@
 		}
 
 		.summary-band,
-		.detail-grid {
+		.detail-grid,
+		.sentence-grid {
 			grid-template-columns: 1fr;
 		}
 
 		.status-cluster {
 			justify-content: start;
-		}
-
-		.layer-line {
-			grid-template-columns: repeat(6, minmax(110px, 1fr));
 		}
 	}
 </style>
