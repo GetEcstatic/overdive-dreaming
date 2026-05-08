@@ -23,6 +23,7 @@
 	import { deriveAttemptCategory } from '$lib/utils/attemptCategories';
 	import { getTimeOfDay } from '$lib/utils/sessions';
 	import { clearDashboardCache } from '$lib/utils/dashboardCache';
+	import { buildRoutineLogPlanRows } from '$lib/routineLayers/logPlan';
 	import RoutineSelector from '$lib/components/RoutineSelector.svelte';
 	import QuickLogForm, { type LogFormData } from '$lib/components/QuickLogForm.svelte';
 	import DiveBuddyPicker from '$lib/components/DiveBuddyPicker.svelte';
@@ -310,6 +311,7 @@
 				timeOfDay,
 					sessionGroup,
 					disciplineUsed: logData.disciplineUsed,
+					plannedRows: buildRoutineLogPlanRows(routine),
 					attemptConditions: category.conditions,
 					pbCategoryKey: category.key,
 					pbCategoryLabel: category.label,

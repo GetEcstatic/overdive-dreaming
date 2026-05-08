@@ -538,6 +538,22 @@ export interface RoutineLogSummary {
 	averageTimePerLap?: number;
 }
 
+export interface RoutineLogPlanRow {
+	planRowId: string;
+	sourceLayerId: string;
+	layerName?: string;
+	repIndex: number;
+	globalRowIndex: number;
+	discipline: Discipline;
+	plannedBreatheUpSeconds?: number;
+	plannedDurationSeconds?: number;
+	plannedDistanceMeters?: number;
+	lungVolume: LungVolume;
+	effort: 'max' | 'submax' | 'standard';
+	environment: TrainingEnvironment;
+	analyticsRole?: string;
+}
+
 export interface RoutineLog {
 	id: string;
 	routineId: string; // References routines/{routineId}
@@ -606,6 +622,7 @@ export interface RoutineLog {
 
 	// OR summary metrics (quick poolside entry)
 	summary?: RoutineLogSummary;
+	plannedRows?: RoutineLogPlanRow[];
 
 	// Routine-level data (not per-lap)
 	breathingTechnique?: BreathingTechnique;
