@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { defaultRoutineExamples } from '$lib/routineLayers/defaults';
+	import type { RoutineLayerExample } from '$lib/routineLayers/defaults';
 	import {
 		deriveDefaultTags,
 		deriveDisplayMetrics,
@@ -8,9 +9,39 @@
 		expandRoutineLayers,
 		validateRoutineLayers
 	} from '$lib/routineLayers/model';
+	import type {
+		LayerDiscipline,
+		LayerEffort,
+		LayerIngredient,
+		LayerValueMode,
+		LungVolume,
+		RoutineAuthoringLayer,
+		TrainingEnvironment
+	} from '$lib/routineLayers/model';
 	import { buildLayerSentence } from '$lib/routineLayers/sentence';
+	import type { LayerSentenceSegmentKey } from '$lib/routineLayers/sentence';
 
-	const prototypeRows = defaultRoutineExamples.map((example) => ({
+	const disciplineOptions: LayerDiscipline[] = ['STA', 'DYN', 'DYNB', 'DNF', 'TORT'];
+	const dynamicDisciplineOptions: LayerDiscipline[] = ['DYN', 'DYNB', 'DNF', 'TORT'];
+	const lungVolumeOptions: LungVolume[] = ['FL', 'FRC', 'RV'];
+	const effortOptions: LayerEffort[] = ['standard', 'submax', 'max'];
+	const environmentOptions: TrainingEnvironment[] = ['wet', 'dry', 'both'];
+	const lockIngredientBySegment: Record<LayerSentenceSegmentKey, LayerIngredient> = {
+		discipline: 'discipline',
+		breatheUp: 'breatheUp',
+		dive: 'dive',
+		setup: 'attributes',
+		reps: 'repeat'
+	};
+
+	let editableExamples = $state(defaultRoutineExamples.map(cloneExample));
+	let selectedEditor = $state({
+		exampleId: defaultRoutineExamples[0].id,
+		layerId: defaultRoutineExamples[0].layers[0].id,
+		segment: 'discipline' as LayerSentenceSegmentKey
+	});
+
+	const prototypeRows = $derived(editableExamples.map((example) => ({
 		example,
 		planRows: expandRoutineLayers(example.layers),
 		classifications: deriveRoutineClassifications(example.layers),
@@ -18,11 +49,165 @@
 		derivedTags: deriveDefaultTags(example.layers),
 		derivedDisplay: deriveDisplayMetrics(example.layers),
 		validationIssues: validateRoutineLayers(example.layers),
-		layerSentences: example.layers.map((layer, index) => buildLayerSentence(layer, index))
-	}));
+		layerSentences: example.layers.map((layer, index) => buildLayerSentence(layer, index)),
+		isEditorOpen: selectedEditor.exampleId === example.id,
+		selectedLayer: example.layers.find((layer) => layer.id === selectedEditor.layerId) ?? example.layers[0]
+	})));
 
 	function formatBoolean(value: boolean): string {
 		return value ? 'yes' : 'no';
+	}
+
+	function cloneExample(example: RoutineLayerExample): RoutineLayerExample {
+		return {
+			...example,
+			standardMetrics: [...example.standardMetrics],
+			geekMetrics: [...example.geekMetrics],
+			defaultTags: [...example.defaultTags],
+			selectableTags: [...example.selectableTags],
+			safetyContext: [...example.safetyContext],
+			layers: example.layers.map((layer) => ({
+				...layer,
+				allowedDisciplines: layer.allowedDisciplines ? [...layer.allowedDisciplines] : undefined,
+				breatheUp: { ...layer.breatheUp },
+				dive: {
+					distance: layer.dive.distance ? { ...layer.dive.distance } : undefined,
+					duration: layer.dive.duration ? { ...layer.dive.duration } : undefined
+				},
+				attributes: { ...layer.attributes },
+				locks: { ...layer.locks }
+			}))
+		};
+	}
+
+	function isSelected(layerId: string, segment: LayerSentenceSegmentKey): boolean {
+		return selectedEditor.layerId === layerId && selectedEditor.segment === segment;
+	}
+
+	function selectSegment(exampleId: string, layerId: string, segment: LayerSentenceSegmentKey): void {
+		selectedEditor = { exampleId, layerId, segment };
+	}
+
+	function updateLayer(
+		exampleId: string,
+		layerId: string,
+		updater: (layer: RoutineAuthoringLayer) => RoutineAuthoringLayer
+	): void {
+		const example = editableExamples.find((item) => item.id === exampleId);
+		const layerIndex = example?.layers.findIndex((layer) => layer.id === layerId) ?? -1;
+
+		if (!example || layerIndex < 0) return;
+		example.layers[layerIndex] = updater(example.layers[layerIndex]);
+	}
+
+	function setDiscipline(exampleId: string, layerId: string, discipline: LayerDiscipline): void {
+		updateLayer(exampleId, layerId, (layer) => ({
+			...layer,
+			discipline,
+			allowedDisciplines:
+				layer.disciplineSelectionMode === 'log-time-selectable'
+					? ensureIncludes(layer.allowedDisciplines ?? dynamicDisciplineOptions, discipline)
+					: layer.allowedDisciplines,
+			dive: discipline === 'STA' ? { duration: layer.dive.duration ?? { mode: 'open' } } : layer.dive
+		}));
+	}
+
+	function setDisciplineSelectionMode(exampleId: string, layerId: string, mode: 'fixed' | 'log-time-selectable'): void {
+		updateLayer(exampleId, layerId, (layer) => ({
+			...layer,
+			disciplineSelectionMode: mode,
+			allowedDisciplines: mode === 'log-time-selectable' ? ensureIncludes(dynamicDisciplineOptions, layer.discipline) : undefined
+		}));
+	}
+
+	function setBreatheUpMode(exampleId: string, layerId: string, mode: LayerValueMode): void {
+		updateLayer(exampleId, layerId, (layer) => ({
+			...layer,
+			breatheUp: mode === 'open' ? { mode } : { mode, seconds: getDurationSeconds(layer.breatheUp) }
+		}));
+	}
+
+	function setBreatheUpSeconds(exampleId: string, layerId: string, seconds: number): void {
+		updateLayer(exampleId, layerId, (layer) => ({ ...layer, breatheUp: { mode: 'fixed', seconds } }));
+	}
+
+	function setDiveDistanceMode(exampleId: string, layerId: string, mode: LayerValueMode | 'none'): void {
+		updateLayer(exampleId, layerId, (layer) => ({
+			...layer,
+			dive: {
+				...layer.dive,
+				distance: mode === 'none' ? undefined : mode === 'open' ? { mode } : { mode, meters: getDistanceMeters(layer) }
+			}
+		}));
+	}
+
+	function setDiveDistanceMeters(exampleId: string, layerId: string, meters: number): void {
+		updateLayer(exampleId, layerId, (layer) => ({
+			...layer,
+			dive: { ...layer.dive, distance: { mode: 'fixed', meters } }
+		}));
+	}
+
+	function setDiveDurationMode(exampleId: string, layerId: string, mode: LayerValueMode | 'none'): void {
+		updateLayer(exampleId, layerId, (layer) => ({
+			...layer,
+			dive: {
+				...layer.dive,
+				duration: mode === 'none' ? undefined : mode === 'open' ? { mode } : { mode, seconds: getDurationSeconds(layer.dive.duration) }
+			}
+		}));
+	}
+
+	function setDiveDurationSeconds(exampleId: string, layerId: string, seconds: number): void {
+		updateLayer(exampleId, layerId, (layer) => ({
+			...layer,
+			dive: { ...layer.dive, duration: { mode: 'fixed', seconds } }
+		}));
+	}
+
+	function setSetupAttribute<Key extends keyof RoutineAuthoringLayer['attributes']>(
+		exampleId: string,
+		layerId: string,
+		key: Key,
+		value: RoutineAuthoringLayer['attributes'][Key]
+	): void {
+		updateLayer(exampleId, layerId, (layer) => ({
+			...layer,
+			attributes: { ...layer.attributes, [key]: value }
+		}));
+	}
+
+	function setSegmentLocked(
+		exampleId: string,
+		layerId: string,
+		segment: LayerSentenceSegmentKey,
+		locked: boolean
+	): void {
+		const lockIngredient = lockIngredientBySegment[segment];
+		updateLayer(exampleId, layerId, (layer) => ({
+			...layer,
+			locks: { ...layer.locks, [lockIngredient]: locked }
+		}));
+	}
+
+	function getSegmentLocked(layer: RoutineAuthoringLayer, segment: LayerSentenceSegmentKey): boolean {
+		return Boolean(layer.locks[lockIngredientBySegment[segment]]);
+	}
+
+	function ensureIncludes(items: LayerDiscipline[], discipline: LayerDiscipline): LayerDiscipline[] {
+		return items.includes(discipline) ? [...items] : [discipline, ...items];
+	}
+
+	function getDurationSeconds(target: { mode: 'open' } | { mode: 'fixed'; seconds: number } | undefined): number {
+		return target?.mode === 'fixed' ? target.seconds : 90;
+	}
+
+	function getDistanceMeters(layer: RoutineAuthoringLayer): number {
+		return layer.dive.distance?.mode === 'fixed' ? layer.dive.distance.meters : 50;
+	}
+
+	function numberValue(event: Event): number {
+		return Number((event.currentTarget as HTMLInputElement).value);
 	}
 </script>
 
@@ -79,7 +264,13 @@
 							<div class="layer-label">{sentence.label}</div>
 							<div class="sentence-grid">
 								{#each sentence.segments as segment}
-									<div class:locked={segment.locked} class="sentence-segment">
+									<button
+										type="button"
+										class:locked={segment.locked}
+										class:selected={isSelected(sentence.layerId, segment.key)}
+										class="sentence-segment"
+										onclick={() => selectSegment(row.example.id, sentence.layerId, segment.key)}
+									>
 										<div class="segment-topline">
 											<span class="segment-label">{segment.label}</span>
 											<span class="lock-state">{segment.locked ? 'locked' : 'unlocked'}</span>
@@ -93,12 +284,171 @@
 												</span>
 											{/each}
 										</div>
-									</div>
+									</button>
 								{/each}
 							</div>
 						</div>
 					{/each}
 				</div>
+
+				{#if row.isEditorOpen}
+					<section class="modifier-editor" aria-label="Selected segment modifiers">
+						<div class="editor-head">
+							<div>
+								<p class="eyebrow">Local editor</p>
+								<h3>{selectedEditor.segment}</h3>
+							</div>
+							<label class="lock-toggle">
+								<input
+									type="checkbox"
+									checked={getSegmentLocked(row.selectedLayer, selectedEditor.segment)}
+									onchange={(event) =>
+										setSegmentLocked(
+											row.example.id,
+											row.selectedLayer.id,
+											selectedEditor.segment,
+											(event.currentTarget as HTMLInputElement).checked
+										)}
+								/>
+								<span>Lock segment</span>
+							</label>
+						</div>
+
+						{#if selectedEditor.segment === 'discipline'}
+							<div class="editor-grid">
+								<label>
+									<span>Default discipline</span>
+									<select
+										value={row.selectedLayer.discipline}
+										onchange={(event) =>
+											setDiscipline(row.example.id, row.selectedLayer.id, (event.currentTarget as HTMLSelectElement).value as LayerDiscipline)}
+									>
+										{#each disciplineOptions as discipline}
+											<option value={discipline}>{discipline}</option>
+										{/each}
+									</select>
+								</label>
+								<label>
+									<span>Selection mode</span>
+									<select
+										value={row.selectedLayer.disciplineSelectionMode}
+										onchange={(event) =>
+											setDisciplineSelectionMode(row.example.id, row.selectedLayer.id, (event.currentTarget as HTMLSelectElement).value as 'fixed' | 'log-time-selectable')}
+									>
+										<option value="fixed">fixed discipline</option>
+										<option value="log-time-selectable">selectable at log time</option>
+									</select>
+								</label>
+							</div>
+						{:else if selectedEditor.segment === 'breatheUp'}
+							<div class="editor-grid">
+								<label>
+									<span>Duration mode</span>
+									<select
+										value={row.selectedLayer.breatheUp.mode}
+										onchange={(event) =>
+											setBreatheUpMode(row.example.id, row.selectedLayer.id, (event.currentTarget as HTMLSelectElement).value as LayerValueMode)}
+									>
+										<option value="open">open duration</option>
+										<option value="fixed">fixed duration</option>
+									</select>
+								</label>
+								<label>
+									<span>Seconds</span>
+									<input
+										type="number"
+										min="1"
+										value={getDurationSeconds(row.selectedLayer.breatheUp)}
+										disabled={row.selectedLayer.breatheUp.mode === 'open'}
+										oninput={(event) => setBreatheUpSeconds(row.example.id, row.selectedLayer.id, numberValue(event))}
+									/>
+								</label>
+							</div>
+						{:else if selectedEditor.segment === 'dive'}
+							<div class="editor-grid">
+								{#if row.selectedLayer.discipline !== 'STA'}
+									<label>
+										<span>Distance mode</span>
+										<select
+											value={row.selectedLayer.dive.distance?.mode ?? 'none'}
+											onchange={(event) =>
+												setDiveDistanceMode(row.example.id, row.selectedLayer.id, (event.currentTarget as HTMLSelectElement).value as LayerValueMode | 'none')}
+										>
+											<option value="none">no distance target</option>
+											<option value="open">open distance</option>
+											<option value="fixed">fixed distance</option>
+										</select>
+									</label>
+									<label>
+										<span>Meters</span>
+										<input
+											type="number"
+											min="1"
+											value={getDistanceMeters(row.selectedLayer)}
+											disabled={row.selectedLayer.dive.distance?.mode !== 'fixed'}
+											oninput={(event) => setDiveDistanceMeters(row.example.id, row.selectedLayer.id, numberValue(event))}
+										/>
+									</label>
+								{/if}
+								<label>
+									<span>Duration mode</span>
+									<select
+										value={row.selectedLayer.dive.duration?.mode ?? 'none'}
+										onchange={(event) =>
+											setDiveDurationMode(row.example.id, row.selectedLayer.id, (event.currentTarget as HTMLSelectElement).value as LayerValueMode | 'none')}
+									>
+										<option value="none">no duration target</option>
+										<option value="open">open duration</option>
+										<option value="fixed">fixed duration</option>
+									</select>
+								</label>
+								<label>
+									<span>Seconds</span>
+									<input
+										type="number"
+										min="1"
+										value={getDurationSeconds(row.selectedLayer.dive.duration)}
+										disabled={row.selectedLayer.dive.duration?.mode !== 'fixed'}
+										oninput={(event) => setDiveDurationSeconds(row.example.id, row.selectedLayer.id, numberValue(event))}
+									/>
+								</label>
+							</div>
+						{:else if selectedEditor.segment === 'setup'}
+							<div class="editor-grid">
+								<label>
+									<span>Lung volume</span>
+									<select value={row.selectedLayer.attributes.lungVolume} onchange={(event) => setSetupAttribute(row.example.id, row.selectedLayer.id, 'lungVolume', (event.currentTarget as HTMLSelectElement).value as LungVolume)}>
+										{#each lungVolumeOptions as option}<option value={option}>{option}</option>{/each}
+									</select>
+								</label>
+								<label>
+									<span>Effort</span>
+									<select value={row.selectedLayer.attributes.effort} onchange={(event) => setSetupAttribute(row.example.id, row.selectedLayer.id, 'effort', (event.currentTarget as HTMLSelectElement).value as LayerEffort)}>
+										{#each effortOptions as option}<option value={option}>{option}</option>{/each}
+									</select>
+								</label>
+								<label>
+									<span>Environment</span>
+									<select value={row.selectedLayer.attributes.environment} onchange={(event) => setSetupAttribute(row.example.id, row.selectedLayer.id, 'environment', (event.currentTarget as HTMLSelectElement).value as TrainingEnvironment)}>
+										{#each environmentOptions as option}<option value={option}>{option}</option>{/each}
+									</select>
+								</label>
+							</div>
+						{:else if selectedEditor.segment === 'reps'}
+							<div class="editor-grid">
+								<label>
+									<span>Repeat count</span>
+									<input
+										type="number"
+										min="1"
+										value={row.selectedLayer.attributes.repeatCount}
+										oninput={(event) => setSetupAttribute(row.example.id, row.selectedLayer.id, 'repeatCount', Math.max(1, Math.floor(numberValue(event))))}
+									/>
+								</label>
+							</div>
+						{/if}
+					</section>
+				{/if}
 
 				<div class="detail-grid">
 					<div class="detail-block">
@@ -308,7 +658,20 @@
 		border: 1px solid rgba(148, 163, 184, 0.2);
 		border-radius: 8px;
 		background: #111827;
+		color: var(--color-text);
+		cursor: pointer;
+		font: inherit;
 		padding: 10px;
+		text-align: left;
+	}
+
+	.sentence-segment:hover,
+	.sentence-segment.selected {
+		border-color: rgba(20, 184, 166, 0.55);
+	}
+
+	.sentence-segment.selected {
+		box-shadow: inset 0 0 0 1px rgba(20, 184, 166, 0.35);
 	}
 
 	.sentence-segment.locked {
@@ -368,6 +731,63 @@
 	.modifier-label {
 		color: var(--color-text);
 		font-weight: 700;
+	}
+
+	.modifier-editor {
+		display: grid;
+		gap: 14px;
+		border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+		background: rgba(8, 13, 24, 0.64);
+		padding: 14px 16px 16px;
+	}
+
+	.editor-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 14px;
+	}
+
+	.editor-head h3 {
+		text-transform: capitalize;
+	}
+
+	.lock-toggle,
+	.editor-grid label {
+		display: grid;
+		gap: 6px;
+		color: var(--color-text-muted);
+		font-size: 0.78rem;
+		font-weight: 700;
+	}
+
+	.lock-toggle {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		white-space: nowrap;
+	}
+
+	.editor-grid {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 10px;
+	}
+
+	.editor-grid select,
+	.editor-grid input {
+		width: 100%;
+		border: 1px solid rgba(148, 163, 184, 0.28);
+		border-radius: 6px;
+		background: #0f172a;
+		color: var(--color-text);
+		font: inherit;
+		padding: 9px 10px;
+	}
+
+	.editor-grid input:disabled {
+		cursor: not-allowed;
+		opacity: 0.45;
 	}
 
 	.detail-grid {
@@ -463,7 +883,8 @@
 
 		.summary-band,
 		.detail-grid,
-		.sentence-grid {
+		.sentence-grid,
+		.editor-grid {
 			grid-template-columns: 1fr;
 		}
 

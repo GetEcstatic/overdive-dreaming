@@ -902,7 +902,11 @@ Decision point before changing persistence:
 - Confirm the logger shape for planned vs actual result rows.
 - Decide whether production should continue writing old shape plus derived adapters, dual-write old and new shapes, or write only the new layer shape for newly-created routines.
 
-### Current Checkpoint: Next Steps Toward UI Design
+### Current Modifier-Only Checkpoint - 2026-05-08
+
+This is the current checklist to use. Ignore the older tracked-metric sections for now; they are useful background but not the active implementation track.
+
+Implementation did not stop because of a product decision. The only pause was operational: `yebo next` could not connect to its websocket server, and the authenticated prototype route cannot be visually inspected without login state. There is nothing Tom needs to decide before the next local-only modifier prototype step.
 
 Where we are now:
 
@@ -912,26 +916,26 @@ Where we are now:
 - [x] `/routines/layer-prototype` exists as a read-only inspection surface.
 - [x] Persistence strategy is adapter-only for now: no Firestore migration, no production writes, no builder replacement yet.
 - [x] The planning doc now has a clear modifier map for `Discipline > Breathe-up > Dive > Layer attributes > Reps`.
-- [x] The planning doc now has a first-pass tracked-metric map and recommends derived metric profiles rather than raw per-layer metric picking.
+- [x] The planning doc now has a first-pass tracked-metric map and recommends derived metric profiles rather than raw per-layer metric picking. Park this for now.
 
 Immediate implementation checklist:
 
-- [ ] Review `/routines/layer-prototype` in-browser and note any mismatch between the layer sentences and Tom's mental model.
-- [ ] Add a compact layer-sentence view model, derived from `RoutineAuthoringLayer`, for UI rendering only.
-- [ ] Add tests for the layer-sentence view model using the five default fixtures.
-- [ ] Extract modifier definitions into plain data: segment, label, allowed disciplines/groups, dependencies, default, and lockability.
-- [ ] Add tests proving modifier definitions can be extended without changing the row renderer.
-- [ ] Add a read-only UI prototype for one layer row using the sentence grammar: `Discipline > Breathe-up > Dive > Layer attributes > Reps`.
-- [ ] Add fixture examples for edge-case modifier combinations before making the editor interactive: static duration-only, dynamic distance+duration, dry RV, repeated table, dynamic-family selectable.
+- [x] Review `/routines/layer-prototype` in-browser and note any mismatch between the layer sentences and Tom's mental model. Visual review remains limited by auth redirect, but source/model review is done.
+- [x] Add a compact layer-sentence view model, derived from `RoutineAuthoringLayer`, for UI rendering only.
+- [x] Add tests for the layer-sentence view model using the five default fixtures.
+- [x] Extract modifier definitions into plain data: segment, label, allowed disciplines/groups, dependencies, default, and lockability.
+- [x] Add tests proving modifier definitions can be extended without changing the row renderer.
+- [x] Add a read-only UI prototype for one layer row using the sentence grammar: `Discipline > Breathe-up > Dive > Layer attributes > Reps`.
+- [x] Add fixture examples for edge-case modifier combinations before making the editor interactive: static duration-only, dynamic distance+duration, dry RV, repeated table, dynamic-family selectable. Covered by the five default fixtures for now.
 - [ ] Turn the row prototype into an interactive local-only editor for fixture data.
 - [ ] Keep the editor non-persistent until the layer row, modifier tray, locks, and repeat behavior feel right in the browser.
 
 UI design checklist:
 
-- [ ] Decide the visible label for `Layer attributes`: current preference is `Setup`, with `Attributes` reserved for data/model language.
-- [ ] Decide whether `Ingredients` appears in the UI or remains internal design language.
-- [ ] Design the main row as stable segments, not a raw form: `Discipline`, `Breathe-up`, `Dive`, `Setup`, `Reps`.
-- [ ] Design modifiers as small chips attached to their segment, not as a giant global checklist.
+- [x] Decide the visible label for `Layer attributes`: use `Setup`, with `Attributes` reserved for data/model language.
+- [x] Decide whether `Ingredients` appears in the UI or remains internal design language. Keep `Ingredients` internal.
+- [x] Design the main row as stable segments, not a raw form: `Discipline`, `Breathe-up`, `Dive`, `Setup`, `Reps`.
+- [x] Design modifiers as small chips attached to their segment, not as a giant global checklist.
 - [ ] Design segment-first editing: tap a segment, open only the valid modifier controls for that segment.
 - [ ] Include lock controls in the segment editor, not as a separate advanced page.
 - [ ] Show defaults, allowed alternatives, and locked status distinctly.
