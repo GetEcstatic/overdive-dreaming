@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { RoutineTemplate } from '$lib/types';
 import { dynamicMaxExample, staticTwoBreathTableExample } from './defaults';
 import { ROUTINE_TEMPLATE_LAYER_VERSION, withLayerRoutineTemplateContract } from './contract';
-import { buildRoutineTemplateTransferData } from './transfer';
+import { buildRoutineTemplateTransferData, mergeRoutineTemplateFormDataWithLayerContract } from './transfer';
 
 function routineTemplate(overrides: Partial<RoutineTemplate> = {}): RoutineTemplate {
 	return {
@@ -61,5 +61,45 @@ describe('buildRoutineTemplateTransferData', () => {
 		expect(payload.numberOfReps).toBeUndefined();
 		expect(payload.restBetweenReps).toBeUndefined();
 		expect(payload.displayConfig.heroMetric).toBe('cumulativeHoldTime');
+	});
+
+	it('keeps duplicate and edit payloads consistent for v2 source routines', () => {
+		const source = withLayerRoutineTemplateContract(routineTemplate(), dynamicMaxExample.layers);
+		const payload = mergeRoutineTemplateFormDataWithLayerContract(source, {
+			name: 'Renamed Dynamic Max',
+			description: 'Edited description',
+			disciplines: ['STA'],
+			tags: ['custom'],
+			trackingConfig: { trackTotalTime: true } as RoutineTemplate['trackingConfig'],
+			displayConfig: {
+				heroMetric: 'totalTime',
+				heroMetricLabel: 'Time',
+				secondaryMetric: 'totalDistance',
+				secondaryMetricLabel: 'Distance'
+			}
+		});
+
+		expect(payload.name).toBe('Renamed Dynamic Max');
+		expect(payload.description).toBe('Edited description');
+		expect(payload.routineTemplateVersion).toBe(ROUTINE_TEMPLATE_LAYER_VERSION);
+		expect(payload.layers).toEqual(dynamicMaxExample.layers);
+		expect(payload.disciplines).toEqual(['DYN', 'DYNB', 'DNF']);
+		expect(payload.tags).toEqual(expect.arrayContaining(['dynamic', 'max']));
+		expect(payload.displayConfig.heroMetric).toBe('totalDistance');
+	});
+
+	it('does not add layer fields to legacy edit payloads', () => {
+		const payload = mergeRoutineTemplateFormDataWithLayerContract(routineTemplate(), {
+			name: 'Legacy edit',
+			description: 'Legacy description',
+			disciplines: ['STA'],
+			tags: ['static'],
+			trackingConfig: {} as RoutineTemplate['trackingConfig'],
+			displayConfig: {} as RoutineTemplate['displayConfig']
+		});
+
+		expect(payload).not.toHaveProperty('routineTemplateVersion');
+		expect(payload).not.toHaveProperty('layers');
+		expect(payload.disciplines).toEqual(['STA']);
 	});
 });

@@ -8,6 +8,7 @@
 	 */
 
 	import { user } from '$lib/stores/auth';
+	import { untrack } from 'svelte';
 	import { createRoutine, updateRoutine, getRoutinesForUser } from '$lib/firestore';
 	import type {
 		Discipline,
@@ -34,6 +35,7 @@
 	import DisplayMetricSelector from './simplified/DisplayMetricSelector.svelte';
 	import ReviewStep from './simplified/ReviewStep.svelte';
 	import TagSelector from './simplified/TagSelector.svelte';
+	import { mergeRoutineTemplateFormDataWithLayerContract } from '$lib/routineLayers/transfer';
 
 	// Props
 	let {
@@ -52,9 +54,9 @@
 
 	// Capture initial data at mount time (props are set once at component creation)
 	// These are intentionally captured once - the component creates a new routine from this data
-	const _sourceData = duplicateFrom || initialData;
-	const _isEditing = !!routineId && !!initialData;
-	const _isDuplicating = !!duplicateFrom;
+	const _sourceData = untrack(() => duplicateFrom || initialData);
+	const _isEditing = untrack(() => !!routineId && !!initialData);
+	const _isDuplicating = untrack(() => !!duplicateFrom);
 
 	// ============================================================================
 	// WIZARD STATE
@@ -394,11 +396,15 @@
 
 			let resultId: string;
 
+			const saveData = _sourceData
+				? mergeRoutineTemplateFormDataWithLayerContract(_sourceData, routineData)
+				: routineData;
+
 			if (_isEditing && routineId) {
-				await updateRoutine(routineId, routineData);
+				await updateRoutine(routineId, saveData);
 				resultId = routineId;
 			} else {
-				resultId = await createRoutine($user.uid, routineData);
+				resultId = await createRoutine($user.uid, saveData);
 			}
 
 			onSuccess?.(resultId);

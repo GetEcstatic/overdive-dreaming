@@ -39,6 +39,22 @@ export function buildRoutineTemplateTransferData(routine: RoutineTemplate | Rout
 	});
 }
 
+export function mergeRoutineTemplateFormDataWithLayerContract(
+	source: RoutineTemplate | RoutineTemplateWithLayers,
+	formData: RoutineTemplateFormData
+): RoutineTemplateTransferData {
+	if (!hasLayerRoutineTemplateContract(source)) return stripUndefined(formData);
+
+	return stripUndefined({
+		...formData,
+		...buildLayerRoutineTemplateWriteProjection(source.layers),
+		name: formData.name,
+		description: formData.description,
+		trackingConfig: formData.trackingConfig,
+		instructionalVideoUrl: formData.instructionalVideoUrl
+	});
+}
+
 function stripUndefined<T extends Record<string, unknown>>(value: T): T {
 	return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T;
 }
