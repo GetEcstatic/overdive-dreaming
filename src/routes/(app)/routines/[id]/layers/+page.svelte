@@ -7,6 +7,7 @@
 	import { isAdmin } from '$lib/utils/admin';
 	import { buildRoutineLayerReadModel } from '$lib/routineLayers/readModel';
 	import { buildLayerSentence } from '$lib/routineLayers/sentence';
+	import type { LegacyRoutineProjection } from '$lib/routineLayers/contract';
 	import type { RoutineTemplate } from '$lib/types';
 	import type {
 		ExpandedRoutinePlanRow,
@@ -14,6 +15,13 @@
 		LayerDurationTarget,
 		RoutineAuthoringLayer
 	} from '$lib/routineLayers/model';
+
+	type ProjectionComparisonRow = {
+		label: string;
+		current: string;
+		projected: string;
+		status: 'match' | 'gap';
+	};
 
 	let routineId = $derived($page.params.id ?? '');
 	let routine = $state<RoutineTemplate | null>(null);
@@ -29,6 +37,9 @@
 		readModel && selectedLayer
 			? readModel.expandedRows.filter((row) => row.sourceLayerId === selectedLayer.id)
 			: []
+	);
+	let projectionComparisonRows = $derived(
+		readModel && routine ? buildProjectionComparisonRows(routine, readModel.legacyProjection) : []
 	);
 	let legacyProjectionEntries = $derived(readModel ? Object.entries(readModel.legacyProjection.display) : []);
 
@@ -96,6 +107,43 @@
 
 	function formatPlanRow(row: ExpandedRoutinePlanRow) {
 		return `rep ${row.repIndex} - ${row.discipline} - ${formatDuration(row.dive.duration)} - ${formatDistance(row.dive.distance)}`;
+	}
+
+	function buildProjectionComparisonRows(
+		routineTemplate: RoutineTemplate,
+		projection: LegacyRoutineProjection
+	): ProjectionComparisonRow[] {
+		return [
+			buildComparisonRow('Disciplines', routineTemplate.disciplines, projection.disciplines),
+			buildComparisonRow('Activity type', routineTemplate.activityType, projection.activityType),
+			buildComparisonRow('Environment', routineTemplate.trainingEnvironment, projection.trainingEnvironment),
+			buildComparisonRow('Rest between reps', routineTemplate.restBetweenReps, projection.restBetweenReps),
+			buildComparisonRow('Rep distance', routineTemplate.repDistance, projection.repDistance),
+			buildComparisonRow('Number of reps', routineTemplate.numberOfReps, projection.numberOfReps),
+			buildComparisonRow('Table rows', routineTemplate.table?.rows.length, projection.table?.rows.length),
+			buildComparisonRow('Default tags', routineTemplate.defaultTags ?? routineTemplate.tags, projection.defaultTags),
+			buildComparisonRow('Hero metric', routineTemplate.displayConfig?.heroMetric, projection.display.hero),
+			buildComparisonRow('Secondary metric', routineTemplate.displayConfig?.secondaryMetric, projection.display.secondary),
+			buildComparisonRow('Tertiary metric', routineTemplate.displayConfig?.tertiaryMetric, projection.display.tertiary)
+		];
+	}
+
+	function buildComparisonRow(label: string, currentValue: unknown, projectedValue: unknown): ProjectionComparisonRow {
+		const current = formatComparisonValue(currentValue);
+		const projected = formatComparisonValue(projectedValue);
+
+		return {
+			label,
+			current,
+			projected,
+			status: current === projected ? 'match' : 'gap'
+		};
+	}
+
+	function formatComparisonValue(value: unknown): string {
+		if (value === undefined || value === null || value === '') return 'none';
+		if (Array.isArray(value)) return value.length ? [...value].map(String).sort().join(', ') : 'none';
+		return String(value);
 	}
 </script>
 
@@ -165,6 +213,20 @@
 				</div>
 			</section>
 		{/if}
+
+		<section class="panel" aria-label="Projection comparison">
+			<h2>Projection Comparison</h2>
+			<div class="comparison-list">
+				{#each projectionComparisonRows as row}
+					<div class="comparison-row" class:gap={row.status === 'gap'}>
+						<strong>{row.label}</strong>
+						<span>{row.current}</span>
+						<span>{row.projected}</span>
+						<small>{row.status}</small>
+					</div>
+				{/each}
+			</div>
+		</section>
 
 		<section class="layout-grid">
 			<div class="panel layer-list" aria-label="Layers">
@@ -423,7 +485,8 @@
 
 	.sentence-grid,
 	.row-list,
-	.issue-list {
+	.issue-list,
+	.comparison-list {
 		display: grid;
 		gap: 0.5rem;
 	}
@@ -435,6 +498,7 @@
 	.segment-card,
 	.plan-row,
 	.issue-row,
+	.comparison-row,
 	.projection-grid > div {
 		border: 1px solid rgba(148, 163, 184, 0.14);
 		border-radius: 8px;
@@ -444,9 +508,39 @@
 
 	.segment-card,
 	.issue-row,
+	.comparison-row,
 	.projection-grid > div {
 		display: grid;
 		gap: 0.3rem;
+	}
+
+	.comparison-row {
+		grid-template-columns: 1.1fr minmax(0, 1fr) minmax(0, 1fr) auto;
+		align-items: center;
+	}
+
+	.comparison-row span,
+	.comparison-row small {
+		color: var(--color-text-muted);
+		font-size: 0.78rem;
+		overflow-wrap: anywhere;
+	}
+
+	.comparison-row small {
+		border: 1px solid rgba(20, 184, 166, 0.38);
+		border-radius: 999px;
+		color: #99f6e4;
+		padding: 0.24rem 0.45rem;
+		text-align: center;
+	}
+
+	.comparison-row.gap {
+		border-color: rgba(251, 191, 36, 0.4);
+	}
+
+	.comparison-row.gap small {
+		border-color: rgba(251, 191, 36, 0.5);
+		color: #fde68a;
 	}
 
 	.plan-row {
@@ -465,7 +559,8 @@
 	@media (max-width: 760px) {
 		.status-grid,
 		.layout-grid,
-		.plan-row {
+		.plan-row,
+		.comparison-row {
 			grid-template-columns: 1fr;
 		}
 

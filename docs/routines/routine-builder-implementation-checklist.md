@@ -5,7 +5,7 @@
 - [x] Add the unified routine layer read model.
 - [x] Consume the read model from an admin-only production routines surface.
 - [x] Add an admin-only per-routine layer read-model inspector.
-- [ ] Compare read-model legacy projections against real routine display fields in the inspector.
+- [x] Compare read-model legacy projections against real routine display fields in the inspector.
 - [ ] Record any projection gaps before enabling v2 writes.
 - [ ] Add admin/developer-only v2 layer template write support for one low-risk fixture routine.
 - [ ] Keep legacy fields populated from the v2 layer projection during writes.
