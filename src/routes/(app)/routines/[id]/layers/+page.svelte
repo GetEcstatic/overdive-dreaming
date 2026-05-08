@@ -8,7 +8,7 @@
 	import { buildRoutineLayerReadModel } from '$lib/routineLayers/readModel';
 	import { buildLayerSentence } from '$lib/routineLayers/sentence';
 	import { expandRoutineLayers } from '$lib/routineLayers/model';
-	import { staticMaxExample } from '$lib/routineLayers/defaults';
+	import { findDefaultRoutineLayerExample } from '$lib/routineLayers/defaults';
 	import type { LegacyRoutineProjection } from '$lib/routineLayers/contract';
 	import type { RoutineTemplate } from '$lib/types';
 	import type {
@@ -32,7 +32,7 @@
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 	let writeStatus = $state<string | null>(null);
-	let writingFixture = $state(false);
+	let writingDefaultFixture = $state(false);
 	let savingLayers = $state(false);
 	let editorStatus = $state<string | null>(null);
 	let editorRoutineId = $state<string | null>(null);
@@ -41,9 +41,8 @@
 
 	let userIsAdmin = $derived(isAdmin($user?.uid));
 	let readModel = $derived(routine && userIsAdmin ? buildRoutineLayerReadModel(routine) : null);
-	let canWriteStaticMaxFixture = $derived(
-		userIsAdmin && routine?.createdBy === 'system' && routine.name === staticMaxExample.name
-	);
+	let matchedDefaultExample = $derived(routine ? findDefaultRoutineLayerExample(routine) : undefined);
+	let canWriteDefaultFixture = $derived(userIsAdmin && routine?.createdBy === 'system' && Boolean(matchedDefaultExample));
 	let layerSentences = $derived(editableLayers.map((layer, index) => buildLayerSentence(layer, index)));
 	let selectedLayer = $derived(editableLayers.find((layer) => layer.id === selectedLayerId) ?? editableLayers[0] ?? null);
 	let selectedLayerIndex = $derived(selectedLayer ? editableLayers.findIndex((layer) => layer.id === selectedLayer.id) : -1);
@@ -133,21 +132,21 @@
 		return `rep ${row.repIndex} - ${row.discipline} - ${formatDuration(row.dive.duration)} - ${formatDistance(row.dive.distance)}`;
 	}
 
-	async function writeStaticMaxFixtureContract() {
-		if (!routine || !canWriteStaticMaxFixture || writingFixture) return;
+	async function writeDefaultFixtureContract() {
+		if (!routine || !matchedDefaultExample || !canWriteDefaultFixture || writingDefaultFixture) return;
 
 		try {
-			writingFixture = true;
+			writingDefaultFixture = true;
 			writeStatus = null;
-			await writeRoutineLayerTemplateContract(routine.id, staticMaxExample.layers);
+			await writeRoutineLayerTemplateContract(routine.id, matchedDefaultExample.layers);
 			editorRoutineId = null;
 			routine = await getRoutine(routine.id);
-			writeStatus = 'Static Max v2 layer contract written.';
+			writeStatus = `${matchedDefaultExample.name} v2 layer contract written.`;
 		} catch (err) {
-			console.error('Failed to write Static Max v2 layer contract:', err);
-			writeStatus = 'Failed to write Static Max v2 layer contract.';
+			console.error('Failed to write default v2 layer contract:', err);
+			writeStatus = 'Failed to write default v2 layer contract.';
 		} finally {
-			writingFixture = false;
+			writingDefaultFixture = false;
 		}
 	}
 
@@ -339,14 +338,14 @@
 	{:else if !userIsAdmin}
 		<div class="state-panel error">Admin access is required to inspect layer read models.</div>
 	{:else if readModel}
-		{#if canWriteStaticMaxFixture}
-			<section class="panel write-panel" aria-label="Static Max v2 write support">
+		{#if canWriteDefaultFixture && matchedDefaultExample}
+			<section class="panel write-panel" aria-label="Default routine v2 write support">
 				<div>
-					<h2>Static Max Fixture Write</h2>
-					<span>Attach the v2 layer contract for this low-risk fixture routine.</span>
+					<h2>Default Fixture Write</h2>
+					<span>Attach the {matchedDefaultExample.name} v2 layer contract to this system routine.</span>
 				</div>
-				<button class="write-button" onclick={writeStaticMaxFixtureContract} disabled={writingFixture}>
-					{writingFixture ? 'Writing...' : 'Write v2 contract'}
+				<button class="write-button" onclick={writeDefaultFixtureContract} disabled={writingDefaultFixture}>
+					{writingDefaultFixture ? 'Writing...' : 'Write fixture contract'}
 				</button>
 				{#if writeStatus}
 					<p>{writeStatus}</p>

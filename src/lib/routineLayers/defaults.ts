@@ -1,4 +1,5 @@
 import type { CanonicalMetricKey, DisplayMetricSuggestion, RoutineAuthoringLayer } from './model';
+import type { RoutineTemplate } from '$lib/types';
 
 export type RoutineLayerExample = {
 	id: string;
@@ -207,3 +208,29 @@ export const defaultRoutineExamples = [
 ] as const;
 
 export const starterMaxRoutineExamples = [dynamicMaxExample, staticMaxExample] as const;
+
+const defaultRoutineExampleMatches: Record<string, RoutineLayerExample> = {
+	'system-dynamic-max': dynamicMaxExample,
+	'system-static-max': staticMaxExample,
+	'system-sweet-16': dynamicSweet16Example,
+	'system-gentle-2-breath': staticTwoBreathTableExample,
+	'system-rv-breath-hold': dryRvTableExample
+};
+
+const defaultRoutineNameMatches: Record<string, RoutineLayerExample> = {
+	'dynamic max': dynamicMaxExample,
+	'dynamic max attempt': dynamicMaxExample,
+	'static max': staticMaxExample,
+	'static max attempt': staticMaxExample,
+	'dynamic sweet 16': dynamicSweet16Example,
+	'sweet 16': dynamicSweet16Example,
+	'static 2-breath table': staticTwoBreathTableExample,
+	'gentle 2-breath': staticTwoBreathTableExample,
+	'gentle 2-breath table': staticTwoBreathTableExample,
+	'dry rv table': dryRvTableExample,
+	'rv breath hold': dryRvTableExample
+};
+
+export function findDefaultRoutineLayerExample(routine: Pick<RoutineTemplate, 'id' | 'name'>): RoutineLayerExample | undefined {
+	return defaultRoutineExampleMatches[routine.id] ?? defaultRoutineNameMatches[routine.name.trim().toLowerCase()];
+}

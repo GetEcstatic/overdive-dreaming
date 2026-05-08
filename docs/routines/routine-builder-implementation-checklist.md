@@ -15,7 +15,7 @@
 - [x] Connect logging to expanded routine plan rows with source layer IDs.
 - [x] Store athlete results against expanded result rows.
 - [x] Add dynamic max recording-link capability as a Dive modifier after logging rows exist.
-- [ ] Seed or update default routines with the v2 layer shape.
+- [x] Seed or update default routines with the v2 layer shape.
 - [ ] Test send, duplicate, edit, and delete flows against legacy and v2 templates.
 - [ ] Make the v2 builder the default only after logging and compatibility are stable.
 - [ ] Retire the local prototype route after the production editor covers the same workflows.

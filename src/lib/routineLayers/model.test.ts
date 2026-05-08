@@ -9,6 +9,7 @@ import {
 	validateRoutineLayers
 } from './model';
 import { defaultRoutineExamples, dynamicMaxExample, staticMaxExample, staticTwoBreathTableExample } from './defaults';
+import { findDefaultRoutineLayerExample } from './defaults';
 import type { RoutineAuthoringLayer } from './model';
 
 const openDuration = { mode: 'open' } as const;
@@ -166,6 +167,14 @@ describe('deriveMetricProfile / tags / display', () => {
 			dryCapable: true,
 			disciplineGroups: ['static']
 		});
+	});
+
+	it('matches current system default routines to v2 layer fixtures', () => {
+		expect(findDefaultRoutineLayerExample({ id: 'system-dynamic-max', name: 'Dynamic Max Attempt' })?.id).toBe('dynamic-max');
+		expect(findDefaultRoutineLayerExample({ id: 'system-static-max', name: 'Static Max Attempt' })?.id).toBe('static-max');
+		expect(findDefaultRoutineLayerExample({ id: 'system-sweet-16', name: 'Sweet 16' })?.id).toBe('dynamic-sweet-16');
+		expect(findDefaultRoutineLayerExample({ id: 'system-gentle-2-breath', name: 'Gentle 2-Breath' })?.id).toBe('static-two-breath-table');
+		expect(findDefaultRoutineLayerExample({ id: 'system-rv-breath-hold', name: 'RV Breath Hold' })?.id).toBe('dry-rv-table');
 	});
 
 	it('models Static 2-Breath as a prep layer followed by repeated two-breath recoveries', () => {
