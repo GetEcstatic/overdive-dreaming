@@ -927,8 +927,9 @@ Immediate implementation checklist:
 - [x] Add tests proving modifier definitions can be extended without changing the row renderer.
 - [x] Add a read-only UI prototype for one layer row using the sentence grammar: `Discipline > Breathe-up > Dive > Layer attributes > Reps`.
 - [x] Add fixture examples for edge-case modifier combinations before making the editor interactive: static duration-only, dynamic distance+duration, dry RV, repeated table, dynamic-family selectable. Covered by the five default fixtures for now.
-- [ ] Turn the row prototype into an interactive local-only editor for fixture data.
-- [ ] Keep the editor non-persistent until the layer row, modifier tray, locks, and repeat behavior feel right in the browser.
+- [x] Turn the row prototype into an interactive local-only editor for fixture data.
+- [x] Keep the editor non-persistent until the layer row, modifier tray, locks, and repeat behavior feel right in the browser. Current prototype mutates only `$state` fixture clones and has a reset button.
+- [ ] Review the local editor while authenticated and decide whether the segment controls feel right enough to continue toward richer modifier types.
 
 UI design checklist:
 
@@ -936,9 +937,9 @@ UI design checklist:
 - [x] Decide whether `Ingredients` appears in the UI or remains internal design language. Keep `Ingredients` internal.
 - [x] Design the main row as stable segments, not a raw form: `Discipline`, `Breathe-up`, `Dive`, `Setup`, `Reps`.
 - [x] Design modifiers as small chips attached to their segment, not as a giant global checklist.
-- [ ] Design segment-first editing: tap a segment, open only the valid modifier controls for that segment.
-- [ ] Include lock controls in the segment editor, not as a separate advanced page.
-- [ ] Show defaults, allowed alternatives, and locked status distinctly.
+- [x] Design segment-first editing: tap a segment, open only the valid modifier controls for that segment.
+- [x] Include lock controls in the segment editor, not as a separate advanced page.
+- [x] Show defaults, allowed alternatives, and locked status distinctly.
 - [x] Keep repeat expansion visible enough that a coach understands `repeat 16x` becomes 16 loggable rows.
 
 Hold before production replacement:
