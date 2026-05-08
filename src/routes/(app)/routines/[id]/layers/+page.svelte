@@ -41,6 +41,7 @@
 	let projectionComparisonRows = $derived(
 		readModel && routine ? buildProjectionComparisonRows(routine, readModel.legacyProjection) : []
 	);
+	let projectionGapRows = $derived(projectionComparisonRows.filter((row) => row.status === 'gap'));
 	let legacyProjectionEntries = $derived(readModel ? Object.entries(readModel.legacyProjection.display) : []);
 
 	$effect(() => {
@@ -216,6 +217,23 @@
 
 		<section class="panel" aria-label="Projection comparison">
 			<h2>Projection Comparison</h2>
+			<div class="gap-summary" class:ok={projectionGapRows.length === 0}>
+				<strong>{projectionGapRows.length === 0 ? 'No projection gaps recorded' : `${projectionGapRows.length} projection gap${projectionGapRows.length === 1 ? '' : 's'} recorded`}</strong>
+				<span>{projectionGapRows.length === 0 ? 'The layer projection matches the current legacy display fields checked here.' : 'Review these before enabling v2 writes for this routine.'}</span>
+			</div>
+
+			{#if projectionGapRows.length > 0}
+				<div class="gap-list" aria-label="Projection gaps">
+					{#each projectionGapRows as row}
+						<div class="gap-row">
+							<strong>{row.label}</strong>
+							<span>Current: {row.current}</span>
+							<span>Projected: {row.projected}</span>
+						</div>
+					{/each}
+				</div>
+			{/if}
+
 			<div class="comparison-list">
 				{#each projectionComparisonRows as row}
 					<div class="comparison-row" class:gap={row.status === 'gap'}>
@@ -486,6 +504,7 @@
 	.sentence-grid,
 	.row-list,
 	.issue-list,
+	.gap-list,
 	.comparison-list {
 		display: grid;
 		gap: 0.5rem;
@@ -498,6 +517,8 @@
 	.segment-card,
 	.plan-row,
 	.issue-row,
+	.gap-summary,
+	.gap-row,
 	.comparison-row,
 	.projection-grid > div {
 		border: 1px solid rgba(148, 163, 184, 0.14);
@@ -508,10 +529,30 @@
 
 	.segment-card,
 	.issue-row,
+	.gap-summary,
+	.gap-row,
 	.comparison-row,
 	.projection-grid > div {
 		display: grid;
 		gap: 0.3rem;
+	}
+
+	.gap-summary {
+		border-color: rgba(251, 191, 36, 0.34);
+	}
+
+	.gap-summary.ok {
+		border-color: rgba(20, 184, 166, 0.34);
+	}
+
+	.gap-summary span,
+	.gap-row span {
+		color: var(--color-text-muted);
+		font-size: 0.78rem;
+	}
+
+	.gap-row {
+		border-color: rgba(251, 191, 36, 0.34);
 	}
 
 	.comparison-row {
