@@ -4,6 +4,7 @@ import { dynamicMaxExample, dynamicSweet16Example, staticTwoBreathTableExample }
 import {
 	ROUTINE_TEMPLATE_LAYER_VERSION,
 	buildLayerRoutineTemplateContract,
+	buildLayerRoutineTemplateWriteProjection,
 	getRoutineTemplateLayers,
 	hasLayerRoutineTemplateContract,
 	projectLayersToLegacyRoutineProjection,
@@ -115,6 +116,18 @@ describe('layer routine template contract', () => {
 			tertiaryMetric: 'repsCompleted',
 			tertiaryMetricLabel: 'Reps'
 		});
+	});
+
+	it('builds a v2 write projection while preserving legacy compatibility fields', () => {
+		const writeProjection = buildLayerRoutineTemplateWriteProjection(staticTwoBreathTableExample.layers);
+
+		expect(writeProjection.routineTemplateVersion).toBe(ROUTINE_TEMPLATE_LAYER_VERSION);
+		expect(writeProjection.layers).toEqual(staticTwoBreathTableExample.layers);
+		expect(writeProjection.layerDefaultTags).toEqual(['static', 'table']);
+		expect(writeProjection.disciplines).toEqual(['STA']);
+		expect(writeProjection.activityType).toBe('structured-intervals');
+		expect(writeProjection.table?.rows).toHaveLength(10);
+		expect(writeProjection.displayConfig.heroMetric).toBe('cumulativeHoldTime');
 	});
 
 	it('rejects empty layer contracts before any Firestore write path uses them', () => {

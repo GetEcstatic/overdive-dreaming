@@ -66,6 +66,8 @@ export type LayerLegacyRoutineTemplateFields = {
 	displayConfig: DisplayConfig;
 };
 
+export type LayerRoutineTemplateWriteProjection = LayerRoutineTemplateContract & LayerLegacyRoutineTemplateFields;
+
 const metricTypeByCanonicalKey: Partial<Record<CanonicalMetricKey, MetricType>> = {
 	durationSeconds: 'totalTime',
 	distanceMeters: 'totalDistance',
@@ -138,6 +140,15 @@ export function withLayerRoutineTemplateContract(
 ): RoutineTemplateWithLayers {
 	return {
 		...routine,
+		...buildLayerRoutineTemplateContract(layers)
+	};
+}
+
+export function buildLayerRoutineTemplateWriteProjection(
+	layers: RoutineAuthoringLayer[]
+): LayerRoutineTemplateWriteProjection {
+	return {
+		...projectLayersToLegacyRoutineTemplateFields(layers),
 		...buildLayerRoutineTemplateContract(layers)
 	};
 }
