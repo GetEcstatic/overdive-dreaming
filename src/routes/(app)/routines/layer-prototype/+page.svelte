@@ -206,6 +206,11 @@
 		return layer.dive.distance?.mode === 'fixed' ? layer.dive.distance.meters : 50;
 	}
 
+	function previewRepNumbers(layer: RoutineAuthoringLayer): number[] {
+		const repeatCount = Math.max(1, Math.floor(layer.attributes.repeatCount));
+		return Array.from({ length: Math.min(repeatCount, 16) }, (_, index) => index + 1);
+	}
+
 	function numberValue(event: Event): number {
 		return Number((event.currentTarget as HTMLInputElement).value);
 	}
@@ -446,6 +451,20 @@
 									/>
 								</label>
 							</div>
+							<div class="rep-preview" aria-label="Expanded reps preview">
+								<p>
+									This authoring layer expands to {Math.max(1, Math.floor(row.selectedLayer.attributes.repeatCount))}
+									loggable row{row.selectedLayer.attributes.repeatCount === 1 ? '' : 's'}.
+								</p>
+								<div>
+									{#each previewRepNumbers(row.selectedLayer) as repNumber}
+										<span>rep {repNumber}</span>
+									{/each}
+									{#if row.selectedLayer.attributes.repeatCount > 16}
+										<span>+{row.selectedLayer.attributes.repeatCount - 16}</span>
+									{/if}
+								</div>
+							</div>
 						{/if}
 					</section>
 				{/if}
@@ -470,6 +489,18 @@
 							<div><dt>Derived hero</dt><dd>{row.derivedDisplay.hero}</dd></div>
 						</dl>
 					</div>
+
+					<details class="detail-block wide expansion-detail">
+						<summary>Expanded Plan Rows</summary>
+						<div class="expanded-row-list">
+							{#each row.planRows as planRow}
+								<span>
+									<strong>{planRow.globalRowIndex}</strong>
+									{planRow.discipline} · layer {planRow.sourceLayerId.replace(`${row.example.id}-layer-`, '')} · rep {planRow.repIndex}
+								</span>
+							{/each}
+						</div>
+					</details>
 
 					<details class="detail-block wide metrics-detail">
 						<summary>Metrics</summary>
@@ -788,6 +819,50 @@
 	.editor-grid input:disabled {
 		cursor: not-allowed;
 		opacity: 0.45;
+	}
+
+	.rep-preview {
+		display: grid;
+		gap: 8px;
+		color: var(--color-text-muted);
+		font-size: 0.82rem;
+	}
+
+	.rep-preview > div,
+	.expanded-row-list {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 7px;
+	}
+
+	.rep-preview span,
+	.expanded-row-list span {
+		border: 1px solid rgba(148, 163, 184, 0.22);
+		border-radius: 999px;
+		background: rgba(15, 23, 42, 0.72);
+		padding: 6px 8px;
+	}
+
+	.expansion-detail summary {
+		cursor: pointer;
+		font-size: 0.9rem;
+		font-weight: 700;
+		list-style-position: inside;
+	}
+
+	.expansion-detail[open] summary {
+		margin-bottom: 10px;
+	}
+
+	.expanded-row-list span {
+		color: var(--color-text-muted);
+		font-size: 0.74rem;
+		line-height: 1;
+	}
+
+	.expanded-row-list strong {
+		color: var(--color-text);
+		margin-right: 4px;
 	}
 
 	.detail-grid {

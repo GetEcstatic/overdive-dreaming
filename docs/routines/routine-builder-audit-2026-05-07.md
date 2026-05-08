@@ -939,7 +939,7 @@ UI design checklist:
 - [ ] Design segment-first editing: tap a segment, open only the valid modifier controls for that segment.
 - [ ] Include lock controls in the segment editor, not as a separate advanced page.
 - [ ] Show defaults, allowed alternatives, and locked status distinctly.
-- [ ] Keep repeat expansion visible enough that a coach understands `repeat 16x` becomes 16 loggable rows.
+- [x] Keep repeat expansion visible enough that a coach understands `repeat 16x` becomes 16 loggable rows.
 
 Hold before production replacement:
 
