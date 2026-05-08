@@ -16,6 +16,7 @@
 	import type { RoutineTemplate, RoutineTemplateFormData, PublicUserProfile } from '$lib/types';
 	import { goto } from '$app/navigation';
 	import { isAdmin } from '$lib/utils/admin';
+	import { buildRoutineLayerReadModel } from '$lib/routineLayers/readModel';
 
 	let routines = $state<RoutineTemplate[]>([]);
 	let loading = $state(true);
@@ -37,6 +38,10 @@
 
 	// Check if current user is admin
 	let userIsAdmin = $derived(isAdmin($user?.uid));
+	let layerReadModelRows = $derived(userIsAdmin ? routines.map((routine) => ({
+		routine,
+		readModel: buildRoutineLayerReadModel(routine)
+	})) : []);
 
 	async function loadRoutines() {
 		if (!$user) return;
@@ -196,6 +201,32 @@
 			<button class="btn-retry" onclick={loadRoutines}>Try Again</button>
 		</div>
 	{:else}
+		{#if userIsAdmin && layerReadModelRows.length > 0}
+			<section class="layer-read-model-section" aria-label="Layer read model status">
+				<div class="section-head">
+					<h2 class="section-title">Layer Read Models ({layerReadModelRows.length})</h2>
+					<a class="prototype-link" href="/routines/layer-prototype">Open prototype</a>
+				</div>
+				<div class="layer-read-model-list">
+					{#each layerReadModelRows as row}
+						<div class="layer-read-model-row">
+							<div>
+								<strong>{row.routine.name}</strong>
+								<span>{row.readModel.source === 'versioned-template' ? 'v2 template' : 'legacy projection'}</span>
+							</div>
+							<div class="layer-read-model-stats">
+								<span>{row.readModel.layers.length} layer{row.readModel.layers.length === 1 ? '' : 's'}</span>
+								<span>{row.readModel.expandedRows.length} row{row.readModel.expandedRows.length === 1 ? '' : 's'}</span>
+								<span class:ok={row.readModel.validationIssues.length === 0}>
+									{row.readModel.validationIssues.length === 0 ? 'valid' : `${row.readModel.validationIssues.length} issue(s)`}
+								</span>
+							</div>
+						</div>
+					{/each}
+				</div>
+			</section>
+		{/if}
+
 		<!-- Custom Routines -->
 		{#if customRoutines.length > 0}
 			<div class="routines-section">
@@ -524,11 +555,94 @@
 		margin-bottom: 3rem;
 	}
 
+	.layer-read-model-section {
+		margin-bottom: 3rem;
+		border: 1px solid rgba(20, 184, 166, 0.24);
+		border-radius: 8px;
+		background: rgba(15, 23, 42, 0.48);
+		padding: 1rem;
+	}
+
+	.section-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		margin-bottom: 1rem;
+	}
+
 	.section-title {
 		font-size: 1.25rem;
 		font-weight: 600;
 		color: var(--color-text);
 		margin: 0 0 1.5rem 0;
+	}
+
+	.section-head .section-title {
+		margin-bottom: 0;
+	}
+
+	.prototype-link {
+		border: 1px solid rgba(148, 163, 184, 0.24);
+		border-radius: 6px;
+		color: var(--color-primary);
+		font-size: 0.82rem;
+		font-weight: 700;
+		padding: 0.45rem 0.65rem;
+		text-decoration: none;
+		white-space: nowrap;
+	}
+
+	.layer-read-model-list {
+		display: grid;
+		gap: 0.5rem;
+	}
+
+	.layer-read-model-row {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 1rem;
+		border: 1px solid rgba(148, 163, 184, 0.14);
+		border-radius: 8px;
+		background: rgba(15, 23, 42, 0.56);
+		padding: 0.75rem;
+	}
+
+	.layer-read-model-row > div:first-child {
+		display: grid;
+		gap: 0.2rem;
+		min-width: 0;
+	}
+
+	.layer-read-model-row strong {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.layer-read-model-row span {
+		color: var(--color-text-muted);
+		font-size: 0.78rem;
+	}
+
+	.layer-read-model-stats {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: end;
+		gap: 0.5rem;
+	}
+
+	.layer-read-model-stats span {
+		border: 1px solid rgba(148, 163, 184, 0.22);
+		border-radius: 999px;
+		padding: 0.3rem 0.5rem;
+		white-space: nowrap;
+	}
+
+	.layer-read-model-stats .ok {
+		border-color: rgba(20, 184, 166, 0.42);
+		color: #99f6e4;
 	}
 
 	.routines-grid {
@@ -840,6 +954,19 @@
 
 		.routines-grid {
 			grid-template-columns: 1fr;
+		}
+
+		.section-head,
+		.layer-read-model-row {
+			grid-template-columns: 1fr;
+		}
+
+		.section-head {
+			display: grid;
+		}
+
+		.layer-read-model-stats {
+			justify-content: start;
 		}
 	}
 </style>

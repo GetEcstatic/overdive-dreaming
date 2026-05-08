@@ -290,7 +290,16 @@ Next roadmap step:
 
 Next roadmap step:
 
-- [ ] Start consuming the read model from a developer-only or feature-flagged production surface before writing v2 layer templates.
+- [x] Start consuming the read model from a developer-only or feature-flagged production surface before writing v2 layer templates.
+- [x] Added an admin-only layer read-model status section to the production routines list.
+- [x] The routines page now summarizes each loaded routine as `v2 template` or `legacy projection`, with layer count, expanded row count, and validation status.
+- [x] The production surface consumes `buildRoutineLayerReadModel` from already-loaded routines and does not change routine create/update/delete paths.
+- [x] Validation: focused routine layer tests pass with 32 tests.
+- [x] Validation: `npm run check` reports 0 errors and the existing 101 warnings.
+
+Next roadmap step:
+
+- [ ] Add a developer/admin entry point from the read-model status rows into a focused per-routine layer inspection view.
 
 ## 1.3 Current modifier-only checklist
 
