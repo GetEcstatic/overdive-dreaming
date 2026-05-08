@@ -214,6 +214,61 @@ Implementation direction:
 
 Layer adding: leave add/remove/reorder layer controls for the proper routine-builder pass. The current prototype can keep proving the layer/segment/modifier editor using fixed fixture layers.
 
+### 1.2.10 Roadmap toward deployed implementation
+
+Next steps should move from local prototype to deployed app in small slices, with the layer/modifier model becoming production-capable before replacing the current routine builder.
+
+Recommended order:
+
+1. Promote the layer model into a versioned routine-template shape.
+2. Add adapter functions between existing saved routines and the new layer shape.
+3. Build the production routine-builder layer editor using the prototype interaction model.
+4. Add layer add/remove/reorder controls in the production builder.
+5. Connect routine logging to expanded layer rows.
+6. Store athlete results against expanded result rows, not compact authoring layers.
+7. Add dynamic max recording-link capability as a `Dive` modifier once logging rows exist.
+8. Deploy behind a feature flag or developer-only route before replacing existing builder flows.
+
+Slice 1: production data contract.
+
+- Add a schema version to routine templates, for example `routineTemplateVersion: 2`.
+- Store compact authoring layers with `id`, `name`, `discipline`, targets, setup attributes, repeat count, locks, and modifier/capability fields.
+- Keep the current routine fields readable so existing app screens do not break.
+- Add pure validation and projection tests before any Firestore write path changes.
+
+Slice 2: compatibility adapters.
+
+- Existing routines should project into layer fixtures for display/editing where possible.
+- New layer routines should project back into the existing display/logging assumptions until the full logging flow is replaced.
+- Adapter failures should be explicit and visible in developer tools, not silently guessed.
+
+Slice 3: production builder integration.
+
+- Move the compact layer overview, selected layer expansion, segment editor, layer naming, wheel inputs, and static-only dry environment rule into the real builder surface.
+- Add real layer add/remove/reorder controls here, not in the local prototype.
+- Keep `open` vs absent target logic in the data model, but show only user-facing choices that make sense for the selected discipline.
+
+Slice 4: logging flow integration.
+
+- Expand compact authoring layers into planned log rows when an athlete starts a routine/session.
+- Preserve source layer IDs so results can be grouped back into meaningful layers.
+- Store actual discipline, duration, distance, setup changes, locks, and completion state on result rows.
+
+Slice 5: media/capability integration.
+
+- Add `recordingLink` or similar as a `Dive` modifier/capability for dynamic max attempt layers.
+- Let the builder mark the capability as optional/required.
+- Attach actual media references to result rows during logging or after upload, not to the reusable template.
+
+Slice 6: rollout and cleanup.
+
+- Ship the new builder behind a feature flag or admin/developer-only switch.
+- Seed/update default routines using the new layer shape.
+- Test existing routine send/duplicate/edit flows against both old and new templates.
+- Only after logging and compatibility are stable, make the new builder the default and retire the prototype route.
+
+Immediate next implementation slice: build the production data contract and adapters. That is the safest bridge from prototype to deployed app because it lets UI and logging move independently without forcing a Firestore migration too early.
+
 ## 1.3 Current modifier-only checklist
 
 This is the current checklist to use. Ignore the older tracked-metric sections for now; they are useful background but not the active implementation track.
