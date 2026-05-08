@@ -118,6 +118,7 @@ export const staticTwoBreathTableExample: RoutineLayerExample = {
 	layers: [
 		{
 			id: 'static-two-breath-table-layer-1',
+			name: 'Initial breathe-up and hold',
 			discipline: 'STA',
 			disciplineSelectionMode: 'fixed',
 			breatheUp: { mode: 'fixed', seconds: 240 },
@@ -135,6 +136,7 @@ export const staticTwoBreathTableExample: RoutineLayerExample = {
 		},
 		{
 			id: 'static-two-breath-table-layer-2',
+			name: '2-breath reps',
 			discipline: 'STA',
 			disciplineSelectionMode: 'fixed',
 			breatheUp: { mode: 'fixed', seconds: 30 },

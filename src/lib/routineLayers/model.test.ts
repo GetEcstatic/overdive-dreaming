@@ -174,11 +174,13 @@ describe('deriveMetricProfile / tags / display', () => {
 		expect(staticTwoBreathTableExample.layers).toHaveLength(2);
 		expect(staticTwoBreathTableExample.layers[0]).toMatchObject({
 			id: 'static-two-breath-table-layer-1',
+			name: 'Initial breathe-up and hold',
 			breatheUp: { mode: 'fixed', seconds: 240 },
 			attributes: { repeatCount: 1 }
 		});
 		expect(staticTwoBreathTableExample.layers[1]).toMatchObject({
 			id: 'static-two-breath-table-layer-2',
+			name: '2-breath reps',
 			breatheUp: { mode: 'fixed', seconds: 30 },
 			attributes: { repeatCount: 9 }
 		});

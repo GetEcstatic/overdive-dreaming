@@ -1,5 +1,5 @@
 
-# Tom's current steps to carry out
+# 1. Tom's current steps to carry out
 First review gate steps:
 
 1. Open `http://127.0.0.1:5173/routines/layer-prototype`.
@@ -27,7 +27,7 @@ First something to address for the STA 2-breath routine. I think this routine wo
 - *I desktop mode, the pill boxes overflow the segment cards which is messy. This needs to be sorted.*
 - *There's a lot of information on the screen all at once for a single layer. I'm wondering how to reduce the clutter. I think users will panic if they see this at present.*
 
-## Recommendation for compact multi-layer overview
+## 1.1 Recommendation for compact multi-layer overview
 
 I agree with the direction: multi-layer routines need a layer overview first, with segments revealed only for the selected layer. The current segment row works as an editor surface, but it should not be the always-visible overview once routines have more than one layer.
 
@@ -59,16 +59,16 @@ Implementation plan for the next pass:
 
 Decision: implement this before adding richer modifier types. It addresses information architecture and mobile density, which are more foundational than adding breath-count or endpoint modifiers.
 
-## Implementation plan from first review gate
+## 1.2 Implementation plan from first review gate
 
-### Decision summary
+### 1.2.1 Decision summary
 
 - Continue with the segment-first editor direction.
 - Fix clutter before adding richer modifier types.
 - Treat the STA 2-breath routine as the first example of a multi-layer routine, because it reveals an important real-world distinction: initial preparation breathe-up vs repeated recovery breathe-ups.
 - Keep all work local-only and fixture-backed. No persistence, no Firestore writes, no production builder replacement.
 
-### Step 1: Make Static 2-Breath a two-layer fixture
+### 1.2.2 Step 1: Make Static 2-Breath a two-layer fixture
 
 Goal: the prototype should show that a routine can have different breathe-up rules in different layers.
 
@@ -92,7 +92,7 @@ Implementation notes:
 - Add tests proving the example expands into 10 loggable rows across two source layers.
 - Keep this as fixture/model work only. Do not alter production routine templates yet.
 
-### Step 2: Change modifier pills to single key-value chips
+### 1.2.3 Step 2: Change modifier pills to single key-value chips
 
 Problem: the current chip layout makes `Default discipline` and `default STA` look like two neighboring concepts.
 
@@ -103,7 +103,7 @@ Plan:
 - Update the sentence view model if helpful so the UI receives `label`, `operator`, and `value` rather than composing this ad hoc in Svelte.
 - Add/update tests for the displayed modifier label/value strings.
 
-### Step 3: Add color grouping carefully
+### 1.2.4 Step 3: Add color grouping carefully
 
 Goal: use color to clarify grouping, not decorate the page.
 
@@ -118,7 +118,7 @@ Plan:
 - Use restrained low-opacity fills and consistent borders so the page does not become noisy.
 - Keep locked state as a separate visual layer: outline/lock text, not a competing color language.
 
-### Step 4: Fix desktop overflow
+### 1.2.5 Step 4: Fix desktop overflow
 
 Problem: modifier chips overflow segment cards.
 
@@ -130,7 +130,7 @@ Plan:
 - Keep the five segment cards in a horizontal row on wider screens, but prevent any card content from escaping its boundaries.
 - Re-run `npm run check` and inspect the prototype at desktop width.
 
-### Step 5: Reduce first-screen clutter
+### 1.2.6 Step 5: Reduce first-screen clutter
 
 Problem: showing every modifier detail for every layer makes the editor feel intimidating.
 
@@ -145,7 +145,7 @@ Plan:
 - Keep metrics/tags/expanded rows collapsed by default.
 - For multi-layer routines, preserve one row per layer but keep each row compact.
 
-### Step 6: Commit and review
+### 1.2.7 Step 6: Commit and review
 
 Validation checklist after implementation:
 
@@ -163,13 +163,13 @@ Commit plan:
   - `Split static two-breath layers`
   - `Simplify layer modifier display`
 
-## Current modifier-only checklist
+## 1.3 Current modifier-only checklist
 
 This is the current checklist to use. Ignore the older tracked-metric sections for now; they are useful background but not the active implementation track.
 
 Implementation did not stop because of a product decision. The only pause was operational: `yebo next` could not connect to its websocket server, and the authenticated prototype route cannot be visually inspected without login state. There is nothing Tom needs to decide before the next local-only modifier prototype step.
 
-### Where we are now
+### 1.3.1 Where we are now
 
 - [x] The layer model exists locally as plain data and pure transforms.
 - [x] The five default routine fixtures exist in the new model.
@@ -179,7 +179,7 @@ Implementation did not stop because of a product decision. The only pause was op
 - [x] The planning doc now has a clear modifier map for `Discipline > Breathe-up > Dive > Layer attributes > Reps`.
 - [x] The planning doc now has a first-pass tracked-metric map and recommends derived metric profiles rather than raw per-layer metric picking. Park this for now.
 
-### Immediate implementation checklist
+### 1.3.2 Immediate implementation checklist
 
 - [x] Review `/routines/layer-prototype` in-browser and note any mismatch between the layer sentences and Tom's mental model. Visual review remains limited by auth redirect, but source/model review is done.
 - [x] Add a compact layer-sentence view model, derived from `RoutineAuthoringLayer`, for UI rendering only.
@@ -192,7 +192,7 @@ Implementation did not stop because of a product decision. The only pause was op
 - [x] Keep the editor non-persistent until the layer row, modifier tray, locks, and repeat behavior feel right in the browser. Current prototype mutates only `$state` fixture clones and has a reset button.
 - [ ] Review the local editor while authenticated and decide whether the segment controls feel right enough to continue toward richer modifier types.
 
-### UI design checklist
+### 1.3.3 UI design checklist
 
 - [x] Decide the visible label for `Layer attributes`: use `Setup`, with `Attributes` reserved for data/model language.
 - [x] Decide whether `Ingredients` appears in the UI or remains internal design language. Keep `Ingredients` internal.
@@ -203,7 +203,7 @@ Implementation did not stop because of a product decision. The only pause was op
 - [x] Show defaults, allowed alternatives, and locked status distinctly.
 - [x] Keep repeat expansion visible enough that a coach understands `repeat 16x` becomes 16 loggable rows.
 
-### Hold before production replacement
+### 1.3.4 Hold before production replacement
 
 - [ ] Do not replace the existing routine builder until the local row editor is reviewed.
 - [ ] Do not write the new layer shape to Firestore until the persistence decision is revisited.

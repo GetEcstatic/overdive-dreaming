@@ -48,7 +48,10 @@
 
 	const prototypeRows = $derived(editableExamples.map((example) => {
 		const layerSentences = example.layers.map((layer, index) => buildLayerSentence(layer, index));
-		const selectedLayer = example.layers.find((layer) => layer.id === selectedEditor.layerId) ?? example.layers[0];
+		const requestedLayerIndex = example.layers.findIndex((layer) => layer.id === selectedEditor.layerId);
+		const selectedLayerIndex = Math.max(0, requestedLayerIndex);
+		const selectedLayer = example.layers[selectedLayerIndex] ?? example.layers[0];
+		const selectedSentence = layerSentences[selectedLayerIndex] ?? layerSentences[0];
 
 		return {
 			example,
@@ -60,7 +63,9 @@
 			validationIssues: validateRoutineLayers(example.layers),
 			layerSentences,
 			isEditorOpen: selectedEditor.exampleId === example.id,
+			selectedLayerIndex,
 			selectedLayer,
+			selectedSentence,
 			selectedSegment: getSelectedSegment(layerSentences, selectedLayer.id, selectedEditor.segment)
 		};
 	}));
@@ -97,6 +102,10 @@
 
 	function selectSegment(exampleId: string, layerId: string, segment: LayerSentenceSegmentKey): void {
 		selectedEditor = { exampleId, layerId, segment };
+	}
+
+	function selectLayer(exampleId: string, layerId: string): void {
+		selectedEditor = { exampleId, layerId, segment: selectedEditor.segment };
 	}
 
 	function resetFixtures(): void {
@@ -268,6 +277,27 @@
 
 		return modifier.summary;
 	}
+
+	function layerDisplayName(layer: RoutineAuthoringLayer, layerIndex: number): string {
+		return layer.name ?? `Layer ${layerIndex + 1}`;
+	}
+
+	function layerSummary(layer: RoutineAuthoringLayer): string {
+		const repeatCount = Math.max(1, Math.floor(layer.attributes.repeatCount));
+		const reps = repeatCount === 1 ? 'single rep' : `${repeatCount} reps`;
+		const breatheUp = layer.breatheUp.mode === 'fixed' ? `${formatSeconds(layer.breatheUp.seconds)} breathe-up` : 'open breathe-up';
+		const diveDuration = layer.dive.duration?.mode === 'fixed' ? `${formatSeconds(layer.dive.duration.seconds)} dive` : 'open dive';
+
+		return `${layer.discipline} · ${reps} · ${breatheUp} · ${diveDuration}`;
+	}
+
+	function formatSeconds(seconds: number): string {
+		const minutes = Math.floor(seconds / 60);
+		const remainingSeconds = seconds % 60;
+
+		if (minutes === 0) return `${remainingSeconds}s`;
+		return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+	}
 </script>
 
 <svelte:head>
@@ -320,18 +350,40 @@
 					</div>
 				</div>
 
-				<div class="layer-strip" aria-label="Authoring layers">
-					{#each row.layerSentences as sentence}
-						<div class="layer-sentence" aria-label={sentence.label}>
-							<div class="layer-label">{sentence.label}</div>
+				<div class="layer-overview" aria-label="Authoring layer overview">
+					{#each row.example.layers as layer, layerIndex}
+						<button
+							type="button"
+							class:selected={row.isEditorOpen && row.selectedLayer.id === layer.id}
+							class="layer-overview-item"
+							onclick={() => selectLayer(row.example.id, layer.id)}
+						>
+							<div class="layer-overview-main">
+								<span>Layer {layerIndex + 1}</span>
+								<strong>{layerDisplayName(layer, layerIndex)}</strong>
+								<small>{layerSummary(layer)}</small>
+							</div>
+							<div class="layer-segment-indicators" aria-label="Layer segments">
+								{#each row.layerSentences[layerIndex].segments as segment}
+									<span class:locked={segment.locked} class={`segment-${segment.key}`}>{segment.label}</span>
+								{/each}
+							</div>
+						</button>
+					{/each}
+				</div>
+
+				{#if row.isEditorOpen}
+					<div class="layer-strip" aria-label="Selected authoring layer">
+						<div class="layer-sentence" aria-label={row.selectedSentence.label}>
+							<div class="layer-label">{layerDisplayName(row.selectedLayer, row.selectedLayerIndex)}</div>
 							<div class="sentence-grid">
-								{#each sentence.segments as segment}
+								{#each row.selectedSentence.segments as segment}
 									<button
 										type="button"
 										class:locked={segment.locked}
-										class:selected={isSelected(sentence.layerId, segment.key)}
+										class:selected={isSelected(row.selectedSentence.layerId, segment.key)}
 										class={`sentence-segment segment-${segment.key}`}
-										onclick={() => selectSegment(row.example.id, sentence.layerId, segment.key)}
+										onclick={() => selectSegment(row.example.id, row.selectedSentence.layerId, segment.key)}
 									>
 										<div class="segment-topline">
 											<span class="segment-label">{segment.label}</span>
@@ -342,8 +394,8 @@
 								{/each}
 							</div>
 						</div>
-					{/each}
-				</div>
+					</div>
+				{/if}
 
 				{#if row.isEditorOpen}
 					<section class="modifier-editor" aria-label="Selected segment modifiers">
@@ -728,11 +780,87 @@
 		color: #99f6e4;
 	}
 
+	.layer-overview,
 	.layer-strip {
 		display: grid;
 		gap: 8px;
 		padding: 14px 16px;
 		border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+	}
+
+	.layer-overview-item {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 12px;
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		border-radius: 8px;
+		background: rgba(17, 24, 39, 0.72);
+		color: var(--color-text);
+		cursor: pointer;
+		font: inherit;
+		min-width: 0;
+		padding: 10px 12px;
+		text-align: left;
+	}
+
+	.layer-overview-item:hover,
+	.layer-overview-item.selected {
+		border-color: rgba(20, 184, 166, 0.52);
+	}
+
+	.layer-overview-item.selected {
+		background: rgba(20, 184, 166, 0.1);
+		box-shadow: inset 3px 0 0 rgba(20, 184, 166, 0.72);
+	}
+
+	.layer-overview-main {
+		display: grid;
+		gap: 3px;
+		min-width: 0;
+	}
+
+	.layer-overview-main span {
+		color: var(--color-text-muted);
+		font-size: 0.72rem;
+		font-weight: 700;
+		text-transform: uppercase;
+	}
+
+	.layer-overview-main strong {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.layer-overview-main small {
+		color: var(--color-text-muted);
+		font-size: 0.78rem;
+		overflow-wrap: anywhere;
+	}
+
+	.layer-segment-indicators {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: end;
+		gap: 5px;
+		max-width: 360px;
+	}
+
+	.layer-segment-indicators span {
+		border: 1px solid rgba(var(--segment-color, 148, 163, 184), 0.28);
+		border-radius: 999px;
+		background: rgba(var(--segment-color, 148, 163, 184), 0.1);
+		color: var(--color-text-muted);
+		font-size: 0.68rem;
+		line-height: 1;
+		padding: 5px 7px;
+		white-space: nowrap;
+	}
+
+	.layer-segment-indicators span.locked {
+		border-color: rgba(250, 204, 21, 0.35);
+		color: #fde68a;
 	}
 
 	.layer-sentence {
@@ -1081,6 +1209,15 @@
 		.sentence-grid,
 		.editor-grid {
 			grid-template-columns: 1fr;
+		}
+
+		.layer-overview-item {
+			grid-template-columns: 1fr;
+		}
+
+		.layer-segment-indicators {
+			justify-content: start;
+			max-width: none;
 		}
 
 		.status-cluster {

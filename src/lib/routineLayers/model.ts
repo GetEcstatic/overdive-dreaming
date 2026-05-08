@@ -84,6 +84,7 @@ export type RoutineMetricProfile = {
 
 export type RoutineAuthoringLayer = {
 	id: string;
+	name?: string;
 	discipline: LayerDiscipline;
 	disciplineSelectionMode: DisciplineSelectionMode;
 	allowedDisciplines?: LayerDiscipline[];

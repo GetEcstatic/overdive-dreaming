@@ -52,7 +52,7 @@ export function buildLayerSentence(
 
 	return {
 		layerId: layer.id,
-		label: `Layer ${layerIndex + 1}`,
+		label: layer.name ?? `Layer ${layerIndex + 1}`,
 		segments
 	};
 }
