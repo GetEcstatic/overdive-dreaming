@@ -33,6 +33,9 @@ Things designed but not yet shipped, or shipped partially.
 ### UI / code health
 - [Medium-priority improvements](ui-patterns/medium-priority-improvements.md) — partial; remaining: integration, shared styles, form validation
 
+### Routines
+- [V2 create routine flow](routines/v2-create-routine-flow-plan.md) — plan for making Create Routine start from the layer model and route into the production layer editor
+
 ### Revisit later (shipped but flagged for follow-up)
 - [Routine analytics](metrics-analytics/shipped/routine-analytics.md) — shipped per-routine page; flagged to revisit in future
 
