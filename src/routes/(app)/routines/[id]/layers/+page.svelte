@@ -7,6 +7,7 @@
 	import { isAdmin } from '$lib/utils/admin';
 	import { buildRoutineLayerReadModel } from '$lib/routineLayers/readModel';
 	import { buildLayerSentence } from '$lib/routineLayers/sentence';
+	import { expandRoutineLayers } from '$lib/routineLayers/model';
 	import { staticMaxExample } from '$lib/routineLayers/defaults';
 	import type { LegacyRoutineProjection } from '$lib/routineLayers/contract';
 	import type { RoutineTemplate } from '$lib/types';
@@ -14,6 +15,8 @@
 		ExpandedRoutinePlanRow,
 		LayerDistanceTarget,
 		LayerDurationTarget,
+		LayerEffort,
+		LungVolume,
 		RoutineAuthoringLayer
 	} from '$lib/routineLayers/model';
 
@@ -30,6 +33,10 @@
 	let error = $state<string | null>(null);
 	let writeStatus = $state<string | null>(null);
 	let writingFixture = $state(false);
+	let savingLayers = $state(false);
+	let editorStatus = $state<string | null>(null);
+	let editorRoutineId = $state<string | null>(null);
+	let editableLayers = $state<RoutineAuthoringLayer[]>([]);
 	let selectedLayerId = $state<string | null>(null);
 
 	let userIsAdmin = $derived(isAdmin($user?.uid));
@@ -37,13 +44,15 @@
 	let canWriteStaticMaxFixture = $derived(
 		userIsAdmin && routine?.createdBy === 'system' && routine.name === staticMaxExample.name
 	);
-	let layerSentences = $derived(readModel ? readModel.layers.map((layer, index) => buildLayerSentence(layer, index)) : []);
-	let selectedLayer = $derived(readModel?.layers.find((layer) => layer.id === selectedLayerId) ?? readModel?.layers[0] ?? null);
+	let layerSentences = $derived(editableLayers.map((layer, index) => buildLayerSentence(layer, index)));
+	let selectedLayer = $derived(editableLayers.find((layer) => layer.id === selectedLayerId) ?? editableLayers[0] ?? null);
+	let expandedEditorRows = $derived(expandRoutineLayers(editableLayers));
 	let selectedLayerRows = $derived(
-		readModel && selectedLayer
-			? readModel.expandedRows.filter((row) => row.sourceLayerId === selectedLayer.id)
+		selectedLayer
+			? expandedEditorRows.filter((row) => row.sourceLayerId === selectedLayer.id)
 			: []
 	);
+	let editorDirty = $derived(readModel ? JSON.stringify(editableLayers) !== JSON.stringify(readModel.layers) : false);
 	let projectionComparisonRows = $derived(
 		readModel && routine ? buildProjectionComparisonRows(routine, readModel.legacyProjection) : []
 	);
@@ -51,8 +60,15 @@
 	let legacyProjectionEntries = $derived(readModel ? Object.entries(readModel.legacyProjection.display) : []);
 
 	$effect(() => {
-		if (readModel && !readModel.layers.some((layer) => layer.id === selectedLayerId)) {
-			selectedLayerId = readModel.layers[0]?.id ?? null;
+		if (readModel && routine && editorRoutineId !== routine.id) {
+			editableLayers = readModel.layers.map(cloneLayer);
+			editorRoutineId = routine.id;
+		}
+	});
+
+	$effect(() => {
+		if (editableLayers.length > 0 && !editableLayers.some((layer) => layer.id === selectedLayerId)) {
+			selectedLayerId = editableLayers[0]?.id ?? null;
 		}
 	});
 
@@ -123,6 +139,7 @@
 			writingFixture = true;
 			writeStatus = null;
 			await writeRoutineLayerTemplateContract(routine.id, staticMaxExample.layers);
+			editorRoutineId = null;
 			routine = await getRoutine(routine.id);
 			writeStatus = 'Static Max v2 layer contract written.';
 		} catch (err) {
@@ -131,6 +148,82 @@
 		} finally {
 			writingFixture = false;
 		}
+	}
+
+	async function saveEditedLayers() {
+		if (!routine || !editorDirty || savingLayers) return;
+
+		try {
+			savingLayers = true;
+			editorStatus = null;
+			await writeRoutineLayerTemplateContract(routine.id, editableLayers);
+			editorRoutineId = null;
+			routine = await getRoutine(routine.id);
+			editorStatus = 'Layer changes saved.';
+		} catch (err) {
+			console.error('Failed to save layer changes:', err);
+			editorStatus = 'Failed to save layer changes.';
+		} finally {
+			savingLayers = false;
+		}
+	}
+
+	function resetEditedLayers() {
+		if (!readModel) return;
+		editableLayers = readModel.layers.map(cloneLayer);
+		editorStatus = null;
+	}
+
+	function updateSelectedLayerName(name: string) {
+		updateSelectedLayer((layer) => ({ ...layer, name: name.trim() || undefined }));
+	}
+
+	function updateSelectedRepeatCount(value: string) {
+		const repeatCount = Math.max(1, Math.floor(Number(value) || 1));
+		updateSelectedLayer((layer) => ({
+			...layer,
+			attributes: { ...layer.attributes, repeatCount }
+		}));
+	}
+
+	function updateSelectedEffort(effort: LayerEffort) {
+		updateSelectedLayer((layer) => ({
+			...layer,
+			attributes: { ...layer.attributes, effort }
+		}));
+	}
+
+	function updateSelectedLungVolume(lungVolume: LungVolume) {
+		updateSelectedLayer((layer) => ({
+			...layer,
+			attributes: { ...layer.attributes, lungVolume }
+		}));
+	}
+
+	function updateSelectedEnvironment(environment: 'wet' | 'dry' | 'both') {
+		updateSelectedLayer((layer) => ({
+			...layer,
+			attributes: { ...layer.attributes, environment }
+		}));
+	}
+
+	function updateSelectedLayer(updater: (layer: RoutineAuthoringLayer) => RoutineAuthoringLayer) {
+		if (!selectedLayer) return;
+		editableLayers = editableLayers.map((layer) => layer.id === selectedLayer.id ? updater(layer) : layer);
+	}
+
+	function cloneLayer(layer: RoutineAuthoringLayer): RoutineAuthoringLayer {
+		return {
+			...layer,
+			allowedDisciplines: layer.allowedDisciplines ? [...layer.allowedDisciplines] : undefined,
+			breatheUp: { ...layer.breatheUp },
+			dive: {
+				duration: layer.dive.duration ? { ...layer.dive.duration } : undefined,
+				distance: layer.dive.distance ? { ...layer.dive.distance } : undefined
+			},
+			attributes: { ...layer.attributes },
+			locks: { ...layer.locks }
+		};
 	}
 
 	function buildProjectionComparisonRows(
@@ -284,10 +377,26 @@
 			</div>
 		</section>
 
+		<section class="editor-actions panel" aria-label="Layer editor actions">
+			<div>
+				<h2>Layer Editor</h2>
+				<span>Edit existing authoring layers. Add, remove, and reorder controls are not enabled yet.</span>
+			</div>
+			<div class="editor-buttons">
+				<button class="write-button" onclick={saveEditedLayers} disabled={!editorDirty || savingLayers}>
+					{savingLayers ? 'Saving...' : 'Save layers'}
+				</button>
+				<button class="secondary-button" onclick={resetEditedLayers} disabled={!editorDirty || savingLayers}>Reset</button>
+			</div>
+			{#if editorStatus}
+				<p>{editorStatus}</p>
+			{/if}
+		</section>
+
 		<section class="layout-grid">
 			<div class="panel layer-list" aria-label="Layers">
 				<h2>Layers</h2>
-				{#each readModel.layers as layer, index}
+				{#each editableLayers as layer, index}
 					<button
 						class="layer-button"
 						class:active={selectedLayer?.id === layer.id}
@@ -302,7 +411,43 @@
 
 			<div class="panel layer-detail" aria-label="Selected layer details">
 				{#if selectedLayer}
-					<h2>{layerLabel(selectedLayer, readModel.layers.indexOf(selectedLayer))}</h2>
+					<h2>{layerLabel(selectedLayer, editableLayers.indexOf(selectedLayer))}</h2>
+
+					<div class="edit-grid">
+						<label>
+							<span>Name</span>
+							<input value={selectedLayer.name ?? ''} oninput={(event) => updateSelectedLayerName(event.currentTarget.value)} />
+						</label>
+						<label>
+							<span>Reps</span>
+							<input type="number" min="1" value={selectedLayer.attributes.repeatCount} oninput={(event) => updateSelectedRepeatCount(event.currentTarget.value)} />
+						</label>
+						<label>
+							<span>Effort</span>
+							<select value={selectedLayer.attributes.effort} onchange={(event) => updateSelectedEffort(event.currentTarget.value as LayerEffort)}>
+								<option value="standard">standard</option>
+								<option value="submax">submax</option>
+								<option value="max">max</option>
+							</select>
+						</label>
+						<label>
+							<span>Lung volume</span>
+							<select value={selectedLayer.attributes.lungVolume} onchange={(event) => updateSelectedLungVolume(event.currentTarget.value as LungVolume)}>
+								<option value="FL">FL</option>
+								<option value="FRC">FRC</option>
+								<option value="RV">RV</option>
+							</select>
+						</label>
+						<label>
+							<span>Environment</span>
+							<select value={selectedLayer.attributes.environment} onchange={(event) => updateSelectedEnvironment(event.currentTarget.value as 'wet' | 'dry' | 'both')}>
+								<option value="wet">wet</option>
+								<option value="dry">dry</option>
+								<option value="both">both</option>
+							</select>
+						</label>
+					</div>
+
 					<div class="detail-meta">
 						<span>{selectedLayer.discipline}</span>
 						<span>{selectedLayer.attributes.environment}</span>
@@ -497,23 +642,34 @@
 		margin-bottom: 1rem;
 	}
 
+	.editor-actions,
 	.write-panel {
 		grid-template-columns: minmax(0, 1fr) auto;
 		align-items: center;
 		border-color: rgba(20, 184, 166, 0.28);
 	}
 
+	.editor-actions > div,
 	.write-panel > div {
 		display: grid;
 		gap: 0.25rem;
 	}
 
+	.editor-actions span,
+	.editor-actions p,
 	.write-panel span,
 	.write-panel p {
 		color: var(--color-text-muted);
 		font-size: 0.82rem;
 	}
 
+	.editor-buttons {
+		display: flex;
+		gap: 0.5rem;
+		justify-content: end;
+	}
+
+	.secondary-button,
 	.write-button {
 		border: 1px solid rgba(20, 184, 166, 0.45);
 		border-radius: 6px;
@@ -524,9 +680,45 @@
 		padding: 0.55rem 0.75rem;
 	}
 
+	.secondary-button {
+		border-color: rgba(148, 163, 184, 0.28);
+		background: rgba(148, 163, 184, 0.1);
+		color: var(--color-text-muted);
+	}
+
+	.secondary-button:disabled,
 	.write-button:disabled {
-		cursor: wait;
+		cursor: not-allowed;
 		opacity: 0.65;
+	}
+
+	.edit-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+		gap: 0.75rem;
+	}
+
+	.edit-grid label {
+		display: grid;
+		gap: 0.35rem;
+	}
+
+	.edit-grid label span {
+		color: var(--color-text-muted);
+		font-size: 0.76rem;
+		font-weight: 800;
+		text-transform: uppercase;
+	}
+
+	.edit-grid input,
+	.edit-grid select {
+		border: 1px solid rgba(148, 163, 184, 0.22);
+		border-radius: 6px;
+		background: rgba(2, 6, 23, 0.38);
+		color: var(--color-text);
+		font: inherit;
+		padding: 0.55rem 0.65rem;
+		min-width: 0;
 	}
 
 	.layer-list {
@@ -670,6 +862,7 @@
 	@media (max-width: 760px) {
 		.status-grid,
 		.layout-grid,
+		.editor-actions,
 		.write-panel,
 		.plan-row,
 		.comparison-row {
