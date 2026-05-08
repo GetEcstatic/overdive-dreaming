@@ -757,9 +757,9 @@
 	.sentence-segment {
 		display: grid;
 		align-content: start;
-		gap: 8px;
+		gap: 9px;
 		min-width: 0;
-		min-height: 88px;
+		min-height: 96px;
 		border: 1px solid rgba(148, 163, 184, 0.2);
 		border-radius: 8px;
 		background: #111827;
@@ -820,28 +820,36 @@
 		justify-content: space-between;
 		gap: 8px;
 		min-width: 0;
+		border-bottom: 1px solid rgba(var(--segment-color, 148, 163, 184), 0.28);
+		padding-bottom: 7px;
 	}
 
 	.segment-label,
 	.lock-state {
-		color: var(--color-text-muted);
 		font-size: 0.78rem;
 	}
 
 	.segment-label {
+		color: rgb(var(--segment-color, 148, 163, 184));
+		font-size: 0.82rem;
 		font-weight: 700;
+		letter-spacing: 0;
+		text-transform: uppercase;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 
 	.lock-state {
+		color: var(--color-text-muted);
 		flex: 0 0 auto;
 		font-size: 0.72rem;
 	}
 
 	.sentence-segment strong {
-		font-size: 0.94rem;
+		color: var(--color-text);
+		font-size: 0.9rem;
+		font-weight: 600;
 		line-height: 1.25;
 		overflow-wrap: anywhere;
 	}
