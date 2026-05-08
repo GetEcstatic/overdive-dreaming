@@ -7,7 +7,7 @@ describe('buildLayerSentence', () => {
 		const sentence = buildLayerSentence(dynamicMaxExample.layers[0], 0);
 		const discipline = sentence.segments.find((segment) => segment.key === 'discipline');
 
-		expect(sentence.label).toBe('Layer 1');
+		expect(sentence.label).toBe('Max attempt');
 		expect(discipline).toMatchObject({
 			label: 'Discipline',
 			summary: 'default DYN',

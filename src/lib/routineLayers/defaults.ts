@@ -23,6 +23,7 @@ export const dynamicMaxExample: RoutineLayerExample = {
 	layers: [
 		{
 			id: 'dynamic-max-layer-1',
+			name: 'Max attempt',
 			discipline: 'DYN',
 			disciplineSelectionMode: 'log-time-selectable',
 			allowedDisciplines: ['DYN', 'DYNB', 'DNF', 'TORT'],
@@ -56,6 +57,7 @@ export const staticMaxExample: RoutineLayerExample = {
 	layers: [
 		{
 			id: 'static-max-layer-1',
+			name: 'Static max attempt',
 			discipline: 'STA',
 			disciplineSelectionMode: 'fixed',
 			breatheUp: openDuration,
@@ -87,6 +89,7 @@ export const dynamicSweet16Example: RoutineLayerExample = {
 	layers: [
 		{
 			id: 'dynamic-sweet-16-layer-1',
+			name: '16 dynamic reps',
 			discipline: 'DYN',
 			disciplineSelectionMode: 'fixed',
 			breatheUp: openDuration,
@@ -168,6 +171,7 @@ export const dryRvTableExample: RoutineLayerExample = {
 	layers: [
 		{
 			id: 'dry-rv-table-layer-1',
+			name: 'Dry RV reps',
 			discipline: 'STA',
 			disciplineSelectionMode: 'fixed',
 			breatheUp: openDuration,

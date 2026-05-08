@@ -108,6 +108,14 @@
 		selectedEditor = { exampleId, layerId, segment: selectedEditor.segment };
 	}
 
+	function setLayerName(exampleId: string, layerId: string, name: string): void {
+		const trimmedName = name.trim();
+		updateLayer(exampleId, layerId, (layer) => ({
+			...layer,
+			name: trimmedName.length ? name : undefined
+		}));
+	}
+
 	function resetFixtures(): void {
 		editableExamples = defaultRoutineExamples.map(cloneExample);
 		selectedEditor = {
@@ -399,6 +407,16 @@
 
 				{#if row.isEditorOpen}
 					<section class="modifier-editor" aria-label="Selected segment modifiers">
+						<label class="layer-name-field">
+							<span>Layer name</span>
+							<input
+								type="text"
+								value={row.selectedLayer.name ?? ''}
+								placeholder={layerDisplayName(row.selectedLayer, row.selectedLayerIndex)}
+								oninput={(event) => setLayerName(row.example.id, row.selectedLayer.id, (event.currentTarget as HTMLInputElement).value)}
+							/>
+						</label>
+
 						<div class="editor-head">
 							<div>
 								<p class="eyebrow">Local editor</p>
@@ -1014,6 +1032,24 @@
 		border-bottom: 1px solid rgba(148, 163, 184, 0.18);
 		background: rgba(8, 13, 24, 0.64);
 		padding: 14px 16px 16px;
+	}
+
+	.layer-name-field {
+		display: grid;
+		gap: 6px;
+		color: var(--color-text-muted);
+		font-size: 0.78rem;
+		font-weight: 700;
+	}
+
+	.layer-name-field input {
+		width: 100%;
+		border: 1px solid rgba(148, 163, 184, 0.28);
+		border-radius: 6px;
+		background: #0f172a;
+		color: var(--color-text);
+		font: inherit;
+		padding: 9px 10px;
 	}
 
 	.editor-head {
