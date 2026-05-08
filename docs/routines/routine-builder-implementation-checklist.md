@@ -11,7 +11,7 @@
 - [x] Keep legacy fields populated from the v2 layer projection during writes.
 - [x] Add tests for writing a v2 routine while preserving current display/logging compatibility.
 - [x] Build the production routine-builder layer editor behind an admin/developer gate.
-- [ ] Add layer add/remove/reorder controls in the production editor.
+- [x] Add layer add/remove/reorder controls in the production editor.
 - [ ] Connect logging to expanded routine plan rows with source layer IDs.
 - [ ] Store athlete results against expanded result rows.
 - [ ] Add dynamic max recording-link capability as a Dive modifier after logging rows exist.

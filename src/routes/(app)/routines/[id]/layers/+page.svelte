@@ -46,6 +46,7 @@
 	);
 	let layerSentences = $derived(editableLayers.map((layer, index) => buildLayerSentence(layer, index)));
 	let selectedLayer = $derived(editableLayers.find((layer) => layer.id === selectedLayerId) ?? editableLayers[0] ?? null);
+	let selectedLayerIndex = $derived(selectedLayer ? editableLayers.findIndex((layer) => layer.id === selectedLayer.id) : -1);
 	let expandedEditorRows = $derived(expandRoutineLayers(editableLayers));
 	let selectedLayerRows = $derived(
 		selectedLayer
@@ -205,6 +206,48 @@
 			...layer,
 			attributes: { ...layer.attributes, environment }
 		}));
+	}
+
+	function addLayerAfterSelected() {
+		const baseLayer = selectedLayer ?? editableLayers[editableLayers.length - 1];
+		if (!baseLayer) return;
+
+		const insertIndex = Math.max(0, selectedLayerIndex) + 1;
+		const nextLayer = {
+			...cloneLayer(baseLayer),
+			id: `${baseLayer.id}-copy-${Date.now()}`,
+			name: `${baseLayer.name ?? 'Layer'} copy`
+		};
+
+		editableLayers = [
+			...editableLayers.slice(0, insertIndex),
+			nextLayer,
+			...editableLayers.slice(insertIndex)
+		];
+		selectedLayerId = nextLayer.id;
+	}
+
+	function removeSelectedLayer() {
+		if (!selectedLayer || editableLayers.length <= 1) return;
+
+		const nextLayers = editableLayers.filter((layer) => layer.id !== selectedLayer.id);
+		const nextIndex = Math.min(selectedLayerIndex, nextLayers.length - 1);
+		editableLayers = nextLayers;
+		selectedLayerId = nextLayers[nextIndex]?.id ?? null;
+	}
+
+	function moveSelectedLayer(direction: -1 | 1) {
+		if (!selectedLayer || selectedLayerIndex < 0) return;
+
+		const nextIndex = selectedLayerIndex + direction;
+		if (nextIndex < 0 || nextIndex >= editableLayers.length) return;
+
+		const nextLayers = [...editableLayers];
+		const selected = nextLayers[selectedLayerIndex];
+		const displaced = nextLayers[nextIndex];
+		nextLayers[selectedLayerIndex] = displaced;
+		nextLayers[nextIndex] = selected;
+		editableLayers = nextLayers;
 	}
 
 	function updateSelectedLayer(updater: (layer: RoutineAuthoringLayer) => RoutineAuthoringLayer) {
@@ -383,6 +426,10 @@
 				<span>Edit existing authoring layers. Add, remove, and reorder controls are not enabled yet.</span>
 			</div>
 			<div class="editor-buttons">
+				<button class="secondary-button" onclick={addLayerAfterSelected} disabled={savingLayers}>Add layer</button>
+				<button class="secondary-button" onclick={() => moveSelectedLayer(-1)} disabled={selectedLayerIndex <= 0 || savingLayers}>Move up</button>
+				<button class="secondary-button" onclick={() => moveSelectedLayer(1)} disabled={selectedLayerIndex < 0 || selectedLayerIndex >= editableLayers.length - 1 || savingLayers}>Move down</button>
+				<button class="danger-button" onclick={removeSelectedLayer} disabled={editableLayers.length <= 1 || savingLayers}>Remove</button>
 				<button class="write-button" onclick={saveEditedLayers} disabled={!editorDirty || savingLayers}>
 					{savingLayers ? 'Saving...' : 'Save layers'}
 				</button>
@@ -665,10 +712,12 @@
 
 	.editor-buttons {
 		display: flex;
+		flex-wrap: wrap;
 		gap: 0.5rem;
 		justify-content: end;
 	}
 
+	.danger-button,
 	.secondary-button,
 	.write-button {
 		border: 1px solid rgba(20, 184, 166, 0.45);
@@ -686,6 +735,13 @@
 		color: var(--color-text-muted);
 	}
 
+	.danger-button {
+		border-color: rgba(248, 113, 113, 0.36);
+		background: rgba(248, 113, 113, 0.1);
+		color: #fecaca;
+	}
+
+	.danger-button:disabled,
 	.secondary-button:disabled,
 	.write-button:disabled {
 		cursor: not-allowed;
