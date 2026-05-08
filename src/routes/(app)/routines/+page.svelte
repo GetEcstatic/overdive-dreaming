@@ -100,8 +100,13 @@
 		expandedDescriptions[routineId] = !expandedDescriptions[routineId];
 	}
 
-	function navigateToEdit(routineId: string) {
-		goto(`/routines/${routineId}/edit`);
+	function navigateToEdit(routine: RoutineTemplate) {
+		if (userIsAdmin) {
+			goto(`/routines/${routine.id}/layers`);
+			return;
+		}
+
+		goto(`/routines/${routine.id}/edit`);
 	}
 
 	function openSendModal(routine: RoutineTemplate) {
@@ -258,7 +263,7 @@
 										Send
 									</button>
 								{/if}
-								<button class="btn-edit" onclick={() => navigateToEdit(routine.id)}>
+								<button class="btn-edit" onclick={() => navigateToEdit(routine)}>
 									Edit
 								</button>
 								<button
@@ -330,7 +335,7 @@
 									<button class="btn-secondary" onclick={() => openSendModal(routine)}>
 										Send
 									</button>
-									<button class="btn-edit" onclick={() => navigateToEdit(routine.id)}>
+									<button class="btn-edit" onclick={() => navigateToEdit(routine)}>
 										Edit
 									</button>
 									<button

@@ -17,5 +17,5 @@
 - [x] Add dynamic max recording-link capability as a Dive modifier after logging rows exist.
 - [x] Seed or update default routines with the v2 layer shape.
 - [x] Test send, duplicate, edit, and delete flows against legacy and v2 templates.
-- [ ] Make the v2 builder the default only after logging and compatibility are stable.
+- [x] Make the v2 builder the default only after logging and compatibility are stable.
 - [ ] Retire the local prototype route after the production editor covers the same workflows.
