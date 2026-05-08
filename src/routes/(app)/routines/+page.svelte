@@ -193,7 +193,6 @@
 			<section class="layer-read-model-section" aria-label="Layer read model status">
 				<div class="section-head">
 					<h2 class="section-title">Layer Read Models ({layerReadModelRows.length})</h2>
-					<a class="prototype-link" href="/routines/layer-prototype">Open prototype</a>
 				</div>
 				<div class="layer-read-model-list">
 					{#each layerReadModelRows as row}
@@ -568,17 +567,6 @@
 
 	.section-head .section-title {
 		margin-bottom: 0;
-	}
-
-	.prototype-link {
-		border: 1px solid rgba(148, 163, 184, 0.24);
-		border-radius: 6px;
-		color: var(--color-primary);
-		font-size: 0.82rem;
-		font-weight: 700;
-		padding: 0.45rem 0.65rem;
-		text-decoration: none;
-		white-space: nowrap;
 	}
 
 	.layer-read-model-list {
