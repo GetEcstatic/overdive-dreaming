@@ -269,6 +269,20 @@ Slice 6: rollout and cleanup.
 
 Immediate next implementation slice: build the production data contract and adapters. That is the safest bridge from prototype to deployed app because it lets UI and logging move independently without forcing a Firestore migration too early.
 
+Progress - 2026-05-08:
+
+- [x] Added a pure versioned layer routine contract: `routineTemplateVersion: 2` plus compact authoring layers and derived layer metadata.
+- [x] Added a helper to attach the v2 layer contract to existing `RoutineTemplate` objects without removing existing fields.
+- [x] Added a unified layer reader that returns stored v2 layers when present and projects legacy routines otherwise.
+- [x] Added a legacy projection helper so compact layers can still feed current routine display/logging assumptions while production logging is replaced later.
+- [x] Added tests for v2 contract creation, validation, legacy fallback, and legacy projection.
+- [x] Validation: focused routine layer tests pass, including the new contract tests.
+- [x] Validation: `npm run check` reports 0 errors and the existing 101 warnings.
+
+Next roadmap step:
+
+- [ ] Decide the first production integration point for reading v2 layer contracts without writing them to Firestore yet.
+
 ## 1.3 Current modifier-only checklist
 
 This is the current checklist to use. Ignore the older tracked-metric sections for now; they are useful background but not the active implementation track.

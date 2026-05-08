@@ -1,0 +1,105 @@
+import { describe, expect, it } from 'vitest';
+import type { RoutineTemplate } from '$lib/types';
+import { dynamicMaxExample, dynamicSweet16Example, staticTwoBreathTableExample } from './defaults';
+import {
+	ROUTINE_TEMPLATE_LAYER_VERSION,
+	buildLayerRoutineTemplateContract,
+	getRoutineTemplateLayers,
+	hasLayerRoutineTemplateContract,
+	projectLayersToLegacyRoutineProjection,
+	validateLayerRoutineTemplateContract,
+	withLayerRoutineTemplateContract
+} from './contract';
+
+function routineTemplate(overrides: Partial<RoutineTemplate> = {}): RoutineTemplate {
+	return {
+		id: 'routine-1',
+		name: 'Routine',
+		description: '',
+		disciplines: ['DYN'],
+		tags: [],
+		trackingConfig: {} as RoutineTemplate['trackingConfig'],
+		displayConfig: {} as RoutineTemplate['displayConfig'],
+		createdBy: 'system',
+		isPublic: true,
+		createdAt: null as unknown as RoutineTemplate['createdAt'],
+		updatedAt: null as unknown as RoutineTemplate['updatedAt'],
+		...overrides
+	};
+}
+
+describe('layer routine template contract', () => {
+	it('builds a versioned compact authoring-layer contract with derived data', () => {
+		const contract = buildLayerRoutineTemplateContract(dynamicMaxExample.layers);
+
+		expect(contract.routineTemplateVersion).toBe(ROUTINE_TEMPLATE_LAYER_VERSION);
+		expect(contract.layers).toEqual(dynamicMaxExample.layers);
+		expect(contract.layers).not.toBe(dynamicMaxExample.layers);
+		expect(contract.layerDefaultTags).toEqual(expect.arrayContaining(['dynamic', 'tort', 'max']));
+		expect(contract.layerDisplay.hero).toBe('distanceMeters');
+		expect(contract.layerMetricProfile.standard).toEqual(expect.arrayContaining(['distanceMeters']));
+	});
+
+	it('attaches the contract to existing routine templates without removing legacy fields', () => {
+		const routine = withLayerRoutineTemplateContract(
+			routineTemplate({ id: 'dynamic-max', name: 'Dynamic Max', disciplines: ['DYN', 'DYNB', 'DNF'] }),
+			dynamicMaxExample.layers
+		);
+
+		expect(hasLayerRoutineTemplateContract(routine)).toBe(true);
+		expect(routine.id).toBe('dynamic-max');
+		expect(routine.disciplines).toEqual(['DYN', 'DYNB', 'DNF']);
+		expect(routine.layers[0].name).toBe('Max attempt');
+		expect(validateLayerRoutineTemplateContract(routine)).toEqual([]);
+	});
+
+	it('projects v2 routines from stored layers and legacy routines through the same reader', () => {
+		const layeredRoutine = withLayerRoutineTemplateContract(routineTemplate(), staticTwoBreathTableExample.layers);
+		const legacyRoutine = routineTemplate({ numberOfReps: 16, repDistance: 50, restBetweenReps: 45 });
+
+		expect(getRoutineTemplateLayers(layeredRoutine)).toHaveLength(2);
+		expect(getRoutineTemplateLayers(legacyRoutine)[0]).toMatchObject({
+			attributes: { repeatCount: 16 },
+			dive: { distance: { mode: 'fixed', meters: 50 } }
+		});
+	});
+
+	it('projects compact layers back to current routine display assumptions', () => {
+		const projection = projectLayersToLegacyRoutineProjection(dynamicSweet16Example.layers);
+
+		expect(projection).toMatchObject({
+			disciplines: ['DYN'],
+			activityType: 'structured-intervals',
+			trainingEnvironment: 'wet',
+			numberOfReps: 16,
+			defaultTags: ['dynamic', 'table']
+		});
+		expect(projection.repDistance).toBeUndefined();
+		expect(projection.table).toBeUndefined();
+		expect(projection.display.hero).toBe('totalRoutineTimeSeconds');
+	});
+
+	it('projects multi-layer routines to table rows for legacy readers', () => {
+		const projection = projectLayersToLegacyRoutineProjection(staticTwoBreathTableExample.layers);
+
+		expect(projection.activityType).toBe('structured-intervals');
+		expect(projection.disciplines).toEqual(['STA']);
+		expect(projection.table?.rows).toHaveLength(10);
+		expect(projection.table?.rows[0]).toMatchObject({
+			repNumber: 1,
+			restBefore: 240,
+			targetDuration: 90
+		});
+		expect(projection.table?.rows[1]).toMatchObject({
+			repNumber: 2,
+			restBefore: 30,
+			targetDuration: 90
+		});
+	});
+
+	it('rejects empty layer contracts before any Firestore write path uses them', () => {
+		expect(validateLayerRoutineTemplateContract({ routineTemplateVersion: ROUTINE_TEMPLATE_LAYER_VERSION, layers: [] })).toEqual([
+			expect.objectContaining({ code: 'missing-layers' })
+		]);
+	});
+});
