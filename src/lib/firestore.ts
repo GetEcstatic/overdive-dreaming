@@ -57,6 +57,8 @@ import {
 } from '$lib/utils/migration';
 import { buildRoutineLayerReadModel } from '$lib/routineLayers/readModel';
 import type { RoutineLayerReadModel } from '$lib/routineLayers/readModel';
+import { buildLayerRoutineTemplateContract } from '$lib/routineLayers/contract';
+import type { RoutineAuthoringLayer } from '$lib/routineLayers/model';
 
 // ============================================================================
 // ROUTINE TEMPLATES
@@ -129,6 +131,23 @@ export async function getRoutineLayerReadModel(routineId: string): Promise<Routi
 	if (!routine) return null;
 
 	return buildRoutineLayerReadModel(routine);
+}
+
+/**
+ * Attach a v2 layer contract to an existing routine without changing the
+ * existing legacy routine fields. Admin-only callers should gate access in UI.
+ */
+export async function writeRoutineLayerTemplateContract(
+	routineId: string,
+	layers: RoutineAuthoringLayer[]
+): Promise<void> {
+	const docRef = doc(db, 'routines', routineId);
+	const contract = buildLayerRoutineTemplateContract(layers);
+
+	await updateDoc(docRef, {
+		...contract,
+		updatedAt: serverTimestamp()
+	});
 }
 
 /**

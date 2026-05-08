@@ -7,7 +7,7 @@
 - [x] Add an admin-only per-routine layer read-model inspector.
 - [x] Compare read-model legacy projections against real routine display fields in the inspector.
 - [x] Record any projection gaps before enabling v2 writes.
-- [ ] Add admin/developer-only v2 layer template write support for one low-risk fixture routine.
+- [x] Add admin/developer-only v2 layer template write support for one low-risk fixture routine.
 - [ ] Keep legacy fields populated from the v2 layer projection during writes.
 - [ ] Add tests for writing a v2 routine while preserving current display/logging compatibility.
 - [ ] Build the production routine-builder layer editor behind an admin/developer gate.

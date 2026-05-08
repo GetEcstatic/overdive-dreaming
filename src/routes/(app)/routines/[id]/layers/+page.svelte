@@ -3,10 +3,11 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { user } from '$lib/stores/auth';
-	import { getRoutine } from '$lib/firestore';
+	import { getRoutine, writeRoutineLayerTemplateContract } from '$lib/firestore';
 	import { isAdmin } from '$lib/utils/admin';
 	import { buildRoutineLayerReadModel } from '$lib/routineLayers/readModel';
 	import { buildLayerSentence } from '$lib/routineLayers/sentence';
+	import { staticMaxExample } from '$lib/routineLayers/defaults';
 	import type { LegacyRoutineProjection } from '$lib/routineLayers/contract';
 	import type { RoutineTemplate } from '$lib/types';
 	import type {
@@ -27,10 +28,15 @@
 	let routine = $state<RoutineTemplate | null>(null);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
+	let writeStatus = $state<string | null>(null);
+	let writingFixture = $state(false);
 	let selectedLayerId = $state<string | null>(null);
 
 	let userIsAdmin = $derived(isAdmin($user?.uid));
 	let readModel = $derived(routine && userIsAdmin ? buildRoutineLayerReadModel(routine) : null);
+	let canWriteStaticMaxFixture = $derived(
+		userIsAdmin && routine?.createdBy === 'system' && routine.name === staticMaxExample.name
+	);
 	let layerSentences = $derived(readModel ? readModel.layers.map((layer, index) => buildLayerSentence(layer, index)) : []);
 	let selectedLayer = $derived(readModel?.layers.find((layer) => layer.id === selectedLayerId) ?? readModel?.layers[0] ?? null);
 	let selectedLayerRows = $derived(
@@ -110,6 +116,23 @@
 		return `rep ${row.repIndex} - ${row.discipline} - ${formatDuration(row.dive.duration)} - ${formatDistance(row.dive.distance)}`;
 	}
 
+	async function writeStaticMaxFixtureContract() {
+		if (!routine || !canWriteStaticMaxFixture || writingFixture) return;
+
+		try {
+			writingFixture = true;
+			writeStatus = null;
+			await writeRoutineLayerTemplateContract(routine.id, staticMaxExample.layers);
+			routine = await getRoutine(routine.id);
+			writeStatus = 'Static Max v2 layer contract written.';
+		} catch (err) {
+			console.error('Failed to write Static Max v2 layer contract:', err);
+			writeStatus = 'Failed to write Static Max v2 layer contract.';
+		} finally {
+			writingFixture = false;
+		}
+	}
+
 	function buildProjectionComparisonRows(
 		routineTemplate: RoutineTemplate,
 		projection: LegacyRoutineProjection
@@ -179,6 +202,21 @@
 	{:else if !userIsAdmin}
 		<div class="state-panel error">Admin access is required to inspect layer read models.</div>
 	{:else if readModel}
+		{#if canWriteStaticMaxFixture}
+			<section class="panel write-panel" aria-label="Static Max v2 write support">
+				<div>
+					<h2>Static Max Fixture Write</h2>
+					<span>Attach the v2 layer contract for this low-risk fixture routine.</span>
+				</div>
+				<button class="write-button" onclick={writeStaticMaxFixtureContract} disabled={writingFixture}>
+					{writingFixture ? 'Writing...' : 'Write v2 contract'}
+				</button>
+				{#if writeStatus}
+					<p>{writeStatus}</p>
+				{/if}
+			</section>
+		{/if}
+
 		<section class="status-grid" aria-label="Read model status">
 			<div>
 				<span>Source</span>
@@ -459,6 +497,38 @@
 		margin-bottom: 1rem;
 	}
 
+	.write-panel {
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: center;
+		border-color: rgba(20, 184, 166, 0.28);
+	}
+
+	.write-panel > div {
+		display: grid;
+		gap: 0.25rem;
+	}
+
+	.write-panel span,
+	.write-panel p {
+		color: var(--color-text-muted);
+		font-size: 0.82rem;
+	}
+
+	.write-button {
+		border: 1px solid rgba(20, 184, 166, 0.45);
+		border-radius: 6px;
+		background: rgba(20, 184, 166, 0.16);
+		color: #99f6e4;
+		cursor: pointer;
+		font-weight: 800;
+		padding: 0.55rem 0.75rem;
+	}
+
+	.write-button:disabled {
+		cursor: wait;
+		opacity: 0.65;
+	}
+
 	.layer-list {
 		align-content: start;
 	}
@@ -600,6 +670,7 @@
 	@media (max-width: 760px) {
 		.status-grid,
 		.layout-grid,
+		.write-panel,
 		.plan-row,
 		.comparison-row {
 			grid-template-columns: 1fr;
