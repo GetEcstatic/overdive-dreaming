@@ -3,6 +3,7 @@ export type DisciplineGroup = 'static' | 'dynamic' | 'dynamicTraining';
 export type DisciplineSelectionMode = 'fixed' | 'log-time-selectable';
 export type LayerValueMode = 'fixed' | 'open';
 export type LayerEffort = 'max' | 'submax' | 'standard';
+export type LayerDiveCapability = 'recording-link';
 export type LungVolume = 'FL' | 'FRC' | 'RV';
 export type TrainingEnvironment = 'wet' | 'dry' | 'both';
 export type LayerIngredient = 'discipline' | 'breatheUp' | 'dive' | 'attributes' | 'repeat';
@@ -90,6 +91,7 @@ export type RoutineAuthoringLayer = {
 	allowedDisciplines?: LayerDiscipline[];
 	breatheUp: LayerDurationTarget;
 	dive: LayerDiveTarget;
+	diveCapabilities?: LayerDiveCapability[];
 	attributes: LayerAttributes;
 	analyticsRole?: LayerAnalyticsRole;
 	metricProfileId?: string;

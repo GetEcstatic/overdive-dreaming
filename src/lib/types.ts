@@ -548,6 +548,7 @@ export interface RoutineLogPlanRow {
 	plannedBreatheUpSeconds?: number;
 	plannedDurationSeconds?: number;
 	plannedDistanceMeters?: number;
+	diveCapabilities?: string[];
 	lungVolume: LungVolume;
 	effort: 'max' | 'submax' | 'standard';
 	environment: TrainingEnvironment;

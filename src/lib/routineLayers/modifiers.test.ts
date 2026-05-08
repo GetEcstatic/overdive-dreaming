@@ -28,6 +28,16 @@ describe('deriveLayerModifiers', () => {
 		);
 	});
 
+	it('selects recording-link dive capability only when the layer declares it', () => {
+		const dynamicMaxModifiers = deriveLayerModifiers(dynamicMaxExample.layers[0]);
+		const tableModifiers = deriveLayerModifiers(staticTwoBreathTableExample.layers[1]);
+
+		expect(dynamicMaxModifiers.find((modifier) => modifier.key === 'dive.recordingLink')?.summary).toBe(
+			'recording link enabled'
+		);
+		expect(tableModifiers.map((modifier) => modifier.key)).not.toContain('dive.recordingLink');
+	});
+
 	it('lets the sentence renderer pick up new modifier definitions without renderer changes', () => {
 		const sentence = buildLayerSentence(dynamicMaxExample.layers[0], 0, {
 			modifierDefinitions: [

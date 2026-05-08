@@ -1,6 +1,7 @@
 import type {
 	DisciplineGroup,
 	LayerDiscipline,
+	LayerDiveCapability,
 	LayerIngredient,
 	LayerValueMode,
 	RoutineAuthoringLayer,
@@ -17,6 +18,7 @@ export type LayerModifierDependency = {
 	requiresRepeat?: boolean;
 	requiresDynamicDive?: boolean;
 	requiresStaticDive?: boolean;
+	requiresDiveCapability?: LayerDiveCapability;
 	targetModes?: LayerValueMode[];
 };
 
@@ -77,6 +79,14 @@ export const layerModifierDefinitions: LayerModifierDefinition[] = [
 		defaultLabel: 'open duration',
 		lockable: true,
 		lockIngredient: 'dive'
+	},
+	{
+		key: 'dive.recordingLink',
+		segment: 'dive',
+		label: 'Recording link',
+		defaultLabel: 'not linked',
+		lockable: false,
+		dependencies: { requiresDynamicDive: true, requiresDiveCapability: 'recording-link' }
 	},
 	{
 		key: 'setup.lungVolume',
@@ -157,6 +167,7 @@ function appliesToLayer(definition: LayerModifierDefinition, layer: RoutineAutho
 	if (dependencies.requiresRepeat && layer.attributes.repeatCount <= 1) return false;
 	if (dependencies.requiresDynamicDive && !isDynamicDiscipline(layer.discipline)) return false;
 	if (dependencies.requiresStaticDive && layer.discipline !== 'STA') return false;
+	if (dependencies.requiresDiveCapability && !layer.diveCapabilities?.includes(dependencies.requiresDiveCapability)) return false;
 	if (dependencies.targetModes && !layerHasTargetMode(layer, dependencies.targetModes)) return false;
 
 	return true;
@@ -176,6 +187,8 @@ function summarizeModifier(definition: LayerModifierDefinition, layer: RoutineAu
 			return layer.dive.distance ? formatDistanceTarget(layer.dive.distance, 'distance') : 'open distance';
 		case 'dive.duration':
 			return layer.dive.duration ? formatDurationTarget(layer.dive.duration, 'duration') : 'open duration';
+		case 'dive.recordingLink':
+			return 'recording link enabled';
 		case 'setup.lungVolume':
 			return layer.attributes.lungVolume;
 		case 'setup.effort':
@@ -194,6 +207,10 @@ function summarizeModifier(definition: LayerModifierDefinition, layer: RoutineAu
 function detailModifier(definition: LayerModifierDefinition, layer: RoutineAuthoringLayer): string[] {
 	if (definition.key === 'discipline.selectionMode' && layer.disciplineSelectionMode === 'log-time-selectable') {
 		return [`selectable ${formatList(layer.allowedDisciplines ?? [])}`];
+	}
+
+	if (definition.key === 'dive.recordingLink') {
+		return ['attach recording media to result rows'];
 	}
 
 	return [summarizeModifier(definition, layer)];

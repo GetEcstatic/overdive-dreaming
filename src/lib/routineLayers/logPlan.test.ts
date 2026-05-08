@@ -61,6 +61,7 @@ describe('routine log plan rows', () => {
 
 		expect(rows[0].sourceLayerId).toBe('dynamic-max-layer-1');
 		expect(rows[0].discipline).toBe('DYN');
+		expect(rows[0].diveCapabilities).toEqual(['recording-link']);
 	});
 
 	it('builds initial result rows from quick-log actuals while preserving source layer IDs', () => {

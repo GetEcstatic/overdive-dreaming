@@ -259,6 +259,7 @@
 		return {
 			...layer,
 			allowedDisciplines: layer.allowedDisciplines ? [...layer.allowedDisciplines] : undefined,
+			diveCapabilities: layer.diveCapabilities ? [...layer.diveCapabilities] : undefined,
 			breatheUp: { ...layer.breatheUp },
 			dive: {
 				duration: layer.dive.duration ? { ...layer.dive.duration } : undefined,

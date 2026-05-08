@@ -32,6 +32,7 @@ export const dynamicMaxExample: RoutineLayerExample = {
 				duration: openDuration,
 				distance: openDistance
 			},
+			diveCapabilities: ['recording-link'],
 			attributes: {
 				lungVolume: 'FL',
 				effort: 'max',
