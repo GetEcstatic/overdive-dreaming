@@ -1,6 +1,8 @@
-import type { LayerDistanceTarget, LayerDurationTarget, LayerIngredient, RoutineAuthoringLayer } from './model';
+import type { RoutineAuthoringLayer } from './model';
+import { deriveLayerModifiers, groupModifiersBySegment } from './modifiers';
+import type { LayerModifierDefinition, LayerModifierSegmentKey, SelectedLayerModifier } from './modifiers';
 
-export type LayerSentenceSegmentKey = 'discipline' | 'breatheUp' | 'dive' | 'setup' | 'reps';
+export type LayerSentenceSegmentKey = LayerModifierSegmentKey;
 
 export type LayerSentenceSegment = {
 	key: LayerSentenceSegmentKey;
@@ -16,6 +18,10 @@ export type LayerSentence = {
 	segments: LayerSentenceSegment[];
 };
 
+export type LayerSentenceOptions = {
+	modifierDefinitions?: LayerModifierDefinition[];
+};
+
 const segmentLabels: Record<LayerSentenceSegmentKey, string> = {
 	discipline: 'Discipline',
 	breatheUp: 'Breathe-up',
@@ -24,22 +30,17 @@ const segmentLabels: Record<LayerSentenceSegmentKey, string> = {
 	reps: 'Reps'
 };
 
-const lockIngredientBySegment: Record<LayerSentenceSegmentKey, LayerIngredient> = {
-	discipline: 'discipline',
-	breatheUp: 'breatheUp',
-	dive: 'dive',
-	setup: 'attributes',
-	reps: 'repeat'
-};
+const segmentOrder: LayerSentenceSegmentKey[] = ['discipline', 'breatheUp', 'dive', 'setup', 'reps'];
 
-export function buildLayerSentence(layer: RoutineAuthoringLayer, layerIndex: number): LayerSentence {
-	const segments: LayerSentenceSegment[] = [
-		buildDisciplineSegment(layer),
-		buildBreatheUpSegment(layer),
-		buildDiveSegment(layer),
-		buildSetupSegment(layer),
-		buildRepsSegment(layer)
-	];
+export function buildLayerSentence(
+	layer: RoutineAuthoringLayer,
+	layerIndex: number,
+	options: LayerSentenceOptions = {}
+): LayerSentence {
+	const modifiersBySegment = groupModifiersBySegment(
+		deriveLayerModifiers(layer, options.modifierDefinitions)
+	);
+	const segments = segmentOrder.map((key) => buildSegment(key, modifiersBySegment[key]));
 
 	return {
 		layerId: layer.id,
@@ -48,89 +49,33 @@ export function buildLayerSentence(layer: RoutineAuthoringLayer, layerIndex: num
 	};
 }
 
-function buildDisciplineSegment(layer: RoutineAuthoringLayer): LayerSentenceSegment {
-	const details = [`default ${layer.discipline}`];
-
-	if (layer.disciplineSelectionMode === 'log-time-selectable') {
-		details.push(`selectable ${formatList(layer.allowedDisciplines ?? [])}`);
-	} else {
-		details.push('fixed discipline');
-	}
-
-	return segment(layer, 'discipline', details[0], details);
-}
-
-function buildBreatheUpSegment(layer: RoutineAuthoringLayer): LayerSentenceSegment {
-	const summary = formatDurationTarget(layer.breatheUp, 'duration');
-	return segment(layer, 'breatheUp', summary, [summary]);
-}
-
-function buildDiveSegment(layer: RoutineAuthoringLayer): LayerSentenceSegment {
-	const targetParts = [
-		layer.dive.distance ? formatDistanceTarget(layer.dive.distance, 'distance') : undefined,
-		layer.dive.duration ? formatDurationTarget(layer.dive.duration, 'duration') : undefined
-	].filter(Boolean) as string[];
-	const summary = targetParts.length ? targetParts.join(' + ') : 'no dive target';
-	const details = [...targetParts];
-
-	if (details.length === 0) details.push('missing dive target');
-
-	return segment(layer, 'dive', summary, details);
-}
-
-function buildSetupSegment(layer: RoutineAuthoringLayer): LayerSentenceSegment {
-	const details = [
-		layer.attributes.lungVolume,
-		layer.attributes.effort,
-		layer.attributes.environment
-	];
-
-	return segment(layer, 'setup', details.join(' · '), details);
-}
-
-function buildRepsSegment(layer: RoutineAuthoringLayer): LayerSentenceSegment {
-	const repeatCount = layer.attributes.repeatCount;
-	const summary = repeatCount === 1 ? 'single' : `repeat ${repeatCount}x`;
-	const details = repeatCount === 1 ? ['single'] : [`repeat ${repeatCount}x`, 'uniform layer repeat'];
-
-	return segment(layer, 'reps', summary, details);
-}
-
-function segment(
-	layer: RoutineAuthoringLayer,
-	key: LayerSentenceSegmentKey,
-	summary: string,
-	details: string[]
-): LayerSentenceSegment {
-	const locked = Boolean(layer.locks[lockIngredientBySegment[key]]);
+function buildSegment(key: LayerSentenceSegmentKey, modifiers: SelectedLayerModifier[]): LayerSentenceSegment {
+	const summary = summarizeSegment(key, modifiers);
+	const modifierDetails = modifiers.flatMap((modifier) => modifier.details);
+	const locked = modifiers.some((modifier) => modifier.locked);
 
 	return {
 		key,
 		label: segmentLabels[key],
 		summary,
-		details: [...details, locked ? 'locked' : 'unlocked'],
+		details: [...modifierDetails, locked ? 'locked' : 'unlocked'],
 		locked
 	};
 }
 
-function formatDurationTarget(target: LayerDurationTarget, noun: string): string {
-	if (target.mode === 'open') return `open ${noun}`;
-	return `fixed ${noun} ${formatSeconds(target.seconds)}`;
-}
+function summarizeSegment(key: LayerSentenceSegmentKey, modifiers: SelectedLayerModifier[]): string {
+	if (modifiers.length === 0) return 'not applicable';
 
-function formatDistanceTarget(target: LayerDistanceTarget, noun: string): string {
-	if (target.mode === 'open') return `open ${noun}`;
-	return `fixed ${noun} ${target.meters}m`;
-}
+	if (key === 'dive') {
+		const activeTargets = modifiers
+			.map((modifier) => modifier.summary)
+			.filter((summary) => !summary.startsWith('no '));
 
-function formatSeconds(seconds: number): string {
-	const minutes = Math.floor(seconds / 60);
-	const remainingSeconds = seconds % 60;
+		return activeTargets.length ? activeTargets.join(' + ') : 'no dive target';
+	}
 
-	if (minutes === 0) return `${remainingSeconds}s`;
-	return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-}
+	if (key === 'setup') return modifiers.map((modifier) => modifier.summary).join(' · ');
+	if (key === 'reps') return modifiers[0].summary;
 
-function formatList(items: string[]): string {
-	return items.length ? items.join('/') : 'none';
+	return modifiers[0].summary;
 }
