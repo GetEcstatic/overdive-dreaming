@@ -88,6 +88,15 @@
 		selectedEditor = { exampleId, layerId, segment };
 	}
 
+	function resetFixtures(): void {
+		editableExamples = defaultRoutineExamples.map(cloneExample);
+		selectedEditor = {
+			exampleId: defaultRoutineExamples[0].id,
+			layerId: defaultRoutineExamples[0].layers[0].id,
+			segment: 'discipline'
+		};
+	}
+
 	function updateLayer(
 		exampleId: string,
 		layerId: string,
@@ -226,10 +235,13 @@
 			<p class="eyebrow">Local prototype</p>
 			<h1>Routine Layer Model</h1>
 			<p class="intro">
-				Read-only inspection surface for the new routine layer fixtures and pure transforms.
+				Local-only modifier editor for the new routine layer fixtures and pure transforms.
 			</p>
 		</div>
-		<a class="back-link" href="/routines">Back to routines</a>
+		<div class="header-actions">
+			<button type="button" class="reset-button" onclick={resetFixtures}>Reset fixtures</button>
+			<a class="back-link" href="/routines">Back to routines</a>
+		</div>
 	</header>
 
 	<section class="summary-band" aria-label="Prototype scope">
@@ -572,13 +584,31 @@
 		line-height: 1.45;
 	}
 
-	.back-link {
+	.header-actions {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.back-link,
+	.reset-button {
 		border: 1px solid rgba(148, 163, 184, 0.28);
 		border-radius: 6px;
+		background: transparent;
 		color: var(--color-text);
+		font: inherit;
 		padding: 9px 12px;
 		text-decoration: none;
 		white-space: nowrap;
+	}
+
+	.reset-button {
+		cursor: pointer;
+	}
+
+	.reset-button:hover,
+	.back-link:hover {
+		border-color: rgba(20, 184, 166, 0.5);
 	}
 
 	.summary-band {
@@ -954,6 +984,10 @@
 		.routine-head {
 			display: grid;
 			align-items: start;
+		}
+
+		.header-actions {
+			justify-content: start;
 		}
 
 		.summary-band,
