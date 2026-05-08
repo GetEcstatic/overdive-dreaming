@@ -8,7 +8,15 @@ export type LayerSentenceSegment = {
 	key: LayerSentenceSegmentKey;
 	label: string;
 	summary: string;
+	modifiers: LayerSentenceModifier[];
 	details: string[];
+	locked: boolean;
+};
+
+export type LayerSentenceModifier = {
+	key: string;
+	label: string;
+	summary: string;
 	locked: boolean;
 };
 
@@ -58,6 +66,12 @@ function buildSegment(key: LayerSentenceSegmentKey, modifiers: SelectedLayerModi
 		key,
 		label: segmentLabels[key],
 		summary,
+		modifiers: modifiers.map((modifier) => ({
+			key: modifier.key,
+			label: modifier.label,
+			summary: modifier.summary,
+			locked: modifier.locked
+		})),
 		details: [...modifierDetails, locked ? 'locked' : 'unlocked'],
 		locked
 	};

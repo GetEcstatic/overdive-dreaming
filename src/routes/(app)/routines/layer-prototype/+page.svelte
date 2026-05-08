@@ -86,8 +86,11 @@
 										</div>
 										<strong>{segment.summary}</strong>
 										<div class="segment-details">
-											{#each segment.details.filter((detail) => detail !== segment.summary) as detail}
-												<span>{detail}</span>
+											{#each segment.modifiers as modifier}
+												<span class:locked={modifier.locked}>
+													<span class="modifier-label">{modifier.label}</span>
+													<span>{modifier.summary}</span>
+												</span>
 											{/each}
 										</div>
 									</div>
@@ -346,12 +349,25 @@
 	}
 
 	.segment-details span {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
 		border: 1px solid rgba(148, 163, 184, 0.2);
 		border-radius: 999px;
 		color: var(--color-text-muted);
 		font-size: 0.7rem;
 		line-height: 1;
 		padding: 5px 7px;
+	}
+
+	.segment-details span.locked {
+		border-color: rgba(250, 204, 21, 0.35);
+		color: #fde68a;
+	}
+
+	.modifier-label {
+		color: var(--color-text);
+		font-weight: 700;
 	}
 
 	.detail-grid {

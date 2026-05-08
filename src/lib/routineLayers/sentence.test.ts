@@ -14,6 +14,20 @@ describe('buildLayerSentence', () => {
 			locked: false
 		});
 		expect(discipline?.details).toEqual(['default DYN', 'selectable DYN/DYNB/DNF/TORT', 'unlocked']);
+		expect(discipline?.modifiers).toEqual([
+			{
+				key: 'discipline.default',
+				label: 'Default discipline',
+				summary: 'default DYN',
+				locked: false
+			},
+			{
+				key: 'discipline.selectionMode',
+				label: 'Selection mode',
+				summary: 'selectable DYN/DYNB/DNF/TORT',
+				locked: false
+			}
+		]);
 	});
 
 	it('renders fixed static duration values in the dive segment', () => {
