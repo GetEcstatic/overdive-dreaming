@@ -6,6 +6,12 @@ Download actions are owner-only. If a video appears on someone else's account or
 
 Original clean-video downloads now use the same share-first `File` flow as server-baked overlay downloads. On Apple devices this opens the native share sheet so the user can save directly to Photos/Videos when the file type is accepted, with an object-URL download fallback for browsers without file sharing.
 
+## Short Summary
+
+The problem was that both download modes were doing too much work inside the browser. Overlay downloads tried to re-encode the whole source video on the user's device, which is too slow and fragile for very large files. Non-overlay downloads still fetched the entire file into JavaScript memory before calling the Web Share API, which can lose the original tap permission and fail with `Permission denied`.
+
+The implemented fix separates the two paths. Original videos now download directly from storage through a signed attachment URL, so the browser can stream the file without loading hundreds of megabytes into app memory or relying on Web Share. Overlay export remains available for smaller clips, but large clips now fail fast with a clear message and point the user to `Download original` instead of attempting a doomed in-browser bake.
+
 ## Problem
 
 Dashboard dive videos have two download paths today:

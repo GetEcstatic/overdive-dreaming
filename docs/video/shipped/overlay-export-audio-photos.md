@@ -89,3 +89,42 @@ If baked exports still drop frames or lose audio on iOS Safari, move overlay exp
 - Server-side ffmpeg transcode after upload, or
 - Native iOS/Android export path using platform media APIs, or
 - WebCodecs + muxer only if device tests prove it handles frame pacing and audio sync better than `MediaRecorder`.
+
+## 6. Longer-Term: Proper Video Export for Social Sharing
+
+The canvas-bake approach is the worst available option: it decodes, composites in JS, and re-encodes simultaneously at the speed of the slowest step. For sharing to Instagram, WhatsApp, iMessage, etc. a real standalone video file is required — a URL is not sufficient.
+
+### Option A — Server-side FFmpeg (recommended long-term)
+
+**How it works:**
+1. App sends the original video URL + the dive timeline JSON to a Cloud Run container.
+2. FFmpeg runs natively (C code, not JavaScript): overlays HUD text/graphics via `drawtext`/`drawbox` filters, muxes original audio, outputs a clean MP4.
+3. App receives a signed download URL for the finished file.
+4. User shares or saves to Photos.
+
+**Why it is better:**
+- Speed: 10–50× faster than real-time (a 60-second dive bakes in 1–6 seconds).
+- Quality: no generational loss; hardware encode path available.
+- Audio: preserved automatically — FFmpeg muxes the original audio track.
+- No iOS Safari quirks — the browser just downloads a finished file.
+
+**Infrastructure needed:**
+- Firebase Cloud Functions do not ship with FFmpeg. A Cloud Run container with an FFmpeg binary is required, or a third-party transcode service.
+- Estimated complexity: medium. Cloud Run Dockerfile + a small Cloud Function trigger + signed URL return. No changes to client data model.
+
+### Option B — FFmpeg.wasm (browser-only, no server)
+
+**How it works:**
+- FFmpeg compiled to WebAssembly runs in the browser tab.
+- Same FFmpeg filter pipeline as Option A but executing locally.
+
+**Trade-offs vs. Option A:**
+- No server infrastructure needed.
+- Initial load: ~30 MB WASM binary download (cacheable).
+- Speed: 0.5–2× real-time on a modern phone (a 60-second dive could take 30–120 seconds).
+- Quality and audio handling are both correct (proper mux, no canvas pipeline).
+- Still CPU-bound and slow on older or mid-range phones.
+
+### Recommendation
+
+Implement Option A (server-side FFmpeg) when social sharing quality matters. Option B is a useful fallback if server infrastructure is not yet available.

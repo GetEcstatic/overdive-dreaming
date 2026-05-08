@@ -25,29 +25,16 @@ Foundational docs anyone touching the codebase should skim once.
 
 Things designed but not yet shipped, or shipped partially.
 
-### Video — capture & UX
-- [Camera lens selection](video/camera-lens-selection.md) — multi-lens device picker (planning only, awaiting approval)
-- [Camera selector UX](video/camera-selector-ux.md) — bottom-right thumb pill direction chosen
-- [Quality improvements](video/quality-improvements.md) — bitrate presets (8/16 Mbps), named quality modes
+### Video
+- [Fullscreen distance scrubber](video/fullscreen-distance-scrubber.md) — dashboard fullscreen video timeline with distance markers and scrub preview
 - [WebCodecs evaluation](video/webcodecs-evaluation.md) — research only; do **not** replace MediaRecorder yet
-- [Missed/premature waypoint](video/missed-premature-waypoint.md) — auto-advance + undo for off-by-one taps
-
-### Video — playback & orientation
-- [Orientation strategy](video/orientation-strategy.md) — phone-posture metadata + playback-aware rendering
-- [Portrait feed lock](video/portrait-feed-lock.md) — fullscreen portrait playback from dashboard feed
-- [Landscape playback](video/landscape-playback.md) — fill/fit, safe-area, custom controls
-- [Portrait recording (copilot)](video/portrait-recording.md) — server-side transcode v2; supersedes the original portrait-recording plan
-
-### Routines & metrics
-- [Routine analytics](metrics-analytics/routine-analytics.md) — per-routine page: hero metric progress, PBs, scatter
-- [Dynamic metrics expansion](metrics-analytics/dynamic-metrics-expansion.md) — time-per-lap + speed metrics
-- [Special breath-hold categories](routines/special-breath-holds.md) — O₂-assist / RV / FRC PB segregation
-
-### Storage & infra
-- [Wasabi migration](storage-infra/wasabi-migration.md) — full architecture for moving photos/CSVs/videos off Firebase Storage; awaiting prioritisation
+- [Portrait recording (copilot)](video/portrait-recording.md) — server-side transcode v2; supersedes the original portrait-recording plan. Upcoming, but needs more thought before implementation.
 
 ### UI / code health
 - [Medium-priority improvements](ui-patterns/medium-priority-improvements.md) — partial; remaining: integration, shared styles, form validation
+
+### Revisit later (shipped but flagged for follow-up)
+- [Routine analytics](metrics-analytics/shipped/routine-analytics.md) — shipped per-routine page; flagged to revisit in future
 
 ---
 
@@ -83,15 +70,31 @@ Designs that are largely settled. Read for context, not as a roadmap.
 
 Completed plans, kept for traceability. Source of truth is the code, not these docs.
 
-### Video
-- [Fullscreen distance scrubber](video/fullscreen-distance-scrubber.md) — dashboard fullscreen video timeline with distance markers and scrub preview
+### Video — capture & UX
 - [Dynamic recorder UX](video/shipped/dynamic-recorder-ux.md) — single-button flow, auto-advance, undo
 - [Fullscreen single-button recorder](video/shipped/fullscreen-single-button.md) — landscape primary, long-press end
+- [Camera lens selection](video/shipped/camera-lens-selection.md) — multi-lens device picker
+- [Camera selector UX](video/shipped/camera-selector-ux.md) — bottom-right thumb pill
+- [Quality improvements](video/shipped/quality-improvements.md) — bitrate presets, named quality modes (largely shipped)
+- [Missed/premature waypoint](video/shipped/missed-premature-waypoint.md) — auto-advance + undo for off-by-one taps
 - [Overlay export — audio + photos](video/shipped/overlay-export-audio-photos.md) — frame pacing & audio routing
 - [Large video upload fix](video/shipped/large-upload-fix.md) — removed the 500 MB cap
 - [Dashboard download](video/shipped/dashboard-download.md) — signed-URL direct downloads
 - [Dashboard custom player](video/shipped/dashboard-custom-player.md) — inline custom controls, single-video autoplay, and tap-to-fullscreen dashboard behavior
 - [Gifted dive attach](video/shipped/gifted-dive-attach.md) — atomic accept + create-log + attach
+
+### Video — playback & orientation
+- [Orientation strategy](video/shipped/orientation-strategy.md) — phone-posture metadata + playback-aware rendering
+- [Portrait feed lock](video/shipped/portrait-feed-lock.md) — fullscreen portrait playback from dashboard feed
+- [Landscape playback](video/shipped/landscape-playback.md) — fill/fit, safe-area, custom controls
+
+### Routines & metrics
+- [Routine analytics](metrics-analytics/shipped/routine-analytics.md) — per-routine page (will need revisiting in future)
+- [Dynamic metrics expansion](metrics-analytics/shipped/dynamic-metrics-expansion.md) — time-per-lap + speed metrics
+- [Special breath-hold categories](routines/shipped/special-breath-holds.md) — O₂-assist / RV / FRC PB segregation
+
+### Storage & infra
+- [Wasabi migration](storage-infra/shipped/wasabi-migration.md) — photos/CSVs/videos moved off Firebase Storage
 
 ---
 

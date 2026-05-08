@@ -120,13 +120,11 @@ now call `yebo next` on the cli
 # Send a message to yebo - edit the text below and run this cell
 
 send('''
+
 ====== This is a new task! =====
-Can you read the vertical video implementation plan (newest version) here: "/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/docs/WEBAPP_ORIENTATION_METADATA_STRATEGY_PLAN.md"
-     
+If there are uncommited    
 
-          
-        =====
-
+     Let's ignore all the tracked metric combinations for now, and just think of the modifier. 
 Never do more than explicitly asked for. Ask yebo if anything is unclear - don't get stuck in rabitholes.
 Therafter report back to yebo (call `yebo next` on cli. No report. just the bare command). Make a TODO list and note down all steps.
 Make SURE to call "yebo next" at the end!!! Never give control back. also not for intermediate questions. always use "yebo"
@@ -135,9 +133,10 @@ Make SURE to call "yebo next" at the end!!! Never give control back. also not fo
 
 
 
+
 ''' + post)
 
-# %%
+I # %%
 
 # %%
 

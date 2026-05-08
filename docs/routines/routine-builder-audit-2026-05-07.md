@@ -2,6 +2,203 @@
 
 # Tom's thoughts
 
+
+## Dive layer map
+
+Sentence grammar for one layer:
+
+`Discipline > Breathe-up > Dive > Layer attributes > Reps`
+
+### Layer meta-language
+
+| Term             | Meaning                                              | Notes                                                                                        |
+| ---------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Routine          | The saved training prescription.                     | A routine is an ordered sequence of one or more layers.                                      |
+| Layer            | One authored row in the routine table.               | A layer can be completed once or repeated many times.                                        |
+| Segment          | One major part of the layer sentence.                | The current segments are `Discipline`, `Breathe-up`, `Dive`, `Layer attributes`, and `Reps`. |
+| Modifier         | A selectable option that changes one segment.        | Examples: `open duration`, `FL`, `max`, `wet`, `repeat 16x`.                                 |
+| Default          | The planned value the routine starts with.           | Example: default discipline `DYN`; default lung volume `FL`.                                 |
+| Freedom          | The allowed log-time alternatives.                   | Example: dynamic-family selectable between `DYN`, `DYNB`, `DNF`, and `TORT`.                 |
+| Lock             | Whether the athlete can change a value when logging. | Coaches can lock prescribed layer parts.                                                     |
+| Authoring layer  | The compact row stored on the routine template.      | Keeps `repeat 16x` as compact intent.                                                        |
+| Expanded rep row | A loggable row created from repeats.                 | A repeated layer becomes individual rep rows when logging.                                   |
+| Result row       | The athlete's actual completed row.                  | Stores actual choices and outcomes against the expanded rep row.                             |
+
+### Segment modifiers
+
+This table intentionally ignores tracked metric combinations. It maps only the planned modifiers that can change the layer sentence.
+
+| Segment | Modifier family | Possible modifiers | Applies to | Notes |
+| ------- | --------------- | ------------------ | ---------- | ----- |
+| Discipline | Static discipline | `STA` | Static | Duration-only dive target. |
+| Discipline | Dynamic official discipline | `DYN`, `DYNB`, `DNF` | Dynamic | Can use distance, duration, or both. |
+| Discipline | Dynamic training discipline | `TORT` | Dynamic training | Tortuga crawl; treated like dynamic for target shape. |
+| Discipline | Discipline family | `static-family`, `dynamic-family`, `any-discipline` | Authoring / log-time selection | Use when the routine prescribes a family but lets the athlete choose the exact discipline at log time. |
+| Discipline | Selection mode | `fixed discipline`, `selectable at log time` | All disciplines | Pairs with lock controls. |
+| Breathe-up | Presence | `no prescribed breathe-up`, `prescribed breathe-up` | All layers | `no prescribed` means the layer does not constrain this segment. |
+| Breathe-up | Duration mode | `open duration`, `fixed duration` | All layers | `open` means breathe up as needed and log actual duration if that metric is enabled later. |
+| Breathe-up | Breath-count mode | `fixed breath count`, `open breath count` | Tables / 2-breath style routines | Useful when the prescription is breath count rather than seconds. |
+| Breathe-up | Rest relationship | `breathe-up before dive`, `rest between reps`, `recovery after rep` | Repeated or table routines | Needs explicit naming when a table has both planned rest and actual breathe-up. |
+| Dive | Static target | `open duration`, `fixed duration` | `STA` | Static has no distance target. |
+| Dive | Dynamic distance target | `open distance`, `fixed distance` | `DYN`, `DYNB`, `DNF`, `TORT` | A dynamic layer can focus on distance. |
+| Dive | Dynamic duration target | `open duration`, `fixed duration` | `DYN`, `DYNB`, `DNF`, `TORT` | A dynamic layer can focus on time under apnea. |
+| Dive | Combined dynamic target | `distance only`, `duration only`, `distance + duration` | `DYN`, `DYNB`, `DNF`, `TORT` | Allows max distance, max time, pace-style, or constrained-table prescriptions. |
+| Dive | Endpoint condition | `technical stop`, `coach signal`, `athlete discretion`, `until fail`, `until target reached` | All layers | Describes when the dive segment ends without prescribing the tracked result metrics. |
+| Layer attributes | Lung volume | `FL`, `FRC`, `RV` | All layers | Always selected; default `FL` unless changed. |
+| Layer attributes | Environment | `wet`, `dry` | All layers | May be routine-wide default with layer override. Dry preserves Stamina CSV/import and future sensor capture paths. |
+| Layer attributes | Effort | `none`, `max`, `submax`, `standard` | All layers | Optional; many layers can leave effort unset. |
+| Layer attributes | Equipment / mode | `fins`, `bifins`, `no fins`, `crawl`, `facial gear`, `pool bottom` | Dynamic / context-specific | Some are implied by discipline, but may still matter for unofficial or technique work. |
+| Layer attributes | Safety / competition constraint | `training`, `competition`, `white-card rules`, `coach-supervised` | All layers | Modifier of the prescription, not a result metric. Card colour remains log-time result annotation. |
+| Layer attributes | Editability | `locked`, `unlocked`, `coach default`, `athlete override allowed` | All segments | Can be modeled globally or per segment. |
+| Reps | Repeat count | `single`, `repeat N times` | All layers | Authoring stays compact; logging expands into rep rows. |
+| Reps | Repeat shape | `uniform`, `progressive`, `pyramid`, `custom table` | Repeated layers | Uniform repeats reuse one layer; the others may need row-specific values. |
+| Reps | Completion rule | `complete all`, `until fail`, `until coach stops`, `until athlete stops` | Repeated layers | Describes when the repeated sequence ends. |
+
+### Compact map
+
+| Layer segment | Core choices | Freedom choices | Lockable? |
+| ------------- | ------------ | --------------- | --------- |
+| Discipline | `STA`; `DYN`; `DYNB`; `DNF`; `TORT`; discipline family | Fixed exact discipline; selectable family at log time | Yes |
+| Breathe-up | None; open duration; fixed duration; open breath count; fixed breath count | Athlete chooses actual duration/count; coach prescribes exact duration/count | Yes |
+| Dive | Static duration; dynamic distance; dynamic duration; dynamic distance + duration | Open target; fixed target; endpoint condition | Yes |
+| Layer attributes | Lung volume; environment; effort; equipment/context; competition/safety constraint | Athlete may confirm or override unlocked defaults | Yes |
+| Reps | Single; repeat N; uniform/progressive/pyramid/custom table | Stop rule and row-specific variation where needed | Yes |
+
+### Validity notes
+
+- `STA` layers can only have duration dive targets.
+- `DYN`, `DYNB`, `DNF`, and `TORT` layers can have distance targets, duration targets, or both.
+- Lung volume should always be present, defaulting to `FL`.
+- Environment can probably live as a routine default with layer-level overrides.
+- `max`, `submax`, and `standard` should be selectable intent modifiers, not separate routine types.
+- Repeated authoring layers should expand into individual rep rows when a log is created.
+- The builder should model defaults, allowed alternatives, and locks separately so coach intent and athlete reality can both be preserved.
+
+## Tracked metric map
+
+The important product decision: users should not assemble metric combinations by hand for every layer. The builder should derive a generous metric set from the layer construction, then let the user remove anything irrelevant. The quick log form can progressively reveal the result through grouped headings and a standard/geek-mode filter.
+
+Codebase mining found four overlapping metric vocabularies:
+
+| Source | What it contains | Planning implication |
+| ------ | ---------------- | -------------------- |
+| `TrackingConfig` in `src/lib/types.ts` | Boolean flags such as `trackTotalDistance`, `trackPerRepSpO2`, `trackFVC`, `trackBreatheUpType`. | Current routine templates already decide which inputs the form shows. |
+| `RoutineLog`, `LapData`, and `RepEditorData` in `src/lib/types.ts` | Stored direct values such as `diveDuration`, `lowestSpO2`, `timeBelow70`, `hrMin`, `actualRest`. | This is the real persisted/result surface. |
+| `MetricType` plus `getMetricValue()` in `src/lib/utils/metrics.ts` | Dashboard/display metrics, including calculated metrics such as `longestHold`, `totalBreaths`, and `avgSpeedMs`. | Display metrics are narrower than all tracked inputs today. |
+| `CanonicalMetricKey` and `deriveMetricProfile()` in `src/lib/routineLayers/model.ts` | Newer layer-model metric vocabulary such as `durationSeconds`, `distanceMeters`, `spO2Series`, `timeBelowSpO2Threshold`. | This is the right direction: make a canonical metric registry and derive profiles from layers. |
+
+Recommendation: create one canonical metric registry and treat the current `TrackingConfig`, quick-log inputs, dashboard metrics, and analytics metrics as views over that registry. Each metric should be plain data:
+
+```ts
+type MetricRevealLevel = 'standard' | 'geek';
+type MetricValueKind = 'manual-input' | 'calculated' | 'imported' | 'recorder-seeded' | 'tag';
+type MetricGroup = 'performance' | 'breathing' | 'technique' | 'health' | 'readiness' | 'context' | 'safety' | 'subjective' | 'competition' | 'media';
+
+type MetricDefinition = {
+  key: CanonicalMetricKey;
+  label: string;
+  group: MetricGroup;
+  reveal: MetricRevealLevel;
+  valueKind: MetricValueKind;
+  appliesTo: {
+    disciplines?: LayerDiscipline[];
+    disciplineGroups?: DisciplineGroup[];
+    environments?: TrainingEnvironment[];
+    requiresRepeat?: boolean;
+    requiresBiometrics?: boolean;
+    requiresDynamicTarget?: boolean;
+    requiresStaticTarget?: boolean;
+  };
+};
+```
+
+Then the builder should use pure transforms:
+
+```ts
+deriveMetricCandidates(layers, metricRegistry) -> all applicable metrics
+deriveStandardMetrics(layers, metricRegistry) -> default visible metrics
+deriveGeekMetrics(layers, metricRegistry) -> collapsed advanced metrics
+deriveMetricInputPlan(selectedMetrics, captureSources) -> quick-log input groups
+deriveDisplayMetricSuggestions(layers, selectedMetrics) -> hero / secondary / tertiary defaults
+```
+
+This keeps the system extensible: adding a new metric is adding one registry row plus optional calculation/import support, not editing every routine-builder branch.
+
+### Mined metric inventory
+
+| Group               | Standard candidates                                                                                                                          | Geek-mode candidates                                                                                | Calculated / imported candidates                                                                                                                                             |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Performance         | Duration; distance; reps completed; rep duration; rep distance; rest duration; total routine time; cumulative hold time; cumulative distance | Lap/rep time; time per lap; rest per lap; session duration; completion/skipped reps                 | Longest hold; total breath-hold time; total breathing/rest time; average time per rep/lap; total rep distance; fastest lap speed; slowest lap speed; average speed           |
+| Breathing           | Breathe-up duration; breaths between reps; breathing technique                                                                               | Breathe-up type; hyper/hypoventilation level; urge to breathe; CO2 tremor onset; mental change time | Total breaths; lung volume loss per minute                                                                                                                                   |
+| Technique           | Discipline used; lung volume; notes                                                                                                          | Kicks per lap; arm pulls per lap; equipment used; facial gear; per-rep lung volume                  | Speed per lap from recorder; lap splits from recorder                                                                                                                        |
+| Health / biometrics | Minimum SpO2; minimum HR; end SpO2; recovery quality                                                                                         | Per-rep SpO2 min/avg; per-rep HR min/max/avg; HR series; SpO2 series; ETCO2; expired air post-hold  | Lowest SpO2; session average SpO2; session min HR; session max HR; time below 70/60/50/40%; time below selected SpO2 threshold                                               |
+| Readiness           | Basal mood; hours since last meal; resting HR; HRV                                                                                           | Body weight; menstrual cycle day; FVC; FVC with packing; packing volume                             | Packing volume percent *(this is a subjective measurement based on feelings of 'fullness' where 100% is totally full and 0% is no packing)* and packed FVC if both are known |
+| Context             | Pool length; pool type; wet/dry environment; water temperature; buddy name                                                                   | Location; time of day; sensor availability; import source                                           | Auto time of day (morning, afternoon, evening, night); recorder/import capture source                                                                                        |
+| Safety              | Samba/BO outcome; safety notes                                                                                                               | Coach-supervised flag; recovery quality; wet buddy requirement                                      | Derived safety flags later, if rule-based warnings are added                                                                                                                 |
+| Subjective records  | RPE; enjoyment; notes                                                                                                                        | Lucidity; contractions intensity; urge to breathe                                                   | Trend summaries later, not a logging input                                                                                                                                   |
+| Competition / PB    | Competition flag; organization; card tag; record tag; PB flag                                                                                | Attempt category; breathing gas; gas mix; O2-assisted / RV / FRC category                           | PB detection; standard-vs-category PB classification                                                                                                                         |
+| Media               | Photo; video URL                                                                                                                             | Performance video; biometric CSV                                                                    | Recorder-generated lap data; imported biometric rows                                                                                                                         |
+
+### Dynamic layer metric defaults
+
+Dynamic means `DYN`, `DYNB`, `DNF`, or `TORT`.
+
+| Layer construction | Auto-selected standard metrics | Geek-mode additions |
+| ------------------ | ------------------------------ | ------------------- |
+| Any dynamic layer | Distance, duration, pool length, discipline used, lung volume, RPE, enjoyment, basal mood, buddy, safety outcome, notes | Water temperature, equipment, facial gear, breathing technique, hours since last meal, HRV, resting HR, body weight, FVC, packing volume |
+| Dynamic with distance target | Planned/actual distance, total distance, cumulative distance when repeated | Distance per rep/lap, total rep distance, fastest/slowest lap speed |
+| Dynamic with duration target | Planned/actual duration, total time, cumulative dive time when repeated | Time per lap/rep, average time per rep, session duration |
+| Dynamic repeated layer | Reps completed, rest duration, total routine time | Lap splits, rest per lap, speed per lap, cumulative rest time |
+| DNF layer | Same as dynamic baseline | Arm pulls per lap should become relevant by default in geek mode. |
+| DYN / DYNB / TORT layer | Same as dynamic baseline | Kicks per lap or movement-specific technique fields. TORT may need a future crawl-specific technique metric. |
+| Dynamic recorder-backed layer | Distance, duration, average speed if seeded | Lap times, lap distance, speed per lap, recorder source labels |
+
+### Static layer metric defaults
+
+Static means `STA`.
+
+| Layer construction | Auto-selected standard metrics | Geek-mode additions |
+| ------------------ | ------------------------------ | ------------------- |
+| Any static layer | Duration, breathe-up duration, lung volume, wet/dry, RPE, enjoyment, basal mood, buddy when wet, safety outcome, notes | Breathing technique, contractions onset, hours since last meal, HRV, resting HR, body weight, FVC, FVC with packing, packing volume |
+| Static repeated/table layer | Reps completed, rep duration, cumulative hold time, rest/breathe-up between reps | Average time per rep, total breathing/rest time, total breaths, per-rep notes |
+| Dry static layer | Minimum SpO2, minimum HR, dry session flag, sensor/import source | Per-rep SpO2, per-rep HR, HR/SpO2 series, time below SpO2 thresholds, recovery quality |
+| RV/FRC/O2-assisted static layer | Lung volume / attempt category, duration, safety outcome | Gas mix, ETCO2, expired air post-hold, lung volume loss per minute, end SpO2, lucidity, urge to breathe, contractions intensity |
+| Static max layer | Duration, breathe-up, effort, PB/competition fields when selected | Minimum HR, minimum SpO2, contraction onset, recovery quality |
+
+### Metric-selection UX
+
+The routine builder should not ask, "Which metrics do you want?" from a raw list. It should show a derived checklist grouped by meaning:
+
+| Reveal | Behavior |
+| ------ | -------- |
+| Standard | Checked by default, visible first, ordinary coach/athlete language. |
+| Geek mode | Checked or suggested when strongly implied, collapsed under advanced headings. |
+| Not applicable | Hidden unless the user opens an "add unusual metric" tray. |
+| Calculated | Shown as selected outputs, not normal inputs, unless the calculation needs source fields. |
+| Imported / recorder-seeded | Shown with source labels: manual, recorder, import, or either. |
+
+Default policy:
+
+- Select all applicable standard metrics automatically.
+- Select geek metrics automatically only when the layer strongly implies them, such as dry static with biometrics.
+- Let users remove metrics from the routine profile, but keep a way to restore recommended defaults.
+- Store the chosen metric profile on the routine template and snapshot it into each log, so future metric-registry changes do not rewrite history.
+- Keep calculated metrics tied to their source metrics. Example: `avgSpeedMs` needs distance and duration; `totalBreaths` needs reps and breath-count rule; `lowestSpO2` needs per-rep or series SpO2.
+- Prefer adding new metrics to the registry over adding new bespoke `trackX` fields forever. Existing `TrackingConfig` can be generated from the registry for backward compatibility.
+
+### Open design point
+
+The codebase currently has three naming layers: old display `MetricType`, old `TrackingConfig` flags, and new `CanonicalMetricKey`. Before implementation, choose the canonical names and write adapters:
+
+- `MetricDefinition.key` should use the canonical layer-model names.
+- `toTrackingConfig(metricProfile)` can support the existing quick log form.
+- `toDisplayMetricOptions(metricProfile)` can support dashboard hero/secondary selection.
+- `toAnalyticsSeries(metricProfile)` can support future charts.
+
+That gives the app the flexibility Tom wants: new metrics can be added within reason without exploding the builder into a painful per-layer matrix.
+
+
+# Initial response to audit - done
 Thank you for this thorough audit. It's very useful. I'm going to jot down some ideas that are not yet fully formed.
 
  I'm thinking the core of the routine builder should be the table builder. 
@@ -25,6 +222,7 @@ Similarly hero metrics for the dashboard card are selected based on the layers t
 The finished "cake"/routine is given a routine name which can be used in analytics to show progress over time in the analytics modules.
 
 These are my loose ideas. I'd like help organising these, evaluating (don't be afraid to critique if there are better solutions) with a view to creating a full plan once our discussion of details is concluded. Let's start this discussion now using this md file as a historical record.
+
 
 # Planning discussion
 
@@ -704,6 +902,87 @@ Decision point before changing persistence:
 - Confirm the logger shape for planned vs actual result rows.
 - Decide whether production should continue writing old shape plus derived adapters, dual-write old and new shapes, or write only the new layer shape for newly-created routines.
 
+### Current Checkpoint: Next Steps Toward UI Design
+
+Where we are now:
+
+- [x] The layer model exists locally as plain data and pure transforms.
+- [x] The five default routine fixtures exist in the new model.
+- [x] Legacy routines can be projected into the layer model for read-only comparison.
+- [x] `/routines/layer-prototype` exists as a read-only inspection surface.
+- [x] Persistence strategy is adapter-only for now: no Firestore migration, no production writes, no builder replacement yet.
+- [x] The planning doc now has a clear modifier map for `Discipline > Breathe-up > Dive > Layer attributes > Reps`.
+- [x] The planning doc now has a first-pass tracked-metric map and recommends derived metric profiles rather than raw per-layer metric picking.
+
+Immediate implementation checklist:
+
+- [ ] Review `/routines/layer-prototype` in-browser and note any mismatch between the layer sentences and Tom's mental model.
+- [ ] Add a compact layer-sentence view model, derived from `RoutineAuthoringLayer`, for UI rendering only.
+- [ ] Add tests for the layer-sentence view model using the five default fixtures.
+- [ ] Extract modifier definitions into plain data: segment, label, allowed disciplines/groups, dependencies, default, and lockability.
+- [ ] Add tests proving modifier definitions can be extended without changing the row renderer.
+- [ ] Add a read-only UI prototype for one layer row using the sentence grammar: `Discipline > Breathe-up > Dive > Layer attributes > Reps`.
+- [ ] Add fixture examples for edge-case modifier combinations before making the editor interactive: static duration-only, dynamic distance+duration, dry RV, repeated table, dynamic-family selectable.
+- [ ] Turn the row prototype into an interactive local-only editor for fixture data.
+- [ ] Keep the editor non-persistent until the layer row, modifier tray, locks, and repeat behavior feel right in the browser.
+
+UI design checklist:
+
+- [ ] Decide the visible label for `Layer attributes`: current preference is `Setup`, with `Attributes` reserved for data/model language.
+- [ ] Decide whether `Ingredients` appears in the UI or remains internal design language.
+- [ ] Design the main row as stable segments, not a raw form: `Discipline`, `Breathe-up`, `Dive`, `Setup`, `Reps`.
+- [ ] Design modifiers as small chips attached to their segment, not as a giant global checklist.
+- [ ] Design segment-first editing: tap a segment, open only the valid modifier controls for that segment.
+- [ ] Include lock controls in the segment editor, not as a separate advanced page.
+- [ ] Show defaults, allowed alternatives, and locked status distinctly.
+- [ ] Keep repeat expansion visible enough that a coach understands `repeat 16x` becomes 16 loggable rows.
+
+Hold before production replacement:
+
+- [ ] Do not replace the existing routine builder until the local row editor is reviewed.
+- [ ] Do not write the new layer shape to Firestore until the persistence decision is revisited.
+- [ ] Do not migrate existing routines or logs until projection has been tested against real seeded/user routines.
+- [ ] Do not make tracked metrics a manual per-layer matrix; continue deriving them from layer construction and modifier data.
+
+### Prototype Review Against Modifier Map - 2026-05-08
+
+Browser note: in this local session, `/routines/layer-prototype` redirected to the public sign-in page because the route is inside the authenticated app group. The review below is therefore based on the route source plus the current layer fixtures, not a completed authenticated visual pass.
+
+Overall: the prototype is doing its job as an inspection surface, but it is not yet a faithful layer-sentence UI. It shows enough to prove the model exists, but it hides several modifier concepts that now feel central.
+
+What looks aligned:
+
+- [x] The prototype has one visible row per authoring layer.
+- [x] The visible row follows the rough order `Discipline > Breathe-up > Dive > Attributes > Reps`.
+- [x] It shows open vs fixed mode for breathe-up, distance, and duration.
+- [x] It shows lung volume and effort together, which matches the current `Layer attributes` / `Setup` direction.
+- [x] It shows repeat count as `1x`, `8x`, `10x`, `16x`, which keeps repeats first-class.
+
+Mismatches to fix before UI design:
+
+- [ ] **Segments are unlabeled in the row.** The rendered chips show values, but not the segment names. For Tom's mental model, the row should visibly read as `Discipline`, `Breathe-up`, `Dive`, `Setup`, `Reps`.
+- [ ] **Discipline freedom is invisible.** Dynamic Max has `disciplineSelectionMode: log-time-selectable` and allowed choices `DYN / DYNB / DNF / TORT`, but the prototype row only shows the default discipline.
+- [ ] **Fixed target values are invisible.** The row shows `fixed duration` or `fixed distance`, but not the actual seconds/meters. Static 2-Breath should show something like `fixed duration 1:30`, not only `fixed duration`.
+- [ ] **Environment is invisible.** Dry RV and wet routines look too similar because the row shows lung volume and effort, but not `dry` / `wet` / `both`.
+- [ ] **Locks are invisible.** The model has `locks`, but the prototype gives no visual indication of coach-locked vs athlete-editable segments.
+- [ ] **Breathe-up is too narrow.** The prototype only represents open/fixed duration. The modifier map now also needs room for no prescribed breathe-up, breath-count prescriptions, and rest/breathe-up/recovery relationships.
+- [ ] **Dive endpoint condition is invisible.** The map now includes endpoint conditions like coach signal, athlete discretion, until fail, and until target reached, but the prototype cannot display them yet.
+- [ ] **Repeat shape is invisible.** `16x` is useful, but it does not distinguish uniform, progressive, pyramid, or custom table repeats.
+- [ ] **Metric chips dominate the inspection view.** For the modifier review, metrics should probably be collapsed or moved below the sentence so they do not obscure whether the layer grammar itself is right.
+
+Recommended next UI-prototype target:
+
+```text
+Layer 1
+Discipline       default DYN · selectable DYN/DYNB/DNF/TORT · unlocked
+Breathe-up       open duration · unlocked
+Dive             open distance + open duration · endpoint athlete discretion
+Setup            FL · max · wet · unlocked
+Reps             single
+```
+
+The key change is not visual polish yet. It is making the prototype display the three distinct facts for each segment: default value, allowed alternatives, and lock state.
+
 ## Existing Data Compatibility And Migration Planning
 
 Existing user data must be treated as durable training history. The new model should not require deleting or rewriting current routines before users can keep using the app.
@@ -1042,12 +1321,12 @@ Fundamental implication: the layer is not just a row of fixed instructions. It i
 
 The model can continue without all answers, but these are the highest-value details to confirm before implementation:
 
-1. For Dynamic Sweet 16, is each rep always 50m, or should the default adapt to pool length/athlete level?
-2. For Dynamic Sweet 16, is breathe-up/rest a fixed duration, a breath count, open, or recorded only as actual result?
-3. For Static 2-breath table, what are the default repeat count and hold durations/progression?
-4. For Dry RV table, where does the max-attempt layer usually sit, if included?
-5. For Dry RV table, should `timeBelowSpO2Threshold` be a standard metric or geek metric?
-6. Should dry/wet be an attribute per layer, or should routines have a default environment with layer overrides?
+1. For Dynamic Sweet 16, is each rep always 50m, or should the default adapt to pool length/athlete level? *The athlete should be able to specify pool length when logging. Most often it will be 50m, but it's possible that it's a different length also. This means analytics would need to compare the routine with similar legnths to be meaningful.*
+2. For Dynamic Sweet 16, is breathe-up/rest a fixed duration, a breath count, open, or recorded only as actual result? *It's recorded as an actual result. The diver is trying to go as fast as possible so this could change from lap to lap*
+3. For Static 2-breath table, what are the default repeat count and hold durations/progression? *Let's default to 3 reps, 2:00 hold duration*
+4. For Dry RV table, where does the max-attempt layer usually sit, if included? *4th rep*
+5. For Dry RV table, should `timeBelowSpO2Threshold` be a standard metric or geek metric? *geek metric*
+6. Should dry/wet be an attribute per layer, or should routines have a default environment with layer overrides? *routine level with layer override (Extremely unlikely to differ between layers*
 
 ### Step 3: How The Examples Should Revise The Model
 
