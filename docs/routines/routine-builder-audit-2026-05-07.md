@@ -1,7 +1,92 @@
+
+# Tom's current steps to carry out
+First review gate steps:
+
+1. Open `http://127.0.0.1:5173/routines/layer-prototype`.
+2. Sign in if you get bounced to the landing page. The route is still inside the authenticated app group.
+3. For each routine card, click through the five segment cards:  
+    [Discipline](vscode-file://vscode-app/Applications/Visual%20Studio%20Code.app/Contents/Resources/app/out/vs/code/electron-browser/workbench/workbench.html), `Breathe-up`, `Dive`, `Setup`, `Reps`.
+4. Check whether the selected segment editor underneath feels like the right mental model:  
+    segment first, then only relevant modifier controls.
+5. Try these edits:
+    - Dynamic Max: switch discipline between `DYN`, `DNF`, `TORT`.
+    - Dynamic Max: toggle [Discipline](vscode-file://vscode-app/Applications/Visual%20Studio%20Code.app/Contents/Resources/app/out/vs/code/electron-browser/workbench/workbench.html) lock and confirm the chip/segment lock state changes.
+    - Static 2-Breath: click `Dive`, change duration from fixed to open and back.
+    - Dry RV Table: click `Setup`, change `RV` to `FRC` and `dry` to `both`.
+    - Sweet 16: click `Reps`, change repeat count and confirm expanded rows update.
+6. Use `Reset fixtures` to confirm the prototype snaps back cleanly.
+7. Main question to answer: does this segment/modifier editor feel like the right direction before adding richer modifier types like breath-count breathe-up, endpoint conditions, repeat shapes, equipment, and safety constraints?
+
+## Current modifier-only checklist
+
+This is the current checklist to use. Ignore the older tracked-metric sections for now; they are useful background but not the active implementation track.
+
+Implementation did not stop because of a product decision. The only pause was operational: `yebo next` could not connect to its websocket server, and the authenticated prototype route cannot be visually inspected without login state. There is nothing Tom needs to decide before the next local-only modifier prototype step.
+
+### Where we are now
+
+- [x] The layer model exists locally as plain data and pure transforms.
+- [x] The five default routine fixtures exist in the new model.
+- [x] Legacy routines can be projected into the layer model for read-only comparison.
+- [x] `/routines/layer-prototype` exists as a read-only inspection surface.
+- [x] Persistence strategy is adapter-only for now: no Firestore migration, no production writes, no builder replacement yet.
+- [x] The planning doc now has a clear modifier map for `Discipline > Breathe-up > Dive > Layer attributes > Reps`.
+- [x] The planning doc now has a first-pass tracked-metric map and recommends derived metric profiles rather than raw per-layer metric picking. Park this for now.
+
+### Immediate implementation checklist
+
+- [x] Review `/routines/layer-prototype` in-browser and note any mismatch between the layer sentences and Tom's mental model. Visual review remains limited by auth redirect, but source/model review is done.
+- [x] Add a compact layer-sentence view model, derived from `RoutineAuthoringLayer`, for UI rendering only.
+- [x] Add tests for the layer-sentence view model using the five default fixtures.
+- [x] Extract modifier definitions into plain data: segment, label, allowed disciplines/groups, dependencies, default, and lockability.
+- [x] Add tests proving modifier definitions can be extended without changing the row renderer.
+- [x] Add a read-only UI prototype for one layer row using the sentence grammar: `Discipline > Breathe-up > Dive > Layer attributes > Reps`.
+- [x] Add fixture examples for edge-case modifier combinations before making the editor interactive: static duration-only, dynamic distance+duration, dry RV, repeated table, dynamic-family selectable. Covered by the five default fixtures for now.
+- [x] Turn the row prototype into an interactive local-only editor for fixture data.
+- [x] Keep the editor non-persistent until the layer row, modifier tray, locks, and repeat behavior feel right in the browser. Current prototype mutates only `$state` fixture clones and has a reset button.
+- [ ] Review the local editor while authenticated and decide whether the segment controls feel right enough to continue toward richer modifier types.
+
+### UI design checklist
+
+- [x] Decide the visible label for `Layer attributes`: use `Setup`, with `Attributes` reserved for data/model language.
+- [x] Decide whether `Ingredients` appears in the UI or remains internal design language. Keep `Ingredients` internal.
+- [x] Design the main row as stable segments, not a raw form: `Discipline`, `Breathe-up`, `Dive`, `Setup`, `Reps`.
+- [x] Design modifiers as small chips attached to their segment, not as a giant global checklist.
+- [x] Design segment-first editing: tap a segment, open only the valid modifier controls for that segment.
+- [x] Include lock controls in the segment editor, not as a separate advanced page.
+- [x] Show defaults, allowed alternatives, and locked status distinctly.
+- [x] Keep repeat expansion visible enough that a coach understands `repeat 16x` becomes 16 loggable rows.
+
+### Hold before production replacement
+
+- [ ] Do not replace the existing routine builder until the local row editor is reviewed.
+- [ ] Do not write the new layer shape to Firestore until the persistence decision is revisited.
+- [ ] Do not migrate existing routines or logs until projection has been tested against real seeded/user routines.
+- [ ] Do not make tracked metrics a manual per-layer matrix; continue deriving them from layer construction and modifier data.
+
+Current status:
+
+- Worktree is clean.
+- Dev server is running at `http://127.0.0.1:5173/`.
+- Latest commits include:
+    - `0ea4e6a` Add layer modifier definitions
+    - `c756cf8` Show labeled layer modifiers
+    - `0a4c10c` Add local layer modifier editor
+    - `1a1ca0e` Show layer repeat expansion
+    - `1a17644` Add prototype fixture reset
+    - `bed04e5` Update modifier prototype checklist
+
+I attempted `yebo next`, but the websocket server is still returning `Connection refused`.
+
+- 
+
+GPT-5.5 • 7.5x
+
+
+
 # Routine Builder Audit - 2026-05-07
 
 # Tom's thoughts
-
 
 ## Dive layer map
 
@@ -901,53 +986,6 @@ Decision point before changing persistence:
 - Review the prototype route with real seeded routines and fixture routines.
 - Confirm the logger shape for planned vs actual result rows.
 - Decide whether production should continue writing old shape plus derived adapters, dual-write old and new shapes, or write only the new layer shape for newly-created routines.
-
-### Current Modifier-Only Checkpoint - 2026-05-08
-
-This is the current checklist to use. Ignore the older tracked-metric sections for now; they are useful background but not the active implementation track.
-
-Implementation did not stop because of a product decision. The only pause was operational: `yebo next` could not connect to its websocket server, and the authenticated prototype route cannot be visually inspected without login state. There is nothing Tom needs to decide before the next local-only modifier prototype step.
-
-Where we are now:
-
-- [x] The layer model exists locally as plain data and pure transforms.
-- [x] The five default routine fixtures exist in the new model.
-- [x] Legacy routines can be projected into the layer model for read-only comparison.
-- [x] `/routines/layer-prototype` exists as a read-only inspection surface.
-- [x] Persistence strategy is adapter-only for now: no Firestore migration, no production writes, no builder replacement yet.
-- [x] The planning doc now has a clear modifier map for `Discipline > Breathe-up > Dive > Layer attributes > Reps`.
-- [x] The planning doc now has a first-pass tracked-metric map and recommends derived metric profiles rather than raw per-layer metric picking. Park this for now.
-
-Immediate implementation checklist:
-
-- [x] Review `/routines/layer-prototype` in-browser and note any mismatch between the layer sentences and Tom's mental model. Visual review remains limited by auth redirect, but source/model review is done.
-- [x] Add a compact layer-sentence view model, derived from `RoutineAuthoringLayer`, for UI rendering only.
-- [x] Add tests for the layer-sentence view model using the five default fixtures.
-- [x] Extract modifier definitions into plain data: segment, label, allowed disciplines/groups, dependencies, default, and lockability.
-- [x] Add tests proving modifier definitions can be extended without changing the row renderer.
-- [x] Add a read-only UI prototype for one layer row using the sentence grammar: `Discipline > Breathe-up > Dive > Layer attributes > Reps`.
-- [x] Add fixture examples for edge-case modifier combinations before making the editor interactive: static duration-only, dynamic distance+duration, dry RV, repeated table, dynamic-family selectable. Covered by the five default fixtures for now.
-- [x] Turn the row prototype into an interactive local-only editor for fixture data.
-- [x] Keep the editor non-persistent until the layer row, modifier tray, locks, and repeat behavior feel right in the browser. Current prototype mutates only `$state` fixture clones and has a reset button.
-- [ ] Review the local editor while authenticated and decide whether the segment controls feel right enough to continue toward richer modifier types.
-
-UI design checklist:
-
-- [x] Decide the visible label for `Layer attributes`: use `Setup`, with `Attributes` reserved for data/model language.
-- [x] Decide whether `Ingredients` appears in the UI or remains internal design language. Keep `Ingredients` internal.
-- [x] Design the main row as stable segments, not a raw form: `Discipline`, `Breathe-up`, `Dive`, `Setup`, `Reps`.
-- [x] Design modifiers as small chips attached to their segment, not as a giant global checklist.
-- [x] Design segment-first editing: tap a segment, open only the valid modifier controls for that segment.
-- [x] Include lock controls in the segment editor, not as a separate advanced page.
-- [x] Show defaults, allowed alternatives, and locked status distinctly.
-- [x] Keep repeat expansion visible enough that a coach understands `repeat 16x` becomes 16 loggable rows.
-
-Hold before production replacement:
-
-- [ ] Do not replace the existing routine builder until the local row editor is reviewed.
-- [ ] Do not write the new layer shape to Firestore until the persistence decision is revisited.
-- [ ] Do not migrate existing routines or logs until projection has been tested against real seeded/user routines.
-- [ ] Do not make tracked metrics a manual per-layer matrix; continue deriving them from layer construction and modifier data.
 
 ### Prototype Review Against Modifier Map - 2026-05-08
 
