@@ -17,6 +17,120 @@ First review gate steps:
 6. Use `Reset fixtures` to confirm the prototype snaps back cleanly.
 7. Main question to answer: does this segment/modifier editor feel like the right direction before adding richer modifier types like breath-count breathe-up, endpoint conditions, repeat shapes, equipment, and safety constraints?
 
+*Tom's response:
+First something to address for the STA 2-breath routine. I think this routine would benefit from having two layers. The reasons for this is the initial breathe-up is typically long (3-4 minutes) while the subsequent breatheups are short (enough for 2-breath only, typically 30s or so). We should have a layer that includes the initial breathe-up time, and a layer that has the subsequent repeated short breathe-ups.
+
+*Next: on the UI:*
+- *The pills used to represent the modifiers for each segment are a little confusing. For example currently we have "Default discipline" in one pill and "default STA" in the adjacent pin. these look like separate things when the meaning is actually: "Default discipline = STA"*
+  
+- *I think colour could be used to increase clarity, perhaps by colouring modifier pill box fills to show what modifier group they belong to.* 
+- *I desktop mode, the pill boxes overflow the segment cards which is messy. This needs to be sorted.*
+- *There's a lot of information on the screen all at once for a single layer. I'm wondering how to reduce the clutter. I think users will panic if they see this at present.*
+
+## Implementation plan from first review gate
+
+### Decision summary
+
+- Continue with the segment-first editor direction.
+- Fix clutter before adding richer modifier types.
+- Treat the STA 2-breath routine as the first example of a multi-layer routine, because it reveals an important real-world distinction: initial preparation breathe-up vs repeated recovery breathe-ups.
+- Keep all work local-only and fixture-backed. No persistence, no Firestore writes, no production builder replacement.
+
+### Step 1: Make Static 2-Breath a two-layer fixture
+
+Goal: the prototype should show that a routine can have different breathe-up rules in different layers.
+
+Planned fixture shape:
+
+- Layer 1: `STA`, single rep, long initial breathe-up, fixed hold duration.
+- Layer 2: `STA`, repeated reps, short two-breath recovery / breathe-up, fixed hold duration.
+
+Concrete default values to start with:
+
+- Layer 1 breathe-up: fixed 4:00.
+- Layer 1 dive duration: fixed 1:30.
+- Layer 1 repeat count: 1.
+- Layer 2 breathe-up: fixed 0:30.
+- Layer 2 dive duration: fixed 1:30.
+- Layer 2 repeat count: 9, preserving the existing total of 10 holds.
+
+Implementation notes:
+
+- Update `staticTwoBreathTableExample` in the layer fixtures.
+- Add tests proving the example expands into 10 loggable rows across two source layers.
+- Keep this as fixture/model work only. Do not alter production routine templates yet.
+
+### Step 2: Change modifier pills to single key-value chips
+
+Problem: the current chip layout makes `Default discipline` and `default STA` look like two neighboring concepts.
+
+Plan:
+
+- Render each modifier as one text unit: `Default discipline = STA`, `Selection mode = fixed`, `Duration = fixed 1:30`.
+- Keep label and value visually distinct inside the same chip, but remove the feeling that they are separate pills.
+- Update the sentence view model if helpful so the UI receives `label`, `operator`, and `value` rather than composing this ad hoc in Svelte.
+- Add/update tests for the displayed modifier label/value strings.
+
+### Step 3: Add color grouping carefully
+
+Goal: use color to clarify grouping, not decorate the page.
+
+Plan:
+
+- Color modifier chip fills by segment group:
+  - Discipline: blue.
+  - Breathe-up: teal.
+  - Dive: cyan.
+  - Setup: amber/green.
+  - Reps: violet.
+- Use restrained low-opacity fills and consistent borders so the page does not become noisy.
+- Keep locked state as a separate visual layer: outline/lock text, not a competing color language.
+
+### Step 4: Fix desktop overflow
+
+Problem: modifier chips overflow segment cards.
+
+Plan:
+
+- Ensure every segment card has `min-width: 0` and every chip has `max-width: 100%`.
+- Let chip text wrap inside the chip instead of forcing the card wider.
+- Prefer a vertical stack of modifier chips inside each segment over a dense wrapped row on desktop.
+- Keep the five segment cards in a horizontal row on wider screens, but prevent any card content from escaping its boundaries.
+- Re-run `npm run check` and inspect the prototype at desktop width.
+
+### Step 5: Reduce first-screen clutter
+
+Problem: showing every modifier detail for every layer makes the editor feel intimidating.
+
+Plan:
+
+- Make each segment card show only:
+  - segment label,
+  - one plain-language summary,
+  - lock state.
+- Move the full modifier chips into the selected segment editor panel below the row.
+- Keep the selected segment visually obvious.
+- Keep metrics/tags/expanded rows collapsed by default.
+- For multi-layer routines, preserve one row per layer but keep each row compact.
+
+### Step 6: Commit and review
+
+Validation checklist after implementation:
+
+- Static 2-Breath shows two authoring layers and still expands to 10 loggable rows.
+- Segment cards no longer overflow on desktop.
+- Modifier chips read as `label = value`.
+- The default view is calmer: segment cards summarize, editor panel reveals detail only for the selected segment.
+- Focused Vitest tests pass.
+- `npm run check` has 0 errors, with only existing unrelated warnings.
+
+Commit plan:
+
+- Commit fixture/model changes separately from UI cleanup if the diff is large.
+- Suggested commit messages:
+  - `Split static two-breath layers`
+  - `Simplify layer modifier display`
+
 ## Current modifier-only checklist
 
 This is the current checklist to use. Ignore the older tracked-metric sections for now; they are useful background but not the active implementation track.
