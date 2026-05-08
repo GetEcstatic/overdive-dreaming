@@ -193,6 +193,27 @@ Suggested modifier shape for later:
 
 Decision for now: record this as a layer modifier/capability idea, but do not implement it before the basic segment/layer editor feels settled. This is not a tracked metric matrix item.
 
+### 1.2.9 Target modes, wheel inputs, and dynamic environment rules
+
+Decision: keep a technical distinction between `open` and absent targets in the model, but remove user-facing `none` / `no fixed` choices from the editor where a target is applicable.
+
+Meaning:
+
+- `open distance` or `open duration`: this target matters for the layer, but the exact value is supplied at log time.
+- absent distance/duration: the target is not applicable to this layer shape, such as static distance.
+
+Implementation direction:
+
+- The editor should show only `open` and `fixed` for applicable distance/duration targets.
+- Static layers should not show a distance target control.
+- Dynamic layers should default missing distance/duration targets to open when edited, not expose a `no target` choice.
+- Fixed duration values should display as `mm:ss` everywhere in the prototype.
+- Fixed duration editing should use the existing duration wheel selector.
+- Fixed distance and repeat count editing should use the existing number wheel selector.
+- Dynamic-discipline layers should only offer `wet` for environment. `dry` and `both` are static-only in this prototype.
+
+Layer adding: leave add/remove/reorder layer controls for the proper routine-builder pass. The current prototype can keep proving the layer/segment/modifier editor using fixed fixture layers.
+
 ## 1.3 Current modifier-only checklist
 
 This is the current checklist to use. Ignore the older tracked-metric sections for now; they are useful background but not the active implementation track.

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import DurationInput from '$lib/components/DurationInput.svelte';
+	import NumberWheelInput from '$lib/components/NumberWheelInput.svelte';
 	import { defaultRoutineExamples } from '$lib/routineLayers/defaults';
 	import type { RoutineLayerExample } from '$lib/routineLayers/defaults';
 	import {
@@ -31,6 +33,7 @@
 	const lungVolumeOptions: LungVolume[] = ['FL', 'FRC', 'RV'];
 	const effortOptions: LayerEffort[] = ['standard', 'submax', 'max'];
 	const environmentOptions: TrainingEnvironment[] = ['wet', 'dry', 'both'];
+	const wetOnlyEnvironmentOptions: TrainingEnvironment[] = ['wet'];
 	const lockIngredientBySegment: Record<LayerSentenceSegmentKey, LayerIngredient> = {
 		discipline: 'discipline',
 		breatheUp: 'breatheUp',
@@ -141,11 +144,17 @@
 		updateLayer(exampleId, layerId, (layer) => ({
 			...layer,
 			discipline,
+			attributes: {
+				...layer.attributes,
+				environment: discipline === 'STA' ? layer.attributes.environment : 'wet'
+			},
 			allowedDisciplines:
 				layer.disciplineSelectionMode === 'log-time-selectable'
 					? ensureIncludes(layer.allowedDisciplines ?? dynamicDisciplineOptions, discipline)
 					: layer.allowedDisciplines,
-			dive: discipline === 'STA' ? { duration: layer.dive.duration ?? { mode: 'open' } } : layer.dive
+			dive: discipline === 'STA'
+				? { duration: layer.dive.duration ?? { mode: 'open' } }
+				: { ...layer.dive, distance: layer.dive.distance ?? { mode: 'open' } }
 		}));
 	}
 
@@ -164,41 +173,23 @@
 		}));
 	}
 
-	function setBreatheUpSeconds(exampleId: string, layerId: string, seconds: number): void {
-		updateLayer(exampleId, layerId, (layer) => ({ ...layer, breatheUp: { mode: 'fixed', seconds } }));
-	}
-
-	function setDiveDistanceMode(exampleId: string, layerId: string, mode: LayerValueMode | 'none'): void {
+	function setDiveDistanceMode(exampleId: string, layerId: string, mode: LayerValueMode): void {
 		updateLayer(exampleId, layerId, (layer) => ({
 			...layer,
 			dive: {
 				...layer.dive,
-				distance: mode === 'none' ? undefined : mode === 'open' ? { mode } : { mode, meters: getDistanceMeters(layer) }
+				distance: mode === 'open' ? { mode } : { mode, meters: getDistanceMeters(layer) }
 			}
 		}));
 	}
 
-	function setDiveDistanceMeters(exampleId: string, layerId: string, meters: number): void {
-		updateLayer(exampleId, layerId, (layer) => ({
-			...layer,
-			dive: { ...layer.dive, distance: { mode: 'fixed', meters } }
-		}));
-	}
-
-	function setDiveDurationMode(exampleId: string, layerId: string, mode: LayerValueMode | 'none'): void {
+	function setDiveDurationMode(exampleId: string, layerId: string, mode: LayerValueMode): void {
 		updateLayer(exampleId, layerId, (layer) => ({
 			...layer,
 			dive: {
 				...layer.dive,
-				duration: mode === 'none' ? undefined : mode === 'open' ? { mode } : { mode, seconds: getDurationSeconds(layer.dive.duration) }
+				duration: mode === 'open' ? { mode } : { mode, seconds: getDurationSeconds(layer.dive.duration) }
 			}
-		}));
-	}
-
-	function setDiveDurationSeconds(exampleId: string, layerId: string, seconds: number): void {
-		updateLayer(exampleId, layerId, (layer) => ({
-			...layer,
-			dive: { ...layer.dive, duration: { mode: 'fixed', seconds } }
 		}));
 	}
 
@@ -243,13 +234,13 @@
 		return layer.dive.distance?.mode === 'fixed' ? layer.dive.distance.meters : 50;
 	}
 
+	function environmentOptionsForLayer(layer: RoutineAuthoringLayer): TrainingEnvironment[] {
+		return layer.discipline === 'STA' ? environmentOptions : wetOnlyEnvironmentOptions;
+	}
+
 	function previewRepNumbers(layer: RoutineAuthoringLayer): number[] {
 		const repeatCount = Math.max(1, Math.floor(layer.attributes.repeatCount));
 		return Array.from({ length: Math.min(repeatCount, 16) }, (_, index) => index + 1);
-	}
-
-	function numberValue(event: Event): number {
-		return Number((event.currentTarget as HTMLInputElement).value);
 	}
 
 	function getSelectedSegment(
@@ -303,8 +294,7 @@
 		const minutes = Math.floor(seconds / 60);
 		const remainingSeconds = seconds % 60;
 
-		if (minutes === 0) return `${remainingSeconds}s`;
-		return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+		return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
 	}
 </script>
 
@@ -484,14 +474,18 @@
 									</select>
 								</label>
 								<label>
-									<span>Seconds</span>
-									<input
-										type="number"
-										min="1"
-										value={getDurationSeconds(row.selectedLayer.breatheUp)}
-										disabled={row.selectedLayer.breatheUp.mode === 'open'}
-										oninput={(event) => setBreatheUpSeconds(row.example.id, row.selectedLayer.id, numberValue(event))}
-									/>
+									<span>Duration</span>
+									{#if row.selectedLayer.breatheUp.mode === 'fixed'}
+										<DurationInput
+											bind:value={row.selectedLayer.breatheUp.seconds}
+											min={1}
+											max={3600}
+											showLabel={false}
+											compact={true}
+										/>
+									{:else}
+										<span class="open-target">Open at log time</span>
+									{/if}
 								</label>
 							</div>
 						{:else if selectedEditor.segment === 'dive'}
@@ -500,47 +494,55 @@
 									<label>
 										<span>Distance mode</span>
 										<select
-											value={row.selectedLayer.dive.distance?.mode ?? 'none'}
+											value={row.selectedLayer.dive.distance?.mode ?? 'open'}
 											onchange={(event) =>
-												setDiveDistanceMode(row.example.id, row.selectedLayer.id, (event.currentTarget as HTMLSelectElement).value as LayerValueMode | 'none')}
+												setDiveDistanceMode(row.example.id, row.selectedLayer.id, (event.currentTarget as HTMLSelectElement).value as LayerValueMode)}
 										>
-											<option value="none">no distance target</option>
 											<option value="open">open distance</option>
 											<option value="fixed">fixed distance</option>
 										</select>
 									</label>
 									<label>
 										<span>Meters</span>
-										<input
-											type="number"
-											min="1"
-											value={getDistanceMeters(row.selectedLayer)}
-											disabled={row.selectedLayer.dive.distance?.mode !== 'fixed'}
-											oninput={(event) => setDiveDistanceMeters(row.example.id, row.selectedLayer.id, numberValue(event))}
-										/>
+										{#if row.selectedLayer.dive.distance?.mode === 'fixed'}
+											<NumberWheelInput
+												bind:value={row.selectedLayer.dive.distance.meters}
+												min={1}
+												max={300}
+												step={1}
+												unit="m"
+												showLabel={false}
+												compact={true}
+											/>
+										{:else}
+											<span class="open-target">Open at log time</span>
+										{/if}
 									</label>
 								{/if}
 								<label>
 									<span>Duration mode</span>
 									<select
-										value={row.selectedLayer.dive.duration?.mode ?? 'none'}
+										value={row.selectedLayer.dive.duration?.mode ?? 'open'}
 										onchange={(event) =>
-											setDiveDurationMode(row.example.id, row.selectedLayer.id, (event.currentTarget as HTMLSelectElement).value as LayerValueMode | 'none')}
+											setDiveDurationMode(row.example.id, row.selectedLayer.id, (event.currentTarget as HTMLSelectElement).value as LayerValueMode)}
 									>
-										<option value="none">no duration target</option>
 										<option value="open">open duration</option>
 										<option value="fixed">fixed duration</option>
 									</select>
 								</label>
 								<label>
-									<span>Seconds</span>
-									<input
-										type="number"
-										min="1"
-										value={getDurationSeconds(row.selectedLayer.dive.duration)}
-										disabled={row.selectedLayer.dive.duration?.mode !== 'fixed'}
-										oninput={(event) => setDiveDurationSeconds(row.example.id, row.selectedLayer.id, numberValue(event))}
-									/>
+									<span>Duration</span>
+									{#if row.selectedLayer.dive.duration?.mode === 'fixed'}
+										<DurationInput
+											bind:value={row.selectedLayer.dive.duration.seconds}
+											min={1}
+											max={3600}
+											showLabel={false}
+											compact={true}
+										/>
+									{:else}
+										<span class="open-target">Open at log time</span>
+									{/if}
 								</label>
 							</div>
 						{:else if selectedEditor.segment === 'setup'}
@@ -560,7 +562,7 @@
 								<label>
 									<span>Environment</span>
 									<select value={row.selectedLayer.attributes.environment} onchange={(event) => setSetupAttribute(row.example.id, row.selectedLayer.id, 'environment', (event.currentTarget as HTMLSelectElement).value as TrainingEnvironment)}>
-										{#each environmentOptions as option}<option value={option}>{option}</option>{/each}
+										{#each environmentOptionsForLayer(row.selectedLayer) as option}<option value={option}>{option}</option>{/each}
 									</select>
 								</label>
 							</div>
@@ -568,11 +570,13 @@
 							<div class="editor-grid">
 								<label>
 									<span>Repeat count</span>
-									<input
-										type="number"
-										min="1"
-										value={row.selectedLayer.attributes.repeatCount}
-										oninput={(event) => setSetupAttribute(row.example.id, row.selectedLayer.id, 'repeatCount', Math.max(1, Math.floor(numberValue(event))))}
+									<NumberWheelInput
+										bind:value={row.selectedLayer.attributes.repeatCount}
+										min={1}
+										max={60}
+										step={1}
+										showLabel={false}
+										compact={true}
 									/>
 								</label>
 							</div>
@@ -1085,8 +1089,7 @@
 		gap: 10px;
 	}
 
-	.editor-grid select,
-	.editor-grid input {
+	.editor-grid select {
 		width: 100%;
 		border: 1px solid rgba(148, 163, 184, 0.28);
 		border-radius: 6px;
@@ -1096,9 +1099,17 @@
 		padding: 9px 10px;
 	}
 
-	.editor-grid input:disabled {
-		cursor: not-allowed;
-		opacity: 0.45;
+	.open-target {
+		display: flex;
+		align-items: center;
+		min-height: 38px;
+		border: 1px solid rgba(148, 163, 184, 0.18);
+		border-radius: 10px;
+		background: rgba(148, 163, 184, 0.08);
+		color: var(--color-text-muted);
+		font-size: 0.86rem;
+		font-weight: 600;
+		padding: 0 0.75rem;
 	}
 
 	.rep-preview {

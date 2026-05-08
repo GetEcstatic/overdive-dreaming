@@ -94,6 +94,7 @@ export const dynamicSweet16Example: RoutineLayerExample = {
 			disciplineSelectionMode: 'fixed',
 			breatheUp: openDuration,
 			dive: {
+				duration: openDuration,
 				distance: openDistance
 			},
 			attributes: {

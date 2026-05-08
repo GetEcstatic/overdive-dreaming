@@ -36,9 +36,9 @@ describe('buildLayerSentence', () => {
 
 		expect(dive).toMatchObject({
 			label: 'Dive',
-			summary: 'fixed duration 1:30'
+			summary: 'fixed duration 01:30'
 		});
-		expect(dive?.details).toContain('fixed duration 1:30');
+		expect(dive?.details).toContain('fixed duration 01:30');
 	});
 
 	it('renders environment and repeat information for dry repeated layers', () => {

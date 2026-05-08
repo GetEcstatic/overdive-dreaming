@@ -173,9 +173,9 @@ function summarizeModifier(definition: LayerModifierDefinition, layer: RoutineAu
 		case 'breatheUp.duration':
 			return formatDurationTarget(layer.breatheUp, 'duration');
 		case 'dive.distance':
-			return layer.dive.distance ? formatDistanceTarget(layer.dive.distance, 'distance') : 'no distance target';
+			return layer.dive.distance ? formatDistanceTarget(layer.dive.distance, 'distance') : 'open distance';
 		case 'dive.duration':
-			return layer.dive.duration ? formatDurationTarget(layer.dive.duration, 'duration') : 'no duration target';
+			return layer.dive.duration ? formatDurationTarget(layer.dive.duration, 'duration') : 'open duration';
 		case 'setup.lungVolume':
 			return layer.attributes.lungVolume;
 		case 'setup.effort':
@@ -223,8 +223,7 @@ function formatSeconds(seconds: number): string {
 	const minutes = Math.floor(seconds / 60);
 	const remainingSeconds = seconds % 60;
 
-	if (minutes === 0) return `${remainingSeconds}s`;
-	return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+	return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
 }
 
 function formatList(items: string[]): string {
