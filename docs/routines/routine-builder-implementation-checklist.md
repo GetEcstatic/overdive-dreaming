@@ -1,0 +1,21 @@
+# Routine Builder Implementation Checklist
+
+- [x] Build the versioned v2 layer routine contract.
+- [x] Add legacy-to-layer projection adapters.
+- [x] Add the unified routine layer read model.
+- [x] Consume the read model from an admin-only production routines surface.
+- [x] Add an admin-only per-routine layer read-model inspector.
+- [ ] Compare read-model legacy projections against real routine display fields in the inspector.
+- [ ] Record any projection gaps before enabling v2 writes.
+- [ ] Add admin/developer-only v2 layer template write support for one low-risk fixture routine.
+- [ ] Keep legacy fields populated from the v2 layer projection during writes.
+- [ ] Add tests for writing a v2 routine while preserving current display/logging compatibility.
+- [ ] Build the production routine-builder layer editor behind an admin/developer gate.
+- [ ] Add layer add/remove/reorder controls in the production editor.
+- [ ] Connect logging to expanded routine plan rows with source layer IDs.
+- [ ] Store athlete results against expanded result rows.
+- [ ] Add dynamic max recording-link capability as a Dive modifier after logging rows exist.
+- [ ] Seed or update default routines with the v2 layer shape.
+- [ ] Test send, duplicate, edit, and delete flows against legacy and v2 templates.
+- [ ] Make the v2 builder the default only after logging and compatibility are stable.
+- [ ] Retire the local prototype route after the production editor covers the same workflows.
