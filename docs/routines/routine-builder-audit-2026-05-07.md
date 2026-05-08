@@ -299,7 +299,17 @@ Next roadmap step:
 
 Next roadmap step:
 
-- [ ] Add a developer/admin entry point from the read-model status rows into a focused per-routine layer inspection view.
+- [x] Add a developer/admin entry point from the read-model status rows into a focused per-routine layer inspection view.
+- [x] Added `/routines/[id]/layers` as an admin-only, read-only routine layer inspection page.
+- [x] Linked each admin read-model status row on the routines page to the inspection page for that routine.
+- [x] The inspection page loads one routine, builds its `RoutineLayerReadModel`, and shows source, validation status, selectable layers, expanded rows, and legacy display projection.
+- [x] The inspection route is still read-only and does not change routine write paths.
+- [x] Validation: focused routine layer tests pass with 32 tests.
+- [x] Validation: `npm run check` reports 0 errors and the existing 101 warnings.
+
+Next roadmap step:
+
+- [ ] Use the inspection view to compare legacy projections against real routine displays and identify any projection gaps before enabling v2 writes.
 
 ## 1.3 Current modifier-only checklist
 

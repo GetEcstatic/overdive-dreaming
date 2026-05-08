@@ -211,7 +211,7 @@
 					{#each layerReadModelRows as row}
 						<div class="layer-read-model-row">
 							<div>
-								<strong>{row.routine.name}</strong>
+								<a class="layer-inspect-link" href={`/routines/${row.routine.id}/layers`}>{row.routine.name}</a>
 								<span>{row.readModel.source === 'versioned-template' ? 'v2 template' : 'legacy projection'}</span>
 							</div>
 							<div class="layer-read-model-stats">
@@ -615,7 +615,17 @@
 		min-width: 0;
 	}
 
-	.layer-read-model-row strong {
+	.layer-inspect-link {
+		color: var(--color-text);
+		font-weight: 800;
+		text-decoration: none;
+	}
+
+	.layer-inspect-link:hover {
+		color: var(--color-primary);
+	}
+
+	.layer-inspect-link {
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
