@@ -120,7 +120,7 @@ export const staticTwoBreathTableExample: RoutineLayerExample = {
 			id: 'static-two-breath-table-layer-1',
 			discipline: 'STA',
 			disciplineSelectionMode: 'fixed',
-			breatheUp: openDuration,
+			breatheUp: { mode: 'fixed', seconds: 240 },
 			dive: {
 				duration: { mode: 'fixed', seconds: 90 }
 			},
@@ -128,7 +128,24 @@ export const staticTwoBreathTableExample: RoutineLayerExample = {
 				lungVolume: 'FL',
 				effort: 'standard',
 				environment: 'wet',
-				repeatCount: 10
+				repeatCount: 1
+			},
+			analyticsRole: 'warmup',
+			locks: {}
+		},
+		{
+			id: 'static-two-breath-table-layer-2',
+			discipline: 'STA',
+			disciplineSelectionMode: 'fixed',
+			breatheUp: { mode: 'fixed', seconds: 30 },
+			dive: {
+				duration: { mode: 'fixed', seconds: 90 }
+			},
+			attributes: {
+				lungVolume: 'FL',
+				effort: 'standard',
+				environment: 'wet',
+				repeatCount: 9
 			},
 			analyticsRole: 'working-rep',
 			locks: {}

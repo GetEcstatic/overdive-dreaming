@@ -19,7 +19,12 @@
 		TrainingEnvironment
 	} from '$lib/routineLayers/model';
 	import { buildLayerSentence } from '$lib/routineLayers/sentence';
-	import type { LayerSentenceSegmentKey } from '$lib/routineLayers/sentence';
+	import type {
+		LayerSentence,
+		LayerSentenceModifier,
+		LayerSentenceSegment,
+		LayerSentenceSegmentKey
+	} from '$lib/routineLayers/sentence';
 
 	const disciplineOptions: LayerDiscipline[] = ['STA', 'DYN', 'DYNB', 'DNF', 'TORT'];
 	const dynamicDisciplineOptions: LayerDiscipline[] = ['DYN', 'DYNB', 'DNF', 'TORT'];
@@ -41,18 +46,24 @@
 		segment: 'discipline' as LayerSentenceSegmentKey
 	});
 
-	const prototypeRows = $derived(editableExamples.map((example) => ({
-		example,
-		planRows: expandRoutineLayers(example.layers),
-		classifications: deriveRoutineClassifications(example.layers),
-		derivedMetrics: deriveMetricProfile(example.layers),
-		derivedTags: deriveDefaultTags(example.layers),
-		derivedDisplay: deriveDisplayMetrics(example.layers),
-		validationIssues: validateRoutineLayers(example.layers),
-		layerSentences: example.layers.map((layer, index) => buildLayerSentence(layer, index)),
-		isEditorOpen: selectedEditor.exampleId === example.id,
-		selectedLayer: example.layers.find((layer) => layer.id === selectedEditor.layerId) ?? example.layers[0]
-	})));
+	const prototypeRows = $derived(editableExamples.map((example) => {
+		const layerSentences = example.layers.map((layer, index) => buildLayerSentence(layer, index));
+		const selectedLayer = example.layers.find((layer) => layer.id === selectedEditor.layerId) ?? example.layers[0];
+
+		return {
+			example,
+			planRows: expandRoutineLayers(example.layers),
+			classifications: deriveRoutineClassifications(example.layers),
+			derivedMetrics: deriveMetricProfile(example.layers),
+			derivedTags: deriveDefaultTags(example.layers),
+			derivedDisplay: deriveDisplayMetrics(example.layers),
+			validationIssues: validateRoutineLayers(example.layers),
+			layerSentences,
+			isEditorOpen: selectedEditor.exampleId === example.id,
+			selectedLayer,
+			selectedSegment: getSelectedSegment(layerSentences, selectedLayer.id, selectedEditor.segment)
+		};
+	}));
 
 	function formatBoolean(value: boolean): string {
 		return value ? 'yes' : 'no';
@@ -223,6 +234,40 @@
 	function numberValue(event: Event): number {
 		return Number((event.currentTarget as HTMLInputElement).value);
 	}
+
+	function getSelectedSegment(
+		layerSentences: LayerSentence[],
+		layerId: string,
+		segmentKey: LayerSentenceSegmentKey
+	): LayerSentenceSegment {
+		const sentence = layerSentences.find((item) => item.layerId === layerId) ?? layerSentences[0];
+		const segment = sentence?.segments.find((item) => item.key === segmentKey) ?? sentence?.segments[0];
+
+		return segment ?? {
+			key: segmentKey,
+			label: 'Segment',
+			summary: 'not applicable',
+			modifiers: [],
+			details: [],
+			locked: false
+		};
+	}
+
+	function modifierChipText(modifier: LayerSentenceModifier): string {
+		return `${modifier.label} = ${modifierChipValue(modifier)}`;
+	}
+
+	function modifierChipValue(modifier: LayerSentenceModifier): string {
+		if (modifier.key === 'discipline.default') return modifier.summary.replace(/^default /, '');
+		if (modifier.key === 'breatheUp.duration' || modifier.key === 'dive.duration') {
+			return modifier.summary.replace(/^fixed duration /, 'fixed ').replace(/^open duration$/, 'open');
+		}
+		if (modifier.key === 'dive.distance') {
+			return modifier.summary.replace(/^fixed distance /, 'fixed ').replace(/^open distance$/, 'open');
+		}
+
+		return modifier.summary;
+	}
 </script>
 
 <svelte:head>
@@ -285,7 +330,7 @@
 										type="button"
 										class:locked={segment.locked}
 										class:selected={isSelected(sentence.layerId, segment.key)}
-										class="sentence-segment"
+										class={`sentence-segment segment-${segment.key}`}
 										onclick={() => selectSegment(row.example.id, sentence.layerId, segment.key)}
 									>
 										<div class="segment-topline">
@@ -293,14 +338,6 @@
 											<span class="lock-state">{segment.locked ? 'locked' : 'unlocked'}</span>
 										</div>
 										<strong>{segment.summary}</strong>
-										<div class="segment-details">
-											{#each segment.modifiers as modifier}
-												<span class:locked={modifier.locked}>
-													<span class="modifier-label">{modifier.label}</span>
-													<span>{modifier.summary}</span>
-												</span>
-											{/each}
-										</div>
 									</button>
 								{/each}
 							</div>
@@ -329,6 +366,12 @@
 								/>
 								<span>Lock segment</span>
 							</label>
+						</div>
+
+						<div class={`selected-modifiers segment-${row.selectedSegment.key}`} aria-label="Selected modifier values">
+							{#each row.selectedSegment.modifiers as modifier}
+								<span class:locked={modifier.locked}>{modifierChipText(modifier)}</span>
+							{/each}
 						</div>
 
 						{#if selectedEditor.segment === 'discipline'}
@@ -706,7 +749,7 @@
 
 	.sentence-grid {
 		display: grid;
-		grid-template-columns: repeat(5, minmax(148px, 1fr));
+		grid-template-columns: repeat(5, minmax(136px, 1fr));
 		gap: 8px;
 		overflow-x: auto;
 	}
@@ -715,7 +758,8 @@
 		display: grid;
 		align-content: start;
 		gap: 8px;
-		min-height: 112px;
+		min-width: 0;
+		min-height: 88px;
 		border: 1px solid rgba(148, 163, 184, 0.2);
 		border-radius: 8px;
 		background: #111827;
@@ -726,13 +770,43 @@
 		text-align: left;
 	}
 
+	.sentence-segment.segment-discipline,
+	.selected-modifiers.segment-discipline {
+		--segment-color: 20, 184, 166;
+	}
+
+	.sentence-segment.segment-breatheUp,
+	.selected-modifiers.segment-breatheUp {
+		--segment-color: 110, 168, 254;
+	}
+
+	.sentence-segment.segment-dive,
+	.selected-modifiers.segment-dive {
+		--segment-color: 244, 114, 182;
+	}
+
+	.sentence-segment.segment-setup,
+	.selected-modifiers.segment-setup {
+		--segment-color: 167, 139, 250;
+	}
+
+	.sentence-segment.segment-reps,
+	.selected-modifiers.segment-reps {
+		--segment-color: 251, 146, 60;
+	}
+
+	.sentence-segment {
+		border-left-color: rgba(var(--segment-color, 148, 163, 184), 0.65);
+		border-left-width: 3px;
+	}
+
 	.sentence-segment:hover,
 	.sentence-segment.selected {
-		border-color: rgba(20, 184, 166, 0.55);
+		border-color: rgba(var(--segment-color, 20, 184, 166), 0.65);
 	}
 
 	.sentence-segment.selected {
-		box-shadow: inset 0 0 0 1px rgba(20, 184, 166, 0.35);
+		box-shadow: inset 0 0 0 1px rgba(var(--segment-color, 20, 184, 166), 0.32);
 	}
 
 	.sentence-segment.locked {
@@ -745,6 +819,7 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 8px;
+		min-width: 0;
 	}
 
 	.segment-label,
@@ -755,43 +830,46 @@
 
 	.segment-label {
 		font-weight: 700;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.lock-state {
+		flex: 0 0 auto;
 		font-size: 0.72rem;
 	}
 
 	.sentence-segment strong {
 		font-size: 0.94rem;
 		line-height: 1.25;
+		overflow-wrap: anywhere;
 	}
 
-	.segment-details {
+	.selected-modifiers {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 5px;
+		gap: 7px;
+		min-width: 0;
 	}
 
-	.segment-details span {
+	.selected-modifiers span {
 		display: inline-flex;
 		align-items: center;
-		gap: 5px;
-		border: 1px solid rgba(148, 163, 184, 0.2);
+		max-width: 100%;
+		border: 1px solid rgba(var(--segment-color, 148, 163, 184), 0.34);
 		border-radius: 999px;
-		color: var(--color-text-muted);
-		font-size: 0.7rem;
-		line-height: 1;
-		padding: 5px 7px;
+		background: rgba(var(--segment-color, 148, 163, 184), 0.12);
+		color: var(--color-text);
+		font-size: 0.76rem;
+		line-height: 1.25;
+		overflow-wrap: anywhere;
+		padding: 6px 9px;
 	}
 
-	.segment-details span.locked {
+	.selected-modifiers span.locked {
 		border-color: rgba(250, 204, 21, 0.35);
 		color: #fde68a;
-	}
-
-	.modifier-label {
-		color: var(--color-text);
-		font-weight: 700;
 	}
 
 	.modifier-editor {

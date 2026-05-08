@@ -8,7 +8,7 @@ import {
 	groupDiscipline,
 	validateRoutineLayers
 } from './model';
-import { defaultRoutineExamples, dynamicMaxExample, staticMaxExample } from './defaults';
+import { defaultRoutineExamples, dynamicMaxExample, staticMaxExample, staticTwoBreathTableExample } from './defaults';
 import type { RoutineAuthoringLayer } from './model';
 
 const openDuration = { mode: 'open' } as const;
@@ -166,6 +166,35 @@ describe('deriveMetricProfile / tags / display', () => {
 			dryCapable: true,
 			disciplineGroups: ['static']
 		});
+	});
+
+	it('models Static 2-Breath as a prep layer followed by repeated two-breath recoveries', () => {
+		const rows = expandRoutineLayers(staticTwoBreathTableExample.layers);
+
+		expect(staticTwoBreathTableExample.layers).toHaveLength(2);
+		expect(staticTwoBreathTableExample.layers[0]).toMatchObject({
+			id: 'static-two-breath-table-layer-1',
+			breatheUp: { mode: 'fixed', seconds: 240 },
+			attributes: { repeatCount: 1 }
+		});
+		expect(staticTwoBreathTableExample.layers[1]).toMatchObject({
+			id: 'static-two-breath-table-layer-2',
+			breatheUp: { mode: 'fixed', seconds: 30 },
+			attributes: { repeatCount: 9 }
+		});
+		expect(rows).toHaveLength(10);
+		expect(rows.map((row) => row.sourceLayerId)).toEqual([
+			'static-two-breath-table-layer-1',
+			'static-two-breath-table-layer-2',
+			'static-two-breath-table-layer-2',
+			'static-two-breath-table-layer-2',
+			'static-two-breath-table-layer-2',
+			'static-two-breath-table-layer-2',
+			'static-two-breath-table-layer-2',
+			'static-two-breath-table-layer-2',
+			'static-two-breath-table-layer-2',
+			'static-two-breath-table-layer-2'
+		]);
 	});
 });
 

@@ -20,7 +20,7 @@ describe('deriveLayerModifiers', () => {
 
 	it('selects repeat shape only for repeated layers', () => {
 		const singleLayerModifiers = deriveLayerModifiers(dynamicMaxExample.layers[0]);
-		const repeatedLayerModifiers = deriveLayerModifiers(staticTwoBreathTableExample.layers[0]);
+		const repeatedLayerModifiers = deriveLayerModifiers(staticTwoBreathTableExample.layers[1]);
 
 		expect(singleLayerModifiers.map((modifier) => modifier.key)).not.toContain('reps.shape');
 		expect(repeatedLayerModifiers.find((modifier) => modifier.key === 'reps.shape')?.summary).toBe(
