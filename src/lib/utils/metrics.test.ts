@@ -62,4 +62,36 @@ describe('metric value resolution', () => {
 		expect(getFormattedMetric('equipment', 'Equipment', log, routine)).toEqual({ value: 'bifins', label: 'Equipment' });
 		expect(getFormattedMetric('facialGear', 'Facial Gear', log, routine)).toEqual({ value: 'noseclip, goggles', label: 'Facial Gear' });
 	});
+
+	it('formats P2 advanced static metrics from direct log fields', () => {
+		const log = {
+			fvc: 5.21,
+			fvcWithPacking: 6.12,
+			endSpO2: 72,
+			recoveryQuality: 8,
+			urgeToBreathe: 6,
+			lucidity: 9,
+			contractions: 5
+		} as RoutineLog;
+
+		expect(formatMetricValue('fvcLiters', getMetricValue('fvcLiters', log, routine))).toBe('5.2L');
+		expect(formatMetricValue('fvcWithPackingLiters', getMetricValue('fvcWithPackingLiters', log, routine))).toBe('6.1L');
+		expect(formatMetricValue('endSpO2', getMetricValue('endSpO2', log, routine))).toBe('72%');
+		expect(formatMetricValue('recoveryQuality', getMetricValue('recoveryQuality', log, routine))).toBe('8/10');
+		expect(formatMetricValue('urgeToBreathe', getMetricValue('urgeToBreathe', log, routine))).toBe('6/10');
+		expect(formatMetricValue('lucidity', getMetricValue('lucidity', log, routine))).toBe('9/10');
+		expect(formatMetricValue('contractions', getMetricValue('contractions', log, routine))).toBe('5/10');
+	});
+
+	it('formats P3 status metrics from routine log status fields', () => {
+		const log = {
+			gasMix: '100% O2',
+			sambaBO: false,
+			defaultLungVolume: 'FRC'
+		} as RoutineLog;
+
+		expect(getFormattedMetric('gasMix', 'Gas', log, routine)).toEqual({ value: '100% O2', label: 'Gas' });
+		expect(getFormattedMetric('safetyOutcome', 'Safety', log, routine)).toEqual({ value: 'Clean', label: 'Safety' });
+		expect(getFormattedMetric('lungVolume', 'Lung Volume', log, routine)).toEqual({ value: 'FRC', label: 'Lung Volume' });
+	});
 });

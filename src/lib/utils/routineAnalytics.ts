@@ -155,6 +155,30 @@ export function getAvailableMetricsForRoutine(
 	if (cfg.trackHRV) {
 		add({ key: 'hrv', label: 'HRV', unit: 'ms', isTime: false, lowerIsBetter: false });
 	}
+	if (cfg.trackFVC) {
+		add({ key: 'fvcLiters', label: 'FVC', unit: 'liters', isTime: false, lowerIsBetter: false });
+	}
+	if (cfg.trackFVCWithPacking) {
+		add({ key: 'fvcWithPackingLiters', label: 'FVC with packing', unit: 'liters', isTime: false, lowerIsBetter: false });
+	}
+	if (cfg.trackPackingVolume) {
+		add({ key: 'packingVolume', label: 'Packing volume', unit: 'percent', isTime: false, lowerIsBetter: false });
+	}
+	if (cfg.trackEndSpO2) {
+		add({ key: 'endSpO2', label: 'End SpO2', unit: 'percent', isTime: false, lowerIsBetter: false });
+	}
+	if (cfg.trackRecoveryQuality) {
+		add({ key: 'recoveryQuality', label: 'Recovery quality', unit: 'scale', isTime: false, lowerIsBetter: false });
+	}
+	if (cfg.trackUrgeToBreathe) {
+		add({ key: 'urgeToBreathe', label: 'Urge to breathe', unit: 'scale', isTime: false, lowerIsBetter: true });
+	}
+	if (cfg.trackLucidity) {
+		add({ key: 'lucidity', label: 'Lucidity', unit: 'scale', isTime: false, lowerIsBetter: false });
+	}
+	if (cfg.trackContractions) {
+		add({ key: 'contractions', label: 'Contractions intensity', unit: 'scale', isTime: false, lowerIsBetter: true });
+	}
 
 	// Speed — calculated when both distance and time are captured
 	if (cfg.trackTotalDistance && cfg.trackTotalTime) {

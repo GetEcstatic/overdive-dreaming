@@ -212,6 +212,27 @@ export function getMetricValue(
 		case 'averageArmPullsPerLap':
 			return averageLapValue(log, (lap) => lap.armPulls);
 
+		case 'fvcLiters':
+			return log.fvc ?? 0;
+
+		case 'fvcWithPackingLiters':
+			return log.fvcWithPacking ?? 0;
+
+		case 'endSpO2':
+			return log.endSpO2 ?? 0;
+
+		case 'recoveryQuality':
+			return log.recoveryQuality ?? 0;
+
+		case 'urgeToBreathe':
+			return log.urgeToBreathe ?? 0;
+
+		case 'lucidity':
+			return log.lucidity ?? 0;
+
+		case 'contractions':
+			return log.contractions ?? 0;
+
 		// Speed metrics (new canonical *Ms names preferred; old names kept as aliases)
 		case 'avgSpeed':
 		case 'avgSpeedMs':
@@ -228,6 +249,9 @@ export function getMetricValue(
 		case 'breathingTechnique':
 		case 'equipment':
 		case 'facialGear':
+		case 'gasMix':
+		case 'safetyOutcome':
+		case 'lungVolume':
 			// String metric - return 0 as placeholder, handled in getFormattedMetric
 			return 0;
 
@@ -332,6 +356,10 @@ export function formatMetricValue(metricType: MetricType, value: number): string
 		case 'minimumHR':
 			return `${value} bpm`;
 
+		case 'fvcLiters':
+		case 'fvcWithPackingLiters':
+			return `${value.toFixed(1)}L`;
+
 		// HRV
 		case 'hrv':
 			return `${value}ms`;
@@ -339,7 +367,14 @@ export function formatMetricValue(metricType: MetricType, value: number): string
 		// Packing volume (percentage)
 		case 'packingVolume':
 		case 'minimumSpO2':
+		case 'endSpO2':
 			return `${value.toFixed(0)}%`;
+
+		case 'recoveryQuality':
+		case 'urgeToBreathe':
+		case 'lucidity':
+		case 'contractions':
+			return `${value}/10`;
 
 		default:
 			return value.toString();
@@ -376,6 +411,19 @@ export function getFormattedMetric(
 
 	if (metricType === 'facialGear') {
 		return { value: log.facialGear?.join(', ') || '—', label };
+	}
+
+	if (metricType === 'gasMix') {
+		return { value: log.gasMix || log.attemptConditions?.gasMix || log.attemptConditions?.breathingGas || '—', label };
+	}
+
+	if (metricType === 'safetyOutcome') {
+		if (log.sambaBO === undefined) return { value: '—', label };
+		return { value: log.sambaBO ? 'Samba/BO' : 'Clean', label };
+	}
+
+	if (metricType === 'lungVolume') {
+		return { value: log.defaultLungVolume ?? log.laps?.find((lap) => lap.lungVolume)?.lungVolume ?? '—', label };
 	}
 
 	const rawValue = getMetricValue(metricType, log, routine);

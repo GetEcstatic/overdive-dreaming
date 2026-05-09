@@ -350,6 +350,16 @@ export type MetricType =
 	| 'averageArmPullsPerLap' // Average arm pulls across laps/reps
 	| 'equipment'        // Equipment text/status
 	| 'facialGear'       // Facial gear text/status
+	| 'fvcLiters'        // Forced vital capacity in liters
+	| 'fvcWithPackingLiters' // Forced vital capacity with packing in liters
+	| 'gasMix'           // Breathing gas mix text/status
+	| 'endSpO2'          // SpO2 at end of hold
+	| 'recoveryQuality'  // Recovery quality scale
+	| 'urgeToBreathe'    // Urge-to-breathe scale
+	| 'lucidity'         // Lucidity scale
+	| 'contractions'     // Contractions intensity scale
+	| 'safetyOutcome'    // Safety outcome/status
+	| 'lungVolume'       // Starting lung volume/status
 	| 'breathingTechnique'; // Breathing technique used
 
 export interface DisplayConfig {

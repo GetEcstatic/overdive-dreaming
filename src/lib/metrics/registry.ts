@@ -15,10 +15,12 @@ export type MetricValueKind =
 	| 'time'
 	| 'count'
 	| 'speed'
+	| 'volume'
 	| 'temperature'
 	| 'heartRate'
 	| 'variability'
 	| 'percent'
+	| 'scale'
 	| 'text';
 
 export type MetricRegistryEntry = {
@@ -83,6 +85,16 @@ export const metricRegistry = [
 	entry('averageArmPullsPerLap', 'Average Arm Pulls', 'Avg Pulls', 'technique', 'count', 'count', ['armPullsPerLap'], ['trackArmPullsPerLap'], 'Average arm pulls across recorded laps or reps.', true),
 	entry('equipment', 'Equipment', 'Equipment', 'context', 'text', 'text', ['equipment'], ['trackEquipmentUsed'], 'Equipment used for the routine or session.'),
 	entry('facialGear', 'Facial Gear', 'Facial Gear', 'context', 'text', 'text', ['facialGear'], ['trackFacialGear'], 'Mask, goggles, noseclip, or other facial gear used.'),
+	entry('fvcLiters', 'FVC', 'FVC', 'biometrics', 'volume', 'L', ['fvcLiters'], ['trackFVC'], 'Forced vital capacity in liters.'),
+	entry('fvcWithPackingLiters', 'FVC With Packing', 'FVC Packed', 'biometrics', 'volume', 'L', ['fvcWithPackingLiters'], ['trackFVCWithPacking'], 'Forced vital capacity with packing in liters.'),
+	entry('gasMix', 'Gas Mix', 'Gas', 'context', 'text', 'text', ['gasMix'], ['trackGasMix'], 'Breathing gas mix used before the hold.'),
+	entry('endSpO2', 'End SpO2', 'End SpO2', 'biometrics', 'percent', '%', ['endSpO2'], ['trackEndSpO2'], 'SpO2 at the end of the hold.'),
+	entry('recoveryQuality', 'Recovery Quality', 'Recovery', 'recovery', 'scale', 'scale', ['recoveryQuality'], ['trackRecoveryQuality'], 'Recovery breathing quality rating.'),
+	entry('urgeToBreathe', 'Urge To Breathe', 'Urge', 'biometrics', 'scale', 'scale', ['urgeToBreathe'], ['trackUrgeToBreathe'], 'Urge-to-breathe intensity rating.', true),
+	entry('lucidity', 'Lucidity', 'Lucidity', 'biometrics', 'scale', 'scale', ['lucidity'], ['trackLucidity'], 'Mental clarity rating during the hold.'),
+	entry('contractions', 'Contractions Intensity', 'Contractions', 'biometrics', 'scale', 'scale', ['contractions'], ['trackContractions'], 'Contractions intensity rating.', true),
+	entry('safetyOutcome', 'Safety Outcome', 'Safety', 'context', 'text', 'text', ['safetyOutcome'], ['trackSambaBO'], 'Safety outcome or samba/BO status for the session.'),
+	entry('lungVolume', 'Lung Volume', 'Lung Volume', 'context', 'text', 'text', ['lungVolume'], ['trackLungVolume'], 'Starting lung volume used for the routine or rep.'),
 	entry('breathingTechnique', 'Breathing Technique', 'Breathing', 'technique', 'text', 'text', ['breathingTechnique'], ['trackBreathingTechnique'], 'Breathing technique or breath-control level used.')
 ] as const satisfies readonly MetricRegistryEntry[];
 
@@ -113,6 +125,16 @@ const preferredMetricTypeByCanonicalKey: Partial<Record<CanonicalMetricKey, Metr
 	armPullsPerLap: 'averageArmPullsPerLap',
 	equipment: 'equipment',
 	facialGear: 'facialGear',
+	fvcLiters: 'fvcLiters',
+	fvcWithPackingLiters: 'fvcWithPackingLiters',
+	gasMix: 'gasMix',
+	endSpO2: 'endSpO2',
+	recoveryQuality: 'recoveryQuality',
+	urgeToBreathe: 'urgeToBreathe',
+	lucidity: 'lucidity',
+	contractions: 'contractions',
+	safetyOutcome: 'safetyOutcome',
+	lungVolume: 'lungVolume',
 	contractionsOnsetSeconds: 'contractionsOnsetTime'
 };
 

@@ -30,6 +30,16 @@ describe('metric registry', () => {
 			'averageArmPullsPerLap',
 			'equipment',
 			'facialGear',
+			'fvcLiters',
+			'fvcWithPackingLiters',
+			'gasMix',
+			'endSpO2',
+			'recoveryQuality',
+			'urgeToBreathe',
+			'lucidity',
+			'contractions',
+			'safetyOutcome',
+			'lungVolume',
 			'breathingTechnique'
 		];
 
@@ -49,6 +59,10 @@ describe('metric registry', () => {
 		expect(metricTypeForCanonicalKey('timeBelowSpO2Threshold')).toBe('timeBelowSpO2Threshold');
 		expect(metricTypeForCanonicalKey('kicksPerLap')).toBe('averageKicksPerLap');
 		expect(metricTypeForCanonicalKey('armPullsPerLap')).toBe('averageArmPullsPerLap');
+		expect(metricTypeForCanonicalKey('fvcLiters')).toBe('fvcLiters');
+		expect(metricTypeForCanonicalKey('gasMix')).toBe('gasMix');
+		expect(metricTypeForCanonicalKey('safetyOutcome')).toBe('safetyOutcome');
+		expect(metricTypeForCanonicalKey('lungVolume')).toBe('lungVolume');
 	});
 
 	it('identifies time metrics from value kind', () => {
