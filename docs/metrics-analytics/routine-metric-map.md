@@ -43,6 +43,44 @@ New routines should not ask the user to manually choose every tracking flag, and
 | Dynamic training | `TORT` | Distance/duration like dynamic | Same as dynamic, with training-specific tags/classification | The v2 layer model treats this as dynamic-training rather than a classic competition discipline. |
 | Mixed | Any combination | Per-row actual discipline and row metrics | Routine-level summary metrics plus row-level snapshots | Mixed routines need row-level metric snapshots for analytics to stay meaningful. |
 
+## Hero Metric Dropdowns By Routine Type
+
+These are the builder-facing dropdown lists for `displayConfig.heroMetric`, `displayConfig.secondaryMetric`, and `displayConfig.tertiaryMetric`. The lists should be generated from the routine's layer-derived metric profile, but only metrics with current `MetricType` display support should be selectable until adapters exist for the remaining canonical keys.
+
+| Routine type | Hero dropdown | Secondary dropdown | Tertiary dropdown | Default combination |
+|--------------|---------------|--------------------|-------------------|---------------------|
+| Static single hold | `totalTime`, `diveDuration`, `initialBreatheUpTime`, `contractionsOnsetTime`, `longestHold`, `breathingTechnique` | `initialBreatheUpTime`, `contractionsOnsetTime`, `breathingTechnique`, `totalTime`, `longestHold` | `contractionsOnsetTime`, `longestHold`, `breathingTechnique`, `packingVolume`, none | Hero `totalTime`; secondary `initialBreatheUpTime`; tertiary `contractionsOnsetTime` or none |
+| Static wet table | `cumulativeHoldTime`, `totalBreathHoldTime`, `longestHold`, `repsCompleted`, `totalTime`, `avgRestBetweenLaps` | `longestHold`, `repsCompleted`, `avgRestBetweenLaps`, `totalBreathingTime`, `totalBreaths` | `repsCompleted`, `avgRestBetweenLaps`, `totalBreaths`, `contractionsOnsetTime`, none | Hero `cumulativeHoldTime`; secondary `longestHold`; tertiary `repsCompleted` |
+| Static dry/RV/FRC table | `longestHold`, `cumulativeHoldTime`, `totalBreathHoldTime`, `repsCompleted`, `avgRestBetweenLaps` | `cumulativeHoldTime`, `longestHold`, `repsCompleted`, `avgRestBetweenLaps`, `packingVolume` | `repsCompleted`, `packingVolume`, `contractionsOnsetTime`, none | Hero `longestHold`; secondary `cumulativeHoldTime`; tertiary none until SpO2 threshold display support exists |
+| Dynamic single attempt | `totalDistance`, `diveDistance`, `totalTime`, `diveDuration`, `avgSpeedMs`, `poolLength` | `totalTime`, `diveDuration`, `avgSpeedMs`, `poolLength`, `waterTemperature` | `avgSpeedMs`, `poolLength`, `waterTemperature`, `breathingTechnique`, none | Hero `totalDistance`; secondary `totalTime`; tertiary `avgSpeedMs` |
+| Dynamic interval/table | `sessionDuration`, `cumulativeDistance`, `totalDistance`, `repsCompleted`, `avgSpeedMs`, `avgTimePerLap` | `cumulativeDistance`, `repsCompleted`, `avgTimePerLap`, `avgRestBetweenLaps`, `avgSpeedMs`, `totalBreathingTime` | `avgSpeedMs`, `avgRestBetweenLaps`, `avgTimePerLap`, `waterTemperature`, none | Hero `sessionDuration`; secondary `cumulativeDistance` or `repsCompleted`; tertiary `avgSpeedMs` |
+| Mixed or hybrid | `sessionDuration`, `totalDistance`, `cumulativeDistance`, `cumulativeHoldTime`, `longestHold`, `repsCompleted` | `totalDistance`, `totalTime`, `cumulativeHoldTime`, `longestHold`, `repsCompleted`, `avgRestBetweenLaps` | `avgSpeedMs`, `repsCompleted`, `avgRestBetweenLaps`, `contractionsOnsetTime`, none | Pick the routine intent: max result, cumulative workload, or session duration |
+
+### Recommended Display Combinations
+
+| Routine intent | Hero | Secondary | Tertiary |
+|----------------|------|-----------|----------|
+| Static max or submax | `totalTime` | `initialBreatheUpTime` | `contractionsOnsetTime` |
+| Static two-breath or CO2 table | `cumulativeHoldTime` | `longestHold` | `repsCompleted` |
+| Dry RV/FRC physiology table | `longestHold` | `cumulativeHoldTime` | none until `timeBelowSpO2Threshold` has display support |
+| Dynamic max distance | `totalDistance` | `totalTime` | `avgSpeedMs` |
+| Dynamic time trial | `totalTime` | `totalDistance` | `avgSpeedMs` |
+| Dynamic repeated distance set | `cumulativeDistance` | `repsCompleted` | `avgSpeedMs` |
+| Dynamic repeated time set | `sessionDuration` | `avgTimePerLap` | `avgRestBetweenLaps` |
+| Mixed routine with max layer | Max-layer result metric (`totalDistance` or `totalTime`) | `sessionDuration` | `repsCompleted` |
+| Mixed routine with workload focus | `sessionDuration` | `cumulativeDistance` or `cumulativeHoldTime` | `avgRestBetweenLaps` |
+
+### Dropdown Gaps
+
+| Missing dropdown option | Needed for | Current blocker |
+|-------------------------|------------|-----------------|
+| Time below SpO2 threshold | Dry static/RV/FRC tertiary metric | Has canonical key and lap fields, but no `MetricType` display adapter. |
+| Minimum SpO2 | Dry/static hero or tertiary metric | Has tracking fields, but no `MetricType` display adapter. |
+| Minimum HR | Dry/static tertiary metric | Has tracking fields, but no `MetricType` display adapter. |
+| Kicks per lap | Dynamic technique tertiary metric | Captured in lap data, but no display metric calculation. |
+| Arm pulls per lap | DNF technique tertiary metric | Captured in lap data, but no display metric calculation. |
+| Safety outcome | Max attempt tertiary/status metric | Better represented as a status/facet than a numeric hero metric. |
+
 ## Static Routine Metric Map
 
 | Metric | Canonical key | TrackingConfig / log source | MetricType / display key | Include when | Calculated? |
