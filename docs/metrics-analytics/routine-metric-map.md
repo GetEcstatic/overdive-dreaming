@@ -2,6 +2,12 @@
 
 This is the builder-facing map for metrics that can be tracked or calculated for newly built routines. The older broad inventory is [training-metrics.md](training-metrics.md), especially `Trackable Metrics (TrackingConfig)`, `Calculated Metrics (MetricType)`, and `Display Metrics (Hero/Secondary)`. This document narrows that inventory into routine-builder decisions for static and dynamic disciplines.
 
+## Collection-First Philosophy
+
+New routine templates should turn on every metric that could plausibly be relevant to the routine's discipline, environment, layer shape, and training intent. The routine builder should not use `trackingConfig` as the main user-facing filter for what exists. Instead, `trackingConfig` and layer metric profiles should describe the full collection capacity of the routine.
+
+Filtering belongs at logging time. The athlete should be able to choose what they actually see and fill in through a primary standard/geek mode filter, then by hiding or showing categories of metrics. This keeps routine data rich enough for future analysis while preventing the logging screen from becoming noisy by default.
+
 ## Current Sources Of Truth
 
 | Source | File | Purpose |
@@ -16,7 +22,7 @@ This is the builder-facing map for metrics that can be tracked or calculated for
 
 ## Builder Rule Of Thumb
 
-New routines should not ask the user to manually choose every tracking flag. Build the routine from layers, then derive metrics from the layer shape:
+New routines should not ask the user to manually choose every tracking flag, and they should not disable a relevant metric simply to simplify the builder. Build the routine from layers, derive the broad relevant metric set from the layer shape, then let logging UI filters decide which fields are visible at the moment of entry:
 
 | Layer signal | Include in new routine |
 |--------------|------------------------|
