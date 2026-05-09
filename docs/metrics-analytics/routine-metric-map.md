@@ -249,7 +249,7 @@ Goal: every metric that is tracked for a routine should be selectable as a hero,
 - [x] Step 3d: Competition status, card color, and record tag are tracked/displayable comparison metrics for dynamic and static max attempts only.
 - [x] Step 4: Move metric value resolution behind registry-backed resolvers.
 - [x] Step 5a: Hero metric dropdowns now use registry options filtered by the routine tracking config.
-- [ ] Step 5b: Add grouped/searchable picker UX and row-level mixed-routine filtering.
+- [x] Step 5b: Add grouped/searchable picker UX and row-level mixed-routine filtering.
 - [x] Step 6: Routine-family display option and safe empty-log resolution tests added.
 - [x] Step 7a: Current stored display metric keys are preserved in the registry, including deprecated speed/hold aliases.
 - [ ] Step 7b: Add migration adapters only when a stored key appears that is not in the registry.
@@ -280,7 +280,7 @@ Existing-routine attachment checklist:
 - [x] Add a legacy dry-run report before any legacy routine writes, because legacy routines may not encode enough intent for every advanced metric.
 - [x] Revisit the layer editor metrics step after backfill so it can warn when the loaded routine has stale tracking flags and offer a one-click refresh.
 - [x] Keep Step 4 open until metric value resolution is moved fully behind registry-backed resolvers rather than split between registry metadata and `getMetricValue()` switch cases.
-- [ ] Keep Step 5b open until the hero metric picker is grouped/searchable with recommended presets and duplicate guards.
+- [x] Keep Step 5b open until the hero metric picker is grouped/searchable with recommended presets and duplicate guards.
 - [ ] Keep Step 7b open until an actual unknown stored display key is found; current stored keys are covered by the registry, so no migration adapter is needed yet.
 
 ### 1.0.2 Competition, Card, And Record Decision

@@ -6,14 +6,14 @@
 	import NumberWheelInput from '$lib/components/NumberWheelInput.svelte';
 	import { user } from '$lib/stores/auth';
 	import { getRoutine, updateRoutine, writeRoutineLayerTemplateContract } from '$lib/firestore';
-	import { getMetricLabel, getSelectableMetricOptionsForTrackingConfig } from '$lib/metrics/registry';
+	import { getMetricLabel, getSelectableMetricOptionsForTrackingConfig, type MetricCategory, type MetricSelectionOption } from '$lib/metrics/registry';
 	import { isAdmin } from '$lib/utils/admin';
 	import { auditRoutineMetricAttachment } from '$lib/routineLayers/attachmentAudit';
 	import { buildRoutineLayerReadModel } from '$lib/routineLayers/readModel';
 	import { buildLayerSentence, type LayerSentenceModifier, type LayerSentenceSegmentKey } from '$lib/routineLayers/sentence';
 	import { expandRoutineLayers } from '$lib/routineLayers/model';
 	import { findDefaultRoutineLayerExample } from '$lib/routineLayers/defaults';
-	import type { LegacyRoutineProjection } from '$lib/routineLayers/contract';
+	import { deriveTrackingConfigFromLayers, type LegacyRoutineProjection } from '$lib/routineLayers/contract';
 	import type { MetricType, RoutineTemplate } from '$lib/types';
 	import type {
 		ExpandedRoutinePlanRow,
@@ -60,6 +60,9 @@
 	let selectedHeroMetric = $state<MetricType>('totalTime');
 	let selectedSecondaryMetric = $state<MetricType>('totalDistance');
 	let selectedTertiaryMetric = $state<MetricType | ''>('');
+	let metricSearchQuery = $state('');
+	let metricCategoryFilter = $state<MetricCategory | 'all'>('all');
+	let metricScopeId = $state('routine');
 
 	let userIsAdmin = $derived(isAdmin($user?.uid));
 	let readModel = $derived(routine && userIsAdmin ? buildRoutineLayerReadModel(routine) : null);
@@ -81,6 +84,16 @@
 	let projectionGapRows = $derived(projectionComparisonRows.filter((row) => row.status === 'gap'));
 	let legacyProjectionEntries = $derived(readModel ? Object.entries(readModel.legacyProjection.display) : []);
 	let metricOptions = $derived(getSelectableMetricOptionsForTrackingConfig(routine?.trackingConfig));
+	let metricScopeRow = $derived(expandedEditorRows.find((row) => row.planRowId === metricScopeId));
+	let scopedMetricOptions = $derived(
+		getSelectableMetricOptionsForTrackingConfig(
+			metricScopeRow ? deriveTrackingConfigFromLayers([metricScopeRow]) : routine?.trackingConfig
+		)
+	);
+	let availableMetricCategories = $derived([
+		...new Set(scopedMetricOptions.map((option) => option.category))
+	].sort((left, right) => categoryLabel(left).localeCompare(categoryLabel(right))));
+	let filteredMetricOptions = $derived(scopedMetricOptions.filter(metricOptionMatchesFilters));
 	let metricAttachmentAudit = $derived(routine ? auditRoutineMetricAttachment(routine) : null);
 	let staleMetricProjection = $derived(metricAttachmentAudit?.status === 'needs-update' ? metricAttachmentAudit : null);
 	let staleMetricProjectionChangeCount = $derived(
@@ -211,10 +224,69 @@
 		return getMetricLabel(metric);
 	}
 
+	function categoryLabel(category: MetricCategory | 'all') {
+		const labels: Record<MetricCategory | 'all', string> = {
+			all: 'All',
+			performance: 'Performance',
+			workload: 'Workload',
+			technique: 'Technique',
+			biometrics: 'Biometrics',
+			environment: 'Environment',
+			recovery: 'Recovery',
+			context: 'Context'
+		};
+
+		return labels[category];
+	}
+
 	function syncMetricSelections(template: RoutineTemplate) {
 		selectedHeroMetric = template.displayConfig?.heroMetric ?? 'totalTime';
 		selectedSecondaryMetric = template.displayConfig?.secondaryMetric ?? 'totalDistance';
 		selectedTertiaryMetric = template.displayConfig?.tertiaryMetric ?? '';
+	}
+
+	function metricOptionMatchesFilters(option: MetricSelectionOption) {
+		if (metricCategoryFilter !== 'all' && option.category !== metricCategoryFilter) return false;
+		const query = metricSearchQuery.trim().toLowerCase();
+		if (!query) return true;
+
+		return [option.value, option.label, option.description, categoryLabel(option.category)]
+			.some((entry) => entry.toLowerCase().includes(query));
+	}
+
+	function groupedMetricOptionsFor(selectedMetric: MetricType | '') {
+		const options = includeSelectedMetricOption(filteredMetricOptions, selectedMetric);
+		const categories = [...new Set(options.map((option) => option.category))]
+			.sort((left, right) => categoryLabel(left).localeCompare(categoryLabel(right)));
+
+		return categories.map((category) => ({
+			category,
+			label: categoryLabel(category),
+			options: options.filter((option) => option.category === category)
+		}));
+	}
+
+	function includeSelectedMetricOption(options: MetricSelectionOption[], selectedMetric: MetricType | '') {
+		if (!selectedMetric || options.some((option) => option.value === selectedMetric)) return options;
+
+		const selectedOption = scopedMetricOptions.find((option) => option.value === selectedMetric)
+			?? metricOptions.find((option) => option.value === selectedMetric)
+			?? {
+				value: selectedMetric,
+				label: metricLabel(selectedMetric),
+				category: 'context' as const,
+				description: 'Current stored metric.'
+			};
+
+		return [selectedOption, ...options];
+	}
+
+	function isMetricSelectedElsewhere(metric: MetricType, slot: 'hero' | 'secondary' | 'tertiary') {
+		return [
+			['hero', selectedHeroMetric],
+			['secondary', selectedSecondaryMetric],
+			['tertiary', selectedTertiaryMetric]
+		].some(([selectedSlot, selectedMetric]) => selectedSlot !== slot && selectedMetric === metric);
 	}
 
 	function formatModifierChip(modifier: LayerSentenceModifier) {
@@ -840,20 +912,51 @@
 					</div>
 				{/if}
 
+				<div class="metric-picker-controls" aria-label="Metric picker filters">
+					<label>
+						<span>Metric scope</span>
+						<select bind:value={metricScopeId}>
+							<option value="routine">Whole routine</option>
+							{#each expandedEditorRows as row}
+								<option value={row.planRowId}>Row {row.globalRowIndex}: {row.discipline} {row.attributes.lungVolume}</option>
+							{/each}
+						</select>
+					</label>
+					<label>
+						<span>Search metrics</span>
+						<input type="search" placeholder="Search labels, keys, descriptions" bind:value={metricSearchQuery} />
+					</label>
+				</div>
+
+				<div class="metric-category-tabs" aria-label="Metric categories">
+					<button type="button" class:active={metricCategoryFilter === 'all'} onclick={() => (metricCategoryFilter = 'all')}>All</button>
+					{#each availableMetricCategories as category}
+						<button type="button" class:active={metricCategoryFilter === category} onclick={() => (metricCategoryFilter = category)}>{categoryLabel(category)}</button>
+					{/each}
+				</div>
+
 				<div class="metric-select-grid">
 					<label>
 						<span>Hero metric</span>
 						<select bind:value={selectedHeroMetric}>
-							{#each metricOptions as option}
-								<option value={option.value}>{option.label}</option>
+							{#each groupedMetricOptionsFor(selectedHeroMetric) as group}
+								<optgroup label={group.label}>
+									{#each group.options as option}
+										<option value={option.value} disabled={isMetricSelectedElsewhere(option.value, 'hero')}>{option.label}</option>
+									{/each}
+								</optgroup>
 							{/each}
 						</select>
 					</label>
 					<label>
 						<span>Secondary metric</span>
 						<select bind:value={selectedSecondaryMetric}>
-							{#each metricOptions as option}
-								<option value={option.value}>{option.label}</option>
+							{#each groupedMetricOptionsFor(selectedSecondaryMetric) as group}
+								<optgroup label={group.label}>
+									{#each group.options as option}
+										<option value={option.value} disabled={isMetricSelectedElsewhere(option.value, 'secondary')}>{option.label}</option>
+									{/each}
+								</optgroup>
 							{/each}
 						</select>
 					</label>
@@ -861,12 +964,20 @@
 						<span>Tertiary metric</span>
 						<select bind:value={selectedTertiaryMetric}>
 							<option value="">None</option>
-							{#each metricOptions as option}
-								<option value={option.value}>{option.label}</option>
+							{#each groupedMetricOptionsFor(selectedTertiaryMetric) as group}
+								<optgroup label={group.label}>
+									{#each group.options as option}
+										<option value={option.value} disabled={isMetricSelectedElsewhere(option.value, 'tertiary')}>{option.label}</option>
+									{/each}
+								</optgroup>
 							{/each}
 						</select>
 					</label>
 				</div>
+
+				{#if filteredMetricOptions.length === 0}
+					<p class="editor-status">No metrics match the current filters.</p>
+				{/if}
 
 				{#if metricStatus}
 					<p class="editor-status">{metricStatus}</p>
@@ -1395,6 +1506,58 @@
 		gap: 0.75rem;
 	}
 
+	.metric-picker-controls {
+		display: grid;
+		grid-template-columns: minmax(180px, 0.8fr) minmax(220px, 1fr);
+		gap: 0.75rem;
+	}
+
+	.metric-picker-controls label {
+		display: grid;
+		gap: 0.35rem;
+	}
+
+	.metric-picker-controls span {
+		color: var(--color-text-muted);
+		font-size: 0.76rem;
+		font-weight: 800;
+		text-transform: uppercase;
+	}
+
+	.metric-picker-controls select,
+	.metric-picker-controls input {
+		min-width: 0;
+		border: 1px solid rgba(148, 163, 184, 0.22);
+		border-radius: 6px;
+		background: rgba(2, 6, 23, 0.38);
+		color: var(--color-text);
+		font: inherit;
+		padding: 0.55rem 0.65rem;
+	}
+
+	.metric-category-tabs {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.45rem;
+	}
+
+	.metric-category-tabs button {
+		border: 1px solid rgba(148, 163, 184, 0.22);
+		border-radius: 999px;
+		background: rgba(148, 163, 184, 0.08);
+		color: var(--color-text-muted);
+		cursor: pointer;
+		font-size: 0.78rem;
+		font-weight: 800;
+		padding: 0.42rem 0.62rem;
+	}
+
+	.metric-category-tabs button.active {
+		border-color: rgba(20, 184, 166, 0.5);
+		background: rgba(20, 184, 166, 0.14);
+		color: #99f6e4;
+	}
+
 	.projection-refresh {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr) auto;
@@ -1555,6 +1718,7 @@
 		.page-header,
 		.write-panel,
 		.projection-refresh,
+		.metric-picker-controls,
 		.plan-row,
 		.comparison-row,
 		.segment-row {
