@@ -254,6 +254,21 @@ Goal: every metric that is tracked for a routine should be selectable as a hero,
 - [x] Step 7a: Current stored display metric keys are preserved in the registry, including deprecated speed/hold aliases.
 - [ ] Step 7b: Add migration adapters only when a stored key appears that is not in the registry.
 
+### 1.0.1 Competition, Card, And Record Recommendation
+
+Competition status, card color, and record tags should be stored as structured status/facet fields, not only as loose tags and not as numeric tracking metrics. They are not measurements like distance, duration, SpO2, or speed; they are outcome/context facts that should be filterable, badge-renderable, and optionally selectable as tertiary status displays.
+
+Recommended shape:
+
+| Field | Primary model | Why | Display behavior |
+|-------|---------------|-----|------------------|
+| Competition status | Structured log/session facet, backed by existing `isCompetition` and competition organization fields | Users need reliable filtering by competition vs training, and free-text tags are too easy to drift. | Badge/facet; can appear as a tertiary status metric for competition-focused routines. |
+| Card color | Structured outcome field, backed by existing `cardTag` | White/yellow/red cards are official outcome state, not athlete-entered measurement. | Badge/status display; filterable in analytics. |
+| Record tag | Structured outcome field, backed by existing `recordTag` | NR/CR/WR style results are sparse but important status facts. | Badge/status display; filterable and highlightable on result cards. |
+| Tags | Derived/search helper only | Tags are useful for broad discovery, but should not be the source of truth for official outcomes. | Mirror structured facts into tags only when useful for search or legacy views. |
+
+Implementation implication: add a small status/facet registry beside the metric registry, or extend the metric registry with a `valueKind: 'status'` and a non-numeric availability source. These should be shown in hero/tertiary pickers under a Status group, but charting should treat them as facets for grouping and filtering rather than Y-axis metrics.
+
 ### 1.1 Technical Strategy
 
 | Step | Implementation | Acceptance check |
