@@ -145,8 +145,9 @@ export async function writeRoutineLayerTemplateContract(
 ): Promise<void> {
 	const docRef = doc(db, 'routines', routineId);
 	const writeProjection = buildLayerRoutineTemplateWriteProjection(layers);
+	const cleanedProjection = stripUndefined(writeProjection);
 	const legacyUpdates: Record<string, unknown> = {
-		...writeProjection,
+		...cleanedProjection,
 		trainingEnvironment: writeProjection.trainingEnvironment ?? deleteField(),
 		restBetweenReps: writeProjection.restBetweenReps ?? deleteField(),
 		repDistance: writeProjection.repDistance ?? deleteField(),
@@ -158,6 +159,23 @@ export async function writeRoutineLayerTemplateContract(
 		...legacyUpdates,
 		updatedAt: serverTimestamp()
 	});
+}
+
+function stripUndefined<T>(value: T): T {
+	if (Array.isArray(value)) {
+		return value.map((item) => stripUndefined(item)).filter((item) => item !== undefined) as T;
+	}
+
+	if (value && typeof value === 'object') {
+		return Object.fromEntries(
+			Object.entries(value).flatMap(([key, entry]) => {
+				if (entry === undefined) return [];
+				return [[key, stripUndefined(entry)]];
+			})
+		) as T;
+	}
+
+	return value;
 }
 
 /**

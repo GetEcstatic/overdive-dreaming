@@ -45,6 +45,7 @@
 	let editableLayers = $state<RoutineAuthoringLayer[]>([]);
 	let selectedLayerId = $state<string | null>(null);
 	let selectedSegmentKey = $state<LayerSentenceSegmentKey | null>(null);
+	let editingLayerNameId = $state<string | null>(null);
 	let showDebug = $state(false);
 
 	let userIsAdmin = $derived(isAdmin($user?.uid));
@@ -113,6 +114,29 @@
 
 	function layerLabel(layer: RoutineAuthoringLayer, index: number) {
 		return layer.name ?? `Layer ${index + 1}`;
+	}
+
+	function updateLayerName(layerId: string, name: string) {
+		editableLayers = editableLayers.map((layer) =>
+			layer.id === layerId ? { ...layer, name: name.trim() || undefined } : layer
+		);
+	}
+
+	function editLayerName(layerId: string) {
+		selectedLayerId = layerId;
+		editingLayerNameId = layerId;
+	}
+
+	function compactModifierSummary(summary: string) {
+		return summary
+			.replace(/^default\s+/i, '')
+			.replace(/^fixed discipline$/i, 'fixed')
+			.replace(/^fixed duration\s+/i, '')
+			.replace(/^fixed distance\s+/i, '')
+			.replace(/^open duration$/i, 'open')
+			.replace(/^open distance$/i, 'open')
+			.replace(/^repeat\s+/i, '')
+			.replace(/^single$/i, '1x');
 	}
 
 	function layerSentenceFor(layerId: string) {
@@ -534,31 +558,45 @@
 				{@const sentence = layerSentenceFor(layer.id)}
 				<section class="layer-canvas" class:selected={selectedLayer?.id === layer.id} aria-label={layerLabel(layer, index)}>
 					<div class="layer-heading">
-						<h2>{layerLabel(layer, index)}</h2>
+						<span class="layer-number">{index + 1}</span>
+						{#if editingLayerNameId === layer.id}
+							<input
+								class="layer-name-input"
+								value={layer.name ?? ''}
+								placeholder={layerLabel(layer, index)}
+								oninput={(event) => updateLayerName(layer.id, event.currentTarget.value)}
+								onblur={() => (editingLayerNameId = null)}
+								onkeydown={(event) => {
+									if (event.key === 'Enter' || event.key === 'Escape') editingLayerNameId = null;
+								}}
+							/>
+						{:else}
+							<button type="button" class="layer-name-button" onclick={() => editLayerName(layer.id)}>
+								{layerLabel(layer, index)}
+							</button>
+						{/if}
 						<span>{layer.discipline} · {layer.attributes.repeatCount} rep{layer.attributes.repeatCount === 1 ? '' : 's'}</span>
 					</div>
 
-					{#if sentence?.segments.some((segment) => segment.modifiers.length > 0)}
-						<div class="modifier-chip-row" aria-label="Layer modifiers">
-							{#each sentence.segments as segment}
-								{#each segment.modifiers as modifier}
-									<span class={`modifier-chip ${segment.key}`}>{modifier.label} = {modifier.summary}</span>
-								{/each}
-							{/each}
-						</div>
-					{/if}
-
 					<div class="segment-row" aria-label={`${layerLabel(layer, index)} segments`}>
 						{#each sentence?.segments ?? [] as segment}
-							<button
-								type="button"
-								class="segment-card"
-								class:active={selectedLayer?.id === layer.id && selectedSegmentKey === segment.key}
-								onclick={() => selectSegment(layer.id, segment.key)}
-							>
-								<span>{segment.label}</span>
-								<strong>{segment.summary}</strong>
-							</button>
+							<div class="segment-stack">
+								{#if segment.modifiers.length > 0}
+									<div class="segment-chip-stack" aria-label={`${segment.label} modifiers`}>
+										{#each segment.modifiers as modifier}
+											<span class={`modifier-chip ${segment.key}`}>{compactModifierSummary(modifier.summary)}</span>
+										{/each}
+									</div>
+								{/if}
+								<button
+									type="button"
+									class="segment-card"
+									class:active={selectedLayer?.id === layer.id && selectedSegmentKey === segment.key}
+									onclick={() => selectSegment(layer.id, segment.key)}
+								>
+									<span>{segment.label}</span>
+								</button>
+							</div>
 						{/each}
 					</div>
 
@@ -588,8 +626,10 @@
 								<div class="edit-grid compact">
 									<label><span>Duration</span><select value={selectedLayer.dive.duration?.mode ?? 'none'} onchange={(event) => updateSelectedDiveDurationMode(event.currentTarget.value as LayerDurationTarget['mode'] | 'none')}><option value="none">none</option><option value="open">open</option><option value="fixed">fixed</option></select></label>
 									{#if selectedLayer.dive.duration?.mode === 'fixed'}<label><span>Duration</span><DurationInput value={selectedLayer.dive.duration.seconds} min={0} max={3600} compact={true} showLabel={false} onValueChange={updateSelectedDiveDurationSeconds} /></label>{/if}
-									<label><span>Distance</span><select value={selectedLayer.dive.distance?.mode ?? 'none'} onchange={(event) => updateSelectedDiveDistanceMode(event.currentTarget.value as LayerDistanceTarget['mode'] | 'none')}><option value="none">none</option><option value="open">open</option><option value="fixed">fixed</option></select></label>
-									{#if selectedLayer.dive.distance?.mode === 'fixed'}<label><span>Meters</span><NumberWheelInput value={selectedLayer.dive.distance.meters} min={0} max={300} step={1} unit="m" compact={true} showLabel={false} onValueChange={updateSelectedDiveDistanceMeters} /></label>{/if}
+									{#if selectedLayer.discipline !== 'STA'}
+										<label><span>Distance</span><select value={selectedLayer.dive.distance?.mode ?? 'none'} onchange={(event) => updateSelectedDiveDistanceMode(event.currentTarget.value as LayerDistanceTarget['mode'] | 'none')}><option value="none">none</option><option value="open">open</option><option value="fixed">fixed</option></select></label>
+										{#if selectedLayer.dive.distance?.mode === 'fixed'}<label><span>Meters</span><NumberWheelInput value={selectedLayer.dive.distance.meters} min={0} max={300} step={1} unit="m" compact={true} showLabel={false} onValueChange={updateSelectedDiveDistanceMeters} /></label>{/if}
+									{/if}
 								</div>
 							{:else if selectedSegmentKey === 'setup'}
 								<h3>Setup</h3>
@@ -901,7 +941,6 @@
 		padding: 0.35rem 0.55rem;
 	}
 
-	.segment-card strong,
 	.plan-row strong {
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -931,9 +970,9 @@
 	}
 
 	.layer-heading {
-		display: flex;
-		align-items: baseline;
-		justify-content: space-between;
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		align-items: center;
 		gap: 0.75rem;
 	}
 
@@ -943,23 +982,72 @@
 		font-size: 0.82rem;
 	}
 
-	.modifier-chip-row {
-		display: flex;
-		flex-wrap: wrap;
+	.layer-number {
+		display: grid;
+		place-items: center;
+		width: 3rem;
+		height: 3rem;
+		border: 1px solid rgba(20, 184, 166, 0.36);
+		border-radius: 8px;
+		background: rgba(20, 184, 166, 0.12);
+		color: #99f6e4;
+		font-size: 1.45rem;
+		font-weight: 900;
+	}
+
+	.layer-name-button,
+	.layer-name-input {
+		min-width: 0;
+		border: 1px solid transparent;
+		border-radius: 6px;
+		background: transparent;
+		color: var(--color-text);
+		font: inherit;
+		font-size: 1rem;
+		font-weight: 800;
+		padding: 0.35rem 0.45rem;
+		text-align: left;
+	}
+
+	.layer-name-button {
+		cursor: text;
+	}
+
+	.layer-name-button:hover,
+	.layer-name-input:focus {
+		border-color: rgba(148, 163, 184, 0.22);
+		background: rgba(2, 6, 23, 0.28);
+		outline: none;
+	}
+
+	.segment-stack {
+		display: grid;
+		grid-template-rows: auto 1fr;
 		gap: 0.45rem;
+		min-width: 0;
+	}
+
+	.segment-chip-stack {
+		display: grid;
+		align-content: end;
+		gap: 0.32rem;
+		min-height: 2rem;
 	}
 
 	.modifier-chip {
+		min-width: 0;
 		max-width: 100%;
 		border: 1px solid rgba(148, 163, 184, 0.22);
-		border-radius: 999px;
+		border-radius: 6px;
 		background: rgba(148, 163, 184, 0.1);
 		color: var(--color-text);
 		font-size: 0.76rem;
 		font-weight: 800;
 		line-height: 1.3;
+		overflow: hidden;
 		overflow-wrap: anywhere;
-		padding: 0.32rem 0.55rem;
+		padding: 0.32rem 0.45rem;
+		text-align: center;
 	}
 
 	.modifier-chip.discipline {
@@ -1052,9 +1140,11 @@
 
 	.segment-card {
 		min-width: 0;
+		min-height: 4rem;
 		color: var(--color-text);
 		cursor: pointer;
-		text-align: left;
+		place-items: center;
+		text-align: center;
 	}
 
 	.segment-card.active {

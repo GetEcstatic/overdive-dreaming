@@ -151,3 +151,31 @@ The second option is cleaner if this editor is meant to become the default routi
 - [x] Preserve current save/reset behavior without reintroducing diagnostic metrics into the default authoring view.
 - [x] Validate with focused tests and `npm run check`.
 - [x] Commit each major implementation slice.
+
+# Fixes required
+
+## Fix Implementation Plan
+
+- [x] Make layer names editable by clicking the name in the layer card.
+- [x] Add a large left-side layer number to each layer card.
+- [x] Hide distance controls for STA dive segments.
+- [x] Reduce segment cards to titles only.
+- [x] Move compact modifier chips into per-segment stacks above the segment they modify.
+- [x] Deep-strip `undefined` values before saving edited layer projections to Firestore.
+- [x] Triage the Firestore Listen `ERR_BLOCKED_BY_CLIENT` console message as client/browser blocking, not a routine-editor code failure.
+
+~~Layer names need to be editable (by clicking on them)~~
+
+~~Each layer card should have a large, clear number on the left.~~
+
+~~In an STA layer, distance should not be offered as a dive modifier.~~
+
+~~Segments only need their titles, no other information. The chips define them and carry additional info required.~~
+
+~~Chips need to stack neatly above the segment they are modifying. Currently the are too long and overlap segments. I don't think the modifiers need their descriptions: e.g. "Default discipline = default STA" could simply be "STA"~~
+
+~~When clicking "save" I'm getting a "Failed to save error". In the console this is reported as "+page.svelte:181 Failed to save layer changes: FirebaseError: Function updateDoc() called with invalid data. Unsupported field value: undefined (found in document routines/xPLGtpZp10UQcnJKs1Q6)"~~
+
+~~I'm also getting one error as soon as I click the create routine button: "firebase_firestore.js?v=4ed72190:2073  POST https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Foverdive-dreaming-fb%2Fdatabases%2F(default)&gsessionid=bb9KiaSg1CH3NIWscCRoRIHvFewzmcWgYqHd5hWhC3JWla1s_ANw0A&SID=YTiKIb42Wxa8eYmjrpkBEg&RID=94467&TYPE=terminate&zx=ev1c4jrnhw1z net::ERR_BLOCKED_BY_CLIENT"~~
+
+Note: the Firestore Listen `ERR_BLOCKED_BY_CLIENT` message is emitted by the browser/network layer when the Firestore streaming request is blocked or terminated by a client-side blocker. It is separate from the routine save failure, which was caused by nested `undefined` values in the layer write projection and has been fixed in the Firestore write helper.
