@@ -154,7 +154,16 @@ The second option is cleaner if this editor is meant to become the default routi
 
 # Fixes required
 
+This implementation of the UI is much much nicer. Well done. We're getting there.
+
+~~Can we change the label of the "environment" modifier "both" to "Either". This is semantically a better fit.~~
+
+~~Upon saving I'm stilling getting a fail. Console reports "+page.svelte:205 Failed to save layer changes: FirebaseError: Function updateDoc() called with invalid data. Unsupported field value: undefined (found in document routines/KH9DNK7t5jOY0AywOu33)"~~
+
+Note: the remaining save failure was caused by optional compatibility fields using the original write projection after the deep-strip cleanup, which could reintroduce nested `undefined` values inside generated table rows. The update path now uses the cleaned projection for optional update fields as well.
+
 ## Fix Implementation Plan
+
 
 - [x] Make layer names editable by clicking the name in the layer card.
 - [x] Add a large left-side layer number to each layer card.
@@ -163,6 +172,8 @@ The second option is cleaner if this editor is meant to become the default routi
 - [x] Move compact modifier chips into per-segment stacks above the segment they modify.
 - [x] Deep-strip `undefined` values before saving edited layer projections to Firestore.
 - [x] Triage the Firestore Listen `ERR_BLOCKED_BY_CLIENT` console message as client/browser blocking, not a routine-editor code failure.
+- [x] Relabel the UI value for environment `both` as `Either`.
+- [x] Use the cleaned projection for optional Firestore update fields so table rows do not reintroduce nested `undefined` values.
 
 ~~Layer names need to be editable (by clicking on them)~~
 

@@ -128,6 +128,8 @@
 	}
 
 	function compactModifierSummary(summary: string) {
+		if (summary === 'both') return 'Either';
+
 		return summary
 			.replace(/^default\s+/i, '')
 			.replace(/^fixed discipline$/i, 'fixed')
@@ -636,7 +638,7 @@
 								<div class="edit-grid compact">
 									<label><span>Effort</span><select value={selectedLayer.attributes.effort} onchange={(event) => updateSelectedEffort(event.currentTarget.value as LayerEffort)}><option value="standard">standard</option><option value="submax">submax</option><option value="max">max</option></select></label>
 									<label><span>Lung volume</span><select value={selectedLayer.attributes.lungVolume} onchange={(event) => updateSelectedLungVolume(event.currentTarget.value as LungVolume)}><option value="FL">FL</option><option value="FRC">FRC</option><option value="RV">RV</option></select></label>
-									<label><span>Environment</span><select value={selectedLayer.attributes.environment} onchange={(event) => updateSelectedEnvironment(event.currentTarget.value as 'wet' | 'dry' | 'both')}><option value="wet">wet</option><option value="dry">dry</option><option value="both">both</option></select></label>
+									<label><span>Environment</span><select value={selectedLayer.attributes.environment} onchange={(event) => updateSelectedEnvironment(event.currentTarget.value as 'wet' | 'dry' | 'both')}><option value="wet">wet</option><option value="dry">dry</option><option value="both">Either</option></select></label>
 								</div>
 							{:else if selectedSegmentKey === 'reps'}
 								<h3>Reps</h3>

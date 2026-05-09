@@ -148,11 +148,11 @@ export async function writeRoutineLayerTemplateContract(
 	const cleanedProjection = stripUndefined(writeProjection);
 	const legacyUpdates: Record<string, unknown> = {
 		...cleanedProjection,
-		trainingEnvironment: writeProjection.trainingEnvironment ?? deleteField(),
-		restBetweenReps: writeProjection.restBetweenReps ?? deleteField(),
-		repDistance: writeProjection.repDistance ?? deleteField(),
-		numberOfReps: writeProjection.numberOfReps ?? deleteField(),
-		table: writeProjection.table ?? deleteField()
+		trainingEnvironment: cleanedProjection.trainingEnvironment ?? deleteField(),
+		restBetweenReps: cleanedProjection.restBetweenReps ?? deleteField(),
+		repDistance: cleanedProjection.repDistance ?? deleteField(),
+		numberOfReps: cleanedProjection.numberOfReps ?? deleteField(),
+		table: cleanedProjection.table ?? deleteField()
 	};
 
 	await updateDoc(docRef, {
