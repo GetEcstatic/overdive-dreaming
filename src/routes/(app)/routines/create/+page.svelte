@@ -4,7 +4,9 @@
 	import { createRoutine } from '$lib/firestore';
 	import { defaultRoutineExamples, type RoutineLayerExample } from '$lib/routineLayers/defaults';
 	import { buildBlankRoutineLayer, buildLayerRoutineCreateData } from '$lib/routineLayers/create';
-	import type { RoutineAuthoringLayer } from '$lib/routineLayers/model';
+	import type { LayerDiscipline, RoutineAuthoringLayer } from '$lib/routineLayers/model';
+
+	const disciplineOptions: LayerDiscipline[] = ['STA', 'DYN', 'DYNB', 'DNF', 'TORT'];
 
 	type CreateScaffold = {
 		id: string;
@@ -23,7 +25,7 @@
 	const blankScaffold: CreateScaffold = {
 		id: 'blank',
 		name: 'Blank Routine',
-		description: 'Start from one open static layer and shape it in the layer editor.',
+		description: 'Start from one open layer and choose its starting discipline.',
 		layers: [buildBlankRoutineLayer()]
 	};
 
@@ -34,10 +36,12 @@
 	let description = $state(scaffolds[0].description);
 	let touchedName = $state(false);
 	let touchedDescription = $state(false);
+	let blankDiscipline = $state<LayerDiscipline>('DYN');
 	let saving = $state(false);
 	let error = $state<string | null>(null);
 
 	let selectedScaffold = $derived(scaffolds.find((scaffold) => scaffold.id === selectedScaffoldId) ?? scaffolds[0]);
+	let selectedLayers = $derived(selectedScaffold.id === 'blank' ? [buildBlankRoutineLayer('blank-layer-1', blankDiscipline)] : selectedScaffold.layers);
 
 	function selectScaffold(scaffold: CreateScaffold) {
 		selectedScaffoldId = scaffold.id;
@@ -57,7 +61,7 @@
 				buildLayerRoutineCreateData({
 					name,
 					description,
-					layers: selectedScaffold.layers
+					layers: selectedLayers
 				})
 			);
 			goto(`/routines/${routineId}/layers`);
@@ -129,9 +133,20 @@
 			</div>
 
 			<div class="summary-panel">
-				<span>{selectedScaffold.layers.length} authoring layer{selectedScaffold.layers.length === 1 ? '' : 's'}</span>
+				<span>{selectedLayers.length} authoring layer{selectedLayers.length === 1 ? '' : 's'}</span>
 				<span>Opens in the layer editor after creation</span>
 			</div>
+
+			{#if selectedScaffold.id === 'blank'}
+				<div class="field-group">
+					<label for="blank-discipline">Starting discipline</label>
+					<select id="blank-discipline" bind:value={blankDiscipline}>
+						{#each disciplineOptions as discipline}
+							<option value={discipline}>{discipline}</option>
+						{/each}
+					</select>
+				</div>
+			{/if}
 
 			{#if error}
 				<p class="error-message">{error}</p>
@@ -256,6 +271,7 @@
 	}
 
 	input,
+	select,
 	textarea {
 		width: 100%;
 		box-sizing: border-box;

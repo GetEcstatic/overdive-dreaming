@@ -61,4 +61,19 @@ describe('buildLayerRoutineCreateData', () => {
 		expect(data.displayConfig).not.toHaveProperty('tertiaryMetric');
 		expect(data.displayConfig).not.toHaveProperty('tertiaryMetricLabel');
 	});
+
+	it('creates dynamic blank layers when requested', () => {
+		const blankLayer = buildBlankRoutineLayer('blank-dyn-layer', 'DYN');
+		const data = buildLayerRoutineCreateData({
+			name: 'Blank dynamic routine',
+			description: 'Start dynamic',
+			layers: [blankLayer]
+		});
+
+		expect(data.layers[0].discipline).toBe('DYN');
+		expect(data.layers[0].dive.distance).toEqual({ mode: 'open' });
+		expect(data.disciplines).toEqual(['DYN']);
+		expect(data.trackingConfig.trackTotalDistance).toBe(true);
+		expect(data.displayConfig.heroMetric).toBe('totalDistance');
+	});
 });

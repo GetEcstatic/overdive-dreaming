@@ -1,6 +1,6 @@
 import type { RoutineTemplateFormData, TrackingConfig } from '$lib/types';
 import { buildLayerRoutineTemplateWriteProjection, type LayerRoutineTemplateWriteProjection } from './contract';
-import { isDynamicDiscipline, type RoutineAuthoringLayer } from './model';
+import { isDynamicDiscipline, type LayerDiscipline, type RoutineAuthoringLayer } from './model';
 
 export type CreateLayerRoutineInput = {
 	name: string;
@@ -19,14 +19,17 @@ export function buildLayerRoutineCreateData(input: CreateLayerRoutineInput): Lay
 	});
 }
 
-export function buildBlankRoutineLayer(id = 'blank-layer-1'): RoutineAuthoringLayer {
+export function buildBlankRoutineLayer(id = 'blank-layer-1', discipline: LayerDiscipline = 'STA'): RoutineAuthoringLayer {
 	return {
 		id,
 		name: 'Blank layer',
-		discipline: 'STA',
+		discipline,
 		disciplineSelectionMode: 'fixed',
 		breatheUp: { mode: 'open' },
-		dive: { duration: { mode: 'open' } },
+		dive: {
+			duration: { mode: 'open' },
+			distance: isDynamicDiscipline(discipline) ? { mode: 'open' } : undefined
+		},
 		attributes: {
 			lungVolume: 'FL',
 			effort: 'standard',

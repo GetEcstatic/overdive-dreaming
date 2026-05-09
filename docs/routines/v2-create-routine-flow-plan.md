@@ -108,3 +108,5 @@ This keeps the create flow data-oriented: UI collects a small plain input, the h
 ## Post-Implementation Fixes
 
 - [x] Deep-strip nested `undefined` values from create payloads so Firestore accepts blank-routine `displayConfig` objects.
+- [x] Let blank routine creation choose the starting discipline instead of hard-coding STA.
+- [x] Add editable layer controls for core segment modifiers: discipline, discipline freedom, allowed disciplines, breathe-up, and dive targets.

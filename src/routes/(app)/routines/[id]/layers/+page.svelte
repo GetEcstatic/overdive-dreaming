@@ -13,12 +13,16 @@
 	import type { RoutineTemplate } from '$lib/types';
 	import type {
 		ExpandedRoutinePlanRow,
+		LayerDiscipline,
 		LayerDistanceTarget,
 		LayerDurationTarget,
 		LayerEffort,
 		LungVolume,
 		RoutineAuthoringLayer
 	} from '$lib/routineLayers/model';
+
+	const disciplineOptions: LayerDiscipline[] = ['STA', 'DYN', 'DYNB', 'DNF', 'TORT'];
+	const dynamicDisciplineOptions: LayerDiscipline[] = ['DYN', 'DYNB', 'DNF', 'TORT'];
 
 	type ProjectionComparisonRow = {
 		label: string;
@@ -178,6 +182,100 @@
 		updateSelectedLayer((layer) => ({ ...layer, name: name.trim() || undefined }));
 	}
 
+	function updateSelectedDiscipline(discipline: LayerDiscipline) {
+		updateSelectedLayer((layer) => {
+			const nextDive = { ...layer.dive };
+			if (discipline === 'STA') {
+				delete nextDive.distance;
+			} else if (!nextDive.distance) {
+				nextDive.distance = { mode: 'open' };
+			}
+
+			return {
+				...layer,
+				discipline,
+				allowedDisciplines:
+					layer.disciplineSelectionMode === 'log-time-selectable'
+						? allowedDisciplinesFor(discipline, layer.allowedDisciplines)
+						: undefined,
+				dive: nextDive
+			};
+		});
+	}
+
+	function updateSelectedDisciplineSelectionMode(mode: 'fixed' | 'log-time-selectable') {
+		updateSelectedLayer((layer) => ({
+			...layer,
+			disciplineSelectionMode: mode,
+			allowedDisciplines: mode === 'log-time-selectable' ? allowedDisciplinesFor(layer.discipline, layer.allowedDisciplines) : undefined
+		}));
+	}
+
+	function toggleSelectedAllowedDiscipline(discipline: LayerDiscipline, checked: boolean) {
+		updateSelectedLayer((layer) => {
+			const current = layer.allowedDisciplines ?? allowedDisciplinesFor(layer.discipline, undefined);
+			const next = checked
+				? [...new Set([...current, discipline])]
+				: current.filter((item) => item !== discipline);
+
+			return {
+				...layer,
+				allowedDisciplines: next.length ? next : [layer.discipline]
+			};
+		});
+	}
+
+	function updateSelectedBreatheUpMode(mode: LayerDurationTarget['mode']) {
+		updateSelectedLayer((layer) => ({
+			...layer,
+			breatheUp: mode === 'open' ? { mode: 'open' } : { mode: 'fixed', seconds: layer.breatheUp.mode === 'fixed' ? layer.breatheUp.seconds : 60 }
+		}));
+	}
+
+	function updateSelectedBreatheUpSeconds(value: string) {
+		const seconds = Math.max(0, Math.floor(Number(value) || 0));
+		updateSelectedLayer((layer) => ({
+			...layer,
+			breatheUp: { mode: 'fixed', seconds }
+		}));
+	}
+
+	function updateSelectedDiveDurationMode(mode: LayerDurationTarget['mode'] | 'none') {
+		updateSelectedLayer((layer) => ({
+			...layer,
+			dive: {
+				...layer.dive,
+				duration: mode === 'none' ? undefined : mode === 'open' ? { mode: 'open' } : { mode: 'fixed', seconds: layer.dive.duration?.mode === 'fixed' ? layer.dive.duration.seconds : 90 }
+			}
+		}));
+	}
+
+	function updateSelectedDiveDurationSeconds(value: string) {
+		const seconds = Math.max(0, Math.floor(Number(value) || 0));
+		updateSelectedLayer((layer) => ({
+			...layer,
+			dive: { ...layer.dive, duration: { mode: 'fixed', seconds } }
+		}));
+	}
+
+	function updateSelectedDiveDistanceMode(mode: LayerDistanceTarget['mode'] | 'none') {
+		updateSelectedLayer((layer) => ({
+			...layer,
+			dive: {
+				...layer.dive,
+				distance: mode === 'none' ? undefined : mode === 'open' ? { mode: 'open' } : { mode: 'fixed', meters: layer.dive.distance?.mode === 'fixed' ? layer.dive.distance.meters : 50 }
+			}
+		}));
+	}
+
+	function updateSelectedDiveDistanceMeters(value: string) {
+		const meters = Math.max(0, Number(value) || 0);
+		updateSelectedLayer((layer) => ({
+			...layer,
+			dive: { ...layer.dive, distance: { mode: 'fixed', meters } }
+		}));
+	}
+
 	function updateSelectedRepeatCount(value: string) {
 		const repeatCount = Math.max(1, Math.floor(Number(value) || 1));
 		updateSelectedLayer((layer) => ({
@@ -252,6 +350,16 @@
 	function updateSelectedLayer(updater: (layer: RoutineAuthoringLayer) => RoutineAuthoringLayer) {
 		if (!selectedLayer) return;
 		editableLayers = editableLayers.map((layer) => layer.id === selectedLayer.id ? updater(layer) : layer);
+	}
+
+	function allowedDisciplinesFor(discipline: LayerDiscipline, current: LayerDiscipline[] | undefined): LayerDiscipline[] {
+		if (discipline === 'STA') return ['STA'];
+		const next = current?.filter((item) => dynamicDisciplineOptions.includes(item)) ?? dynamicDisciplineOptions;
+		return next.includes(discipline) ? next : [discipline, ...next];
+	}
+
+	function allowedDisciplineOptionsFor(discipline: LayerDiscipline): LayerDiscipline[] {
+		return discipline === 'STA' ? ['STA'] : dynamicDisciplineOptions;
 	}
 
 	function cloneLayer(layer: RoutineAuthoringLayer): RoutineAuthoringLayer {
@@ -423,7 +531,7 @@
 		<section class="editor-actions panel" aria-label="Layer editor actions">
 			<div>
 				<h2>Layer Editor</h2>
-				<span>Edit existing authoring layers. Add, remove, and reorder controls are not enabled yet.</span>
+				<span>Edit authoring layers, modifiers, and layer order.</span>
 			</div>
 			<div class="editor-buttons">
 				<button class="secondary-button" onclick={addLayerAfterSelected} disabled={savingLayers}>Add layer</button>
@@ -466,6 +574,21 @@
 							<input value={selectedLayer.name ?? ''} oninput={(event) => updateSelectedLayerName(event.currentTarget.value)} />
 						</label>
 						<label>
+							<span>Discipline</span>
+							<select value={selectedLayer.discipline} onchange={(event) => updateSelectedDiscipline(event.currentTarget.value as LayerDiscipline)}>
+								{#each disciplineOptions as discipline}
+									<option value={discipline}>{discipline}</option>
+								{/each}
+							</select>
+						</label>
+						<label>
+							<span>Discipline freedom</span>
+							<select value={selectedLayer.disciplineSelectionMode} onchange={(event) => updateSelectedDisciplineSelectionMode(event.currentTarget.value as 'fixed' | 'log-time-selectable')}>
+								<option value="fixed">fixed</option>
+								<option value="log-time-selectable">select at log time</option>
+							</select>
+						</label>
+						<label>
 							<span>Reps</span>
 							<input type="number" min="1" value={selectedLayer.attributes.repeatCount} oninput={(event) => updateSelectedRepeatCount(event.currentTarget.value)} />
 						</label>
@@ -493,6 +616,77 @@
 								<option value="both">both</option>
 							</select>
 						</label>
+					</div>
+
+					{#if selectedLayer.disciplineSelectionMode === 'log-time-selectable'}
+						<div class="modifier-section">
+							<h3>Allowed disciplines</h3>
+							<div class="check-grid">
+								{#each allowedDisciplineOptionsFor(selectedLayer.discipline) as discipline}
+									<label>
+										<input
+											type="checkbox"
+											checked={(selectedLayer.allowedDisciplines ?? allowedDisciplinesFor(selectedLayer.discipline, undefined)).includes(discipline)}
+											onchange={(event) => toggleSelectedAllowedDiscipline(discipline, event.currentTarget.checked)}
+										/>
+										<span>{discipline}</span>
+									</label>
+								{/each}
+							</div>
+						</div>
+					{/if}
+
+					<div class="modifier-section">
+						<h3>Breathe-up</h3>
+						<div class="edit-grid compact">
+							<label>
+								<span>Mode</span>
+								<select value={selectedLayer.breatheUp.mode} onchange={(event) => updateSelectedBreatheUpMode(event.currentTarget.value as LayerDurationTarget['mode'])}>
+									<option value="open">open</option>
+									<option value="fixed">fixed</option>
+								</select>
+							</label>
+							{#if selectedLayer.breatheUp.mode === 'fixed'}
+								<label>
+									<span>Seconds</span>
+									<input type="number" min="0" value={selectedLayer.breatheUp.seconds} oninput={(event) => updateSelectedBreatheUpSeconds(event.currentTarget.value)} />
+								</label>
+							{/if}
+						</div>
+					</div>
+
+					<div class="modifier-section">
+						<h3>Dive</h3>
+						<div class="edit-grid compact">
+							<label>
+								<span>Duration</span>
+								<select value={selectedLayer.dive.duration?.mode ?? 'none'} onchange={(event) => updateSelectedDiveDurationMode(event.currentTarget.value as LayerDurationTarget['mode'] | 'none')}>
+									<option value="none">none</option>
+									<option value="open">open</option>
+									<option value="fixed">fixed</option>
+								</select>
+							</label>
+							{#if selectedLayer.dive.duration?.mode === 'fixed'}
+								<label>
+									<span>Seconds</span>
+									<input type="number" min="0" value={selectedLayer.dive.duration.seconds} oninput={(event) => updateSelectedDiveDurationSeconds(event.currentTarget.value)} />
+								</label>
+							{/if}
+							<label>
+								<span>Distance</span>
+								<select value={selectedLayer.dive.distance?.mode ?? 'none'} onchange={(event) => updateSelectedDiveDistanceMode(event.currentTarget.value as LayerDistanceTarget['mode'] | 'none')}>
+									<option value="none">none</option>
+									<option value="open">open</option>
+									<option value="fixed">fixed</option>
+								</select>
+							</label>
+							{#if selectedLayer.dive.distance?.mode === 'fixed'}
+								<label>
+									<span>Meters</span>
+									<input type="number" min="0" step="0.1" value={selectedLayer.dive.distance.meters} oninput={(event) => updateSelectedDiveDistanceMeters(event.currentTarget.value)} />
+								</label>
+							{/if}
+						</div>
 					</div>
 
 					<div class="detail-meta">
@@ -605,6 +799,12 @@
 	h2 {
 		font-size: 1rem;
 		font-weight: 800;
+	}
+
+	h3 {
+		font-size: 0.86rem;
+		font-weight: 800;
+		margin: 0;
 	}
 
 	.meta-row,
@@ -775,6 +975,37 @@
 		font: inherit;
 		padding: 0.55rem 0.65rem;
 		min-width: 0;
+	}
+
+	.edit-grid.compact {
+		grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+	}
+
+	.modifier-section {
+		display: grid;
+		gap: 0.65rem;
+		border: 1px solid rgba(148, 163, 184, 0.14);
+		border-radius: 8px;
+		background: rgba(2, 6, 23, 0.18);
+		padding: 0.75rem;
+	}
+
+	.check-grid {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+
+	.check-grid label {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		border-radius: 999px;
+		color: var(--color-text-muted);
+		font-size: 0.82rem;
+		font-weight: 800;
+		padding: 0.35rem 0.55rem;
 	}
 
 	.layer-list {
