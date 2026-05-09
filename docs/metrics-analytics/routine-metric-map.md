@@ -272,10 +272,10 @@ Current attachment status:
 
 Existing-routine attachment checklist:
 
-- [ ] Add an audit script or admin-only report that lists routines missing registry-backed tracking flags compared with their layers/projection.
-- [ ] Add a dry-run backfill for v2 routines that reads `layers`, recomputes `buildLayerRoutineTemplateWriteProjection(layers)`, and reports the exact `trackingConfig`/`displayConfig` changes without writing.
-- [ ] Add a write mode for that v2 backfill after the dry-run output is reviewed.
-- [ ] Add tests proving representative existing v2 fixtures gain P0/P1/P2/P3 and competition comparison flags after reprojection.
+- [x] Add an audit script or admin-only report that lists routines missing registry-backed tracking flags compared with their layers/projection.
+- [x] Add a dry-run backfill for v2 routines that reads `layers`, recomputes `buildLayerRoutineTemplateWriteProjection(layers)`, and reports the exact `trackingConfig`/`displayConfig` changes without writing.
+- [x] Add a write mode for that v2 backfill after the dry-run output is reviewed.
+- [x] Add tests proving representative existing v2 fixtures gain P0/P1/P2/P3 and competition comparison flags after reprojection.
 - [ ] Decide legacy-routine handling: either project legacy templates to layers and backfill from that projection, or add a conservative legacy-only tracking inference for routines that do not have `layers`.
 - [ ] Add a legacy dry-run report before any legacy routine writes, because legacy routines may not encode enough intent for every advanced metric.
 - [ ] Revisit the layer editor metrics step after backfill so it can warn when the loaded routine has stale tracking flags and offer a one-click refresh.

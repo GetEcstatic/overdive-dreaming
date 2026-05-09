@@ -22,7 +22,9 @@
     "migrate:activity-types": "tsx scripts/migrate-activity-types.ts",
     "migrate:activity-types:dry": "tsx scripts/migrate-activity-types.ts --dry-run",
     "migrate:packing-volume": "tsx scripts/migrate-add-packing-volume.ts",
-    "migrate:packing-volume:dry": "tsx scripts/migrate-add-packing-volume.ts --dry-run"
+    "migrate:packing-volume:dry": "tsx scripts/migrate-add-packing-volume.ts --dry-run",
+    "audit:routine-metric-attachment": "tsx scripts/audit-routine-metric-attachment.ts",
+    "backfill:routine-metric-attachment": "tsx scripts/audit-routine-metric-attachment.ts --write"
   },
   "keywords": [
     "freediving",
