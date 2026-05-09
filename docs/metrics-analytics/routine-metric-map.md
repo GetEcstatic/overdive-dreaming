@@ -276,8 +276,8 @@ Existing-routine attachment checklist:
 - [x] Add a dry-run backfill for v2 routines that reads `layers`, recomputes `buildLayerRoutineTemplateWriteProjection(layers)`, and reports the exact `trackingConfig`/`displayConfig` changes without writing.
 - [x] Add a write mode for that v2 backfill after the dry-run output is reviewed.
 - [x] Add tests proving representative existing v2 fixtures gain P0/P1/P2/P3 and competition comparison flags after reprojection.
-- [ ] Decide legacy-routine handling: either project legacy templates to layers and backfill from that projection, or add a conservative legacy-only tracking inference for routines that do not have `layers`.
-- [ ] Add a legacy dry-run report before any legacy routine writes, because legacy routines may not encode enough intent for every advanced metric.
+- [x] Decide legacy-routine handling: report projected layer-derived changes for legacy routines first, but do not write legacy routines until the report is reviewed.
+- [x] Add a legacy dry-run report before any legacy routine writes, because legacy routines may not encode enough intent for every advanced metric.
 - [ ] Revisit the layer editor metrics step after backfill so it can warn when the loaded routine has stale tracking flags and offer a one-click refresh.
 - [ ] Keep Step 4 open until metric value resolution is moved fully behind registry-backed resolvers rather than split between registry metadata and `getMetricValue()` switch cases.
 - [ ] Keep Step 5b open until the hero metric picker is grouped/searchable with recommended presets and duplicate guards.

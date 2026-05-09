@@ -6,7 +6,12 @@
 import dotenv from 'dotenv';
 import admin from 'firebase-admin';
 import type { RoutineTemplate } from '../src/lib/types';
-import { auditRoutineMetricAttachment, type RoutineMetricAttachmentAudit } from '../src/lib/routineLayers/attachmentAudit';
+import {
+	auditLegacyRoutineMetricAttachment,
+	auditRoutineMetricAttachment,
+	type LegacyRoutineMetricAttachmentReport,
+	type RoutineMetricAttachmentAudit
+} from '../src/lib/routineLayers/attachmentAudit';
 
 dotenv.config();
 
@@ -18,6 +23,7 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 const writeMode = process.argv.includes('--write');
+const includeLegacyReport = process.argv.includes('--legacy-report');
 
 type AuditStats = {
 	checked: number;
@@ -25,6 +31,7 @@ type AuditStats = {
 	needsUpdate: number;
 	notLayered: number;
 	invalidLayers: number;
+	legacyReported: number;
 	written: number;
 	errors: number;
 };
@@ -35,12 +42,16 @@ const stats: AuditStats = {
 	needsUpdate: 0,
 	notLayered: 0,
 	invalidLayers: 0,
+	legacyReported: 0,
 	written: 0,
 	errors: 0
 };
 
 console.log('Routine metric attachment audit');
 console.log(`Mode: ${writeMode ? 'write' : 'dry-run'}\n`);
+if (includeLegacyReport) {
+	console.log('Legacy report: enabled (report-only; legacy routines are never written by this script)\n');
+}
 
 const routinesSnap = await db.collection('routines').get();
 
@@ -51,6 +62,14 @@ for (const routineDoc of routinesSnap.docs) {
 		const routine = { id: routineDoc.id, ...routineDoc.data() } as RoutineTemplate;
 		const audit = auditRoutineMetricAttachment(routine);
 		recordStatus(audit, stats);
+
+		if (audit.status === 'not-layered' && includeLegacyReport) {
+			const legacyReport = auditLegacyRoutineMetricAttachment(routine);
+			if (legacyReport) {
+				stats.legacyReported += 1;
+				printLegacyReport(legacyReport);
+			}
+		}
 
 		if (audit.status !== 'needs-update') {
 			continue;
@@ -77,6 +96,7 @@ console.log(`  Current:        ${stats.current}`);
 console.log(`  Needs update:   ${stats.needsUpdate}`);
 console.log(`  Not layered:    ${stats.notLayered}`);
 console.log(`  Invalid layers: ${stats.invalidLayers}`);
+console.log(`  Legacy reports: ${stats.legacyReported}`);
 console.log(`  Written:        ${stats.written}${writeMode ? '' : ' (dry-run)'}`);
 console.log(`  Errors:         ${stats.errors}`);
 
@@ -92,6 +112,22 @@ function recordStatus(audit: RoutineMetricAttachmentAudit, target: AuditStats): 
 function printAudit(audit: RoutineMetricAttachmentAudit): void {
 	console.log(`\n${audit.routineName} (${audit.routineId})`);
 	for (const diff of [...audit.trackingConfigChanges, ...audit.displayConfigChanges]) {
+		console.log(`  ${diff.path}: ${formatValue(diff.current)} -> ${formatValue(diff.projected)}`);
+	}
+}
+
+function printLegacyReport(report: LegacyRoutineMetricAttachmentReport): void {
+	console.log(`\nLegacy projection candidate: ${report.routineName} (${report.routineId})`);
+	console.log(`  Projected layer count: ${report.layerCount}`);
+
+	if (report.issueMessages.length > 0) {
+		for (const message of report.issueMessages) {
+			console.log(`  issue: ${message}`);
+		}
+		return;
+	}
+
+	for (const diff of [...report.trackingConfigChanges, ...report.displayConfigChanges]) {
 		console.log(`  ${diff.path}: ${formatValue(diff.current)} -> ${formatValue(diff.projected)}`);
 	}
 }

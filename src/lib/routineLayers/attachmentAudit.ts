@@ -1,6 +1,7 @@
 import type { DisplayConfig, RoutineTemplate, TrackingConfig } from '$lib/types';
 import {
 	buildLayerRoutineTemplateWriteProjection,
+	getRoutineTemplateLayers,
 	hasLayerRoutineTemplateContract,
 	validateLayerRoutineTemplateContract,
 	type LayerRoutineTemplateWriteProjection
@@ -22,6 +23,15 @@ export type RoutineMetricAttachmentAudit = {
 	displayConfigChanges: RoutineProjectionDiff[];
 	issueMessages: string[];
 	updateProjection?: LayerRoutineTemplateWriteProjection;
+};
+
+export type LegacyRoutineMetricAttachmentReport = {
+	routineId: string;
+	routineName: string;
+	layerCount: number;
+	trackingConfigChanges: RoutineProjectionDiff[];
+	displayConfigChanges: RoutineProjectionDiff[];
+	issueMessages: string[];
 };
 
 export function auditRoutineMetricAttachment(
@@ -62,6 +72,41 @@ export function auditRoutineMetricAttachment(
 		displayConfigChanges,
 		issueMessages: [],
 		updateProjection
+	};
+}
+
+export function auditLegacyRoutineMetricAttachment(
+	routine: Partial<RoutineTemplate> & { id?: string; name?: string }
+): LegacyRoutineMetricAttachmentReport | undefined {
+	if (hasLayerRoutineTemplateContract(routine)) {
+		return undefined;
+	}
+
+	const routineId = routine.id ?? '(unknown)';
+	const routineName = routine.name ?? '(unnamed routine)';
+	const layers = getRoutineTemplateLayers(routine as RoutineTemplate);
+	const issues = validateLayerRoutineTemplateContract({ layers });
+
+	if (issues.length > 0) {
+		return {
+			routineId,
+			routineName,
+			layerCount: layers.length,
+			trackingConfigChanges: [],
+			displayConfigChanges: [],
+			issueMessages: issues.map((issue) => issue.message)
+		};
+	}
+
+	const projected = buildLayerRoutineTemplateWriteProjection(layers);
+
+	return {
+		routineId,
+		routineName,
+		layerCount: layers.length,
+		trackingConfigChanges: diffFlatObject('trackingConfig', routine.trackingConfig ?? {}, projected.trackingConfig),
+		displayConfigChanges: diffFlatObject('displayConfig', routine.displayConfig ?? {}, projected.displayConfig),
+		issueMessages: []
 	};
 }
 
