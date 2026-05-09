@@ -1,4 +1,5 @@
 import type { ActivityType, Discipline, DisplayConfig, MetricType, RoutineTemplate, TableRow, TrackingConfig, TrainingEnvironment } from '$lib/types';
+import { getMetricLabel, metricTypeForCanonicalKey } from '$lib/metrics/registry';
 import { projectLegacyRoutineToLayers } from './legacy';
 import {
 	deriveDefaultTags,
@@ -11,7 +12,6 @@ import {
 } from './model';
 import type {
 	DisplayMetricSuggestion,
-	CanonicalMetricKey,
 	RoutineAuthoringLayer,
 	RoutineClassifications,
 	RoutineLayerValidationIssue,
@@ -69,61 +69,6 @@ export type LayerLegacyRoutineTemplateFields = {
 };
 
 export type LayerRoutineTemplateWriteProjection = LayerRoutineTemplateContract & LayerLegacyRoutineTemplateFields;
-
-const metricTypeByCanonicalKey: Partial<Record<CanonicalMetricKey, MetricType>> = {
-	durationSeconds: 'totalTime',
-	distanceMeters: 'totalDistance',
-	repsCompleted: 'repsCompleted',
-	restSeconds: 'avgRestBetweenLaps',
-	breatheUpSeconds: 'initialBreatheUpTime',
-	lapTimes: 'avgTimePerLap',
-	speedPerLap: 'avgSpeedMs',
-	breathingTechnique: 'breathingTechnique',
-	waterTemperatureCelsius: 'waterTemperature',
-	hrv: 'hrv',
-	restingHeartRate: 'restingHeartRate',
-	packingVolumePercent: 'packingVolume',
-	totalRoutineTimeSeconds: 'sessionDuration',
-	cumulativeDiveTimeSeconds: 'cumulativeHoldTime',
-	longestHoldSeconds: 'longestHold',
-	contractionsOnsetSeconds: 'contractionsOnsetTime'
-};
-
-const metricLabels: Record<MetricType, string> = {
-	totalDistance: 'Distance',
-	totalTime: 'Time',
-	repsCompleted: 'Reps',
-	totalRepDistance: 'Total Rep Distance',
-	repDuration: 'Rep Duration',
-	avgTimePerLap: 'Avg Lap Time',
-	avgTimePerRep: 'Avg Rep Time',
-	avgRestBetweenLaps: 'Rest',
-	totalBreathHoldTime: 'Breath Hold Time',
-	totalBreathingTime: 'Breathing Time',
-	totalBreaths: 'Breaths',
-	poolLength: 'Pool Length',
-	initialBreatheUpTime: 'Breathe-up',
-	waterTemperature: 'Water Temperature',
-	contractionsOnsetTime: 'Contractions',
-	restingHeartRate: 'Resting HR',
-	hrv: 'HRV',
-	packingVolume: 'Packing',
-	diveDuration: 'Dive Duration',
-	diveDistance: 'Dive Distance',
-	holdDuration: 'Hold Duration',
-	lapDistance: 'Lap Distance',
-	cumulativeHoldTime: 'Cumulative Hold',
-	cumulativeDistance: 'Cumulative Distance',
-	sessionDuration: 'Session Duration',
-	longestHold: 'Longest Hold',
-	avgSpeed: 'Avg Speed',
-	maxRepSpeed: 'Fastest Rep',
-	minRepSpeed: 'Slowest Rep',
-	avgSpeedMs: 'Avg Speed',
-	fastestLapSpeedMs: 'Fastest Lap',
-	slowestLapSpeedMs: 'Slowest Lap',
-	breathingTechnique: 'Breathing Technique'
-};
 
 export function buildLayerRoutineTemplateContract(layers: RoutineAuthoringLayer[]): LayerRoutineTemplateContract {
 	return {
@@ -249,11 +194,11 @@ export function projectLayersToLegacyRoutineTemplateFields(
 		trackingConfig: deriveTrackingConfigFromLayers(layers),
 		displayConfig: {
 			heroMetric,
-			heroMetricLabel: metricLabels[heroMetric],
+			heroMetricLabel: getMetricLabel(heroMetric),
 			secondaryMetric,
-			secondaryMetricLabel: metricLabels[secondaryMetric],
+			secondaryMetricLabel: getMetricLabel(secondaryMetric),
 			tertiaryMetric,
-			tertiaryMetricLabel: tertiaryMetric ? metricLabels[tertiaryMetric] : undefined
+			tertiaryMetricLabel: tertiaryMetric ? getMetricLabel(tertiaryMetric) : undefined
 		}
 	};
 }
@@ -321,10 +266,10 @@ export function deriveTrackingConfigFromLayers(layers: RoutineAuthoringLayer[]):
 	};
 }
 
-function metricTypeForCanonical(canonical: CanonicalMetricKey | undefined, fallback: MetricType): MetricType;
-function metricTypeForCanonical(canonical: CanonicalMetricKey | undefined, fallback: undefined): MetricType | undefined;
-function metricTypeForCanonical(canonical: CanonicalMetricKey | undefined, fallback: MetricType | undefined): MetricType | undefined {
-	return canonical ? metricTypeByCanonicalKey[canonical] ?? fallback : fallback;
+function metricTypeForCanonical(canonical: Parameters<typeof metricTypeForCanonicalKey>[0], fallback: MetricType): MetricType;
+function metricTypeForCanonical(canonical: Parameters<typeof metricTypeForCanonicalKey>[0], fallback: undefined): MetricType | undefined;
+function metricTypeForCanonical(canonical: Parameters<typeof metricTypeForCanonicalKey>[0], fallback: MetricType | undefined): MetricType | undefined {
+	return metricTypeForCanonicalKey(canonical) ?? fallback;
 }
 
 function projectDisciplines(layers: RoutineAuthoringLayer[]): Discipline[] {
