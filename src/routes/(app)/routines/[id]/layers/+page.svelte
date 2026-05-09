@@ -8,7 +8,7 @@
 	import { getRoutine, writeRoutineLayerTemplateContract } from '$lib/firestore';
 	import { isAdmin } from '$lib/utils/admin';
 	import { buildRoutineLayerReadModel } from '$lib/routineLayers/readModel';
-	import { buildLayerSentence } from '$lib/routineLayers/sentence';
+	import { buildLayerSentence, type LayerSentenceSegmentKey } from '$lib/routineLayers/sentence';
 	import { expandRoutineLayers } from '$lib/routineLayers/model';
 	import { findDefaultRoutineLayerExample } from '$lib/routineLayers/defaults';
 	import type { LegacyRoutineProjection } from '$lib/routineLayers/contract';
@@ -44,6 +44,8 @@
 	let editorRoutineId = $state<string | null>(null);
 	let editableLayers = $state<RoutineAuthoringLayer[]>([]);
 	let selectedLayerId = $state<string | null>(null);
+	let selectedSegmentKey = $state<LayerSentenceSegmentKey | null>(null);
+	let showDebug = $state(false);
 
 	let userIsAdmin = $derived(isAdmin($user?.uid));
 	let readModel = $derived(routine && userIsAdmin ? buildRoutineLayerReadModel(routine) : null);
@@ -111,6 +113,15 @@
 
 	function layerLabel(layer: RoutineAuthoringLayer, index: number) {
 		return layer.name ?? `Layer ${index + 1}`;
+	}
+
+	function layerSentenceFor(layerId: string) {
+		return layerSentences.find((sentence) => sentence.layerId === layerId);
+	}
+
+	function selectSegment(layerId: string, segmentKey: LayerSentenceSegmentKey) {
+		selectedLayerId = layerId;
+		selectedSegmentKey = segmentKey;
 	}
 
 	function formatDuration(target: LayerDurationTarget | undefined) {
@@ -324,6 +335,7 @@
 			...editableLayers.slice(insertIndex)
 		];
 		selectedLayerId = nextLayer.id;
+		selectedSegmentKey = null;
 	}
 
 	function removeSelectedLayer() {
@@ -429,16 +441,23 @@
 		</button>
 
 		<div class="header-copy">
-			<div class="eyebrow">Layer Read Model</div>
+			<div class="eyebrow">Routine Builder</div>
 			<h1>{routine?.name ?? 'Routine'}</h1>
-			{#if readModel}
-				<div class="meta-row">
-					<span>{sourceLabel(readModel.source)}</span>
-					<span>{readModel.layers.length} layer{readModel.layers.length === 1 ? '' : 's'}</span>
-					<span>{readModel.expandedRows.length} expanded row{readModel.expandedRows.length === 1 ? '' : 's'}</span>
-				</div>
-			{/if}
 		</div>
+
+		{#if readModel}
+			<div class="header-actions">
+				<button class="write-button" onclick={saveEditedLayers} disabled={!editorDirty || savingLayers}>
+					{savingLayers ? 'Saving...' : 'Save'}
+				</button>
+				<button class="secondary-button" onclick={resetEditedLayers} disabled={!editorDirty || savingLayers}>Reset</button>
+				{#if userIsAdmin}
+					<button class="secondary-button" onclick={() => (showDebug = !showDebug)}>
+						{showDebug ? 'Hide debug' : 'Show debug'}
+					</button>
+				{/if}
+			</div>
+		{/if}
 	</header>
 
 	{#if loading}
@@ -448,325 +467,179 @@
 	{:else if !userIsAdmin}
 		<div class="state-panel error">Admin access is required to inspect layer read models.</div>
 	{:else if readModel}
-		{#if canWriteDefaultFixture && matchedDefaultExample}
-			<section class="panel write-panel" aria-label="Default routine v2 write support">
-				<div>
-					<h2>Default Fixture Write</h2>
-					<span>Attach the {matchedDefaultExample.name} v2 layer contract to this system routine.</span>
-				</div>
-				<button class="write-button" onclick={writeDefaultFixtureContract} disabled={writingDefaultFixture}>
-					{writingDefaultFixture ? 'Writing...' : 'Write fixture contract'}
-				</button>
-				{#if writeStatus}
-					<p>{writeStatus}</p>
-				{/if}
-			</section>
-		{/if}
-
-		<section class="status-grid" aria-label="Read model status">
-			<div>
-				<span>Source</span>
-				<strong>{sourceLabel(readModel.source)}</strong>
-			</div>
-			<div>
-				<span>Layers</span>
-				<strong>{readModel.layers.length}</strong>
-			</div>
-			<div>
-				<span>Rows</span>
-				<strong>{readModel.expandedRows.length}</strong>
-			</div>
-			<div>
-				<span>Validation</span>
-				<strong class:ok={readModel.validationIssues.length === 0}>
-					{readModel.validationIssues.length === 0 ? 'valid' : `${readModel.validationIssues.length} issue(s)`}
-				</strong>
-			</div>
-		</section>
-
-		{#if readModel.validationIssues.length > 0}
-			<section class="panel" aria-label="Validation issues">
-				<h2>Validation Issues</h2>
-				<div class="issue-list">
-					{#each readModel.validationIssues as issue}
-						<div class="issue-row">
-							<strong>{issue.code}</strong>
-							<span>{issue.layerId}</span>
-							<p>{issue.message}</p>
-						</div>
-					{/each}
-				</div>
-			</section>
-		{/if}
-
-		<section class="panel" aria-label="Projection comparison">
-			<h2>Projection Comparison</h2>
-			<div class="gap-summary" class:ok={projectionGapRows.length === 0}>
-				<strong>{projectionGapRows.length === 0 ? 'No projection gaps recorded' : `${projectionGapRows.length} projection gap${projectionGapRows.length === 1 ? '' : 's'} recorded`}</strong>
-				<span>{projectionGapRows.length === 0 ? 'The layer projection matches the current legacy display fields checked here.' : 'Review these before enabling v2 writes for this routine.'}</span>
-			</div>
-
-			{#if projectionGapRows.length > 0}
-				<div class="gap-list" aria-label="Projection gaps">
-					{#each projectionGapRows as row}
-						<div class="gap-row">
-							<strong>{row.label}</strong>
-							<span>Current: {row.current}</span>
-							<span>Projected: {row.projected}</span>
-						</div>
-					{/each}
-				</div>
-			{/if}
-
-			<div class="comparison-list">
-				{#each projectionComparisonRows as row}
-					<div class="comparison-row" class:gap={row.status === 'gap'}>
-						<strong>{row.label}</strong>
-						<span>{row.current}</span>
-						<span>{row.projected}</span>
-						<small>{row.status}</small>
+		{#if showDebug}
+			{#if canWriteDefaultFixture && matchedDefaultExample}
+				<section class="panel write-panel" aria-label="Default routine v2 write support">
+					<div>
+						<h2>Default Fixture Write</h2>
+						<span>Attach the {matchedDefaultExample.name} v2 layer contract to this system routine.</span>
 					</div>
-				{/each}
-			</div>
-		</section>
-
-		<section class="editor-actions panel" aria-label="Layer editor actions">
-			<div>
-				<h2>Layer Editor</h2>
-				<span>Edit authoring layers, modifiers, and layer order.</span>
-			</div>
-			<div class="editor-buttons">
-				<button class="secondary-button" onclick={addLayerAfterSelected} disabled={savingLayers}>Add layer</button>
-				<button class="secondary-button" onclick={() => moveSelectedLayer(-1)} disabled={selectedLayerIndex <= 0 || savingLayers}>Move up</button>
-				<button class="secondary-button" onclick={() => moveSelectedLayer(1)} disabled={selectedLayerIndex < 0 || selectedLayerIndex >= editableLayers.length - 1 || savingLayers}>Move down</button>
-				<button class="danger-button" onclick={removeSelectedLayer} disabled={editableLayers.length <= 1 || savingLayers}>Remove</button>
-				<button class="write-button" onclick={saveEditedLayers} disabled={!editorDirty || savingLayers}>
-					{savingLayers ? 'Saving...' : 'Save layers'}
-				</button>
-				<button class="secondary-button" onclick={resetEditedLayers} disabled={!editorDirty || savingLayers}>Reset</button>
-			</div>
-			{#if editorStatus}
-				<p>{editorStatus}</p>
-			{/if}
-		</section>
-
-		<section class="layout-grid">
-			<div class="panel layer-list" aria-label="Layers">
-				<h2>Layers</h2>
-				{#each editableLayers as layer, index}
-					<button
-						class="layer-button"
-						class:active={selectedLayer?.id === layer.id}
-						onclick={() => (selectedLayerId = layer.id)}
-					>
-						<span>{layerLabel(layer, index)}</span>
-						<strong>{layer.discipline}</strong>
-						<small>{formatLayerTargets(layer)}</small>
+					<button class="write-button" onclick={writeDefaultFixtureContract} disabled={writingDefaultFixture}>
+						{writingDefaultFixture ? 'Writing...' : 'Write fixture contract'}
 					</button>
-				{/each}
-			</div>
-
-			<div class="panel layer-detail" aria-label="Selected layer details">
-				{#if selectedLayer}
-					<h2>{layerLabel(selectedLayer, editableLayers.indexOf(selectedLayer))}</h2>
-
-					<div class="edit-grid">
-						<label>
-							<span>Name</span>
-							<input value={selectedLayer.name ?? ''} oninput={(event) => updateSelectedLayerName(event.currentTarget.value)} />
-						</label>
-						<label>
-							<span>Discipline</span>
-							<select value={selectedLayer.discipline} onchange={(event) => updateSelectedDiscipline(event.currentTarget.value as LayerDiscipline)}>
-								{#each disciplineOptions as discipline}
-									<option value={discipline}>{discipline}</option>
-								{/each}
-							</select>
-						</label>
-						<label>
-							<span>Discipline freedom</span>
-							<select value={selectedLayer.disciplineSelectionMode} onchange={(event) => updateSelectedDisciplineSelectionMode(event.currentTarget.value as 'fixed' | 'log-time-selectable')}>
-								<option value="fixed">fixed</option>
-								<option value="log-time-selectable">select at log time</option>
-							</select>
-						</label>
-						<label>
-							<span>Reps</span>
-							<NumberWheelInput
-								value={selectedLayer.attributes.repeatCount}
-								min={1}
-								max={100}
-								step={1}
-								unit="rep"
-								compact={true}
-								showLabel={false}
-								onValueChange={updateSelectedRepeatCount}
-							/>
-						</label>
-						<label>
-							<span>Effort</span>
-							<select value={selectedLayer.attributes.effort} onchange={(event) => updateSelectedEffort(event.currentTarget.value as LayerEffort)}>
-								<option value="standard">standard</option>
-								<option value="submax">submax</option>
-								<option value="max">max</option>
-							</select>
-						</label>
-						<label>
-							<span>Lung volume</span>
-							<select value={selectedLayer.attributes.lungVolume} onchange={(event) => updateSelectedLungVolume(event.currentTarget.value as LungVolume)}>
-								<option value="FL">FL</option>
-								<option value="FRC">FRC</option>
-								<option value="RV">RV</option>
-							</select>
-						</label>
-						<label>
-							<span>Environment</span>
-							<select value={selectedLayer.attributes.environment} onchange={(event) => updateSelectedEnvironment(event.currentTarget.value as 'wet' | 'dry' | 'both')}>
-								<option value="wet">wet</option>
-								<option value="dry">dry</option>
-								<option value="both">both</option>
-							</select>
-						</label>
-					</div>
-
-					{#if selectedLayer.disciplineSelectionMode === 'log-time-selectable'}
-						<div class="modifier-section">
-							<h3>Allowed disciplines</h3>
-							<div class="check-grid">
-								{#each allowedDisciplineOptionsFor(selectedLayer.discipline) as discipline}
-									<label>
-										<input
-											type="checkbox"
-											checked={(selectedLayer.allowedDisciplines ?? allowedDisciplinesFor(selectedLayer.discipline, undefined)).includes(discipline)}
-											onchange={(event) => toggleSelectedAllowedDiscipline(discipline, event.currentTarget.checked)}
-										/>
-										<span>{discipline}</span>
-									</label>
-								{/each}
-							</div>
-						</div>
+					{#if writeStatus}
+						<p>{writeStatus}</p>
 					{/if}
+				</section>
+			{/if}
 
-					<div class="modifier-section">
-						<h3>Breathe-up</h3>
-						<div class="edit-grid compact">
-							<label>
-								<span>Mode</span>
-								<select value={selectedLayer.breatheUp.mode} onchange={(event) => updateSelectedBreatheUpMode(event.currentTarget.value as LayerDurationTarget['mode'])}>
-									<option value="open">open</option>
-									<option value="fixed">fixed</option>
-								</select>
-							</label>
-							{#if selectedLayer.breatheUp.mode === 'fixed'}
-								<label>
-									<span>Duration</span>
-									<DurationInput
-										value={selectedLayer.breatheUp.seconds}
-										min={0}
-										max={3600}
-										compact={true}
-										showLabel={false}
-										onValueChange={updateSelectedBreatheUpSeconds}
-									/>
-								</label>
-							{/if}
-						</div>
-					</div>
+			<section class="status-grid" aria-label="Read model status">
+				<div><span>Source</span><strong>{sourceLabel(readModel.source)}</strong></div>
+				<div><span>Layers</span><strong>{readModel.layers.length}</strong></div>
+				<div><span>Rows</span><strong>{readModel.expandedRows.length}</strong></div>
+				<div>
+					<span>Validation</span>
+					<strong class:ok={readModel.validationIssues.length === 0}>{readModel.validationIssues.length === 0 ? 'valid' : `${readModel.validationIssues.length} issue(s)`}</strong>
+				</div>
+			</section>
 
-					<div class="modifier-section">
-						<h3>Dive</h3>
-						<div class="edit-grid compact">
-							<label>
-								<span>Duration</span>
-								<select value={selectedLayer.dive.duration?.mode ?? 'none'} onchange={(event) => updateSelectedDiveDurationMode(event.currentTarget.value as LayerDurationTarget['mode'] | 'none')}>
-									<option value="none">none</option>
-									<option value="open">open</option>
-									<option value="fixed">fixed</option>
-								</select>
-							</label>
-							{#if selectedLayer.dive.duration?.mode === 'fixed'}
-								<label>
-									<span>Duration</span>
-									<DurationInput
-										value={selectedLayer.dive.duration.seconds}
-										min={0}
-										max={3600}
-										compact={true}
-										showLabel={false}
-										onValueChange={updateSelectedDiveDurationSeconds}
-									/>
-								</label>
-							{/if}
-							<label>
-								<span>Distance</span>
-								<select value={selectedLayer.dive.distance?.mode ?? 'none'} onchange={(event) => updateSelectedDiveDistanceMode(event.currentTarget.value as LayerDistanceTarget['mode'] | 'none')}>
-									<option value="none">none</option>
-									<option value="open">open</option>
-									<option value="fixed">fixed</option>
-								</select>
-							</label>
-							{#if selectedLayer.dive.distance?.mode === 'fixed'}
-								<label>
-									<span>Meters</span>
-									<NumberWheelInput
-										value={selectedLayer.dive.distance.meters}
-										min={0}
-										max={300}
-										step={1}
-										unit="m"
-										compact={true}
-										showLabel={false}
-										onValueChange={updateSelectedDiveDistanceMeters}
-									/>
-								</label>
-							{/if}
-						</div>
-					</div>
-
-					<div class="detail-meta">
-						<span>{selectedLayer.discipline}</span>
-						<span>{selectedLayer.attributes.environment}</span>
-						<span>{selectedLayer.attributes.effort}</span>
-						<span>{selectedLayer.attributes.repeatCount} rep{selectedLayer.attributes.repeatCount === 1 ? '' : 's'}</span>
-					</div>
-
-					<div class="sentence-grid">
-						{#each layerSentences.find((sentence) => sentence.layerId === selectedLayer.id)?.segments ?? [] as segment}
-							<div class="segment-card">
-								<span>{segment.label}</span>
-								<strong>{segment.summary}</strong>
-								<small>{segment.details.join(' - ')}</small>
+			{#if readModel.validationIssues.length > 0}
+				<section class="panel" aria-label="Validation issues">
+					<h2>Validation Issues</h2>
+					<div class="issue-list">
+						{#each readModel.validationIssues as issue}
+							<div class="issue-row">
+								<strong>{issue.code}</strong>
+								<span>{issue.layerId}</span>
+								<p>{issue.message}</p>
 							</div>
 						{/each}
 					</div>
+				</section>
+			{/if}
+
+			<section class="panel" aria-label="Projection comparison">
+				<h2>Projection Comparison</h2>
+				<div class="gap-summary" class:ok={projectionGapRows.length === 0}>
+					<strong>{projectionGapRows.length === 0 ? 'No projection gaps recorded' : `${projectionGapRows.length} projection gap${projectionGapRows.length === 1 ? '' : 's'} recorded`}</strong>
+					<span>{projectionGapRows.length === 0 ? 'The layer projection matches the current legacy display fields checked here.' : 'Review these before enabling v2 writes for this routine.'}</span>
+				</div>
+				{#if projectionGapRows.length > 0}
+					<div class="gap-list" aria-label="Projection gaps">
+						{#each projectionGapRows as row}
+							<div class="gap-row"><strong>{row.label}</strong><span>Current: {row.current}</span><span>Projected: {row.projected}</span></div>
+						{/each}
+					</div>
 				{/if}
-			</div>
+				<div class="comparison-list">
+					{#each projectionComparisonRows as row}
+						<div class="comparison-row" class:gap={row.status === 'gap'}><strong>{row.label}</strong><span>{row.current}</span><span>{row.projected}</span><small>{row.status}</small></div>
+					{/each}
+				</div>
+			</section>
+		{/if}
+
+		<section class="authoring-flow" aria-label="Routine layer editor">
+			{#each editableLayers as layer, index}
+				{@const sentence = layerSentenceFor(layer.id)}
+				<section class="layer-canvas" class:selected={selectedLayer?.id === layer.id} aria-label={layerLabel(layer, index)}>
+					<div class="layer-heading">
+						<h2>{layerLabel(layer, index)}</h2>
+						<span>{layer.discipline} · {layer.attributes.repeatCount} rep{layer.attributes.repeatCount === 1 ? '' : 's'}</span>
+					</div>
+
+					{#if sentence?.segments.some((segment) => segment.modifiers.length > 0)}
+						<div class="modifier-chip-row" aria-label="Layer modifiers">
+							{#each sentence.segments as segment}
+								{#each segment.modifiers as modifier}
+									<span class={`modifier-chip ${segment.key}`}>{modifier.label} = {modifier.summary}</span>
+								{/each}
+							{/each}
+						</div>
+					{/if}
+
+					<div class="segment-row" aria-label={`${layerLabel(layer, index)} segments`}>
+						{#each sentence?.segments ?? [] as segment}
+							<button
+								type="button"
+								class="segment-card"
+								class:active={selectedLayer?.id === layer.id && selectedSegmentKey === segment.key}
+								onclick={() => selectSegment(layer.id, segment.key)}
+							>
+								<span>{segment.label}</span>
+								<strong>{segment.summary}</strong>
+							</button>
+						{/each}
+					</div>
+
+					{#if selectedLayer?.id === layer.id && selectedSegmentKey && selectedLayer}
+						<div class="segment-editor" aria-label="Selected segment editor">
+							{#if selectedSegmentKey === 'discipline'}
+								<h3>Discipline</h3>
+								<div class="edit-grid compact">
+									<label><span>Discipline</span><select value={selectedLayer.discipline} onchange={(event) => updateSelectedDiscipline(event.currentTarget.value as LayerDiscipline)}>{#each disciplineOptions as discipline}<option value={discipline}>{discipline}</option>{/each}</select></label>
+									<label><span>Discipline freedom</span><select value={selectedLayer.disciplineSelectionMode} onchange={(event) => updateSelectedDisciplineSelectionMode(event.currentTarget.value as 'fixed' | 'log-time-selectable')}><option value="fixed">fixed</option><option value="log-time-selectable">select at log time</option></select></label>
+								</div>
+								{#if selectedLayer.disciplineSelectionMode === 'log-time-selectable'}
+									<div class="check-grid">
+										{#each allowedDisciplineOptionsFor(selectedLayer.discipline) as discipline}
+											<label><input type="checkbox" checked={(selectedLayer.allowedDisciplines ?? allowedDisciplinesFor(selectedLayer.discipline, undefined)).includes(discipline)} onchange={(event) => toggleSelectedAllowedDiscipline(discipline, event.currentTarget.checked)} /><span>{discipline}</span></label>
+										{/each}
+									</div>
+								{/if}
+							{:else if selectedSegmentKey === 'breatheUp'}
+								<h3>Breathe-up</h3>
+								<div class="edit-grid compact">
+									<label><span>Mode</span><select value={selectedLayer.breatheUp.mode} onchange={(event) => updateSelectedBreatheUpMode(event.currentTarget.value as LayerDurationTarget['mode'])}><option value="open">open</option><option value="fixed">fixed</option></select></label>
+									{#if selectedLayer.breatheUp.mode === 'fixed'}<label><span>Duration</span><DurationInput value={selectedLayer.breatheUp.seconds} min={0} max={3600} compact={true} showLabel={false} onValueChange={updateSelectedBreatheUpSeconds} /></label>{/if}
+								</div>
+							{:else if selectedSegmentKey === 'dive'}
+								<h3>Dive</h3>
+								<div class="edit-grid compact">
+									<label><span>Duration</span><select value={selectedLayer.dive.duration?.mode ?? 'none'} onchange={(event) => updateSelectedDiveDurationMode(event.currentTarget.value as LayerDurationTarget['mode'] | 'none')}><option value="none">none</option><option value="open">open</option><option value="fixed">fixed</option></select></label>
+									{#if selectedLayer.dive.duration?.mode === 'fixed'}<label><span>Duration</span><DurationInput value={selectedLayer.dive.duration.seconds} min={0} max={3600} compact={true} showLabel={false} onValueChange={updateSelectedDiveDurationSeconds} /></label>{/if}
+									<label><span>Distance</span><select value={selectedLayer.dive.distance?.mode ?? 'none'} onchange={(event) => updateSelectedDiveDistanceMode(event.currentTarget.value as LayerDistanceTarget['mode'] | 'none')}><option value="none">none</option><option value="open">open</option><option value="fixed">fixed</option></select></label>
+									{#if selectedLayer.dive.distance?.mode === 'fixed'}<label><span>Meters</span><NumberWheelInput value={selectedLayer.dive.distance.meters} min={0} max={300} step={1} unit="m" compact={true} showLabel={false} onValueChange={updateSelectedDiveDistanceMeters} /></label>{/if}
+								</div>
+							{:else if selectedSegmentKey === 'setup'}
+								<h3>Setup</h3>
+								<div class="edit-grid compact">
+									<label><span>Effort</span><select value={selectedLayer.attributes.effort} onchange={(event) => updateSelectedEffort(event.currentTarget.value as LayerEffort)}><option value="standard">standard</option><option value="submax">submax</option><option value="max">max</option></select></label>
+									<label><span>Lung volume</span><select value={selectedLayer.attributes.lungVolume} onchange={(event) => updateSelectedLungVolume(event.currentTarget.value as LungVolume)}><option value="FL">FL</option><option value="FRC">FRC</option><option value="RV">RV</option></select></label>
+									<label><span>Environment</span><select value={selectedLayer.attributes.environment} onchange={(event) => updateSelectedEnvironment(event.currentTarget.value as 'wet' | 'dry' | 'both')}><option value="wet">wet</option><option value="dry">dry</option><option value="both">both</option></select></label>
+								</div>
+							{:else if selectedSegmentKey === 'reps'}
+								<h3>Reps</h3>
+								<div class="edit-grid compact"><label><span>Reps</span><NumberWheelInput value={selectedLayer.attributes.repeatCount} min={1} max={100} step={1} unit="rep" compact={true} showLabel={false} onValueChange={updateSelectedRepeatCount} /></label></div>
+							{/if}
+						</div>
+					{/if}
+				</section>
+			{/each}
+
+			<button type="button" class="add-layer-button" onclick={addLayerAfterSelected} disabled={savingLayers} aria-label="Add layer">+</button>
 		</section>
 
-		<section class="panel" aria-label="Expanded routine rows">
-			<h2>Expanded Rows</h2>
-			<div class="row-list">
-				{#each selectedLayerRows as row}
-					<div class="plan-row">
-						<span>#{row.globalRowIndex}</span>
-						<strong>{formatPlanRow(row)}</strong>
-						<small>{row.analyticsRole ?? 'standard'} - {row.attributes.lungVolume}</small>
-					</div>
-				{/each}
-			</div>
-		</section>
+		{#if editorStatus}
+			<p class="editor-status">{editorStatus}</p>
+		{/if}
 
-		<section class="panel" aria-label="Legacy display projection">
-			<h2>Legacy Projection</h2>
-			<div class="projection-grid">
-				{#each legacyProjectionEntries as [key, value]}
-					<div>
-						<span>{key}</span>
-						<strong>{value}</strong>
-					</div>
-				{/each}
-			</div>
-		</section>
+		{#if showDebug}
+			<section class="panel" aria-label="Expanded routine rows">
+				<h2>Expanded Rows</h2>
+				<div class="row-list">
+					{#each selectedLayerRows as row}
+						<div class="plan-row">
+							<span>#{row.globalRowIndex}</span>
+							<strong>{formatPlanRow(row)}</strong>
+							<small>{row.analyticsRole ?? 'standard'} - {row.attributes.lungVolume}</small>
+						</div>
+					{/each}
+				</div>
+			</section>
+
+			<section class="panel" aria-label="Legacy display projection">
+				<h2>Legacy Projection</h2>
+				<div class="projection-grid">
+					{#each legacyProjectionEntries as [key, value]}
+						<div>
+							<span>{key}</span>
+							<strong>{value}</strong>
+						</div>
+					{/each}
+				</div>
+			</section>
+		{/if}
 	{/if}
 </div>
 
@@ -780,8 +653,17 @@
 
 	.page-header {
 		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
 		gap: 1rem;
+		align-items: end;
 		margin-bottom: 1.5rem;
+	}
+
+	.header-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		justify-content: end;
 	}
 
 	.back-button {
@@ -841,32 +723,14 @@
 		margin: 0;
 	}
 
-	.meta-row,
-	.detail-meta {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.5rem;
-	}
-
-	.meta-row span,
-	.detail-meta span,
-	.layer-button strong,
 	.status-grid div,
 	.plan-row span,
 	.plan-row small,
 	.segment-card span,
-	.segment-card small,
 	.projection-grid span,
 	.issue-row span {
 		color: var(--color-text-muted);
 		font-size: 0.78rem;
-	}
-
-	.meta-row span,
-	.detail-meta span {
-		border: 1px solid rgba(148, 163, 184, 0.22);
-		border-radius: 999px;
-		padding: 0.3rem 0.55rem;
 	}
 
 	.state-panel,
@@ -923,21 +787,17 @@
 		margin-bottom: 1rem;
 	}
 
-	.editor-actions,
 	.write-panel {
 		grid-template-columns: minmax(0, 1fr) auto;
 		align-items: center;
 		border-color: rgba(20, 184, 166, 0.28);
 	}
 
-	.editor-actions > div,
 	.write-panel > div {
 		display: grid;
 		gap: 0.25rem;
 	}
 
-	.editor-actions span,
-	.editor-actions p,
 	.write-panel span,
 	.write-panel p {
 		color: var(--color-text-muted);
@@ -1000,7 +860,6 @@
 		text-transform: uppercase;
 	}
 
-	.edit-grid input,
 	.edit-grid select {
 		border: 1px solid rgba(148, 163, 184, 0.22);
 		border-radius: 6px;
@@ -1042,31 +901,6 @@
 		padding: 0.35rem 0.55rem;
 	}
 
-	.layer-list {
-		align-content: start;
-	}
-
-	.layer-button {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto;
-		gap: 0.2rem 0.75rem;
-		align-items: center;
-		border: 1px solid rgba(148, 163, 184, 0.14);
-		border-radius: 8px;
-		background: rgba(15, 23, 42, 0.6);
-		color: var(--color-text);
-		padding: 0.75rem;
-		text-align: left;
-		cursor: pointer;
-	}
-
-	.layer-button.active {
-		border-color: rgba(20, 184, 166, 0.54);
-		background: rgba(20, 184, 166, 0.1);
-	}
-
-	.layer-button span,
-	.layer-button small,
 	.segment-card strong,
 	.plan-row strong {
 		overflow: hidden;
@@ -1074,14 +908,120 @@
 		white-space: nowrap;
 	}
 
-	.layer-button small {
-		grid-column: 1 / -1;
-		color: var(--color-text-muted);
-		font-size: 0.76rem;
-	}
-
 	.layer-detail {
 		align-content: start;
+	}
+
+	.authoring-flow {
+		display: grid;
+		gap: 1rem;
+	}
+
+	.layer-canvas {
+		display: grid;
+		gap: 0.85rem;
+		border: 1px solid rgba(148, 163, 184, 0.16);
+		border-radius: 8px;
+		background: rgba(15, 23, 42, 0.54);
+		padding: 1rem;
+	}
+
+	.layer-canvas.selected {
+		border-color: rgba(20, 184, 166, 0.44);
+	}
+
+	.layer-heading {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 0.75rem;
+	}
+
+	.layer-heading span,
+	.editor-status {
+		color: var(--color-text-muted);
+		font-size: 0.82rem;
+	}
+
+	.modifier-chip-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.45rem;
+	}
+
+	.modifier-chip {
+		max-width: 100%;
+		border: 1px solid rgba(148, 163, 184, 0.22);
+		border-radius: 999px;
+		background: rgba(148, 163, 184, 0.1);
+		color: var(--color-text);
+		font-size: 0.76rem;
+		font-weight: 800;
+		line-height: 1.3;
+		overflow-wrap: anywhere;
+		padding: 0.32rem 0.55rem;
+	}
+
+	.modifier-chip.discipline {
+		border-color: rgba(96, 165, 250, 0.34);
+		background: rgba(96, 165, 250, 0.12);
+	}
+
+	.modifier-chip.breatheUp {
+		border-color: rgba(45, 212, 191, 0.34);
+		background: rgba(45, 212, 191, 0.1);
+	}
+
+	.modifier-chip.dive {
+		border-color: rgba(34, 211, 238, 0.34);
+		background: rgba(34, 211, 238, 0.1);
+	}
+
+	.modifier-chip.setup {
+		border-color: rgba(250, 204, 21, 0.34);
+		background: rgba(250, 204, 21, 0.1);
+	}
+
+	.modifier-chip.reps {
+		border-color: rgba(167, 139, 250, 0.34);
+		background: rgba(167, 139, 250, 0.1);
+	}
+
+	.segment-row {
+		display: grid;
+		grid-template-columns: repeat(5, minmax(0, 1fr));
+		gap: 0.5rem;
+	}
+
+	.segment-editor {
+		display: grid;
+		gap: 0.75rem;
+		border: 1px solid rgba(20, 184, 166, 0.24);
+		border-radius: 8px;
+		background: rgba(2, 6, 23, 0.28);
+		padding: 0.85rem;
+	}
+
+	.add-layer-button {
+		justify-self: center;
+		width: min(100%, 360px);
+		min-height: 4.5rem;
+		border: 1px dashed rgba(20, 184, 166, 0.58);
+		border-radius: 8px;
+		background: rgba(20, 184, 166, 0.1);
+		color: #99f6e4;
+		cursor: pointer;
+		font-size: 2rem;
+		font-weight: 800;
+	}
+
+	.add-layer-button:hover {
+		background: rgba(20, 184, 166, 0.16);
+	}
+
+	.add-layer-button:disabled {
+		cursor: not-allowed;
+		opacity: 0.65;
 	}
 
 	.sentence-grid,
@@ -1108,6 +1048,18 @@
 		border-radius: 8px;
 		background: rgba(2, 6, 23, 0.28);
 		padding: 0.7rem;
+	}
+
+	.segment-card {
+		min-width: 0;
+		color: var(--color-text);
+		cursor: pointer;
+		text-align: left;
+	}
+
+	.segment-card.active {
+		border-color: rgba(20, 184, 166, 0.54);
+		background: rgba(20, 184, 166, 0.1);
 	}
 
 	.segment-card,
@@ -1183,11 +1135,16 @@
 	@media (max-width: 760px) {
 		.status-grid,
 		.layout-grid,
-		.editor-actions,
+		.page-header,
 		.write-panel,
 		.plan-row,
-		.comparison-row {
+		.comparison-row,
+		.segment-row {
 			grid-template-columns: 1fr;
+		}
+
+		.header-actions {
+			justify-content: start;
 		}
 
 		h1 {

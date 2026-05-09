@@ -143,11 +143,11 @@ The second option is cleaner if this editor is meant to become the default routi
 ## Implementation Checklist
 
 - [x] Record answered open questions and convert them into implementation steps.
-- [ ] Add an admin-only debug toggle so read-model status, projection comparison, expanded rows, and legacy projection are hidden by default.
-- [ ] Replace the default editor surface with a layer canvas: modifier chips above a horizontal segment row.
-- [ ] Add selected-segment state and show the relevant inline segment editor only after a segment is clicked.
-- [ ] Move existing discipline, breathe-up, dive, setup, and reps controls into their segment-specific editors.
-- [ ] Replace the ordinary add-layer controls with a large `+` affordance that inserts below the selected layer and selects the new layer.
-- [ ] Preserve current save/reset behavior without reintroducing diagnostic metrics into the default authoring view.
-- [ ] Validate with focused tests and `npm run check`.
-- [ ] Commit each major implementation slice.
+- [x] Add an admin-only debug toggle so read-model status, projection comparison, expanded rows, and legacy projection are hidden by default.
+- [x] Replace the default editor surface with a layer canvas: modifier chips above a horizontal segment row.
+- [x] Add selected-segment state and show the relevant inline segment editor only after a segment is clicked.
+- [x] Move existing discipline, breathe-up, dive, setup, and reps controls into their segment-specific editors.
+- [x] Replace the ordinary add-layer controls with a large `+` affordance that inserts below the selected layer and selects the new layer.
+- [x] Preserve current save/reset behavior without reintroducing diagnostic metrics into the default authoring view.
+- [x] Validate with focused tests and `npm run check`.
+- [x] Commit each major implementation slice.
