@@ -6,7 +6,15 @@
  */
 
 import type { RoutineLog, RoutineTemplate, MetricType } from '$lib/types';
+import { getMetricRegistryEntry } from '$lib/metrics/registry';
 import { formatTime } from './time';
+
+type MetricValueResolver = (log: RoutineLog, routine: RoutineTemplate) => number;
+type FormattedMetricResolver = (
+	log: RoutineLog,
+	routine: RoutineTemplate,
+	label: string
+) => { value: string; label: string };
 
 /**
  * Calculate total breath hold time (sum of all hold durations)
@@ -107,6 +115,102 @@ export function calculateTotalRepDistance(log: RoutineLog): number {
 	return 0;
 }
 
+const metricValueResolvers = {
+	totalDistance: (log) => log.totalDistance || log.diveDistance || 0,
+	diveDistance: (log) => log.totalDistance || log.diveDistance || 0,
+	cumulativeDistance: (log) => {
+		if (log.cumulativeDistance) return log.cumulativeDistance;
+		if (log.laps && log.laps.length > 0) {
+			return log.laps.reduce((sum, lap) => sum + (lap.distanceMeters || 0), 0);
+		}
+		return calculateTotalRepDistance(log);
+	},
+	totalTime: (log) => log.totalTime || log.diveDuration || 0,
+	diveDuration: (log) => log.totalTime || log.diveDuration || 0,
+	repsCompleted: (log) => log.repsCompleted || log.summary?.repsCompleted || 0,
+	totalRepDistance: (log) => calculateTotalRepDistance(log),
+	repDuration: (log) => log.repDuration || 0,
+	holdDuration: (log) => log.repDuration || log.totalTime || log.diveDuration || 0,
+	lapDistance: (log) => log.repDistance || 0,
+	avgTimePerLap: (log) => calculateAvgTimePerLap(log),
+	avgTimePerRep: (log) => calculateAvgTimePerLap(log),
+	avgRestBetweenLaps: (log) => calculateAvgRestBetweenLaps(log),
+	totalBreathHoldTime: (log, routine) => resolveCumulativeHoldTime(log, routine),
+	cumulativeHoldTime: (log, routine) => resolveCumulativeHoldTime(log, routine),
+	longestHold: (log) => log.longestHold ?? maxLapValue(log, (lap) => lap.timeSeconds) ?? 0,
+	totalBreathingTime: (log) => calculateTotalBreathingTime(log),
+	sessionDuration: (log) => log.sessionDuration || log.totalTime || log.diveDuration || 0,
+	totalBreaths: (log) => calculateTotalBreaths(log),
+	poolLength: (log) => log.poolLength || 0,
+	initialBreatheUpTime: (log) => log.initialBreatheUpTime || 0,
+	waterTemperature: (log) => log.waterTemperature || 0,
+	contractionsOnsetTime: (log) => log.contractionsOnsetTime || 0,
+	restingHeartRate: (log) => log.restingHeartRate || 0,
+	hrv: (log) => log.hrv || 0,
+	packingVolume: (log) => log.packingVolume || 0,
+	minimumSpO2: (log) => log.minimumSpO2 ?? log.lowestSpO2 ?? minLapValue(log, (lap) => lap.spo2Min) ?? 0,
+	minimumHR: (log) => log.minimumHR ?? log.sessionMinHR ?? minLapValue(log, (lap) => lap.hrMin) ?? 0,
+	timeBelowSpO2Threshold: (log) => log.totalTimeBelow70 ?? sumLapValue(log, (lap) => lap.timeBelow70),
+	kicksPerLap: (log) => averageLapValue(log, (lap) => lap.kicks),
+	averageKicksPerLap: (log) => averageLapValue(log, (lap) => lap.kicks),
+	armPullsPerLap: (log) => averageLapValue(log, (lap) => lap.armPulls),
+	averageArmPullsPerLap: (log) => averageLapValue(log, (lap) => lap.armPulls),
+	fvcLiters: (log) => log.fvc ?? 0,
+	fvcWithPackingLiters: (log) => log.fvcWithPacking ?? 0,
+	endSpO2: (log) => log.endSpO2 ?? 0,
+	recoveryQuality: (log) => log.recoveryQuality ?? 0,
+	urgeToBreathe: (log) => log.urgeToBreathe ?? 0,
+	lucidity: (log) => log.lucidity ?? 0,
+	contractions: (log) => log.contractions ?? 0,
+	avgSpeed: (log) => log.avgSpeedMs ?? log.avgSpeed ?? calculateAvgSpeed(log),
+	avgSpeedMs: (log) => log.avgSpeedMs ?? log.avgSpeed ?? calculateAvgSpeed(log),
+	maxRepSpeed: (log) => log.fastestLapSpeedMs ?? log.maxRepSpeed ?? maxLapValue(log, speedForLap) ?? 0,
+	fastestLapSpeedMs: (log) => log.fastestLapSpeedMs ?? log.maxRepSpeed ?? maxLapValue(log, speedForLap) ?? 0,
+	minRepSpeed: (log) => log.slowestLapSpeedMs ?? log.minRepSpeed ?? minLapValue(log, speedForLap) ?? 0,
+	slowestLapSpeedMs: (log) => log.slowestLapSpeedMs ?? log.minRepSpeed ?? minLapValue(log, speedForLap) ?? 0,
+	breathingTechnique: zeroMetric,
+	equipment: zeroMetric,
+	facialGear: zeroMetric,
+	gasMix: zeroMetric,
+	safetyOutcome: zeroMetric,
+	lungVolume: zeroMetric,
+	competitionStatus: zeroMetric,
+	cardColor: zeroMetric,
+	recordTag: zeroMetric
+} satisfies Record<MetricType, MetricValueResolver>;
+
+const formattedMetricResolvers: Partial<Record<MetricType, FormattedMetricResolver>> = {
+	breathingTechnique: (log, _routine, label) => {
+		if (log.breathingTechniqueLevel !== undefined && log.breathingTechniqueLevel !== null) {
+			const level = log.breathingTechniqueLevel;
+			let technique: string;
+			if (level === 0) technique = 'Tidal';
+			else if (level < 0) technique = `Hypoventilation (${level})`;
+			else technique = `Hyperventilation (+${level})`;
+			return { value: technique, label };
+		}
+
+		return { value: log.breathingTechnique || '—', label };
+	},
+	equipment: (log, _routine, label) => ({ value: log.equipmentUsed || '—', label }),
+	facialGear: (log, _routine, label) => ({ value: log.facialGear?.join(', ') || '—', label }),
+	gasMix: (log, _routine, label) => ({
+		value: log.gasMix || log.attemptConditions?.gasMix || log.attemptConditions?.breathingGas || '—',
+		label
+	}),
+	safetyOutcome: (log, _routine, label) => {
+		if (log.sambaBO === undefined) return { value: '—', label };
+		return { value: log.sambaBO ? 'Samba/BO' : 'Clean', label };
+	},
+	lungVolume: (log, _routine, label) => ({
+		value: log.defaultLungVolume ?? log.laps?.find((lap) => lap.lungVolume)?.lungVolume ?? '—',
+		label
+	}),
+	competitionStatus: (log, _routine, label) => ({ value: log.isCompetition ? 'Competition' : 'Training', label }),
+	cardColor: (log, _routine, label) => ({ value: log.cardTag ?? '—', label }),
+	recordTag: (log, _routine, label) => ({ value: log.recordTag ?? '—', label })
+};
+
 /**
  * Get a metric value from a routine log
  * Handles both direct fields and calculated metrics
@@ -117,150 +221,19 @@ export function getMetricValue(
 	log: RoutineLog,
 	routine: RoutineTemplate
 ): number {
-	switch (metricType) {
-		// Distance metrics
-		case 'totalDistance':
-		case 'diveDistance': // New alias
-			return log.totalDistance || log.diveDistance || 0;
+	return metricValueResolvers[metricType](log, routine);
+}
 
-		case 'cumulativeDistance':
-			if (log.cumulativeDistance) return log.cumulativeDistance;
-			if (log.laps && log.laps.length > 0) {
-				return log.laps.reduce((sum, lap) => sum + (lap.distanceMeters || 0), 0);
-			}
-			return calculateTotalRepDistance(log);
-
-		// Time metrics
-		case 'totalTime':
-		case 'diveDuration': // New alias
-			return log.totalTime || log.diveDuration || 0;
-
-		case 'repsCompleted':
-			return log.repsCompleted || log.summary?.repsCompleted || 0;
-
-		case 'totalRepDistance':
-			return calculateTotalRepDistance(log);
-
-		case 'repDuration':
-			return log.repDuration || 0;
-
-		case 'avgTimePerLap':
-		case 'avgTimePerRep':
-			return calculateAvgTimePerLap(log);
-
-		case 'avgRestBetweenLaps':
-			return calculateAvgRestBetweenLaps(log);
-
-		case 'totalBreathHoldTime':
-		case 'cumulativeHoldTime': // New alias
-			// Try direct field first, then calculate from laps, then from routine template
-			if (log.cumulativeHoldTime) return log.cumulativeHoldTime;
-			if (log.laps && log.laps.length > 0) {
-				return log.laps.reduce((sum, lap) => sum + (lap.timeSeconds || 0), 0);
-			}
-			return calculateTotalBreathHoldTime(log, routine);
-
-		case 'longestHold':
-			// Try direct field first, then calculate from laps
-			if (log.longestHold) return log.longestHold;
-			if (log.laps && log.laps.length > 0) {
-				return Math.max(...log.laps.map(lap => lap.timeSeconds || 0));
-			}
-			return 0;
-
-		case 'totalBreathingTime':
-			return calculateTotalBreathingTime(log);
-
-		case 'totalBreaths':
-			return calculateTotalBreaths(log);
-
-		case 'poolLength':
-			return log.poolLength || 0;
-
-		case 'initialBreatheUpTime':
-			return log.initialBreatheUpTime || 0;
-
-		case 'waterTemperature':
-			return log.waterTemperature || 0;
-
-		case 'contractionsOnsetTime':
-			return log.contractionsOnsetTime || 0;
-
-		case 'restingHeartRate':
-			return log.restingHeartRate || 0;
-
-		case 'hrv':
-			return log.hrv || 0;
-
-		case 'packingVolume':
-			return log.packingVolume || 0;
-
-		case 'minimumSpO2':
-			return log.minimumSpO2 ?? log.lowestSpO2 ?? minLapValue(log, (lap) => lap.spo2Min) ?? 0;
-
-		case 'minimumHR':
-			return log.minimumHR ?? log.sessionMinHR ?? minLapValue(log, (lap) => lap.hrMin) ?? 0;
-
-		case 'timeBelowSpO2Threshold':
-			return log.totalTimeBelow70 ?? sumLapValue(log, (lap) => lap.timeBelow70);
-
-		case 'kicksPerLap':
-		case 'averageKicksPerLap':
-			return averageLapValue(log, (lap) => lap.kicks);
-
-		case 'armPullsPerLap':
-		case 'averageArmPullsPerLap':
-			return averageLapValue(log, (lap) => lap.armPulls);
-
-		case 'fvcLiters':
-			return log.fvc ?? 0;
-
-		case 'fvcWithPackingLiters':
-			return log.fvcWithPacking ?? 0;
-
-		case 'endSpO2':
-			return log.endSpO2 ?? 0;
-
-		case 'recoveryQuality':
-			return log.recoveryQuality ?? 0;
-
-		case 'urgeToBreathe':
-			return log.urgeToBreathe ?? 0;
-
-		case 'lucidity':
-			return log.lucidity ?? 0;
-
-		case 'contractions':
-			return log.contractions ?? 0;
-
-		// Speed metrics (new canonical *Ms names preferred; old names kept as aliases)
-		case 'avgSpeed':
-		case 'avgSpeedMs':
-			return log.avgSpeedMs ?? log.avgSpeed ?? calculateAvgSpeed(log);
-
-		case 'maxRepSpeed':
-		case 'fastestLapSpeedMs':
-			return log.fastestLapSpeedMs ?? log.maxRepSpeed ?? maxLapValue(log, speedForLap) ?? 0;
-
-		case 'minRepSpeed':
-		case 'slowestLapSpeedMs':
-			return log.slowestLapSpeedMs ?? log.minRepSpeed ?? minLapValue(log, speedForLap) ?? 0;
-
-		case 'breathingTechnique':
-		case 'equipment':
-		case 'facialGear':
-		case 'gasMix':
-		case 'safetyOutcome':
-		case 'lungVolume':
-		case 'competitionStatus':
-		case 'cardColor':
-		case 'recordTag':
-			// String metric - return 0 as placeholder, handled in getFormattedMetric
-			return 0;
-
-		default:
-			return 0;
+function resolveCumulativeHoldTime(log: RoutineLog, routine: RoutineTemplate): number {
+	if (log.cumulativeHoldTime) return log.cumulativeHoldTime;
+	if (log.laps && log.laps.length > 0) {
+		return log.laps.reduce((sum, lap) => sum + (lap.timeSeconds || 0), 0);
 	}
+	return calculateTotalBreathHoldTime(log, routine);
+}
+
+function zeroMetric(): number {
+	return 0;
 }
 
 /**
@@ -307,78 +280,29 @@ function speedForLap(lap: NonNullable<RoutineLog['laps']>[number]): number | und
  * Returns formatted string with appropriate units
  */
 export function formatMetricValue(metricType: MetricType, value: number): string {
-	switch (metricType) {
-		// Distance metrics
-		case 'totalDistance':
-		case 'diveDistance':
-		case 'totalRepDistance':
-		case 'cumulativeDistance':
-		case 'poolLength':
+	const metric = getMetricRegistryEntry(metricType);
+
+	switch (metric.valueKind) {
+		case 'distance':
 			return `${value}m`;
-
-		// Time metrics
-		case 'totalTime':
-		case 'diveDuration':
-		case 'repDuration':
-		case 'avgTimePerLap':
-		case 'avgTimePerRep':
-		case 'avgRestBetweenLaps':
-		case 'totalBreathHoldTime':
-		case 'cumulativeHoldTime':
-		case 'longestHold':
-		case 'totalBreathingTime':
-		case 'initialBreatheUpTime':
-		case 'contractionsOnsetTime':
-		case 'timeBelowSpO2Threshold':
+		case 'time':
 			return formatTime(value);
-
-		// Count metrics
-		case 'repsCompleted':
-		case 'totalBreaths':
-		case 'kicksPerLap':
-		case 'armPullsPerLap':
-		case 'averageKicksPerLap':
-		case 'averageArmPullsPerLap':
+		case 'count':
 			return value.toString();
-
-		// Speed metrics (m/s)
-		case 'avgSpeed':
-		case 'avgSpeedMs':
-		case 'maxRepSpeed':
-		case 'fastestLapSpeedMs':
-		case 'minRepSpeed':
-		case 'slowestLapSpeedMs':
+		case 'speed':
 			return `${value.toFixed(2)} m/s`;
-
-		// Temperature
-		case 'waterTemperature':
+		case 'temperature':
 			return `${value}°C`;
-
-		// Heart rate
-		case 'restingHeartRate':
-		case 'minimumHR':
+		case 'heartRate':
 			return `${value} bpm`;
-
-		case 'fvcLiters':
-		case 'fvcWithPackingLiters':
+		case 'volume':
 			return `${value.toFixed(1)}L`;
-
-		// HRV
-		case 'hrv':
+		case 'variability':
 			return `${value}ms`;
-
-		// Packing volume (percentage)
-		case 'packingVolume':
-		case 'minimumSpO2':
-		case 'endSpO2':
+		case 'percent':
 			return `${value.toFixed(0)}%`;
-
-		case 'recoveryQuality':
-		case 'urgeToBreathe':
-		case 'lucidity':
-		case 'contractions':
+		case 'scale':
 			return `${value}/10`;
-
 		default:
 			return value.toString();
 	}
@@ -393,53 +317,8 @@ export function getFormattedMetric(
 	log: RoutineLog,
 	routine: RoutineTemplate
 ): { value: string; label: string } {
-	// Handle string-based metrics
-	if (metricType === 'breathingTechnique') {
-		// Prefer breathingTechniqueLevel (newer numeric field) over old enum
-		if (log.breathingTechniqueLevel !== undefined && log.breathingTechniqueLevel !== null) {
-			const level = log.breathingTechniqueLevel;
-			let technique: string;
-			if (level === 0) technique = 'Tidal';
-			else if (level < 0) technique = `Hypoventilation (${level})`;
-			else technique = `Hyperventilation (+${level})`;
-			return { value: technique, label };
-		}
-		const technique = log.breathingTechnique || '—';
-		return { value: technique, label };
-	}
-
-	if (metricType === 'equipment') {
-		return { value: log.equipmentUsed || '—', label };
-	}
-
-	if (metricType === 'facialGear') {
-		return { value: log.facialGear?.join(', ') || '—', label };
-	}
-
-	if (metricType === 'gasMix') {
-		return { value: log.gasMix || log.attemptConditions?.gasMix || log.attemptConditions?.breathingGas || '—', label };
-	}
-
-	if (metricType === 'safetyOutcome') {
-		if (log.sambaBO === undefined) return { value: '—', label };
-		return { value: log.sambaBO ? 'Samba/BO' : 'Clean', label };
-	}
-
-	if (metricType === 'lungVolume') {
-		return { value: log.defaultLungVolume ?? log.laps?.find((lap) => lap.lungVolume)?.lungVolume ?? '—', label };
-	}
-
-	if (metricType === 'competitionStatus') {
-		return { value: log.isCompetition ? 'Competition' : 'Training', label };
-	}
-
-	if (metricType === 'cardColor') {
-		return { value: log.cardTag ?? '—', label };
-	}
-
-	if (metricType === 'recordTag') {
-		return { value: log.recordTag ?? '—', label };
-	}
+	const formattedResolver = formattedMetricResolvers[metricType];
+	if (formattedResolver) return formattedResolver(log, routine, label);
 
 	const rawValue = getMetricValue(metricType, log, routine);
 	const formattedValue = formatMetricValue(metricType, rawValue);

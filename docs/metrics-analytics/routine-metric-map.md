@@ -247,7 +247,7 @@ Goal: every metric that is tracked for a routine should be selectable as a hero,
 - [x] Step 3b: P1 display metrics added for kicks, arm pulls, equipment, and facial gear.
 - [x] Step 3c: P2 and tracked P3 display metrics added for FVC, FVC with packing, gas mix, end SpO2, recovery quality, urge to breathe, lucidity, contractions intensity, safety outcome, and lung volume.
 - [x] Step 3d: Competition status, card color, and record tag are tracked/displayable comparison metrics for dynamic and static max attempts only.
-- [ ] Step 4: Move metric value resolution behind registry-backed resolvers.
+- [x] Step 4: Move metric value resolution behind registry-backed resolvers.
 - [x] Step 5a: Hero metric dropdowns now use registry options filtered by the routine tracking config.
 - [ ] Step 5b: Add grouped/searchable picker UX and row-level mixed-routine filtering.
 - [x] Step 6: Routine-family display option and safe empty-log resolution tests added.
@@ -279,7 +279,7 @@ Existing-routine attachment checklist:
 - [x] Decide legacy-routine handling: report projected layer-derived changes for legacy routines first, but do not write legacy routines until the report is reviewed.
 - [x] Add a legacy dry-run report before any legacy routine writes, because legacy routines may not encode enough intent for every advanced metric.
 - [x] Revisit the layer editor metrics step after backfill so it can warn when the loaded routine has stale tracking flags and offer a one-click refresh.
-- [ ] Keep Step 4 open until metric value resolution is moved fully behind registry-backed resolvers rather than split between registry metadata and `getMetricValue()` switch cases.
+- [x] Keep Step 4 open until metric value resolution is moved fully behind registry-backed resolvers rather than split between registry metadata and `getMetricValue()` switch cases.
 - [ ] Keep Step 5b open until the hero metric picker is grouped/searchable with recommended presets and duplicate guards.
 - [ ] Keep Step 7b open until an actual unknown stored display key is found; current stored keys are covered by the registry, so no migration adapter is needed yet.
 
