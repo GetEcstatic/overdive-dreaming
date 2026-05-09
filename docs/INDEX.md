@@ -53,6 +53,7 @@ Designs that are largely settled. Read for context, not as a roadmap.
 
 ### Metrics
 - [Training metrics catalog](metrics-analytics/training-metrics.md) — full metric inventory (200+), activity types, lung volume
+- [Routine metric map](metrics-analytics/routine-metric-map.md) — builder-facing map for static/dynamic tracked and calculated metrics
 - [Analytics design](metrics-analytics/analytics-design.md) — exploratory: RPE zones, 80/20, TSS, filter builder ideas
 
 ### Video master spec
