@@ -5,6 +5,7 @@ import {
 	ROUTINE_TEMPLATE_LAYER_VERSION,
 	buildLayerRoutineTemplateContract,
 	buildLayerRoutineTemplateWriteProjection,
+	deriveTrackingConfigFromLayers,
 	getRoutineTemplateLayers,
 	hasLayerRoutineTemplateContract,
 	projectLayersToLegacyRoutineProjection,
@@ -126,8 +127,25 @@ describe('layer routine template contract', () => {
 		expect(writeProjection.layerDefaultTags).toEqual(['static', 'table']);
 		expect(writeProjection.disciplines).toEqual(['STA']);
 		expect(writeProjection.activityType).toBe('structured-intervals');
+		expect(writeProjection.trackingConfig.trackTotalTime).toBe(true);
+		expect(writeProjection.trackingConfig.trackRepDuration).toBe(true);
+		expect(writeProjection.trackingConfig.trackPerRepSpO2).toBe(true);
 		expect(writeProjection.table?.rows).toHaveLength(10);
 		expect(writeProjection.displayConfig.heroMetric).toBe('cumulativeHoldTime');
+	});
+
+	it('derives collection-first tracking from layer discipline and repeat shape', () => {
+		const trackingConfig = deriveTrackingConfigFromLayers(dynamicSweet16Example.layers);
+
+		expect(trackingConfig.trackTotalDistance).toBe(true);
+		expect(trackingConfig.trackTotalTime).toBe(true);
+		expect(trackingConfig.trackRepDistance).toBe(true);
+		expect(trackingConfig.trackRepDuration).toBe(true);
+		expect(trackingConfig.trackTimePerLap).toBe(true);
+		expect(trackingConfig.trackSpeedPerLap).toBe(true);
+		expect(trackingConfig.trackPerRepSpO2).toBe(true);
+		expect(trackingConfig.trackFVC).toBe(true);
+		expect(trackingConfig.trackHoursSinceLastMeal).toBe(true);
 	});
 
 	it('rejects empty layer contracts before any Firestore write path uses them', () => {

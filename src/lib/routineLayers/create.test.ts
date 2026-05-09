@@ -35,8 +35,11 @@ describe('buildLayerRoutineCreateData', () => {
 		expect(data.routineTemplateVersion).toBe(ROUTINE_TEMPLATE_LAYER_VERSION);
 		expect(data.table?.rows).toHaveLength(10);
 		expect(data.table?.rows[0]).toMatchObject({ restBefore: 240, targetDuration: 90 });
+		expect(data.trackingConfig.trackTotalTime).toBe(true);
 		expect(data.trackingConfig.trackRepsCompleted).toBe(true);
 		expect(data.trackingConfig.trackRepDuration).toBe(true);
+		expect(data.trackingConfig.trackBreathsBetweenReps).toBe(true);
+		expect(data.trackingConfig.trackPerRepSpO2).toBe(true);
 		expect(data.numberOfReps).toBeUndefined();
 		expect(data.restBetweenReps).toBeUndefined();
 		expect(data.displayConfig.heroMetric).toBe('cumulativeHoldTime');
@@ -74,6 +77,8 @@ describe('buildLayerRoutineCreateData', () => {
 		expect(data.layers[0].dive.distance).toEqual({ mode: 'open' });
 		expect(data.disciplines).toEqual(['DYN']);
 		expect(data.trackingConfig.trackTotalDistance).toBe(true);
+		expect(data.trackingConfig.trackAvgSpeed).toBe(true);
+		expect(data.trackingConfig.trackFVC).toBe(true);
 		expect(data.displayConfig.heroMetric).toBe('totalDistance');
 	});
 });

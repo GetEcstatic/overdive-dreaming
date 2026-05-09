@@ -1,4 +1,4 @@
-import type { ActivityType, Discipline, DisplayConfig, MetricType, RoutineTemplate, TableRow, TrainingEnvironment } from '$lib/types';
+import type { ActivityType, Discipline, DisplayConfig, MetricType, RoutineTemplate, TableRow, TrackingConfig, TrainingEnvironment } from '$lib/types';
 import { projectLegacyRoutineToLayers } from './legacy';
 import {
 	deriveDefaultTags,
@@ -6,6 +6,7 @@ import {
 	deriveMetricProfile,
 	deriveRoutineClassifications,
 	expandRoutineLayers,
+	isDynamicDiscipline,
 	validateRoutineLayers
 } from './model';
 import type {
@@ -63,6 +64,7 @@ export type LayerLegacyRoutineTemplateFields = {
 	table?: { rows: TableRow[] };
 	tags: string[];
 	defaultTags: string[];
+	trackingConfig: TrackingConfig;
 	displayConfig: DisplayConfig;
 };
 
@@ -244,6 +246,7 @@ export function projectLayersToLegacyRoutineTemplateFields(
 		table: projection.table,
 		tags: projection.defaultTags,
 		defaultTags: projection.defaultTags,
+		trackingConfig: deriveTrackingConfigFromLayers(layers),
 		displayConfig: {
 			heroMetric,
 			heroMetricLabel: metricLabels[heroMetric],
@@ -252,6 +255,69 @@ export function projectLayersToLegacyRoutineTemplateFields(
 			tertiaryMetric,
 			tertiaryMetricLabel: tertiaryMetric ? metricLabels[tertiaryMetric] : undefined
 		}
+	};
+}
+
+export function deriveTrackingConfigFromLayers(layers: RoutineAuthoringLayer[]): TrackingConfig {
+	const hasDynamic = layers.some((layer) => isDynamicDiscipline(layer.discipline));
+	const hasStatic = layers.some((layer) => layer.discipline === 'STA');
+	const hasRepeated = layers.some((layer) => layer.attributes.repeatCount > 1) || layers.length > 1;
+	const hasBreatheUp = layers.some((layer) => layer.breatheUp.mode === 'fixed' || layer.breatheUp.mode === 'open');
+	const hasDistance = layers.some((layer) => layer.dive.distance !== undefined);
+	const hasDuration = layers.some((layer) => layer.dive.duration !== undefined);
+	const hasDryLayer = layers.some((layer) => layer.attributes.environment === 'dry');
+	const isDryTraining = layers.every((layer) => layer.attributes.environment === 'dry');
+	const hasWetCapableLayer = layers.some((layer) => layer.attributes.environment === 'wet' || layer.attributes.environment === 'both');
+	const hasDnf = layers.some((layer) => layer.discipline === 'DNF' || layer.allowedDisciplines?.includes('DNF'));
+	const hasNonFullLungLayer = layers.some((layer) => layer.attributes.lungVolume !== 'FL');
+
+	return {
+		trackPoolLength: hasDynamic,
+		trackInitialBreatheUpTime: hasBreatheUp,
+		trackTotalDistance: hasDistance,
+		trackTotalTime: hasDuration,
+		trackRepsCompleted: hasRepeated,
+		trackRepDuration: hasDuration && hasRepeated,
+		trackRepDistance: hasDistance && hasRepeated,
+		trackTimePerLap: hasDynamic,
+		trackRestBetweenLaps: hasRepeated,
+		trackKicksPerLap: hasDynamic,
+		trackArmPullsPerLap: hasDnf,
+		trackAvgSpeed: hasDynamic,
+		trackSpeedPerLap: hasDynamic,
+		totalDistanceSource: hasDynamic ? 'either' : 'manual',
+		totalTimeSource: 'either',
+		timePerLapSource: hasDynamic ? 'recorder' : 'manual',
+		speedPerLapSource: hasDynamic ? 'recorder' : 'manual',
+		avgSpeedSource: hasDynamic ? 'either' : 'manual',
+		trackBreathingTechnique: true,
+		trackRPE: true,
+		trackJoyScale: true,
+		trackHoursSinceLastMeal: true,
+		trackNotes: true,
+		trackWaterTemperature: hasDynamic && hasWetCapableLayer,
+		trackContractionsOnsetTime: hasStatic,
+		trackEquipmentUsed: hasDynamic || hasStatic,
+		trackBuddyName: hasWetCapableLayer,
+		trackRestingHeartRate: true,
+		trackHRV: true,
+		trackPoolType: hasDynamic,
+		trackSambaBO: hasWetCapableLayer,
+		trackBreathsBetweenReps: hasRepeated,
+		trackMenstrualCycleDay: false,
+		trackFacialGear: hasDynamic || hasStatic,
+		trackBasalMood: true,
+		trackMinimumSpO2: hasDynamic || hasStatic || hasDryLayer,
+		trackMinimumHR: hasDynamic || hasStatic || hasDryLayer,
+		trackBodyWeight: true,
+		trackPerRepSpO2: isDryTraining || hasRepeated,
+		trackPerRepHR: isDryTraining || hasRepeated,
+		trackSpO2Thresholds: isDryTraining || hasRepeated,
+		isDryTraining,
+		trackFVC: hasDynamic || hasStatic,
+		trackFVCWithPacking: hasDynamic || hasStatic,
+		trackPackingVolume: hasDynamic || hasStatic,
+		trackLungVolume: hasDynamic || hasStatic || hasNonFullLungLayer
 	};
 }
 
