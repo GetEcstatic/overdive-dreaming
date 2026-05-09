@@ -252,7 +252,7 @@ Goal: every metric that is tracked for a routine should be selectable as a hero,
 - [x] Step 5b: Add grouped/searchable picker UX and row-level mixed-routine filtering.
 - [x] Step 6: Routine-family display option and safe empty-log resolution tests added.
 - [x] Step 7a: Current stored display metric keys are preserved in the registry, including deprecated speed/hold aliases.
-- [ ] Step 7b: Add migration adapters only when a stored key appears that is not in the registry.
+- [x] Step 7b: Add migration adapters only when a stored key appears that is not in the registry.
 
 ### 1.0.1 Completion Status And Existing-Routine Attachment Plan
 
@@ -281,7 +281,7 @@ Existing-routine attachment checklist:
 - [x] Revisit the layer editor metrics step after backfill so it can warn when the loaded routine has stale tracking flags and offer a one-click refresh.
 - [x] Keep Step 4 open until metric value resolution is moved fully behind registry-backed resolvers rather than split between registry metadata and `getMetricValue()` switch cases.
 - [x] Keep Step 5b open until the hero metric picker is grouped/searchable with recommended presets and duplicate guards.
-- [ ] Keep Step 7b open until an actual unknown stored display key is found; current stored keys are covered by the registry, so no migration adapter is needed yet.
+- [x] Keep Step 7b open until an actual unknown stored display key is found; the attachment audit now reports unknown stored display keys before any migration adapter is added.
 
 ### 1.0.2 Competition, Card, And Record Decision
 

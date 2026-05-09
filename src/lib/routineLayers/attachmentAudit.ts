@@ -1,4 +1,5 @@
 import type { DisplayConfig, RoutineTemplate, TrackingConfig } from '$lib/types';
+import { isRegisteredMetricType } from '$lib/metrics/registry';
 import {
 	buildLayerRoutineTemplateWriteProjection,
 	getRoutineTemplateLayers,
@@ -13,6 +14,11 @@ export type RoutineProjectionDiff = {
 	path: string;
 	current: unknown;
 	projected: unknown;
+};
+
+export type UnknownDisplayMetricKey = {
+	path: string;
+	value: string;
 };
 
 export type RoutineMetricAttachmentAudit = {
@@ -108,6 +114,17 @@ export function auditLegacyRoutineMetricAttachment(
 		displayConfigChanges: diffFlatObject('displayConfig', routine.displayConfig ?? {}, projected.displayConfig),
 		issueMessages: []
 	};
+}
+
+export function findUnknownDisplayMetricKeys(routine: Partial<RoutineTemplate>): UnknownDisplayMetricKey[] {
+	const displayConfig = routine.displayConfig as Partial<Record<'heroMetric' | 'secondaryMetric' | 'tertiaryMetric', unknown>> | undefined;
+	if (!displayConfig) return [];
+
+	return (['heroMetric', 'secondaryMetric', 'tertiaryMetric'] as const)
+		.map((key) => ({ path: `displayConfig.${key}`, value: displayConfig[key] }))
+		.filter((entry): entry is UnknownDisplayMetricKey => (
+			typeof entry.value === 'string' && entry.value.length > 0 && !isRegisteredMetricType(entry.value)
+		));
 }
 
 function emptyAudit(

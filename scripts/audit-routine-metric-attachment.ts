@@ -9,6 +9,7 @@ import type { RoutineTemplate } from '../src/lib/types';
 import {
 	auditLegacyRoutineMetricAttachment,
 	auditRoutineMetricAttachment,
+	findUnknownDisplayMetricKeys,
 	type LegacyRoutineMetricAttachmentReport,
 	type RoutineMetricAttachmentAudit
 } from '../src/lib/routineLayers/attachmentAudit';
@@ -32,6 +33,8 @@ type AuditStats = {
 	notLayered: number;
 	invalidLayers: number;
 	legacyReported: number;
+	routinesWithUnknownDisplayKeys: number;
+	unknownDisplayKeys: number;
 	written: number;
 	errors: number;
 };
@@ -43,6 +46,8 @@ const stats: AuditStats = {
 	notLayered: 0,
 	invalidLayers: 0,
 	legacyReported: 0,
+	routinesWithUnknownDisplayKeys: 0,
+	unknownDisplayKeys: 0,
 	written: 0,
 	errors: 0
 };
@@ -60,6 +65,16 @@ for (const routineDoc of routinesSnap.docs) {
 
 	try {
 		const routine = { id: routineDoc.id, ...routineDoc.data() } as RoutineTemplate;
+		const unknownDisplayKeys = findUnknownDisplayMetricKeys(routine);
+		if (unknownDisplayKeys.length > 0) {
+			stats.routinesWithUnknownDisplayKeys += 1;
+			stats.unknownDisplayKeys += unknownDisplayKeys.length;
+			console.log(`\nUnknown display metric keys: ${routine.name} (${routineDoc.id})`);
+			for (const key of unknownDisplayKeys) {
+				console.log(`  ${key.path}: ${key.value}`);
+			}
+		}
+
 		const audit = auditRoutineMetricAttachment(routine);
 		recordStatus(audit, stats);
 
@@ -97,6 +112,8 @@ console.log(`  Needs update:   ${stats.needsUpdate}`);
 console.log(`  Not layered:    ${stats.notLayered}`);
 console.log(`  Invalid layers: ${stats.invalidLayers}`);
 console.log(`  Legacy reports: ${stats.legacyReported}`);
+console.log(`  Unknown display key routines: ${stats.routinesWithUnknownDisplayKeys}`);
+console.log(`  Unknown display keys:         ${stats.unknownDisplayKeys}`);
 console.log(`  Written:        ${stats.written}${writeMode ? '' : ' (dry-run)'}`);
 console.log(`  Errors:         ${stats.errors}`);
 

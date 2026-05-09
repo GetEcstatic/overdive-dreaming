@@ -167,6 +167,10 @@ export function getMetricLabel(metricType: MetricType): string {
 	return getMetricRegistryEntry(metricType).label;
 }
 
+export function isRegisteredMetricType(metricType: unknown): metricType is MetricType {
+	return typeof metricType === 'string' && metricType in metricRegistryByKey;
+}
+
 export function metricTypeForCanonicalKey(canonicalKey: CanonicalMetricKey | undefined): MetricType | undefined {
 	return canonicalKey ? canonicalToMetricType.get(canonicalKey) : undefined;
 }

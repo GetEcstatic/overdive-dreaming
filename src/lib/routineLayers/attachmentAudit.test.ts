@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RoutineTemplate } from '$lib/types';
 import { dynamicMaxExample, dynamicSweet16Example } from './defaults';
-import { auditLegacyRoutineMetricAttachment, auditRoutineMetricAttachment } from './attachmentAudit';
+import { auditLegacyRoutineMetricAttachment, auditRoutineMetricAttachment, findUnknownDisplayMetricKeys } from './attachmentAudit';
 import { buildLayerRoutineTemplateWriteProjection, type RoutineTemplateWithLayers } from './contract';
 
 function layeredRoutine(layers = dynamicMaxExample.layers): RoutineTemplateWithLayers {
@@ -112,5 +112,18 @@ describe('routine metric attachment audit', () => {
 			expect.objectContaining({ path: 'trackingConfig.trackRepDistance', projected: true }),
 			expect.objectContaining({ path: 'trackingConfig.trackCompetitionStatus', projected: false })
 		]));
+	});
+
+	it('reports unknown stored display metric keys before adding migration adapters', () => {
+		expect(findUnknownDisplayMetricKeys({
+			displayConfig: {
+				heroMetric: 'totalTime',
+				heroMetricLabel: 'Time',
+				secondaryMetric: 'legacyMysteryMetric' as RoutineTemplate['displayConfig']['secondaryMetric'],
+				secondaryMetricLabel: 'Mystery'
+			}
+		})).toEqual([
+			{ path: 'displayConfig.secondaryMetric', value: 'legacyMysteryMetric' }
+		]);
 	});
 });
