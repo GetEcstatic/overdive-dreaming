@@ -250,8 +250,9 @@ Goal: every metric that is tracked for a routine should be selectable as a hero,
 - [ ] Step 4: Move metric value resolution behind registry-backed resolvers.
 - [x] Step 5a: Hero metric dropdowns now use registry options filtered by the routine tracking config.
 - [ ] Step 5b: Add grouped/searchable picker UX and row-level mixed-routine filtering.
-- [ ] Step 6: Add routine-family display option and safe-resolution tests.
-- [ ] Step 7: Preserve stored display config compatibility through migration/adapters.
+- [x] Step 6: Routine-family display option and safe empty-log resolution tests added.
+- [x] Step 7a: Current stored display metric keys are preserved in the registry, including deprecated speed/hold aliases.
+- [ ] Step 7b: Add migration adapters only when a stored key appears that is not in the registry.
 
 ### 1.1 Technical Strategy
 
