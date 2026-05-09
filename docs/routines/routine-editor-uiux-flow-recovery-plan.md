@@ -124,11 +124,11 @@ The second option is cleaner if this editor is meant to become the default routi
 
 ## Open Questions
 
-- Should the debug/read-model tooling move to a separate route, or should it remain on the same route behind an admin-only debug toggle?
-- When a user adds a second layer, should the new layer appear below the first layer immediately, or should only one layer be expanded at a time?
-- Should the segment editor open inline below the selected segment row, or as a bottom sheet/modal on narrow screens?
-- Should hero metric selection be a distinct final step with a `Next` action, or should it appear automatically once the user has at least one complete layer?
-- Should the first blank layer default to dynamic, static, or use the discipline selected during creation as the source of truth?
+- Should the debug/read-model tooling move to a separate route, or should it remain on the same route behind an admin-only debug toggle? *Let's use an admin-only debug toggle for this.*
+- When a user adds a second layer, should the new layer appear below the first layer immediately, or should only one layer be expanded at a time? *Yes, it should appear directly below the first layer and selection should move to the new layer. Only selected segments should be viewed in the editor.*
+- Should the segment editor open inline below the selected segment row, or as a bottom sheet/modal on narrow screens? *I think inline below the selected row. If there are lots of rows it could get clumsy scrolling up and down all the time if the editor is below all the rows.*
+- Should hero metric selection be a distinct final step with a `Next` action, or should it appear automatically once the user has at least one complete layer? *After the next action*
+- Should the first blank layer default to dynamic, static, or use the discipline selected during creation as the source of truth? *Use the discipline selected during creation as source of truth.*
 
 ## Acceptance Criteria
 
@@ -139,3 +139,15 @@ The second option is cleaner if this editor is meant to become the default routi
 - Metrics, expanded rows, projection comparison, and legacy projection are absent from the new blank-routine authoring view.
 - Hero metrics are deferred until layer definition is complete.
 - Existing wheel selector behavior remains in use for duration, distance, and reps.
+
+## Implementation Checklist
+
+- [x] Record answered open questions and convert them into implementation steps.
+- [ ] Add an admin-only debug toggle so read-model status, projection comparison, expanded rows, and legacy projection are hidden by default.
+- [ ] Replace the default editor surface with a layer canvas: modifier chips above a horizontal segment row.
+- [ ] Add selected-segment state and show the relevant inline segment editor only after a segment is clicked.
+- [ ] Move existing discipline, breathe-up, dive, setup, and reps controls into their segment-specific editors.
+- [ ] Replace the ordinary add-layer controls with a large `+` affordance that inserts below the selected layer and selects the new layer.
+- [ ] Preserve current save/reset behavior without reintroducing diagnostic metrics into the default authoring view.
+- [ ] Validate with focused tests and `npm run check`.
+- [ ] Commit each major implementation slice.
