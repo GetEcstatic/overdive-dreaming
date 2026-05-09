@@ -17,6 +17,7 @@ import type {
 	Discipline,
 	TimeOfDay
 } from '$lib/types';
+import { isTimeMetricType } from '$lib/metrics/registry';
 import { getMetricValue } from './metrics';
 
 // ============================================================================
@@ -36,25 +37,8 @@ export interface MetricDescriptor {
 	lowerIsBetter: boolean;
 }
 
-const TIME_METRIC_KEYS = new Set<MetricType>([
-	'totalTime',
-	'diveDuration',
-	'repDuration',
-	'avgTimePerLap',
-	'avgTimePerRep',
-	'avgRestBetweenLaps',
-	'totalBreathHoldTime',
-	'cumulativeHoldTime',
-	'totalBreathingTime',
-	'longestHold',
-	'initialBreatheUpTime',
-	'contractionsOnsetTime',
-	'holdDuration',
-	'sessionDuration'
-]);
-
 export function isTimeMetric(key: MetricType): boolean {
-	return TIME_METRIC_KEYS.has(key);
+	return isTimeMetricType(key);
 }
 
 /**
@@ -102,6 +86,7 @@ export function getAvailableMetricsForRoutine(
 	}
 	if (cfg.trackRepDistance) {
 		add({ key: 'totalRepDistance', label: 'Total rep distance', unit: 'meters', isTime: false, lowerIsBetter: false });
+		add({ key: 'cumulativeDistance', label: 'Cumulative distance', unit: 'meters', isTime: false, lowerIsBetter: false });
 	}
 	if (cfg.trackTimePerLap) {
 		add({ key: 'avgTimePerLap', label: 'Avg time per lap', unit: 'seconds', isTime: true, lowerIsBetter: !isMaxAttempt });
@@ -122,6 +107,15 @@ export function getAvailableMetricsForRoutine(
 	}
 	if (cfg.trackSpO2Thresholds || cfg.trackPerRepSpO2 || cfg.trackPerRepHR) {
 		add({ key: 'longestHold', label: 'Longest hold', unit: 'seconds', isTime: true, lowerIsBetter: false });
+	}
+	if (cfg.trackMinimumSpO2 || cfg.trackPerRepSpO2) {
+		add({ key: 'minimumSpO2', label: 'Minimum SpO2', unit: 'percent', isTime: false, lowerIsBetter: false });
+	}
+	if (cfg.trackMinimumHR || cfg.trackPerRepHR) {
+		add({ key: 'minimumHR', label: 'Minimum HR', unit: 'bpm', isTime: false, lowerIsBetter: true });
+	}
+	if (cfg.trackSpO2Thresholds) {
+		add({ key: 'timeBelowSpO2Threshold', label: 'Time below SpO2', unit: 'seconds', isTime: true, lowerIsBetter: true });
 	}
 
 	// Session context
@@ -158,7 +152,11 @@ export function getAvailableMetricsForRoutine(
 
 	// Speed — calculated when both distance and time are captured
 	if (cfg.trackTotalDistance && cfg.trackTotalTime) {
-		add({ key: 'avgSpeed', label: 'Avg speed', unit: 'speed', isTime: false, lowerIsBetter: false });
+		add({ key: 'avgSpeedMs', label: 'Avg speed', unit: 'speed', isTime: false, lowerIsBetter: false });
+	}
+	if (cfg.trackSpeedPerLap) {
+		add({ key: 'fastestLapSpeedMs', label: 'Fastest lap', unit: 'speed', isTime: false, lowerIsBetter: false });
+		add({ key: 'slowestLapSpeedMs', label: 'Slowest lap', unit: 'speed', isTime: false, lowerIsBetter: true });
 	}
 
 	return out;

@@ -6,6 +6,7 @@
 	import NumberWheelInput from '$lib/components/NumberWheelInput.svelte';
 	import { user } from '$lib/stores/auth';
 	import { getRoutine, updateRoutine, writeRoutineLayerTemplateContract } from '$lib/firestore';
+	import { getMetricLabel, getSelectableMetricOptionsForTrackingConfig } from '$lib/metrics/registry';
 	import { isAdmin } from '$lib/utils/admin';
 	import { buildRoutineLayerReadModel } from '$lib/routineLayers/readModel';
 	import { buildLayerSentence, type LayerSentenceModifier, type LayerSentenceSegmentKey } from '$lib/routineLayers/sentence';
@@ -25,17 +26,6 @@
 
 	const disciplineOptions: LayerDiscipline[] = ['STA', 'DYN', 'DYNB', 'DNF', 'TORT'];
 	const dynamicDisciplineOptions: LayerDiscipline[] = ['DYN', 'DYNB', 'DNF', 'TORT'];
-	const metricOptions: { value: MetricType; label: string }[] = [
-		{ value: 'totalTime', label: 'Total time' },
-		{ value: 'totalDistance', label: 'Total distance' },
-		{ value: 'repsCompleted', label: 'Reps completed' },
-		{ value: 'repDuration', label: 'Rep duration' },
-		{ value: 'avgRestBetweenLaps', label: 'Rest' },
-		{ value: 'initialBreatheUpTime', label: 'Breathe-up' },
-		{ value: 'contractionsOnsetTime', label: 'Contractions' },
-		{ value: 'avgSpeedMs', label: 'Average speed' },
-		{ value: 'breathingTechnique', label: 'Breathing technique' }
-	];
 
 	type ProjectionComparisonRow = {
 		label: string;
@@ -88,6 +78,7 @@
 	);
 	let projectionGapRows = $derived(projectionComparisonRows.filter((row) => row.status === 'gap'));
 	let legacyProjectionEntries = $derived(readModel ? Object.entries(readModel.legacyProjection.display) : []);
+	let metricOptions = $derived(getSelectableMetricOptionsForTrackingConfig(routine?.trackingConfig));
 
 	$effect(() => {
 		if (readModel && routine && editorRoutineId !== routine.id) {
@@ -210,7 +201,7 @@
 	}
 
 	function metricLabel(metric: MetricType) {
-		return metricOptions.find((option) => option.value === metric)?.label ?? String(metric);
+		return getMetricLabel(metric);
 	}
 
 	function syncMetricSelections(template: RoutineTemplate) {

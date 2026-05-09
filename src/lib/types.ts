@@ -341,6 +341,9 @@ export type MetricType =
 	| 'avgSpeedMs'        // Average speed (m/s) — new canonical name
 	| 'fastestLapSpeedMs' // Fastest lap/rep speed (m/s) — new canonical name
 	| 'slowestLapSpeedMs' // Slowest lap/rep speed (m/s) — new canonical name
+	| 'minimumSpO2'      // Minimum SpO2 percentage from session or rep biometrics
+	| 'minimumHR'        // Minimum heart rate from session or rep biometrics
+	| 'timeBelowSpO2Threshold' // Time below the configured/standard SpO2 threshold
 	| 'breathingTechnique'; // Breathing technique used
 
 export interface DisplayConfig {

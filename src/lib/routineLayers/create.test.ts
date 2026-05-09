@@ -61,8 +61,8 @@ describe('buildLayerRoutineCreateData', () => {
 		expect(data.trackingConfig.trackTotalTime).toBe(true);
 		expect(data.trackingConfig.trackRepsCompleted).toBe(false);
 		expect(data.displayConfig.heroMetric).toBe('totalTime');
-		expect(data.displayConfig).not.toHaveProperty('tertiaryMetric');
-		expect(data.displayConfig).not.toHaveProperty('tertiaryMetricLabel');
+		expect(data.displayConfig.tertiaryMetric).toBe('minimumHR');
+		expect(data.displayConfig.tertiaryMetricLabel).toBe('Minimum HR');
 	});
 
 	it('creates dynamic blank layers when requested', () => {

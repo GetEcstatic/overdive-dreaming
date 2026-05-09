@@ -34,6 +34,13 @@ export type MetricRegistryEntry = {
 	lowerIsBetter?: boolean;
 };
 
+export type MetricSelectionOption = {
+	value: MetricType;
+	label: string;
+	category: MetricCategory;
+	description: string;
+};
+
 export const metricRegistry = [
 	entry('totalDistance', 'Distance', 'Distance', 'performance', 'distance', 'm', ['distanceMeters'], ['trackTotalDistance'], 'Total distance covered in a single dynamic attempt.'),
 	entry('totalTime', 'Time', 'Time', 'performance', 'time', 'seconds', ['durationSeconds'], ['trackTotalTime'], 'Total duration of a single hold or dive.'),
@@ -67,6 +74,9 @@ export const metricRegistry = [
 	entry('avgSpeedMs', 'Avg Speed', 'Speed', 'performance', 'speed', 'm/s', ['speedPerLap'], ['trackAvgSpeed'], 'Average speed in meters per second.'),
 	entry('fastestLapSpeedMs', 'Fastest Lap', 'Fastest', 'performance', 'speed', 'm/s', ['speedPerLap'], ['trackSpeedPerLap'], 'Fastest lap speed in meters per second.'),
 	entry('slowestLapSpeedMs', 'Slowest Lap', 'Slowest', 'performance', 'speed', 'm/s', ['speedPerLap'], ['trackSpeedPerLap'], 'Slowest lap speed in meters per second.', true),
+	entry('minimumSpO2', 'Minimum SpO2', 'Min SpO2', 'biometrics', 'percent', '%', ['minSpO2'], ['trackMinimumSpO2', 'trackPerRepSpO2'], 'Lowest SpO2 recorded for the session or across reps.'),
+	entry('minimumHR', 'Minimum HR', 'Min HR', 'biometrics', 'heartRate', 'bpm', ['minHeartRate'], ['trackMinimumHR', 'trackPerRepHR'], 'Lowest heart rate recorded for the session or across reps.'),
+	entry('timeBelowSpO2Threshold', 'Time Below SpO2', 'Below SpO2', 'biometrics', 'time', 'seconds', ['timeBelowSpO2Threshold'], ['trackSpO2Thresholds'], 'Time spent below the configured or standard SpO2 threshold.', true),
 	entry('breathingTechnique', 'Breathing Technique', 'Breathing', 'technique', 'text', 'text', ['breathingTechnique'], ['trackBreathingTechnique'], 'Breathing technique or breath-control level used.')
 ] as const satisfies readonly MetricRegistryEntry[];
 
@@ -90,6 +100,9 @@ const preferredMetricTypeByCanonicalKey: Partial<Record<CanonicalMetricKey, Metr
 	totalRoutineTimeSeconds: 'sessionDuration',
 	cumulativeDiveTimeSeconds: 'cumulativeHoldTime',
 	longestHoldSeconds: 'longestHold',
+	minSpO2: 'minimumSpO2',
+	minHeartRate: 'minimumHR',
+	timeBelowSpO2Threshold: 'timeBelowSpO2Threshold',
 	contractionsOnsetSeconds: 'contractionsOnsetTime'
 };
 
@@ -121,6 +134,17 @@ export function metricTypeForCanonicalKey(canonicalKey: CanonicalMetricKey | und
 
 export function isTimeMetricType(metricType: MetricType): boolean {
 	return getMetricRegistryEntry(metricType).valueKind === 'time';
+}
+
+export function getSelectableMetricOptionsForTrackingConfig(trackingConfig: TrackingConfig | undefined): MetricSelectionOption[] {
+	return metricRegistry
+		.filter((metric) => !trackingConfig || metric.trackingFlags.some((flag) => trackingConfig[flag] === true))
+		.map((metric) => ({
+			value: metric.key,
+			label: metric.label,
+			category: metric.category,
+			description: metric.description
+		}));
 }
 
 function entry(

@@ -123,6 +123,13 @@ export function getMetricValue(
 		case 'diveDistance': // New alias
 			return log.totalDistance || log.diveDistance || 0;
 
+		case 'cumulativeDistance':
+			if (log.cumulativeDistance) return log.cumulativeDistance;
+			if (log.laps && log.laps.length > 0) {
+				return log.laps.reduce((sum, lap) => sum + (lap.distanceMeters || 0), 0);
+			}
+			return calculateTotalRepDistance(log);
+
 		// Time metrics
 		case 'totalTime':
 		case 'diveDuration': // New alias
@@ -188,6 +195,15 @@ export function getMetricValue(
 		case 'packingVolume':
 			return log.packingVolume || 0;
 
+		case 'minimumSpO2':
+			return log.minimumSpO2 ?? log.lowestSpO2 ?? minLapValue(log, (lap) => lap.spo2Min) ?? 0;
+
+		case 'minimumHR':
+			return log.minimumHR ?? log.sessionMinHR ?? minLapValue(log, (lap) => lap.hrMin) ?? 0;
+
+		case 'timeBelowSpO2Threshold':
+			return log.totalTimeBelow70 ?? sumLapValue(log, (lap) => lap.timeBelow70);
+
 		// Speed metrics (new canonical *Ms names preferred; old names kept as aliases)
 		case 'avgSpeed':
 		case 'avgSpeedMs':
@@ -195,11 +211,11 @@ export function getMetricValue(
 
 		case 'maxRepSpeed':
 		case 'fastestLapSpeedMs':
-			return log.fastestLapSpeedMs ?? log.maxRepSpeed ?? 0;
+			return log.fastestLapSpeedMs ?? log.maxRepSpeed ?? maxLapValue(log, speedForLap) ?? 0;
 
 		case 'minRepSpeed':
 		case 'slowestLapSpeedMs':
-			return log.slowestLapSpeedMs ?? log.minRepSpeed ?? 0;
+			return log.slowestLapSpeedMs ?? log.minRepSpeed ?? minLapValue(log, speedForLap) ?? 0;
 
 		case 'breathingTechnique':
 			// String metric - return 0 as placeholder, handled in getFormattedMetric
@@ -224,6 +240,26 @@ function calculateAvgSpeed(log: RoutineLog): number {
 	return 0;
 }
 
+function sumLapValue(log: RoutineLog, selector: (lap: NonNullable<RoutineLog['laps']>[number]) => number | undefined): number {
+	return log.laps?.reduce((sum, lap) => sum + (selector(lap) ?? 0), 0) ?? 0;
+}
+
+function minLapValue(log: RoutineLog, selector: (lap: NonNullable<RoutineLog['laps']>[number]) => number | undefined): number | undefined {
+	const values = log.laps?.map(selector).filter((value): value is number => value !== undefined) ?? [];
+	return values.length > 0 ? Math.min(...values) : undefined;
+}
+
+function maxLapValue(log: RoutineLog, selector: (lap: NonNullable<RoutineLog['laps']>[number]) => number | undefined): number | undefined {
+	const values = log.laps?.map(selector).filter((value): value is number => value !== undefined) ?? [];
+	return values.length > 0 ? Math.max(...values) : undefined;
+}
+
+function speedForLap(lap: NonNullable<RoutineLog['laps']>[number]): number | undefined {
+	if (lap.speedMs !== undefined) return lap.speedMs;
+	if (lap.distanceMeters && lap.timeSeconds) return lap.distanceMeters / lap.timeSeconds;
+	return undefined;
+}
+
 /**
  * Format a metric value for display
  * Returns formatted string with appropriate units
@@ -234,6 +270,7 @@ export function formatMetricValue(metricType: MetricType, value: number): string
 		case 'totalDistance':
 		case 'diveDistance':
 		case 'totalRepDistance':
+		case 'cumulativeDistance':
 		case 'poolLength':
 			return `${value}m`;
 
@@ -250,6 +287,7 @@ export function formatMetricValue(metricType: MetricType, value: number): string
 		case 'totalBreathingTime':
 		case 'initialBreatheUpTime':
 		case 'contractionsOnsetTime':
+		case 'timeBelowSpO2Threshold':
 			return formatTime(value);
 
 		// Count metrics
@@ -272,6 +310,7 @@ export function formatMetricValue(metricType: MetricType, value: number): string
 
 		// Heart rate
 		case 'restingHeartRate':
+		case 'minimumHR':
 			return `${value} bpm`;
 
 		// HRV
@@ -280,6 +319,7 @@ export function formatMetricValue(metricType: MetricType, value: number): string
 
 		// Packing volume (percentage)
 		case 'packingVolume':
+		case 'minimumSpO2':
 			return `${value.toFixed(0)}%`;
 
 		default:
