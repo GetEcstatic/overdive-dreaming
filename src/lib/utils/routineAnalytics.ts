@@ -94,6 +94,12 @@ export function getAvailableMetricsForRoutine(
 	if (cfg.trackRestBetweenLaps) {
 		add({ key: 'avgRestBetweenLaps', label: 'Avg rest between laps', unit: 'seconds', isTime: true, lowerIsBetter: false });
 	}
+	if (cfg.trackKicksPerLap) {
+		add({ key: 'averageKicksPerLap', label: 'Average kicks', unit: 'count', isTime: false, lowerIsBetter: true });
+	}
+	if (cfg.trackArmPullsPerLap) {
+		add({ key: 'averageArmPullsPerLap', label: 'Average arm pulls', unit: 'count', isTime: false, lowerIsBetter: true });
+	}
 
 	// Calculated / biometric
 	if (cfg.trackRepDuration && cfg.trackRepsCompleted) {

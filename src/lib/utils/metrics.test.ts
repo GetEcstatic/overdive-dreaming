@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RoutineLog, RoutineTemplate } from '$lib/types';
-import { formatMetricValue, getMetricValue } from './metrics';
+import { formatMetricValue, getFormattedMetric, getMetricValue } from './metrics';
 
 const routine = {} as RoutineTemplate;
 
@@ -39,5 +39,27 @@ describe('metric value resolution', () => {
 
 		expect(getMetricValue('fastestLapSpeedMs', log, routine)).toBe(1.25);
 		expect(getMetricValue('slowestLapSpeedMs', log, routine)).toBe(0.5);
+	});
+
+	it('rolls up P1 technique metrics from laps', () => {
+		const log = {
+			laps: [
+				{ kicks: 10, armPulls: 6 },
+				{ kicks: 12, armPulls: 8 }
+			]
+		} as RoutineLog;
+
+		expect(getMetricValue('averageKicksPerLap', log, routine)).toBe(11);
+		expect(getMetricValue('averageArmPullsPerLap', log, routine)).toBe(7);
+	});
+
+	it('formats P1 status metrics directly from log text fields', () => {
+		const log = {
+			equipmentUsed: 'bifins',
+			facialGear: ['noseclip', 'goggles']
+		} as RoutineLog;
+
+		expect(getFormattedMetric('equipment', 'Equipment', log, routine)).toEqual({ value: 'bifins', label: 'Equipment' });
+		expect(getFormattedMetric('facialGear', 'Facial Gear', log, routine)).toEqual({ value: 'noseclip, goggles', label: 'Facial Gear' });
 	});
 });

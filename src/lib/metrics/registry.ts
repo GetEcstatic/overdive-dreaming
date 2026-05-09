@@ -77,6 +77,12 @@ export const metricRegistry = [
 	entry('minimumSpO2', 'Minimum SpO2', 'Min SpO2', 'biometrics', 'percent', '%', ['minSpO2'], ['trackMinimumSpO2', 'trackPerRepSpO2'], 'Lowest SpO2 recorded for the session or across reps.'),
 	entry('minimumHR', 'Minimum HR', 'Min HR', 'biometrics', 'heartRate', 'bpm', ['minHeartRate'], ['trackMinimumHR', 'trackPerRepHR'], 'Lowest heart rate recorded for the session or across reps.'),
 	entry('timeBelowSpO2Threshold', 'Time Below SpO2', 'Below SpO2', 'biometrics', 'time', 'seconds', ['timeBelowSpO2Threshold'], ['trackSpO2Thresholds'], 'Time spent below the configured or standard SpO2 threshold.', true),
+	entry('kicksPerLap', 'Kicks Per Lap', 'Kicks', 'technique', 'count', 'count', ['kicksPerLap'], ['trackKicksPerLap'], 'Kicks recorded for a lap or rep.', true),
+	entry('armPullsPerLap', 'Arm Pulls Per Lap', 'Pulls', 'technique', 'count', 'count', ['armPullsPerLap'], ['trackArmPullsPerLap'], 'Arm pulls recorded for a lap or rep.', true),
+	entry('averageKicksPerLap', 'Average Kicks', 'Avg Kicks', 'technique', 'count', 'count', ['kicksPerLap'], ['trackKicksPerLap'], 'Average kicks across recorded laps or reps.', true),
+	entry('averageArmPullsPerLap', 'Average Arm Pulls', 'Avg Pulls', 'technique', 'count', 'count', ['armPullsPerLap'], ['trackArmPullsPerLap'], 'Average arm pulls across recorded laps or reps.', true),
+	entry('equipment', 'Equipment', 'Equipment', 'context', 'text', 'text', ['equipment'], ['trackEquipmentUsed'], 'Equipment used for the routine or session.'),
+	entry('facialGear', 'Facial Gear', 'Facial Gear', 'context', 'text', 'text', ['facialGear'], ['trackFacialGear'], 'Mask, goggles, noseclip, or other facial gear used.'),
 	entry('breathingTechnique', 'Breathing Technique', 'Breathing', 'technique', 'text', 'text', ['breathingTechnique'], ['trackBreathingTechnique'], 'Breathing technique or breath-control level used.')
 ] as const satisfies readonly MetricRegistryEntry[];
 
@@ -103,6 +109,10 @@ const preferredMetricTypeByCanonicalKey: Partial<Record<CanonicalMetricKey, Metr
 	minSpO2: 'minimumSpO2',
 	minHeartRate: 'minimumHR',
 	timeBelowSpO2Threshold: 'timeBelowSpO2Threshold',
+	kicksPerLap: 'averageKicksPerLap',
+	armPullsPerLap: 'averageArmPullsPerLap',
+	equipment: 'equipment',
+	facialGear: 'facialGear',
 	contractionsOnsetSeconds: 'contractionsOnsetTime'
 };
 

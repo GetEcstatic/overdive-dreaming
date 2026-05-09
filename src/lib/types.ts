@@ -344,6 +344,12 @@ export type MetricType =
 	| 'minimumSpO2'      // Minimum SpO2 percentage from session or rep biometrics
 	| 'minimumHR'        // Minimum heart rate from session or rep biometrics
 	| 'timeBelowSpO2Threshold' // Time below the configured/standard SpO2 threshold
+	| 'kicksPerLap'      // Kicks per lap/rep
+	| 'armPullsPerLap'  // Arm pulls per lap/rep
+	| 'averageKicksPerLap' // Average kicks across laps/reps
+	| 'averageArmPullsPerLap' // Average arm pulls across laps/reps
+	| 'equipment'        // Equipment text/status
+	| 'facialGear'       // Facial gear text/status
 	| 'breathingTechnique'; // Breathing technique used
 
 export interface DisplayConfig {

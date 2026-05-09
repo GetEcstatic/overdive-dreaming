@@ -244,7 +244,8 @@ Goal: every metric that is tracked for a routine should be selectable as a hero,
 - [x] Step 2: Layer projection now uses registry adapters for canonical metric keys and labels.
 - [ ] Step 3: Expand display metrics so tracked P0/P1/P2/P3 metrics can be selected.
 - [x] Step 3a: P0 display metrics added for minimum SpO2, minimum HR, time below SpO2 threshold, cumulative distance, fastest lap, and slowest lap.
-- [ ] Step 3b: P1/P2/P3 display metrics still need technique, equipment, capacity, gas, and status/facet coverage.
+- [x] Step 3b: P1 display metrics added for kicks, arm pulls, equipment, and facial gear.
+- [ ] Step 3c: P2/P3 display metrics still need capacity, gas, recovery, and status/facet coverage.
 - [ ] Step 4: Move metric value resolution behind registry-backed resolvers.
 - [x] Step 5a: Hero metric dropdowns now use registry options filtered by the routine tracking config.
 - [ ] Step 5b: Add grouped/searchable picker UX and row-level mixed-routine filtering.

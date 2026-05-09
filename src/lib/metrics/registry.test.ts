@@ -26,6 +26,10 @@ describe('metric registry', () => {
 			'minimumSpO2',
 			'minimumHR',
 			'timeBelowSpO2Threshold',
+			'averageKicksPerLap',
+			'averageArmPullsPerLap',
+			'equipment',
+			'facialGear',
 			'breathingTechnique'
 		];
 
@@ -43,6 +47,8 @@ describe('metric registry', () => {
 		expect(metricTypeForCanonicalKey('minSpO2')).toBe('minimumSpO2');
 		expect(metricTypeForCanonicalKey('minHeartRate')).toBe('minimumHR');
 		expect(metricTypeForCanonicalKey('timeBelowSpO2Threshold')).toBe('timeBelowSpO2Threshold');
+		expect(metricTypeForCanonicalKey('kicksPerLap')).toBe('averageKicksPerLap');
+		expect(metricTypeForCanonicalKey('armPullsPerLap')).toBe('averageArmPullsPerLap');
 	});
 
 	it('identifies time metrics from value kind', () => {

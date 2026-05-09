@@ -24,6 +24,7 @@ export type CanonicalMetricKey =
 	| 'lapTimes'
 	| 'speedPerLap'
 	| 'kicksPerLap'
+	| 'armPullsPerLap'
 	| 'heartRateSeries'
 	| 'spO2Series'
 	| 'minSpO2'
@@ -206,6 +207,7 @@ export function deriveMetricProfile(layers: RoutineAuthoringLayer[]): RoutineMet
 	const hasStatic = groups.includes('static');
 	const hasDry = layers.some((layer) => layer.attributes.environment === 'dry');
 	const hasRepeat = layers.some((layer) => layer.attributes.repeatCount > 1);
+	const hasDnf = layers.some((layer) => layer.discipline === 'DNF' || layer.allowedDisciplines?.includes('DNF'));
 
 	const standard: CanonicalMetricKey[] = ['durationSeconds', 'breatheUpSeconds', 'rpe', 'joyScale', 'basalMood', 'buddyName', 'safetyOutcome', 'notes'];
 	const geek: CanonicalMetricKey[] = ['heartRateSeries', 'spO2Series', 'breathingTechnique', 'hoursSinceLastMeal', 'hrv', 'restingHeartRate', 'bodyWeightKg', 'equipment', 'facialGear', 'fvcLiters', 'fvcWithPackingLiters', 'packingVolumePercent'];
@@ -213,6 +215,10 @@ export function deriveMetricProfile(layers: RoutineAuthoringLayer[]): RoutineMet
 	if (hasDynamic) {
 		standard.push('distanceMeters', 'poolLengthMeters');
 		geek.push('lapTimes', 'speedPerLap', 'kicksPerLap', 'waterTemperatureCelsius');
+	}
+
+	if (hasDnf) {
+		geek.push('armPullsPerLap');
 	}
 
 	if (hasStatic) {

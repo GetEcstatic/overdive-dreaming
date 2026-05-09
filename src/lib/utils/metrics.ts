@@ -204,6 +204,14 @@ export function getMetricValue(
 		case 'timeBelowSpO2Threshold':
 			return log.totalTimeBelow70 ?? sumLapValue(log, (lap) => lap.timeBelow70);
 
+		case 'kicksPerLap':
+		case 'averageKicksPerLap':
+			return averageLapValue(log, (lap) => lap.kicks);
+
+		case 'armPullsPerLap':
+		case 'averageArmPullsPerLap':
+			return averageLapValue(log, (lap) => lap.armPulls);
+
 		// Speed metrics (new canonical *Ms names preferred; old names kept as aliases)
 		case 'avgSpeed':
 		case 'avgSpeedMs':
@@ -218,6 +226,8 @@ export function getMetricValue(
 			return log.slowestLapSpeedMs ?? log.minRepSpeed ?? minLapValue(log, speedForLap) ?? 0;
 
 		case 'breathingTechnique':
+		case 'equipment':
+		case 'facialGear':
 			// String metric - return 0 as placeholder, handled in getFormattedMetric
 			return 0;
 
@@ -252,6 +262,11 @@ function minLapValue(log: RoutineLog, selector: (lap: NonNullable<RoutineLog['la
 function maxLapValue(log: RoutineLog, selector: (lap: NonNullable<RoutineLog['laps']>[number]) => number | undefined): number | undefined {
 	const values = log.laps?.map(selector).filter((value): value is number => value !== undefined) ?? [];
 	return values.length > 0 ? Math.max(...values) : undefined;
+}
+
+function averageLapValue(log: RoutineLog, selector: (lap: NonNullable<RoutineLog['laps']>[number]) => number | undefined): number {
+	const values = log.laps?.map(selector).filter((value): value is number => value !== undefined) ?? [];
+	return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 }
 
 function speedForLap(lap: NonNullable<RoutineLog['laps']>[number]): number | undefined {
@@ -293,6 +308,10 @@ export function formatMetricValue(metricType: MetricType, value: number): string
 		// Count metrics
 		case 'repsCompleted':
 		case 'totalBreaths':
+		case 'kicksPerLap':
+		case 'armPullsPerLap':
+		case 'averageKicksPerLap':
+		case 'averageArmPullsPerLap':
 			return value.toString();
 
 		// Speed metrics (m/s)
@@ -349,6 +368,14 @@ export function getFormattedMetric(
 		}
 		const technique = log.breathingTechnique || '—';
 		return { value: technique, label };
+	}
+
+	if (metricType === 'equipment') {
+		return { value: log.equipmentUsed || '—', label };
+	}
+
+	if (metricType === 'facialGear') {
+		return { value: log.facialGear?.join(', ') || '—', label };
 	}
 
 	const rawValue = getMetricValue(metricType, log, routine);
