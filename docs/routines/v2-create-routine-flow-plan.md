@@ -104,3 +104,7 @@ This keeps the create flow data-oriented: UI collects a small plain input, the h
 ## Browser Smoke Note
 
 - Local browser smoke at `http://127.0.0.1:5173/routines/create` redirected to sign-in because `127.0.0.1` is not authorized for Firebase OAuth in this environment. Authenticated clickthrough still needs a browser session on an authorized local domain or an already signed-in shared page.
+
+## Post-Implementation Fixes
+
+- [x] Deep-strip nested `undefined` values from create payloads so Firestore accepts blank-routine `displayConfig` objects.

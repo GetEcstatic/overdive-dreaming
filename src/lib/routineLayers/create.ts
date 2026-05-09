@@ -96,6 +96,18 @@ function deriveTrackingConfig(layers: RoutineAuthoringLayer[]): TrackingConfig {
 	};
 }
 
-function stripUndefined<T extends Record<string, unknown>>(value: T): T {
-	return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T;
+function stripUndefined<T>(value: T): T {
+	if (Array.isArray(value)) {
+		return value.map((entry) => stripUndefined(entry)) as T;
+	}
+
+	if (value !== null && typeof value === 'object') {
+		return Object.fromEntries(
+			Object.entries(value)
+				.filter(([, entry]) => entry !== undefined)
+				.map(([key, entry]) => [key, stripUndefined(entry)])
+		) as T;
+	}
+
+	return value;
 }
