@@ -278,7 +278,7 @@ Existing-routine attachment checklist:
 - [x] Add tests proving representative existing v2 fixtures gain P0/P1/P2/P3 and competition comparison flags after reprojection.
 - [x] Decide legacy-routine handling: report projected layer-derived changes for legacy routines first, but do not write legacy routines until the report is reviewed.
 - [x] Add a legacy dry-run report before any legacy routine writes, because legacy routines may not encode enough intent for every advanced metric.
-- [ ] Revisit the layer editor metrics step after backfill so it can warn when the loaded routine has stale tracking flags and offer a one-click refresh.
+- [x] Revisit the layer editor metrics step after backfill so it can warn when the loaded routine has stale tracking flags and offer a one-click refresh.
 - [ ] Keep Step 4 open until metric value resolution is moved fully behind registry-backed resolvers rather than split between registry metadata and `getMetricValue()` switch cases.
 - [ ] Keep Step 5b open until the hero metric picker is grouped/searchable with recommended presets and duplicate guards.
 - [ ] Keep Step 7b open until an actual unknown stored display key is found; current stored keys are covered by the registry, so no migration adapter is needed yet.

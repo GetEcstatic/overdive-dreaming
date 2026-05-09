@@ -8,6 +8,7 @@
 	import { getRoutine, updateRoutine, writeRoutineLayerTemplateContract } from '$lib/firestore';
 	import { getMetricLabel, getSelectableMetricOptionsForTrackingConfig } from '$lib/metrics/registry';
 	import { isAdmin } from '$lib/utils/admin';
+	import { auditRoutineMetricAttachment } from '$lib/routineLayers/attachmentAudit';
 	import { buildRoutineLayerReadModel } from '$lib/routineLayers/readModel';
 	import { buildLayerSentence, type LayerSentenceModifier, type LayerSentenceSegmentKey } from '$lib/routineLayers/sentence';
 	import { expandRoutineLayers } from '$lib/routineLayers/model';
@@ -54,6 +55,7 @@
 	let showDebug = $state(false);
 	let builderStep = $state<'layers' | 'metrics'>('layers');
 	let savingMetrics = $state(false);
+	let refreshingProjection = $state(false);
 	let metricStatus = $state<string | null>(null);
 	let selectedHeroMetric = $state<MetricType>('totalTime');
 	let selectedSecondaryMetric = $state<MetricType>('totalDistance');
@@ -79,6 +81,11 @@
 	let projectionGapRows = $derived(projectionComparisonRows.filter((row) => row.status === 'gap'));
 	let legacyProjectionEntries = $derived(readModel ? Object.entries(readModel.legacyProjection.display) : []);
 	let metricOptions = $derived(getSelectableMetricOptionsForTrackingConfig(routine?.trackingConfig));
+	let metricAttachmentAudit = $derived(routine ? auditRoutineMetricAttachment(routine) : null);
+	let staleMetricProjection = $derived(metricAttachmentAudit?.status === 'needs-update' ? metricAttachmentAudit : null);
+	let staleMetricProjectionChangeCount = $derived(
+		(staleMetricProjection?.trackingConfigChanges.length ?? 0) + (staleMetricProjection?.displayConfigChanges.length ?? 0)
+	);
 
 	$effect(() => {
 		if (readModel && routine && editorRoutineId !== routine.id) {
@@ -313,6 +320,25 @@
 			metricStatus = 'Failed to save hero metrics.';
 		} finally {
 			savingMetrics = false;
+		}
+	}
+
+	async function refreshLayerProjection() {
+		if (!routine || !readModel || editorDirty || refreshingProjection) return;
+
+		try {
+			refreshingProjection = true;
+			metricStatus = null;
+			await writeRoutineLayerTemplateContract(routine.id, readModel.layers);
+			editorRoutineId = null;
+			routine = await getRoutine(routine.id);
+			if (routine) syncMetricSelections(routine);
+			metricStatus = 'Layer projection refreshed.';
+		} catch (err) {
+			console.error('Failed to refresh layer projection:', err);
+			metricStatus = 'Failed to refresh layer projection.';
+		} finally {
+			refreshingProjection = false;
 		}
 	}
 
@@ -798,6 +824,21 @@
 					<h2>Hero metrics</h2>
 					<span>Choose how this routine should summarize completed sessions.</span>
 				</div>
+
+				{#if staleMetricProjection}
+					<div class="projection-refresh" aria-label="Stale metric projection warning">
+						<div>
+							<strong>Layer projection needs refresh</strong>
+							<span>{staleMetricProjectionChangeCount} tracking/display change{staleMetricProjectionChangeCount === 1 ? '' : 's'} pending from the stored layers.</span>
+							{#if editorDirty}
+								<small>Save or reset layer edits before refreshing.</small>
+							{/if}
+						</div>
+						<button class="secondary-button" onclick={refreshLayerProjection} disabled={editorDirty || refreshingProjection}>
+							{refreshingProjection ? 'Refreshing...' : 'Refresh projection'}
+						</button>
+					</div>
+				{/if}
 
 				<div class="metric-select-grid">
 					<label>
@@ -1354,6 +1395,28 @@
 		gap: 0.75rem;
 	}
 
+	.projection-refresh {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 0.75rem;
+		border: 1px solid rgba(251, 191, 36, 0.34);
+		border-radius: 8px;
+		background: rgba(251, 191, 36, 0.08);
+		padding: 0.8rem;
+	}
+
+	.projection-refresh > div {
+		display: grid;
+		gap: 0.2rem;
+	}
+
+	.projection-refresh span,
+	.projection-refresh small {
+		color: var(--color-text-muted);
+		font-size: 0.78rem;
+	}
+
 	.metric-select-grid label {
 		display: grid;
 		gap: 0.35rem;
@@ -1491,6 +1554,7 @@
 		.layout-grid,
 		.page-header,
 		.write-panel,
+		.projection-refresh,
 		.plan-row,
 		.comparison-row,
 		.segment-row {
