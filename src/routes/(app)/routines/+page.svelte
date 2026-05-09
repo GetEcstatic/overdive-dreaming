@@ -77,8 +77,7 @@
 
 			deletingId = routineId;
 			await deleteRoutine(routineId);
-			// Reload routines
-			await loadRoutines();
+			routines = routines.filter((routine) => routine.id !== routineId);
 		} catch (err) {
 			console.error('Failed to delete routine:', err);
 			alert('Failed to delete routine');

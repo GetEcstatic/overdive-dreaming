@@ -8,7 +8,7 @@
 	import { getRoutine, writeRoutineLayerTemplateContract } from '$lib/firestore';
 	import { isAdmin } from '$lib/utils/admin';
 	import { buildRoutineLayerReadModel } from '$lib/routineLayers/readModel';
-	import { buildLayerSentence, type LayerSentenceSegmentKey } from '$lib/routineLayers/sentence';
+	import { buildLayerSentence, type LayerSentenceModifier, type LayerSentenceSegmentKey } from '$lib/routineLayers/sentence';
 	import { expandRoutineLayers } from '$lib/routineLayers/model';
 	import { findDefaultRoutineLayerExample } from '$lib/routineLayers/defaults';
 	import type { LegacyRoutineProjection } from '$lib/routineLayers/contract';
@@ -128,7 +128,7 @@
 	}
 
 	function compactModifierSummary(summary: string) {
-		if (summary === 'both') return 'Either';
+		if (summary === 'both') return 'Dry/Wet';
 
 		return summary
 			.replace(/^default\s+/i, '')
@@ -139,6 +139,15 @@
 			.replace(/^open distance$/i, 'open')
 			.replace(/^repeat\s+/i, '')
 			.replace(/^single$/i, '1x');
+	}
+
+	function formatModifierChip(modifier: LayerSentenceModifier) {
+		const summary = compactModifierSummary(modifier.summary);
+		return summary.charAt(0).toUpperCase() + summary.slice(1);
+	}
+
+	function shouldShowModifierChip(modifier: LayerSentenceModifier) {
+		return !(modifier.key === 'setup.effort' && modifier.summary === 'standard');
 	}
 
 	function layerSentenceFor(layerId: string) {
@@ -583,10 +592,12 @@
 					<div class="segment-row" aria-label={`${layerLabel(layer, index)} segments`}>
 						{#each sentence?.segments ?? [] as segment}
 							<div class="segment-stack">
-								{#if segment.modifiers.length > 0}
+								{#if segment.modifiers.some(shouldShowModifierChip)}
 									<div class="segment-chip-stack" aria-label={`${segment.label} modifiers`}>
 										{#each segment.modifiers as modifier}
-											<span class={`modifier-chip ${segment.key}`}>{compactModifierSummary(modifier.summary)}</span>
+											{#if shouldShowModifierChip(modifier)}
+												<span class={`modifier-chip ${segment.key}`}>{formatModifierChip(modifier)}</span>
+											{/if}
 										{/each}
 									</div>
 								{/if}
@@ -638,7 +649,7 @@
 								<div class="edit-grid compact">
 									<label><span>Effort</span><select value={selectedLayer.attributes.effort} onchange={(event) => updateSelectedEffort(event.currentTarget.value as LayerEffort)}><option value="standard">standard</option><option value="submax">submax</option><option value="max">max</option></select></label>
 									<label><span>Lung volume</span><select value={selectedLayer.attributes.lungVolume} onchange={(event) => updateSelectedLungVolume(event.currentTarget.value as LungVolume)}><option value="FL">FL</option><option value="FRC">FRC</option><option value="RV">RV</option></select></label>
-									<label><span>Environment</span><select value={selectedLayer.attributes.environment} onchange={(event) => updateSelectedEnvironment(event.currentTarget.value as 'wet' | 'dry' | 'both')}><option value="wet">wet</option><option value="dry">dry</option><option value="both">Either</option></select></label>
+									<label><span>Environment</span><select value={selectedLayer.attributes.environment} onchange={(event) => updateSelectedEnvironment(event.currentTarget.value as 'wet' | 'dry' | 'both')}><option value="wet">wet</option><option value="dry">dry</option><option value="both">Dry/Wet</option></select></label>
 								</div>
 							{:else if selectedSegmentKey === 'reps'}
 								<h3>Reps</h3>

@@ -154,7 +154,11 @@ The second option is cleaner if this editor is meant to become the default routi
 
 # Fixes required
 
-This implementation of the UI is much much nicer. Well done. We're getting there.
+~~UI changes: If effort = "standard" the no need to display a chip; change the "either" label for environment to "Dry/Wet" or more clarity.~~
+
+~~Ensure all modifier labels have at least the first letter capitalised. e.g. Fixed, not "fixed"~~
+
+~~I tried deleting "Capybara volume 1.2" routine, and it did not delete. IT took 3 attempts to finally remove it from the routines page.~~
 
 ~~Can we change the label of the "environment" modifier "both" to "Either". This is semantically a better fit.~~
 
@@ -174,6 +178,9 @@ Note: the remaining save failure was caused by optional compatibility fields usi
 - [x] Triage the Firestore Listen `ERR_BLOCKED_BY_CLIENT` console message as client/browser blocking, not a routine-editor code failure.
 - [x] Relabel the UI value for environment `both` as `Either`.
 - [x] Use the cleaned projection for optional Firestore update fields so table rows do not reintroduce nested `undefined` values.
+- [x] Hide the `standard` effort chip and show environment `both` as `Dry/Wet`.
+- [x] Capitalize modifier chip labels.
+- [x] Update the routines list optimistically after successful delete so deleted routines disappear immediately.
 
 ~~Layer names need to be editable (by clicking on them)~~
 
