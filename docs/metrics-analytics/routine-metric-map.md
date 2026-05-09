@@ -47,14 +47,14 @@ New routines should not ask the user to manually choose every tracking flag, and
 
 These are the builder-facing dropdown lists for `displayConfig.heroMetric`, `displayConfig.secondaryMetric`, and `displayConfig.tertiaryMetric`. The lists should be generated from the routine's layer-derived metric profile, but only metrics with current `MetricType` display support should be selectable until adapters exist for the remaining canonical keys.
 
-| Routine type | Hero dropdown | Secondary dropdown | Tertiary dropdown | Default combination |
-|--------------|---------------|--------------------|-------------------|---------------------|
-| Static single hold | `totalTime`, `diveDuration`, `initialBreatheUpTime`, `contractionsOnsetTime`, `longestHold`, `breathingTechnique` | `initialBreatheUpTime`, `contractionsOnsetTime`, `breathingTechnique`, `totalTime`, `longestHold` | `contractionsOnsetTime`, `longestHold`, `breathingTechnique`, `packingVolume`, none | Hero `totalTime`; secondary `initialBreatheUpTime`; tertiary `contractionsOnsetTime` or none |
-| Static wet table | `cumulativeHoldTime`, `totalBreathHoldTime`, `longestHold`, `repsCompleted`, `totalTime`, `avgRestBetweenLaps` | `longestHold`, `repsCompleted`, `avgRestBetweenLaps`, `totalBreathingTime`, `totalBreaths` | `repsCompleted`, `avgRestBetweenLaps`, `totalBreaths`, `contractionsOnsetTime`, none | Hero `cumulativeHoldTime`; secondary `longestHold`; tertiary `repsCompleted` |
-| Static dry/RV/FRC table | `longestHold`, `cumulativeHoldTime`, `totalBreathHoldTime`, `repsCompleted`, `avgRestBetweenLaps` | `cumulativeHoldTime`, `longestHold`, `repsCompleted`, `avgRestBetweenLaps`, `packingVolume` | `repsCompleted`, `packingVolume`, `contractionsOnsetTime`, none | Hero `longestHold`; secondary `cumulativeHoldTime`; tertiary none until SpO2 threshold display support exists |
-| Dynamic single attempt | `totalDistance`, `diveDistance`, `totalTime`, `diveDuration`, `avgSpeedMs`, `poolLength` | `totalTime`, `diveDuration`, `avgSpeedMs`, `poolLength`, `waterTemperature` | `avgSpeedMs`, `poolLength`, `waterTemperature`, `breathingTechnique`, none | Hero `totalDistance`; secondary `totalTime`; tertiary `avgSpeedMs` |
-| Dynamic interval/table | `sessionDuration`, `cumulativeDistance`, `totalDistance`, `repsCompleted`, `avgSpeedMs`, `avgTimePerLap` | `cumulativeDistance`, `repsCompleted`, `avgTimePerLap`, `avgRestBetweenLaps`, `avgSpeedMs`, `totalBreathingTime` | `avgSpeedMs`, `avgRestBetweenLaps`, `avgTimePerLap`, `waterTemperature`, none | Hero `sessionDuration`; secondary `cumulativeDistance` or `repsCompleted`; tertiary `avgSpeedMs` |
-| Mixed or hybrid | `sessionDuration`, `totalDistance`, `cumulativeDistance`, `cumulativeHoldTime`, `longestHold`, `repsCompleted` | `totalDistance`, `totalTime`, `cumulativeHoldTime`, `longestHold`, `repsCompleted`, `avgRestBetweenLaps` | `avgSpeedMs`, `repsCompleted`, `avgRestBetweenLaps`, `contractionsOnsetTime`, none | Pick the routine intent: max result, cumulative workload, or session duration |
+| Routine type            | Hero dropdown                                                                                                     | Secondary dropdown                                                                                               | Tertiary dropdown                                                                    | Default combination                                                                                           |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| Static single hold      | `totalTime`, `diveDuration`, `initialBreatheUpTime`, `contractionsOnsetTime`, `longestHold`, `breathingTechnique` | `initialBreatheUpTime`, `contractionsOnsetTime`, `breathingTechnique`, `totalTime`, `longestHold`                | `contractionsOnsetTime`, `longestHold`, `breathingTechnique`, `packingVolume`, none  | Hero `totalTime`; secondary `initialBreatheUpTime`; tertiary `contractionsOnsetTime` or none                  |
+| Static wet table        | `cumulativeHoldTime`, `totalBreathHoldTime`, `longestHold`, `repsCompleted`, `totalTime`, `avgRestBetweenLaps`    | `longestHold`, `repsCompleted`, `avgRestBetweenLaps`, `totalBreathingTime`, `totalBreaths`                       | `repsCompleted`, `avgRestBetweenLaps`, `totalBreaths`, `contractionsOnsetTime`, none | Hero `cumulativeHoldTime`; secondary `longestHold`; tertiary `repsCompleted`                                  |
+| Static dry/RV/FRC table | `longestHold`, `cumulativeHoldTime`, `totalBreathHoldTime`, `repsCompleted`, `avgRestBetweenLaps`                 | `cumulativeHoldTime`, `longestHold`, `repsCompleted`, `avgRestBetweenLaps`, `packingVolume`                      | `repsCompleted`, `packingVolume`, `contractionsOnsetTime`, none                      | Hero `longestHold`; secondary `cumulativeHoldTime`; tertiary none until SpO2 threshold display support exists |
+| Dynamic single attempt  | `totalDistance`, `diveDistance`, `totalTime`, `diveDuration`, `avgSpeedMs`, `poolLength`                          | `totalTime`, `diveDuration`, `avgSpeedMs`, `poolLength`, `waterTemperature`                                      | `avgSpeedMs`, `poolLength`, `waterTemperature`, `breathingTechnique`, none           | Hero `totalDistance`; secondary `totalTime`; tertiary `avgSpeedMs`                                            |
+| Dynamic interval/table  | `sessionDuration`, `cumulativeDistance`, `totalDistance`, `repsCompleted`, `avgSpeedMs`, `avgTimePerLap`          | `cumulativeDistance`, `repsCompleted`, `avgTimePerLap`, `avgRestBetweenLaps`, `avgSpeedMs`, `totalBreathingTime` | `avgSpeedMs`, `avgRestBetweenLaps`, `avgTimePerLap`, `waterTemperature`, none        | Hero `sessionDuration`; secondary `cumulativeDistance` or `repsCompleted`; tertiary `avgSpeedMs`              |
+| Mixed or hybrid         | `sessionDuration`, `totalDistance`, `cumulativeDistance`, `cumulativeHoldTime`, `longestHold`, `repsCompleted`    | `totalDistance`, `totalTime`, `cumulativeHoldTime`, `longestHold`, `repsCompleted`, `avgRestBetweenLaps`         | `avgSpeedMs`, `repsCompleted`, `avgRestBetweenLaps`, `contractionsOnsetTime`, none   | Pick the routine intent: max result, cumulative workload, or session duration                                 |
 
 ### Recommended Display Combinations
 
@@ -233,3 +233,64 @@ Use these profiles as the first pass for the layer builder. A later registry can
 3. Generate hero/secondary/tertiary options from metrics that have display adapters.
 4. Store per-row metric profiles in the log plan snapshot for mixed and repeated routines.
 5. Keep routine-level `displayConfig` as the summary choice, but make analytics read from row-level facts when a routine is mixed.
+
+## 1. Strategy To Close Hero Metric Gaps
+
+Goal: every metric that is tracked for a routine should be selectable as a hero, secondary, or tertiary display metric. This includes direct fields, calculated fields, row-level rollups, and useful non-numeric status/facet values where the UI can render them clearly.
+
+### 1.1 Technical Strategy
+
+| Step | Implementation | Acceptance check |
+|------|----------------|------------------|
+| 1 | Introduce a canonical metric registry in code, starting in `src/lib/routineLayers/metrics.ts` or `src/lib/metrics/registry.ts`. Each entry should include canonical key, display label, short label, category, unit, value kind, compatible discipline families, relevant `TrackingConfig` flags, log field paths, and optional calculation function. | A single registry can answer: tracked by routine, shown in log form, selectable as display metric, and chartable in analytics. |
+| 2 | Add adapters between `CanonicalMetricKey`, current `MetricType`, and `TrackingConfig`. Keep current names working, but stop adding new one-off switch cases without a registry entry. | Existing routines still display, while new metrics have an explicit adapter or an explicit no-display reason. |
+| 3 | Expand `MetricType` or replace display selection with registry metric IDs so missing tracked metrics can be selected. Start with min SpO2, min HR, time below SpO2 thresholds, kicks, arm pulls, equipment, facial gear, safety outcome, FVC, FVC with packing, gas mix, and per-row lung volume. | Every tracked field in `TrackingConfig` has either a display metric entry or a documented status/facet display entry. |
+| 4 | Move metric value resolution out of the large `getMetricValue()` switch into registry-backed resolvers. Support direct log fields, row/lap aggregations, routine-level fallbacks, and formatted non-numeric values. | `getFormattedMetric()` can render both numeric metrics and status/facet metrics without custom UI per metric. |
+| 5 | Generate hero metric options from the routine's layer-derived tracking profile. Options should include all metrics relevant to the routine, not only default/standard metrics. | A dry static table exposes SpO2 threshold metrics; a DNF routine exposes arm pulls; a dynamic routine exposes speed/kick metrics. |
+| 6 | Add tests for each routine family using default examples and blank custom layers. Tests should assert that tracked metrics are present in display options and that each option resolves safely for empty and populated logs. | No tracked metric can be added without a display-option test failing until it has a registry entry. |
+| 7 | Keep backwards compatibility by preserving existing `displayConfig.heroMetric` values and labels. Add a migration adapter only when the stored key is not in the new registry. | Old sessions and cards keep rendering while new routines use registry-backed options. |
+
+### 1.2 Metric Coverage Backlog
+
+| Priority | Metrics | Why first |
+|----------|---------|-----------|
+| P0 | `minimumSpO2`, `minimumHR`, `timeBelowSpO2Threshold`, `cumulativeDistance`, `fastestLapSpeedMs`, `slowestLapSpeedMs` | Already tracked or partly represented, high value for dry/static and dynamic analytics, and good hero/tertiary candidates. |
+| P1 | `kicksPerLap`, `armPullsPerLap`, `averageKicksPerLap`, `averageArmPullsPerLap`, `equipment`, `facialGear` | Important technique metrics, especially for DNF and dynamic training. |
+| P2 | `fvcLiters`, `fvcWithPackingLiters`, `packingVolumePercent`, `gasMix`, `endSpO2`, `recoveryQuality`, `urgeToBreathe`, `lucidity`, `contractions` | Advanced static and O2-assisted routines need these, but they can follow once registry rendering supports mixed numeric/status values. |
+| P3 | `safetyOutcome`, `sambaBO`, `competitionStatus`, `cardColor`, `recordTag`, `attemptConditions`, `lungVolume` | Better as badges/status/facets than chart metrics, but still useful for hero card context. |
+
+### 1.3 UX Strategy For Metric Selection
+
+The display metric picker should not be one huge alphabetical dropdown. It should behave like a guided chooser over a complete metric catalog.
+
+| UX element | Behavior |
+|------------|----------|
+| Recommended strip | Show 3-6 suggested metrics first based on routine type, current layer display suggestion, and common combinations. One click sets hero/secondary/tertiary presets. |
+| Category tabs | Group the full list into `Performance`, `Workload`, `Recovery`, `Technique`, `Biometrics`, `Environment`, and `Safety/Context`. Only categories with relevant metrics for the current routine appear. |
+| Standard/Geek segmented control | `Standard` shows common metrics and recommended defaults. `Geek` reveals all tracked metrics, including advanced physiology and technique fields. This mirrors the logging-stage philosophy. |
+| Search field | Search labels, synonyms, units, and descriptions. Searching `oxygen` should find SpO2 metrics; searching `pulls` should find arm-pull metrics. |
+| Metric cards, not raw options | Each selectable metric should show label, unit, source (`manual`, `recorder`, `calculated`, `status`), and a one-line meaning. This avoids cryptic keys like `avgSpeedMs`. |
+| Compatibility indicators | Show small badges such as `Tracked`, `Calculated`, `Recorder`, `Needs data`, or `Advanced`. Do not hide relevant metrics only because the current log has no value yet. |
+| Preview panel | Show a session-card preview with the chosen hero/secondary/tertiary labels. Empty values can render as placeholders, so users understand card layout before logs exist. |
+| Duplicate guard | Once a metric is selected as hero, dim or mark it in secondary/tertiary lists to avoid accidental duplicate cards. |
+| Missing-adapter handling | During migration, metrics that are tracked but not yet display-ready should appear in a `Coming soon display support` group only in dev/admin mode, not in the normal user picker. |
+
+### 1.4 Picker Flow
+
+1. User clicks `Next` from layer authoring to display metrics.
+2. The app derives all relevant metrics from layers and `trackingConfig`.
+3. The top of the page offers recommended preset combinations for that routine type.
+4. The user can accept a preset or open the full picker for hero, secondary, or tertiary.
+5. The picker opens with category tabs and standard/geek mode, not a long select list.
+6. Selecting a metric updates the preview immediately.
+7. Save writes `displayConfig` using registry metric IDs/labels while preserving legacy `MetricType` compatibility.
+
+### 1.5 Implementation Phases
+
+| Phase | Scope | Commit target |
+|-------|-------|---------------|
+| A | Add metric registry data and adapters for current `MetricType` metrics. | No UI change; tests prove old display metrics still resolve. |
+| B | Add missing P0 display adapters and calculations. | Dry static and dynamic interval gaps become selectable. |
+| C | Replace hard-coded hero metric dropdowns with registry-derived option groups. | UI shows recommended strip, categories, and search. |
+| D | Add preview and duplicate-guard behavior to the display metric step. | UX becomes clear without a huge flat list. |
+| E | Add P1/P2/P3 metric adapters and status/facet rendering. | Every tracked metric has a display path or intentional status-card path. |
