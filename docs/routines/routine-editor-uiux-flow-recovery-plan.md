@@ -154,6 +154,9 @@ The second option is cleaner if this editor is meant to become the default routi
 
 # Fixes required
 
+~~We need to be able to rename routines. This should be non-destructive. Ideally the same method as renaming the layers should be used.~~
+
+
 ~~The layer editor is working quite nicely already.
 We are still not being presented with a page to select hero metrics. This is important and needs implementing.~~
 
@@ -186,6 +189,7 @@ Note: the remaining save failure was caused by optional compatibility fields usi
 - [x] Capitalize modifier chip labels.
 - [x] Update the routines list optimistically after successful delete so deleted routines disappear immediately.
 - [x] Add a `Next` step from layer authoring to hero, secondary, and tertiary metric selection.
+- [x] Make the routine title editable from the layer editor header and save only the routine name.
 
 ~~Layer names need to be editable (by clicking on them)~~
 

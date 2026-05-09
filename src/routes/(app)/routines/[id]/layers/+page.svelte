@@ -57,6 +57,10 @@
 	let selectedLayerId = $state<string | null>(null);
 	let selectedSegmentKey = $state<LayerSentenceSegmentKey | null>(null);
 	let editingLayerNameId = $state<string | null>(null);
+	let editingRoutineName = $state(false);
+	let routineNameDraft = $state('');
+	let savingRoutineName = $state(false);
+	let routineNameStatus = $state<string | null>(null);
 	let showDebug = $state(false);
 	let builderStep = $state<'layers' | 'metrics'>('layers');
 	let savingMetrics = $state(false);
@@ -113,6 +117,7 @@
 			loading = true;
 			error = null;
 			routine = await getRoutine(routineId);
+			if (routine) routineNameDraft = routine.name;
 			if (routine) syncMetricSelections(routine);
 
 			if (!routine) {
@@ -143,6 +148,51 @@
 	function editLayerName(layerId: string) {
 		selectedLayerId = layerId;
 		editingLayerNameId = layerId;
+	}
+
+	function editRoutineName() {
+		if (!routine) return;
+		routineNameDraft = routine.name;
+		routineNameStatus = null;
+		editingRoutineName = true;
+	}
+
+	function cancelRoutineNameEdit() {
+		routineNameDraft = routine?.name ?? '';
+		editingRoutineName = false;
+	}
+
+	async function saveRoutineName() {
+		if (!routine || savingRoutineName) return;
+
+		const nextName = routineNameDraft.trim();
+		if (!nextName) {
+			routineNameDraft = routine.name;
+			routineNameStatus = 'Routine name cannot be empty.';
+			editingRoutineName = false;
+			return;
+		}
+
+		if (nextName === routine.name) {
+			editingRoutineName = false;
+			return;
+		}
+
+		try {
+			savingRoutineName = true;
+			routineNameStatus = null;
+			await updateRoutine(routine.id, { name: nextName });
+			routine = { ...routine, name: nextName };
+			routineNameDraft = nextName;
+			routineNameStatus = 'Routine renamed.';
+		} catch (err) {
+			console.error('Failed to rename routine:', err);
+			routineNameDraft = routine.name;
+			routineNameStatus = 'Failed to rename routine.';
+		} finally {
+			savingRoutineName = false;
+			editingRoutineName = false;
+		}
 	}
 
 	function compactModifierSummary(summary: string) {
@@ -532,7 +582,28 @@
 
 		<div class="header-copy">
 			<div class="eyebrow">Routine Builder</div>
-			<h1>{routine?.name ?? 'Routine'}</h1>
+			<h1 class="routine-name-heading">
+				{#if editingRoutineName}
+					<input
+						class="routine-name-input"
+						value={routineNameDraft}
+						disabled={savingRoutineName}
+						oninput={(event) => (routineNameDraft = event.currentTarget.value)}
+						onblur={saveRoutineName}
+						onkeydown={(event) => {
+							if (event.key === 'Enter') event.currentTarget.blur();
+							if (event.key === 'Escape') cancelRoutineNameEdit();
+						}}
+					/>
+				{:else}
+					<button type="button" class="routine-name-button" onclick={editRoutineName} disabled={!routine || savingRoutineName}>
+						{routine?.name ?? 'Routine'}
+					</button>
+				{/if}
+			</h1>
+			{#if routineNameStatus}
+				<p class="routine-name-status">{routineNameStatus}</p>
+			{/if}
 		</div>
 
 		{#if readModel}
@@ -867,6 +938,44 @@
 	h1 {
 		font-size: 2rem;
 		line-height: 1.12;
+	}
+
+	.routine-name-button,
+	.routine-name-input {
+		min-width: 0;
+		width: 100%;
+		border: 1px solid transparent;
+		border-radius: 6px;
+		background: transparent;
+		color: var(--color-text);
+		font: inherit;
+		font-size: 2rem;
+		font-weight: 800;
+		line-height: 1.12;
+		padding: 0.25rem 0.35rem;
+		text-align: left;
+	}
+
+	.routine-name-button {
+		cursor: text;
+	}
+
+	.routine-name-button:hover,
+	.routine-name-input:focus {
+		border-color: rgba(148, 163, 184, 0.22);
+		background: rgba(2, 6, 23, 0.28);
+		outline: none;
+	}
+
+	.routine-name-button:disabled,
+	.routine-name-input:disabled {
+		cursor: wait;
+		opacity: 0.7;
+	}
+
+	.routine-name-status {
+		color: var(--color-text-muted);
+		font-size: 0.82rem;
 	}
 
 	h2 {
