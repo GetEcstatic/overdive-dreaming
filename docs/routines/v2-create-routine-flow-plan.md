@@ -1,6 +1,6 @@
 # V2 Create Routine Flow Plan
 
-Status: planning only. This follows the completed [routine-builder implementation checklist](routine-builder-implementation-checklist.md) and explains the next implementation slice: make `Create Routine` start from the v2 layer model instead of the legacy `SimplifiedRoutineBuilder`.
+Status: initial implementation complete. This follows the completed [routine-builder implementation checklist](routine-builder-implementation-checklist.md) and explains the implementation slice that makes `Create Routine` start from the v2 layer model instead of the legacy `SimplifiedRoutineBuilder`.
 
 ## Current State
 
@@ -70,16 +70,16 @@ This keeps the create flow data-oriented: UI collects a small plain input, the h
 
 ## Implementation Checklist
 
-- [ ] Add `buildLayerRoutineCreateData` in a new pure module, probably `src/lib/routineLayers/create.ts`.
-- [ ] Add tests for creating data from Dynamic Max, Static 2-Breath Table, and a blank single-layer routine.
-- [ ] Add a lightweight v2 create route or replace `/routines/create` with a scaffold picker.
-- [ ] Use `defaultRoutineExamples` as the initial scaffold list.
-- [ ] Add a blank scaffold factory if a true blank routine is needed.
-- [ ] On submit, call `createRoutine($user.uid, buildLayerRoutineCreateData(input))`.
-- [ ] Route successful creates to `/routines/${routineId}/layers`.
-- [ ] Keep legacy create reachable behind a temporary admin/developer fallback link if needed.
-- [ ] Run focused routine-layer tests and `npm run check`.
-- [ ] Remove the fallback only after the v2 create page covers metadata, scaffold selection, save errors, and cancellation cleanly.
+- [x] Add `buildLayerRoutineCreateData` in a new pure module, probably `src/lib/routineLayers/create.ts`.
+- [x] Add tests for creating data from Dynamic Max, Static 2-Breath Table, and a blank single-layer routine.
+- [x] Add a lightweight v2 create route or replace `/routines/create` with a scaffold picker.
+- [x] Use `defaultRoutineExamples` as the initial scaffold list.
+- [x] Add a blank scaffold factory if a true blank routine is needed.
+- [x] On submit, call `createRoutine($user.uid, buildLayerRoutineCreateData(input))`.
+- [x] Route successful creates to `/routines/${routineId}/layers`.
+- [x] Replace the create route directly; no legacy fallback link is needed for this slice.
+- [x] Run focused routine-layer tests and `npm run check`.
+- [x] Replace the fallback after the v2 create page covers metadata, scaffold selection, save errors, and cancellation cleanly.
 
 ## Validation Plan
 
@@ -95,8 +95,12 @@ This keeps the create flow data-oriented: UI collects a small plain input, the h
   - New routine appears in `/routines` as a custom routine.
   - Quick logging still receives planned rows for the newly created v2 routine.
 
-## Open Decisions
+## Resolved Decisions
 
-- Whether `/routines/create` should be replaced directly or whether the v2 page should first live at `/routines/create/layers`.
-- Whether the first slice should support only fixture scaffolds or also a true blank single-layer routine.
-- Whether non-admin users should see the v2 create page immediately, or whether it should stay admin-gated for one slice while the fallback remains available.
+- `/routines/create` is replaced directly with the v2 scaffold picker.
+- The first slice supports both fixture scaffolds and a blank single-layer routine.
+- The v2 create page is not admin-gated; it is now the default create surface.
+
+## Browser Smoke Note
+
+- Local browser smoke at `http://127.0.0.1:5173/routines/create` redirected to sign-in because `127.0.0.1` is not authorized for Firebase OAuth in this environment. Authenticated clickthrough still needs a browser session on an authorized local domain or an already signed-in shared page.
