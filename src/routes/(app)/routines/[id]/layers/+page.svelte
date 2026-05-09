@@ -5,14 +5,14 @@
 	import DurationInput from '$lib/components/DurationInput.svelte';
 	import NumberWheelInput from '$lib/components/NumberWheelInput.svelte';
 	import { user } from '$lib/stores/auth';
-	import { getRoutine, writeRoutineLayerTemplateContract } from '$lib/firestore';
+	import { getRoutine, updateRoutine, writeRoutineLayerTemplateContract } from '$lib/firestore';
 	import { isAdmin } from '$lib/utils/admin';
 	import { buildRoutineLayerReadModel } from '$lib/routineLayers/readModel';
 	import { buildLayerSentence, type LayerSentenceModifier, type LayerSentenceSegmentKey } from '$lib/routineLayers/sentence';
 	import { expandRoutineLayers } from '$lib/routineLayers/model';
 	import { findDefaultRoutineLayerExample } from '$lib/routineLayers/defaults';
 	import type { LegacyRoutineProjection } from '$lib/routineLayers/contract';
-	import type { RoutineTemplate } from '$lib/types';
+	import type { MetricType, RoutineTemplate } from '$lib/types';
 	import type {
 		ExpandedRoutinePlanRow,
 		LayerDiscipline,
@@ -25,6 +25,17 @@
 
 	const disciplineOptions: LayerDiscipline[] = ['STA', 'DYN', 'DYNB', 'DNF', 'TORT'];
 	const dynamicDisciplineOptions: LayerDiscipline[] = ['DYN', 'DYNB', 'DNF', 'TORT'];
+	const metricOptions: { value: MetricType; label: string }[] = [
+		{ value: 'totalTime', label: 'Total time' },
+		{ value: 'totalDistance', label: 'Total distance' },
+		{ value: 'repsCompleted', label: 'Reps completed' },
+		{ value: 'repDuration', label: 'Rep duration' },
+		{ value: 'avgRestBetweenLaps', label: 'Rest' },
+		{ value: 'initialBreatheUpTime', label: 'Breathe-up' },
+		{ value: 'contractionsOnsetTime', label: 'Contractions' },
+		{ value: 'avgSpeedMs', label: 'Average speed' },
+		{ value: 'breathingTechnique', label: 'Breathing technique' }
+	];
 
 	type ProjectionComparisonRow = {
 		label: string;
@@ -47,6 +58,12 @@
 	let selectedSegmentKey = $state<LayerSentenceSegmentKey | null>(null);
 	let editingLayerNameId = $state<string | null>(null);
 	let showDebug = $state(false);
+	let builderStep = $state<'layers' | 'metrics'>('layers');
+	let savingMetrics = $state(false);
+	let metricStatus = $state<string | null>(null);
+	let selectedHeroMetric = $state<MetricType>('totalTime');
+	let selectedSecondaryMetric = $state<MetricType>('totalDistance');
+	let selectedTertiaryMetric = $state<MetricType | ''>('');
 
 	let userIsAdmin = $derived(isAdmin($user?.uid));
 	let readModel = $derived(routine && userIsAdmin ? buildRoutineLayerReadModel(routine) : null);
@@ -96,6 +113,7 @@
 			loading = true;
 			error = null;
 			routine = await getRoutine(routineId);
+			if (routine) syncMetricSelections(routine);
 
 			if (!routine) {
 				error = 'Routine not found';
@@ -139,6 +157,16 @@
 			.replace(/^open distance$/i, 'open')
 			.replace(/^repeat\s+/i, '')
 			.replace(/^single$/i, '1x');
+	}
+
+	function metricLabel(metric: MetricType) {
+		return metricOptions.find((option) => option.value === metric)?.label ?? String(metric);
+	}
+
+	function syncMetricSelections(template: RoutineTemplate) {
+		selectedHeroMetric = template.displayConfig?.heroMetric ?? 'totalTime';
+		selectedSecondaryMetric = template.displayConfig?.secondaryMetric ?? 'totalDistance';
+		selectedTertiaryMetric = template.displayConfig?.tertiaryMetric ?? '';
 	}
 
 	function formatModifierChip(modifier: LayerSentenceModifier) {
@@ -217,6 +245,33 @@
 			editorStatus = 'Failed to save layer changes.';
 		} finally {
 			savingLayers = false;
+		}
+	}
+
+	async function saveHeroMetrics() {
+		if (!routine || savingMetrics) return;
+
+		try {
+			savingMetrics = true;
+			metricStatus = null;
+			await updateRoutine(routine.id, {
+				displayConfig: {
+					heroMetric: selectedHeroMetric,
+					heroMetricLabel: metricLabel(selectedHeroMetric),
+					secondaryMetric: selectedSecondaryMetric,
+					secondaryMetricLabel: metricLabel(selectedSecondaryMetric),
+					tertiaryMetric: selectedTertiaryMetric || undefined,
+					tertiaryMetricLabel: selectedTertiaryMetric ? metricLabel(selectedTertiaryMetric) : undefined
+				}
+			});
+			routine = await getRoutine(routine.id);
+			if (routine) syncMetricSelections(routine);
+			metricStatus = 'Hero metrics saved.';
+		} catch (err) {
+			console.error('Failed to save hero metrics:', err);
+			metricStatus = 'Failed to save hero metrics.';
+		} finally {
+			savingMetrics = false;
 		}
 	}
 
@@ -482,10 +537,18 @@
 
 		{#if readModel}
 			<div class="header-actions">
-				<button class="write-button" onclick={saveEditedLayers} disabled={!editorDirty || savingLayers}>
-					{savingLayers ? 'Saving...' : 'Save'}
-				</button>
-				<button class="secondary-button" onclick={resetEditedLayers} disabled={!editorDirty || savingLayers}>Reset</button>
+				{#if builderStep === 'layers'}
+					<button class="write-button" onclick={saveEditedLayers} disabled={!editorDirty || savingLayers}>
+						{savingLayers ? 'Saving...' : 'Save'}
+					</button>
+					<button class="secondary-button" onclick={resetEditedLayers} disabled={!editorDirty || savingLayers}>Reset</button>
+					<button class="secondary-button" onclick={() => (builderStep = 'metrics')}>Next</button>
+				{:else}
+					<button class="secondary-button" onclick={() => (builderStep = 'layers')}>Back to layers</button>
+					<button class="write-button" onclick={saveHeroMetrics} disabled={savingMetrics}>
+						{savingMetrics ? 'Saving...' : 'Save metrics'}
+					</button>
+				{/if}
 				{#if userIsAdmin}
 					<button class="secondary-button" onclick={() => (showDebug = !showDebug)}>
 						{showDebug ? 'Hide debug' : 'Show debug'}
@@ -564,6 +627,7 @@
 			</section>
 		{/if}
 
+		{#if builderStep === 'layers'}
 		<section class="authoring-flow" aria-label="Routine layer editor">
 			{#each editableLayers as layer, index}
 				{@const sentence = layerSentenceFor(layer.id)}
@@ -665,6 +729,46 @@
 
 		{#if editorStatus}
 			<p class="editor-status">{editorStatus}</p>
+		{/if}
+		{:else}
+			<section class="metrics-step" aria-label="Hero metric selection">
+				<div class="metrics-header">
+					<h2>Hero metrics</h2>
+					<span>Choose how this routine should summarize completed sessions.</span>
+				</div>
+
+				<div class="metric-select-grid">
+					<label>
+						<span>Hero metric</span>
+						<select bind:value={selectedHeroMetric}>
+							{#each metricOptions as option}
+								<option value={option.value}>{option.label}</option>
+							{/each}
+						</select>
+					</label>
+					<label>
+						<span>Secondary metric</span>
+						<select bind:value={selectedSecondaryMetric}>
+							{#each metricOptions as option}
+								<option value={option.value}>{option.label}</option>
+							{/each}
+						</select>
+					</label>
+					<label>
+						<span>Tertiary metric</span>
+						<select bind:value={selectedTertiaryMetric}>
+							<option value="">None</option>
+							{#each metricOptions as option}
+								<option value={option.value}>{option.label}</option>
+							{/each}
+						</select>
+					</label>
+				</div>
+
+				{#if metricStatus}
+					<p class="editor-status">{metricStatus}</p>
+				{/if}
+			</section>
 		{/if}
 
 		{#if showDebug}
@@ -1123,6 +1227,53 @@
 	.add-layer-button:disabled {
 		cursor: not-allowed;
 		opacity: 0.65;
+	}
+
+	.metrics-step {
+		display: grid;
+		gap: 1rem;
+		border: 1px solid rgba(148, 163, 184, 0.16);
+		border-radius: 8px;
+		background: rgba(15, 23, 42, 0.54);
+		padding: 1rem;
+	}
+
+	.metrics-header {
+		display: grid;
+		gap: 0.25rem;
+	}
+
+	.metrics-header span {
+		color: var(--color-text-muted);
+		font-size: 0.82rem;
+	}
+
+	.metric-select-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+		gap: 0.75rem;
+	}
+
+	.metric-select-grid label {
+		display: grid;
+		gap: 0.35rem;
+	}
+
+	.metric-select-grid label span {
+		color: var(--color-text-muted);
+		font-size: 0.76rem;
+		font-weight: 800;
+		text-transform: uppercase;
+	}
+
+	.metric-select-grid select {
+		border: 1px solid rgba(148, 163, 184, 0.22);
+		border-radius: 6px;
+		background: rgba(2, 6, 23, 0.38);
+		color: var(--color-text);
+		font: inherit;
+		padding: 0.55rem 0.65rem;
+		min-width: 0;
 	}
 
 	.sentence-grid,

@@ -154,6 +154,10 @@ The second option is cleaner if this editor is meant to become the default routi
 
 # Fixes required
 
+~~The layer editor is working quite nicely already.
+We are still not being presented with a page to select hero metrics. This is important and needs implementing.~~
+
+
 ~~UI changes: If effort = "standard" the no need to display a chip; change the "either" label for environment to "Dry/Wet" or more clarity.~~
 
 ~~Ensure all modifier labels have at least the first letter capitalised. e.g. Fixed, not "fixed"~~
@@ -181,6 +185,7 @@ Note: the remaining save failure was caused by optional compatibility fields usi
 - [x] Hide the `standard` effort chip and show environment `both` as `Dry/Wet`.
 - [x] Capitalize modifier chip labels.
 - [x] Update the routines list optimistically after successful delete so deleted routines disappear immediately.
+- [x] Add a `Next` step from layer authoring to hero, secondary, and tertiary metric selection.
 
 ~~Layer names need to be editable (by clicking on them)~~
 
