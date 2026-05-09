@@ -87,11 +87,17 @@ describe('metric value resolution', () => {
 		const log = {
 			gasMix: '100% O2',
 			sambaBO: false,
-			defaultLungVolume: 'FRC'
+			defaultLungVolume: 'FRC',
+			isCompetition: true,
+			cardTag: 'white',
+			recordTag: 'NR'
 		} as RoutineLog;
 
 		expect(getFormattedMetric('gasMix', 'Gas', log, routine)).toEqual({ value: '100% O2', label: 'Gas' });
 		expect(getFormattedMetric('safetyOutcome', 'Safety', log, routine)).toEqual({ value: 'Clean', label: 'Safety' });
 		expect(getFormattedMetric('lungVolume', 'Lung Volume', log, routine)).toEqual({ value: 'FRC', label: 'Lung Volume' });
+		expect(getFormattedMetric('competitionStatus', 'Competition', log, routine)).toEqual({ value: 'Competition', label: 'Competition' });
+		expect(getFormattedMetric('cardColor', 'Card', log, routine)).toEqual({ value: 'white', label: 'Card' });
+		expect(getFormattedMetric('recordTag', 'Record', log, routine)).toEqual({ value: 'NR', label: 'Record' });
 	});
 });

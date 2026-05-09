@@ -252,6 +252,9 @@ export function getMetricValue(
 		case 'gasMix':
 		case 'safetyOutcome':
 		case 'lungVolume':
+		case 'competitionStatus':
+		case 'cardColor':
+		case 'recordTag':
 			// String metric - return 0 as placeholder, handled in getFormattedMetric
 			return 0;
 
@@ -424,6 +427,18 @@ export function getFormattedMetric(
 
 	if (metricType === 'lungVolume') {
 		return { value: log.defaultLungVolume ?? log.laps?.find((lap) => lap.lungVolume)?.lungVolume ?? '—', label };
+	}
+
+	if (metricType === 'competitionStatus') {
+		return { value: log.isCompetition ? 'Competition' : 'Training', label };
+	}
+
+	if (metricType === 'cardColor') {
+		return { value: log.cardTag ?? '—', label };
+	}
+
+	if (metricType === 'recordTag') {
+		return { value: log.recordTag ?? '—', label };
 	}
 
 	const rawValue = getMetricValue(metricType, log, routine);

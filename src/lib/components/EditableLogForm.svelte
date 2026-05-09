@@ -419,6 +419,12 @@
 
 	// Check if any fields exist in each section
 	const hasSessionContext = $derived(config.trackPoolLength || config.trackInitialBreatheUpTime);
+	const hasCompetitionLogging = $derived(
+		config.trackCompetitionStatus ||
+			config.trackCardColor ||
+			config.trackRecordTag ||
+			Boolean(initialData.isCompetition || initialData.cardTag || initialData.recordTag)
+	);
 	const hasPerformanceMetrics = $derived(
 		config.trackTotalDistance ||
 			config.trackTotalTime ||
@@ -609,53 +615,61 @@
 		</div>
 		<p class="field-hint">When did this session take place? (dates from 2016 onwards)</p>
 
+		{#if hasCompetitionLogging}
 		<div class="field-group">
-			<label class="field-label">Session Tags</label>
+			<div class="field-label">Competition Metrics</div>
 			<div class="tag-row">
-				<button
-					type="button"
-					class="tag-button"
-					class:active={isCompetition}
-					onclick={() => (isCompetition = !isCompetition)}
-				>
-					Comp
-				</button>
+				{#if config.trackCompetitionStatus || initialData.isCompetition}
+					<button
+						type="button"
+						class="tag-button"
+						class:active={isCompetition}
+						onclick={() => (isCompetition = !isCompetition)}
+					>
+						Comp
+					</button>
+				{/if}
 				{#if isCompetition}
-					<span class="tag-group-label">Cards</span>
-					<div class="tag-group">
-						{#each [
-							{ value: 'white', label: '⬜️' },
-							{ value: 'yellow', label: '🟨' },
-							{ value: 'red', label: '🟥' }
-						] as card}
-							<button
-								type="button"
-								class="tag-button"
-								class:active={cardTag === card.value}
-								onclick={() => toggleCardTag(card.value as CardTag)}
-								aria-label={`${card.value} card`}
-							>
-								{card.label}
-							</button>
-						{/each}
-					</div>
-					<span class="tag-group-label">Record</span>
-					<div class="tag-group">
-						{#each ['NR', 'CR', 'WR'] as tag}
-							<button
-								type="button"
-								class="tag-button"
-								class:active={recordTag === tag}
-								onclick={() => toggleRecordTag(tag as RecordTag)}
-							>
-								{tag}
-							</button>
-						{/each}
-					</div>
+					{#if config.trackCardColor || initialData.cardTag}
+						<span class="tag-group-label">Cards</span>
+						<div class="tag-group">
+							{#each [
+								{ value: 'white', label: 'White' },
+								{ value: 'yellow', label: 'Yellow' },
+								{ value: 'red', label: 'Red' }
+							] as card}
+								<button
+									type="button"
+									class="tag-button"
+									class:active={cardTag === card.value}
+									onclick={() => toggleCardTag(card.value as CardTag)}
+									aria-label={`${card.value} card`}
+								>
+									{card.label}
+								</button>
+							{/each}
+						</div>
+					{/if}
+					{#if config.trackRecordTag || initialData.recordTag}
+						<span class="tag-group-label">Record</span>
+						<div class="tag-group">
+							{#each ['NR', 'CR', 'WR'] as tag}
+								<button
+									type="button"
+									class="tag-button"
+									class:active={recordTag === tag}
+									onclick={() => toggleRecordTag(tag as RecordTag)}
+								>
+									{tag}
+								</button>
+							{/each}
+						</div>
+					{/if}
 				{/if}
 			</div>
-			<p class="field-hint">Pick a record tag if applicable (one max)</p>
+			<p class="field-hint">Competition, card, and record values are used for comparison.</p>
 		</div>
+		{/if}
 		{#if isCompetition}
 			<div class="field-group">
 				<label for="competitionOrg" class="field-label">Competition Org</label>

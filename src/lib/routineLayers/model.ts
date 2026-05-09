@@ -52,6 +52,7 @@ export type CanonicalMetricKey =
 	| 'safetyOutcome'
 	| 'competitionStatus'
 	| 'cardColor'
+	| 'recordTag'
 	| 'rpe'
 	| 'joyScale'
 	| 'basalMood'

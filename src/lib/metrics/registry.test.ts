@@ -40,6 +40,9 @@ describe('metric registry', () => {
 			'contractions',
 			'safetyOutcome',
 			'lungVolume',
+			'competitionStatus',
+			'cardColor',
+			'recordTag',
 			'breathingTechnique'
 		];
 
@@ -63,6 +66,9 @@ describe('metric registry', () => {
 		expect(metricTypeForCanonicalKey('gasMix')).toBe('gasMix');
 		expect(metricTypeForCanonicalKey('safetyOutcome')).toBe('safetyOutcome');
 		expect(metricTypeForCanonicalKey('lungVolume')).toBe('lungVolume');
+		expect(metricTypeForCanonicalKey('competitionStatus')).toBe('competitionStatus');
+		expect(metricTypeForCanonicalKey('cardColor')).toBe('cardColor');
+		expect(metricTypeForCanonicalKey('recordTag')).toBe('recordTag');
 	});
 
 	it('identifies time metrics from value kind', () => {

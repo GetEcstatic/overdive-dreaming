@@ -210,12 +210,6 @@
 	let supportsBiometrics = $derived(routine.trackingConfig.trackPerRepSpO2 || routine.trackingConfig.trackPerRepHR || routine.trackingConfig.isDryTraining);
 	let isDrySession = $state<boolean>(routine.trackingConfig.isDryTraining ?? false);
 
-	// Check if this is a max-type routine (show competition toggle for these)
-	let isMaxTypeRoutine = $derived(routine.activityType === 'max-attempt' || 
-		routine.activityType === 'submax-attempt' ||
-		routine.tags?.includes('hybrid') ||
-		(routine.protocolType === 'none' && !routine.tags?.includes('free-training')));
-
 	// Smart defaults from routine table - use derived for reactivity
 	let defaultRepsCompleted = $derived(routine.table?.rows.length);
 	let calculatedRepDuration = $derived(routine.table?.rows.reduce((sum, row) => {
@@ -660,6 +654,7 @@
 			config.trackRepDistance ||
 			config.trackAvgSpeed
 	);
+	const hasCompetitionLogging = $derived(config.trackCompetitionStatus || config.trackCardColor || config.trackRecordTag);
 	const hasTrainingContext = $derived(
 		config.trackBreathingTechnique ||
 			config.trackRPE ||
@@ -833,53 +828,59 @@
 		</div>
 		<p class="field-hint">When did this session take place? (dates from 2016 onwards)</p>
 
-		{#if isMaxTypeRoutine}
+		{#if hasCompetitionLogging}
 			<div class="field-group">
-				<label class="field-label">Session Tags</label>
+				<div class="field-label">Competition Metrics</div>
 				<div class="tag-row">
-					<button
-						type="button"
-						class="tag-button"
-						class:active={isCompetition}
-						onclick={() => (isCompetition = !isCompetition)}
-					>
-						Comp
-					</button>
+					{#if config.trackCompetitionStatus}
+						<button
+							type="button"
+							class="tag-button"
+							class:active={isCompetition}
+							onclick={() => (isCompetition = !isCompetition)}
+						>
+							Comp
+						</button>
+					{/if}
 					{#if isCompetition}
-						<span class="tag-group-label">Cards</span>
-						<div class="tag-group">
-							{#each [
-								{ value: 'white', label: '⬜️' },
-								{ value: 'yellow', label: '🟨' },
-								{ value: 'red', label: '🟥' }
-							] as card}
-								<button
-									type="button"
-									class="tag-button"
-									class:active={cardTag === card.value}
-									onclick={() => toggleCardTag(card.value as CardTag)}
-									aria-label={`${card.value} card`}
-								>
-									{card.label}
-								</button>
-							{/each}
-						</div>
-						<span class="tag-group-label">Record</span>
-						<div class="tag-group">
-							{#each ['NR', 'CR', 'WR'] as tag}
-								<button
-									type="button"
-									class="tag-button"
-									class:active={recordTag === tag}
-									onclick={() => toggleRecordTag(tag as RecordTag)}
-								>
-									{tag}
-								</button>
-							{/each}
-						</div>
+						{#if config.trackCardColor}
+							<span class="tag-group-label">Cards</span>
+							<div class="tag-group">
+								{#each [
+									{ value: 'white', label: 'White' },
+									{ value: 'yellow', label: 'Yellow' },
+									{ value: 'red', label: 'Red' }
+								] as card}
+									<button
+										type="button"
+										class="tag-button"
+										class:active={cardTag === card.value}
+										onclick={() => toggleCardTag(card.value as CardTag)}
+										aria-label={`${card.value} card`}
+									>
+										{card.label}
+									</button>
+								{/each}
+							</div>
+						{/if}
+						{#if config.trackRecordTag}
+							<span class="tag-group-label">Record</span>
+							<div class="tag-group">
+								{#each ['NR', 'CR', 'WR'] as tag}
+									<button
+										type="button"
+										class="tag-button"
+										class:active={recordTag === tag}
+										onclick={() => toggleRecordTag(tag as RecordTag)}
+									>
+										{tag}
+									</button>
+								{/each}
+							</div>
+						{/if}
 					{/if}
 				</div>
-				<p class="field-hint">Pick a record tag if applicable (one max)</p>
+				<p class="field-hint">Competition, card, and record values are used for comparison.</p>
 			</div>
 			{#if isCompetition}
 				<div class="field-group">

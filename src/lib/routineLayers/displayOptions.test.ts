@@ -4,7 +4,7 @@ import { getSelectableMetricOptionsForTrackingConfig } from '$lib/metrics/regist
 import { getFormattedMetric } from '$lib/utils/metrics';
 import { deriveTrackingConfigFromLayers } from './contract';
 import { buildBlankRoutineLayer } from './create';
-import { dynamicMaxExample, staticTwoBreathTableExample } from './defaults';
+import { dynamicMaxExample, dynamicSweet16Example, staticMaxExample, staticTwoBreathTableExample } from './defaults';
 
 describe('routine display metric options', () => {
 	it('exposes dry/static biometric metrics for static routines', () => {
@@ -37,8 +37,27 @@ describe('routine display metric options', () => {
 			'averageKicksPerLap',
 			'averageArmPullsPerLap',
 			'equipment',
-			'facialGear'
+			'facialGear',
+			'competitionStatus',
+			'cardColor',
+			'recordTag'
 		]));
+	});
+
+	it('exposes competition comparison metrics for static max attempts', () => {
+		const trackingConfig = deriveTrackingConfigFromLayers(staticMaxExample.layers);
+		const optionKeys = getSelectableMetricOptionsForTrackingConfig(trackingConfig).map((option) => option.value);
+
+		expect(optionKeys).toEqual(expect.arrayContaining(['competitionStatus', 'cardColor', 'recordTag']));
+	});
+
+	it('does not expose competition comparison metrics for tables', () => {
+		const trackingConfig = deriveTrackingConfigFromLayers(dynamicSweet16Example.layers);
+		const optionKeys = getSelectableMetricOptionsForTrackingConfig(trackingConfig).map((option) => option.value);
+
+		expect(optionKeys).not.toContain('competitionStatus');
+		expect(optionKeys).not.toContain('cardColor');
+		expect(optionKeys).not.toContain('recordTag');
 	});
 
 	it('resolves all selectable metrics safely for an empty log', () => {

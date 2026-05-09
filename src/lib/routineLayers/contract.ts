@@ -215,6 +215,8 @@ export function deriveTrackingConfigFromLayers(layers: RoutineAuthoringLayer[]):
 	const hasWetCapableLayer = layers.some((layer) => layer.attributes.environment === 'wet' || layer.attributes.environment === 'both');
 	const hasDnf = layers.some((layer) => layer.discipline === 'DNF' || layer.allowedDisciplines?.includes('DNF'));
 	const hasNonFullLungLayer = layers.some((layer) => layer.attributes.lungVolume !== 'FL');
+	const hasMaxAttemptLayer = layers.some((layer) => layer.attributes.effort === 'max' || layer.analyticsRole === 'max-attempt');
+	const isSingleMaxAttempt = expandRoutineLayers(layers).length === 1 && hasMaxAttemptLayer && (hasDynamic || hasStatic);
 
 	return {
 		trackPoolLength: hasDynamic,
@@ -262,7 +264,10 @@ export function deriveTrackingConfigFromLayers(layers: RoutineAuthoringLayer[]):
 		trackFVC: hasDynamic || hasStatic,
 		trackFVCWithPacking: hasDynamic || hasStatic,
 		trackPackingVolume: hasDynamic || hasStatic,
-		trackLungVolume: hasDynamic || hasStatic || hasNonFullLungLayer
+		trackLungVolume: hasDynamic || hasStatic || hasNonFullLungLayer,
+		trackCompetitionStatus: isSingleMaxAttempt,
+		trackCardColor: isSingleMaxAttempt,
+		trackRecordTag: isSingleMaxAttempt
 	};
 }
 

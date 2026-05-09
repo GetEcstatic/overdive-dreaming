@@ -221,6 +221,8 @@ export type CompareDimension =
 	| 'poolLength'
 	| 'timeOfDay'
 	| 'isCompetition'
+	| 'cardTag'
+	| 'recordTag'
 	| 'breathingTechniqueLevel'
 	| 'hoursSinceLastMeal'
 	| 'menstrualCycleDay'
@@ -288,6 +290,16 @@ export const COMPARE_DIMENSIONS: Record<CompareDimension, CompareDimensionDescri
 		key: 'isCompetition',
 		label: 'Competition vs training',
 		bucketFor: (log) => (log.isCompetition ? 'Competition' : 'Training')
+	},
+	cardTag: {
+		key: 'cardTag',
+		label: 'Card color',
+		bucketFor: (log) => log.cardTag ?? null
+	},
+	recordTag: {
+		key: 'recordTag',
+		label: 'Record tag',
+		bucketFor: (log) => log.recordTag ?? null
 	},
 	breathingTechniqueLevel: {
 		key: 'breathingTechniqueLevel',

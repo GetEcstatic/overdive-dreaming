@@ -304,6 +304,11 @@ export interface TrackingConfig {
 	trackRecoveryQuality?: boolean; // Recovery breathing quality (1-10)
 	trackEndSpO2?: boolean; // SpO2 at end of hold (%)
 	trackBreatheUpType?: boolean; // Breathe-up technique description
+
+	// Competition comparison metrics - only enabled for max-attempt routines
+	trackCompetitionStatus?: boolean; // Competition vs training comparison facet
+	trackCardColor?: boolean; // White/yellow/red card outcome
+	trackRecordTag?: boolean; // NR/CR/WR record tag
 }
 
 export type MetricType =
@@ -360,6 +365,9 @@ export type MetricType =
 	| 'contractions'     // Contractions intensity scale
 	| 'safetyOutcome'    // Safety outcome/status
 	| 'lungVolume'       // Starting lung volume/status
+	| 'competitionStatus' // Competition vs training status
+	| 'cardColor'        // White/yellow/red card status
+	| 'recordTag'        // NR/CR/WR record status
 	| 'breathingTechnique'; // Breathing technique used
 
 export interface DisplayConfig {

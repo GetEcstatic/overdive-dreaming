@@ -246,7 +246,7 @@ Goal: every metric that is tracked for a routine should be selectable as a hero,
 - [x] Step 3a: P0 display metrics added for minimum SpO2, minimum HR, time below SpO2 threshold, cumulative distance, fastest lap, and slowest lap.
 - [x] Step 3b: P1 display metrics added for kicks, arm pulls, equipment, and facial gear.
 - [x] Step 3c: P2 and tracked P3 display metrics added for FVC, FVC with packing, gas mix, end SpO2, recovery quality, urge to breathe, lucidity, contractions intensity, safety outcome, and lung volume.
-- [ ] Step 3d: Competition status, card color, record tag, and attempt-condition facets still need a routine tracking/profile decision before they should appear in every hero picker.
+- [x] Step 3d: Competition status, card color, and record tag are tracked/displayable comparison metrics for dynamic and static max attempts only.
 - [ ] Step 4: Move metric value resolution behind registry-backed resolvers.
 - [x] Step 5a: Hero metric dropdowns now use registry options filtered by the routine tracking config.
 - [ ] Step 5b: Add grouped/searchable picker UX and row-level mixed-routine filtering.
@@ -254,20 +254,22 @@ Goal: every metric that is tracked for a routine should be selectable as a hero,
 - [x] Step 7a: Current stored display metric keys are preserved in the registry, including deprecated speed/hold aliases.
 - [ ] Step 7b: Add migration adapters only when a stored key appears that is not in the registry.
 
-### 1.0.1 Competition, Card, And Record Recommendation
+### 1.0.1 Competition, Card, And Record Decision
 
-Competition status, card color, and record tags should be stored as structured status/facet fields, not only as loose tags and not as numeric tracking metrics. They are not measurements like distance, duration, SpO2, or speed; they are outcome/context facts that should be filterable, badge-renderable, and optionally selectable as tertiary status displays.
+Competition status, card color, and record tags are comparison metrics. They are not numeric measurements like distance or duration, but they are tracked routine metrics because users need to compare performance between competition and non-competition dives, and between official outcomes. They should still be stored as structured fields rather than loose tags.
+
+These fields should only be presented for logging on static and dynamic max-attempt routines. They should not appear by default for interval tables, training tables, or other non-max routines.
 
 Recommended shape:
 
 | Field | Primary model | Why | Display behavior |
 |-------|---------------|-----|------------------|
-| Competition status | Structured log/session facet, backed by existing `isCompetition` and competition organization fields | Users need reliable filtering by competition vs training, and free-text tags are too easy to drift. | Badge/facet; can appear as a tertiary status metric for competition-focused routines. |
-| Card color | Structured outcome field, backed by existing `cardTag` | White/yellow/red cards are official outcome state, not athlete-entered measurement. | Badge/status display; filterable in analytics. |
-| Record tag | Structured outcome field, backed by existing `recordTag` | NR/CR/WR style results are sparse but important status facts. | Badge/status display; filterable and highlightable on result cards. |
+| Competition status | Trackable comparison metric, backed by existing `isCompetition` and competition organization fields | Users need reliable comparison of competition vs training performance. | Max-attempt log control, hero/status option, compare facet. |
+| Card color | Trackable comparison metric, backed by existing `cardTag` | White/yellow/red cards are official outcome state and useful for competition comparisons. | Max-attempt log control, hero/status option, compare facet. |
+| Record tag | Trackable comparison metric, backed by existing `recordTag` | NR/CR/WR style results are sparse but important comparison facts. | Max-attempt log control, hero/status option, compare facet. |
 | Tags | Derived/search helper only | Tags are useful for broad discovery, but should not be the source of truth for official outcomes. | Mirror structured facts into tags only when useful for search or legacy views. |
 
-Implementation implication: add a small status/facet registry beside the metric registry, or extend the metric registry with a `valueKind: 'status'` and a non-numeric availability source. These should be shown in hero/tertiary pickers under a Status group, but charting should treat them as facets for grouping and filtering rather than Y-axis metrics.
+Implementation implication: expose them through `TrackingConfig` as `trackCompetitionStatus`, `trackCardColor`, and `trackRecordTag`, derive those flags only for single max-attempt static/dynamic routines, and treat them as `valueKind: 'status'` in the metric registry. Analytics should use them as comparison/grouping dimensions rather than Y-axis numeric metrics.
 
 ### 1.1 Technical Strategy
 

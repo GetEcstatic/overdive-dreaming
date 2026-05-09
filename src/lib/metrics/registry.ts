@@ -21,6 +21,7 @@ export type MetricValueKind =
 	| 'variability'
 	| 'percent'
 	| 'scale'
+	| 'status'
 	| 'text';
 
 export type MetricRegistryEntry = {
@@ -95,6 +96,9 @@ export const metricRegistry = [
 	entry('contractions', 'Contractions Intensity', 'Contractions', 'biometrics', 'scale', 'scale', ['contractions'], ['trackContractions'], 'Contractions intensity rating.', true),
 	entry('safetyOutcome', 'Safety Outcome', 'Safety', 'context', 'text', 'text', ['safetyOutcome'], ['trackSambaBO'], 'Safety outcome or samba/BO status for the session.'),
 	entry('lungVolume', 'Lung Volume', 'Lung Volume', 'context', 'text', 'text', ['lungVolume'], ['trackLungVolume'], 'Starting lung volume used for the routine or rep.'),
+	entry('competitionStatus', 'Competition Status', 'Competition', 'context', 'status', 'status', ['competitionStatus'], ['trackCompetitionStatus'], 'Competition vs training status for comparison.'),
+	entry('cardColor', 'Card Color', 'Card', 'context', 'status', 'status', ['cardColor'], ['trackCardColor'], 'White, yellow, or red card result for max attempts.'),
+	entry('recordTag', 'Record Tag', 'Record', 'context', 'status', 'status', ['recordTag'], ['trackRecordTag'], 'NR, CR, or WR record tag for max attempts.'),
 	entry('breathingTechnique', 'Breathing Technique', 'Breathing', 'technique', 'text', 'text', ['breathingTechnique'], ['trackBreathingTechnique'], 'Breathing technique or breath-control level used.')
 ] as const satisfies readonly MetricRegistryEntry[];
 
@@ -135,6 +139,9 @@ const preferredMetricTypeByCanonicalKey: Partial<Record<CanonicalMetricKey, Metr
 	contractions: 'contractions',
 	safetyOutcome: 'safetyOutcome',
 	lungVolume: 'lungVolume',
+	competitionStatus: 'competitionStatus',
+	cardColor: 'cardColor',
+	recordTag: 'recordTag',
 	contractionsOnsetSeconds: 'contractionsOnsetTime'
 };
 
