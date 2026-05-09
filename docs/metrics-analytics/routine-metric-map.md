@@ -242,7 +242,7 @@ Goal: every metric that is tracked for a routine should be selectable as a hero,
 
 - [x] Step 1: Canonical metric registry foundation added in `src/lib/metrics/registry.ts`.
 - [x] Step 2: Layer projection now uses registry adapters for canonical metric keys and labels.
-- [ ] Step 3: Expand display metrics so tracked P0/P1/P2/P3 metrics can be selected.
+- [x] Step 3: Expand display metrics so tracked P0/P1/P2/P3 metrics can be selected.
 - [x] Step 3a: P0 display metrics added for minimum SpO2, minimum HR, time below SpO2 threshold, cumulative distance, fastest lap, and slowest lap.
 - [x] Step 3b: P1 display metrics added for kicks, arm pulls, equipment, and facial gear.
 - [x] Step 3c: P2 and tracked P3 display metrics added for FVC, FVC with packing, gas mix, end SpO2, recovery quality, urge to breathe, lucidity, contractions intensity, safety outcome, and lung volume.
@@ -254,7 +254,36 @@ Goal: every metric that is tracked for a routine should be selectable as a hero,
 - [x] Step 7a: Current stored display metric keys are preserved in the registry, including deprecated speed/hold aliases.
 - [ ] Step 7b: Add migration adapters only when a stored key appears that is not in the registry.
 
-### 1.0.1 Competition, Card, And Record Decision
+### 1.0.1 Completion Status And Existing-Routine Attachment Plan
+
+The metric display implementation is not fully complete yet. The core registry, type adapters, formatters, analytics descriptors, layer-derived tracking projection, and routine-editor dropdowns now support the new metrics for newly created v2 routines and for routines that are re-saved through the layer editor. Existing stored routines are not guaranteed to have the new `trackingConfig` flags until they are reprojected or backfilled, so their log forms and hero dropdowns may not expose every newly supported metric yet.
+
+Current attachment status:
+
+| Area | Status | Notes |
+|------|--------|-------|
+| New v2 routine creation | Attached | `buildLayerRoutineCreateData()` uses layer write projection, including registry-backed display config and derived tracking flags. |
+| Layer editor save | Attached | `writeRoutineLayerTemplateContract()` writes the derived compatibility projection when layers are saved. |
+| Existing v2 routines in Firestore | Not guaranteed | They need re-save/reprojection or a backfill to receive new tracking flags such as `trackCompetitionStatus`, `trackCardColor`, `trackRecordTag`, and the advanced metric flags. |
+| Existing legacy routines without layers | Partially attached | Existing `MetricType` keys still render, but layer-derived metric expansion cannot be inferred perfectly without either projecting legacy routines to layers or adding a legacy tracking backfill. |
+| Log forms | Attached when flags exist | Quick/edit log forms read `trackingConfig`; old routines without new flags will not show those controls. |
+| Hero metric dropdowns | Attached when flags exist | Options are registry-derived from `trackingConfig`; old routines need updated flags before all new metrics appear. |
+| Analytics comparison | Partially attached | Numeric/status metric values resolve, and competition/card/record compare facets exist, but stored routines/logs need the relevant fields populated to compare meaningfully. |
+
+Existing-routine attachment checklist:
+
+- [ ] Add an audit script or admin-only report that lists routines missing registry-backed tracking flags compared with their layers/projection.
+- [ ] Add a dry-run backfill for v2 routines that reads `layers`, recomputes `buildLayerRoutineTemplateWriteProjection(layers)`, and reports the exact `trackingConfig`/`displayConfig` changes without writing.
+- [ ] Add a write mode for that v2 backfill after the dry-run output is reviewed.
+- [ ] Add tests proving representative existing v2 fixtures gain P0/P1/P2/P3 and competition comparison flags after reprojection.
+- [ ] Decide legacy-routine handling: either project legacy templates to layers and backfill from that projection, or add a conservative legacy-only tracking inference for routines that do not have `layers`.
+- [ ] Add a legacy dry-run report before any legacy routine writes, because legacy routines may not encode enough intent for every advanced metric.
+- [ ] Revisit the layer editor metrics step after backfill so it can warn when the loaded routine has stale tracking flags and offer a one-click refresh.
+- [ ] Keep Step 4 open until metric value resolution is moved fully behind registry-backed resolvers rather than split between registry metadata and `getMetricValue()` switch cases.
+- [ ] Keep Step 5b open until the hero metric picker is grouped/searchable with recommended presets and duplicate guards.
+- [ ] Keep Step 7b open until an actual unknown stored display key is found; current stored keys are covered by the registry, so no migration adapter is needed yet.
+
+### 1.0.2 Competition, Card, And Record Decision
 
 Competition status, card color, and record tags are comparison metrics. They are not numeric measurements like distance or duration, but they are tracked routine metrics because users need to compare performance between competition and non-competition dives, and between official outcomes. They should still be stored as structured fields rather than loose tags.
 
