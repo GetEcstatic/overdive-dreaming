@@ -2,6 +2,8 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import DurationInput from '$lib/components/DurationInput.svelte';
+	import NumberWheelInput from '$lib/components/NumberWheelInput.svelte';
 	import { user } from '$lib/stores/auth';
 	import { getRoutine, writeRoutineLayerTemplateContract } from '$lib/firestore';
 	import { isAdmin } from '$lib/utils/admin';
@@ -116,7 +118,7 @@
 		if (target.mode === 'open') return 'open';
 		const minutes = Math.floor(target.seconds / 60);
 		const seconds = target.seconds % 60;
-		return `${minutes}:${String(seconds).padStart(2, '0')}`;
+		return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 	}
 
 	function formatDistance(target: LayerDistanceTarget | undefined) {
@@ -228,12 +230,12 @@
 	function updateSelectedBreatheUpMode(mode: LayerDurationTarget['mode']) {
 		updateSelectedLayer((layer) => ({
 			...layer,
-			breatheUp: mode === 'open' ? { mode: 'open' } : { mode: 'fixed', seconds: layer.breatheUp.mode === 'fixed' ? layer.breatheUp.seconds : 60 }
+			breatheUp: mode === 'open' ? { mode: 'open' } : { mode: 'fixed', seconds: layer.breatheUp.mode === 'fixed' ? layer.breatheUp.seconds : 0 }
 		}));
 	}
 
-	function updateSelectedBreatheUpSeconds(value: string) {
-		const seconds = Math.max(0, Math.floor(Number(value) || 0));
+	function updateSelectedBreatheUpSeconds(value: number | undefined) {
+		const seconds = Math.max(0, Math.floor(value ?? 0));
 		updateSelectedLayer((layer) => ({
 			...layer,
 			breatheUp: { mode: 'fixed', seconds }
@@ -245,13 +247,13 @@
 			...layer,
 			dive: {
 				...layer.dive,
-				duration: mode === 'none' ? undefined : mode === 'open' ? { mode: 'open' } : { mode: 'fixed', seconds: layer.dive.duration?.mode === 'fixed' ? layer.dive.duration.seconds : 90 }
+				duration: mode === 'none' ? undefined : mode === 'open' ? { mode: 'open' } : { mode: 'fixed', seconds: layer.dive.duration?.mode === 'fixed' ? layer.dive.duration.seconds : 0 }
 			}
 		}));
 	}
 
-	function updateSelectedDiveDurationSeconds(value: string) {
-		const seconds = Math.max(0, Math.floor(Number(value) || 0));
+	function updateSelectedDiveDurationSeconds(value: number | undefined) {
+		const seconds = Math.max(0, Math.floor(value ?? 0));
 		updateSelectedLayer((layer) => ({
 			...layer,
 			dive: { ...layer.dive, duration: { mode: 'fixed', seconds } }
@@ -263,21 +265,21 @@
 			...layer,
 			dive: {
 				...layer.dive,
-				distance: mode === 'none' ? undefined : mode === 'open' ? { mode: 'open' } : { mode: 'fixed', meters: layer.dive.distance?.mode === 'fixed' ? layer.dive.distance.meters : 50 }
+				distance: mode === 'none' ? undefined : mode === 'open' ? { mode: 'open' } : { mode: 'fixed', meters: layer.dive.distance?.mode === 'fixed' ? layer.dive.distance.meters : 0 }
 			}
 		}));
 	}
 
-	function updateSelectedDiveDistanceMeters(value: string) {
-		const meters = Math.max(0, Number(value) || 0);
+	function updateSelectedDiveDistanceMeters(value: number | undefined) {
+		const meters = Math.max(0, value ?? 0);
 		updateSelectedLayer((layer) => ({
 			...layer,
 			dive: { ...layer.dive, distance: { mode: 'fixed', meters } }
 		}));
 	}
 
-	function updateSelectedRepeatCount(value: string) {
-		const repeatCount = Math.max(1, Math.floor(Number(value) || 1));
+	function updateSelectedRepeatCount(value: number | undefined) {
+		const repeatCount = Math.max(1, Math.floor(value ?? 1));
 		updateSelectedLayer((layer) => ({
 			...layer,
 			attributes: { ...layer.attributes, repeatCount }
@@ -590,7 +592,16 @@
 						</label>
 						<label>
 							<span>Reps</span>
-							<input type="number" min="1" value={selectedLayer.attributes.repeatCount} oninput={(event) => updateSelectedRepeatCount(event.currentTarget.value)} />
+							<NumberWheelInput
+								value={selectedLayer.attributes.repeatCount}
+								min={1}
+								max={100}
+								step={1}
+								unit="rep"
+								compact={true}
+								showLabel={false}
+								onValueChange={updateSelectedRepeatCount}
+							/>
 						</label>
 						<label>
 							<span>Effort</span>
@@ -648,8 +659,15 @@
 							</label>
 							{#if selectedLayer.breatheUp.mode === 'fixed'}
 								<label>
-									<span>Seconds</span>
-									<input type="number" min="0" value={selectedLayer.breatheUp.seconds} oninput={(event) => updateSelectedBreatheUpSeconds(event.currentTarget.value)} />
+									<span>Duration</span>
+									<DurationInput
+										value={selectedLayer.breatheUp.seconds}
+										min={0}
+										max={3600}
+										compact={true}
+										showLabel={false}
+										onValueChange={updateSelectedBreatheUpSeconds}
+									/>
 								</label>
 							{/if}
 						</div>
@@ -668,8 +686,15 @@
 							</label>
 							{#if selectedLayer.dive.duration?.mode === 'fixed'}
 								<label>
-									<span>Seconds</span>
-									<input type="number" min="0" value={selectedLayer.dive.duration.seconds} oninput={(event) => updateSelectedDiveDurationSeconds(event.currentTarget.value)} />
+									<span>Duration</span>
+									<DurationInput
+										value={selectedLayer.dive.duration.seconds}
+										min={0}
+										max={3600}
+										compact={true}
+										showLabel={false}
+										onValueChange={updateSelectedDiveDurationSeconds}
+									/>
 								</label>
 							{/if}
 							<label>
@@ -683,7 +708,16 @@
 							{#if selectedLayer.dive.distance?.mode === 'fixed'}
 								<label>
 									<span>Meters</span>
-									<input type="number" min="0" step="0.1" value={selectedLayer.dive.distance.meters} oninput={(event) => updateSelectedDiveDistanceMeters(event.currentTarget.value)} />
+									<NumberWheelInput
+										value={selectedLayer.dive.distance.meters}
+										min={0}
+										max={300}
+										step={1}
+										unit="m"
+										compact={true}
+										showLabel={false}
+										onValueChange={updateSelectedDiveDistanceMeters}
+									/>
 								</label>
 							{/if}
 						</div>

@@ -20,7 +20,8 @@
 		label = '',
 		hint = '',
 		showLabel = true,
-		compact = false
+		compact = false,
+		onValueChange
 	}: {
 		value: number | undefined; // value in seconds
 		min?: number;
@@ -29,6 +30,7 @@
 		hint?: string;
 		showLabel?: boolean;
 		compact?: boolean;
+		onValueChange?: (value: number) => void;
 	} = $props();
 
 	function pad(n: number): string {
@@ -54,6 +56,7 @@
 			hint,
 			onConfirm: (v) => {
 				value = v;
+				onValueChange?.(v);
 			}
 		});
 	}

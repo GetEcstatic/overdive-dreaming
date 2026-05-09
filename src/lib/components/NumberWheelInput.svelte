@@ -30,6 +30,7 @@
 		showLabel = true,
 		compact = false,
 		placeholder = '',
+		onValueChange,
 		// Accepted for back-compat with old call sites; chip is the only
 		// rendering mode now.
 		variant: _variant = 'chip'
@@ -44,6 +45,7 @@
 		showLabel?: boolean;
 		compact?: boolean;
 		placeholder?: string;
+		onValueChange?: (value: number) => void;
 		/** @deprecated Only "chip" is supported; prop kept for back-compat. */
 		variant?: 'wheel' | 'chip';
 	} = $props();
@@ -63,6 +65,7 @@
 			hint,
 			onConfirm: (v) => {
 				value = v;
+				onValueChange?.(v);
 			}
 		});
 	}
