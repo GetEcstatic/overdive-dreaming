@@ -163,7 +163,7 @@ Recommended change:
 
 ## Implementation Plan
 
-Current implementation status: Phases 1, 2, and 3 are complete. Phase 4 and Phase 5 have partial UI/data support landed. Phase 6 is still open and should be treated as the next data-safety work before broader Quick Log changes.
+Current implementation status: Phases 1, 2, 3, and 4 are complete. Phase 5 has partial UI/data support landed. Phase 6 is still open and should be treated as the next data-safety work before broader Quick Log changes.
 
 ### Phase 1: Pure v2 log form read model
 
@@ -199,7 +199,7 @@ Acceptance check: A DNF-capable routine with `trackArmPullsPerLap` can collect a
 
 ### Phase 4: UX realignment
 
-- [ ] Replace broad always-open sections with compact groups:
+- [x] Replace broad always-open sections with compact groups:
   - Session
   - Routine Plan
   - Results
@@ -208,10 +208,10 @@ Acceptance check: A DNF-capable routine with `trackArmPullsPerLap` can collect a
   - Media
 - [x] Show a compact layer/row overview before the detailed row editor.
 - [x] Make advanced physiology/context fields collapsed by default unless the routine is specifically an advanced/O2/dry physiology routine.
-- [ ] Remove emoji-led labels from form controls and replace them with restrained badges or shared icons.
-- [ ] Keep cards and panels shallow; avoid nested-card visual noise.
+- [x] Remove emoji-led labels from form controls and replace them with restrained badges or shared icons.
+- [x] Keep cards and panels shallow; avoid nested-card visual noise.
 
-Partial status: the routine plan overview and advanced disclosure have landed, and the loudest Quick Log labels/alerts have been quieted. A full section restructure and complete icon/text cleanup are still open.
+Status: the form now uses the compact v2 group names, a routine plan overview, advanced disclosure, collapsed optional media, and restrained control labels.
 
 Acceptance check: A user can log a simple max attempt with date, result, notes, and save visible without scrolling through advanced fields.
 

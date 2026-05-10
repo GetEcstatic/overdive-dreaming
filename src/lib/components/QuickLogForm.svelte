@@ -435,6 +435,7 @@
 	let triggerPhotoCrop = $state<(() => void) | undefined>(undefined);
 	let youtubeUrl = $state<string>('');
 	let youtubeError = $state<string | null>(null);
+	let showMediaFields = $state(false);
 
 	function handlePhotoChange(e: Event) {
 		const input = e.target as HTMLInputElement;
@@ -1117,7 +1118,7 @@
 	<!-- Session Context Section -->
 	{#if hasSessionContext}
 		<div class="form-section">
-			<h4 class="section-title">Session Details</h4>
+			<h4 class="section-title">Session</h4>
 
 			{#if config.trackPoolLength}
 				<div class="field-group">
@@ -1149,7 +1150,7 @@
 	<!-- Performance Metrics Section -->
 	{#if hasPerformanceMetrics}
 		<div class="form-section">
-			<h4 class="section-title">Performance</h4>
+			<h4 class="section-title">Results</h4>
 
 			{#if config.trackTotalDistance}
 				<div class="field-group">
@@ -1445,7 +1446,7 @@
 	<!-- Training Context Section -->
 	{#if showTrainingContextSection}
 		<div class="form-section">
-			<h4 class="section-title">Training Context</h4>
+			<h4 class="section-title">Context</h4>
 
 			{#if config.trackBreathingTechnique && (!isAdvancedControl('breathing-technique') || showAdvancedFields)}
 				<div class="field-group">
@@ -1812,7 +1813,7 @@
 	<!-- O2-Assisted Static Apnea Section -->
 	{#if showAdvancedFields && (config.trackLucidity || config.trackUrgeToBreathe || config.trackContractions || config.trackETCO2 || config.trackExpiredAirPostHold || config.trackLungVolumeLossPerMin || config.trackGasMix || config.trackCO2TremorOnset || config.trackMentalChangeTime || config.trackRecoveryQuality || config.trackEndSpO2 || config.trackBreatheUpType)}
 		<div class="form-section">
-			<h4 class="section-title">O2-Assisted Static Metrics</h4>
+			<h4 class="section-title">Advanced O2 Static</h4>
 
 			{#if config.trackGasMix}
 				<div class="field-group">
@@ -1876,7 +1877,7 @@
 
 			{#if config.trackETCO2}
 				<div class="field-group">
-					<label for="etco2" class="field-label">ETCO₂ (mmHg)</label>
+					<label for="etco2" class="field-label">ETCO2 (mmHg)</label>
 					<input
 						id="etco2"
 						type="number"
@@ -1891,7 +1892,7 @@
 
 			{#if config.trackEndSpO2}
 				<div class="field-group">
-					<label for="endSpO2" class="field-label">End SpO₂ (%)</label>
+					<label for="endSpO2" class="field-label">End SpO2 (%)</label>
 					<input
 						id="endSpO2"
 						type="number"
@@ -1908,7 +1909,7 @@
 				<div class="field-group">
 					<DurationInput
 						bind:value={co2TremorOnset}
-						label="CO₂ Tremor Onset"
+						label="CO2 Tremor Onset"
 						compact={true}
 					/>
 				</div>
@@ -2007,64 +2008,69 @@
 	{/if}
 
 	<!-- Media Section (Optional) -->
-	<div class="form-section">
-		<h4 class="section-title">Media (Optional)</h4>
+	<div class="form-section media-section">
+		<button type="button" class="media-toggle" aria-expanded={showMediaFields} onclick={() => (showMediaFields = !showMediaFields)}>
+			<span>Media</span>
+			<span class="media-toggle-meta">optional</span>
+		</button>
 
-		<!-- Photo Upload -->
-		<div class="field-group">
-			<label class="field-label">Session Photo</label>
+		{#if showMediaFields}
+			<!-- Photo Upload -->
+			<div class="field-group">
+				<label class="field-label">Session Photo</label>
 
-			{#if showPhotoCropper && sourcePhotoFile}
-				<PhotoCropper 
-					file={sourcePhotoFile} 
-					onApply={applyCrop} 
-					onCancel={cancelCrop}
-					bind:triggerApply={triggerPhotoCrop}
-				/>
-			{:else if photoPreviewUrl}
-				<div class="photo-preview">
-					<img src={photoPreviewUrl} alt="Preview" class="preview-image" />
-					<div class="photo-actions">
-						{#if sourcePhotoFile}
-							<button type="button" onclick={adjustCrop} class="btn-secondary">
-								Adjust Crop
+				{#if showPhotoCropper && sourcePhotoFile}
+					<PhotoCropper
+						file={sourcePhotoFile}
+						onApply={applyCrop}
+						onCancel={cancelCrop}
+						bind:triggerApply={triggerPhotoCrop}
+					/>
+				{:else if photoPreviewUrl}
+					<div class="photo-preview">
+						<img src={photoPreviewUrl} alt="Preview" class="preview-image" />
+						<div class="photo-actions">
+							{#if sourcePhotoFile}
+								<button type="button" onclick={adjustCrop} class="btn-secondary">
+									Adjust Crop
+								</button>
+							{/if}
+							<button type="button" onclick={removePhoto} class="remove-photo-btn">
+								Remove
 							</button>
-						{/if}
-						<button type="button" onclick={removePhoto} class="remove-photo-btn">
-							Remove
-						</button>
+						</div>
 					</div>
-				</div>
-			{:else}
-				<input
-					type="file"
-					accept="image/jpeg,image/png,image/webp"
-					onchange={handlePhotoChange}
-					class="file-input"
-				/>
-				<p class="field-hint">JPG, PNG, or WebP • Max 5MB</p>
-			{/if}
-		</div>
+				{:else}
+					<input
+						type="file"
+						accept="image/jpeg,image/png,image/webp"
+						onchange={handlePhotoChange}
+						class="file-input"
+					/>
+					<p class="field-hint">JPG, PNG, or WebP, max 5MB</p>
+				{/if}
+			</div>
 
-		<!-- YouTube URL -->
-		<div class="field-group">
-			<label for="youtubeUrl" class="field-label">YouTube Video URL</label>
-			<input
-				id="youtubeUrl"
-				type="url"
-				bind:value={youtubeUrl}
-				oninput={handleYouTubeChange}
-				class="field-input"
-				class:error={youtubeError}
-				placeholder="https://www.youtube.com/watch?v=..."
-			/>
-			{#if youtubeError}
-				<p class="field-error">{youtubeError}</p>
-			{/if}
-			{#if youtubeUrl && !youtubeError}
-				<p class="field-hint field-success">✓ Valid YouTube URL</p>
-			{/if}
-		</div>
+			<!-- YouTube URL -->
+			<div class="field-group">
+				<label for="youtubeUrl" class="field-label">YouTube Video URL</label>
+				<input
+					id="youtubeUrl"
+					type="url"
+					bind:value={youtubeUrl}
+					oninput={handleYouTubeChange}
+					class="field-input"
+					class:error={youtubeError}
+					placeholder="https://www.youtube.com/watch?v=..."
+				/>
+				{#if youtubeError}
+					<p class="field-error">{youtubeError}</p>
+				{/if}
+				{#if youtubeUrl && !youtubeError}
+					<p class="field-hint field-success">Valid YouTube URL</p>
+				{/if}
+			</div>
+		{/if}
 	</div>
 
 	<!-- Action Buttons -->
@@ -2675,6 +2681,40 @@
 	}
 
 	/* Photo Upload */
+	.media-section {
+		gap: 0.75rem;
+	}
+
+	.media-toggle {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		width: 100%;
+		min-height: 2.5rem;
+		padding: 0.55rem 0.75rem;
+		border: 1px solid rgba(148, 163, 184, 0.18);
+		border-radius: 8px;
+		background: rgba(15, 23, 42, 0.38);
+		color: var(--color-text);
+		font-size: 0.875rem;
+		font-weight: 700;
+		cursor: pointer;
+	}
+
+	.media-toggle[aria-expanded='true'] {
+		border-color: rgba(20, 184, 166, 0.4);
+		background: rgba(20, 184, 166, 0.08);
+	}
+
+	.media-toggle-meta {
+		color: var(--color-text-muted);
+		font-size: 0.7rem;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+
 	.photo-preview {
 		position: relative;
 		border-radius: 8px;
