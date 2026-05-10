@@ -105,6 +105,7 @@ export type QuickLogReadModel = {
 	standardControls: QuickLogControl[];
 	advancedControls: QuickLogControl[];
 	defaultAdvancedOpen: boolean;
+	isO2StaticRoutine: boolean;
 	hasRowFirstPlan: boolean;
 	hasManualSplitEntry: boolean;
 	hasTechniqueEntry: boolean;
@@ -246,6 +247,7 @@ export function buildQuickLogReadModel(routine: RoutineTemplate): QuickLogReadMo
 	const controlIds = new Set(controls.map((control) => control.id));
 	const standardControls = controls.filter((control) => control.priority === 'standard');
 	const advancedControls = controls.filter((control) => control.priority === 'advanced');
+	const isO2StaticRoutine = routineHasO2StaticIntent(routine);
 
 	return {
 		plannedRows,
@@ -253,12 +255,23 @@ export function buildQuickLogReadModel(routine: RoutineTemplate): QuickLogReadMo
 		fieldGroups: buildFieldGroups(controls),
 		standardControls,
 		advancedControls,
-		defaultAdvancedOpen: shouldOpenAdvancedByDefault(routine.trackingConfig, plannedRows),
+		defaultAdvancedOpen: isO2StaticRoutine || shouldOpenAdvancedByDefault(routine.trackingConfig, plannedRows),
+		isO2StaticRoutine,
 		hasRowFirstPlan: plannedRows.length > 0,
 		hasManualSplitEntry: controlIds.has('lap-splits'),
 		hasTechniqueEntry: controlIds.has('kicks-per-lap') || controlIds.has('arm-pulls-per-lap'),
 		unsupportedMetricInputs: findUnsupportedMetricInputs(routine.trackingConfig, controlIds)
 	};
+}
+
+export function routineHasO2StaticIntent(routine: RoutineTemplate): boolean {
+	const layers = (routine as RoutineTemplate & { layers?: { discipline?: string; allowedDisciplines?: string[] }[] }).layers ?? [];
+	const hasO2StaticLayer = layers.some((layer) => layer.discipline === 'O2STA' || layer.allowedDisciplines?.includes('O2STA'));
+	const config = routine.trackingConfig;
+	const hasO2Tracking = Boolean(config.trackGasMix || config.trackETCO2 || config.trackEndSpO2 || config.trackBreatheUpType);
+	const hasO2Tag = [...routine.tags, ...(routine.defaultTags ?? []), ...(routine.routineTags ?? [])].some((tag) => /^o2$|^o2-|^oxygen$|^nitrox$/.test(tag.toLowerCase()));
+
+	return hasO2StaticLayer || (routine.disciplines.includes('STA') && (hasO2Tracking || hasO2Tag));
 }
 
 function buildLayerGroups(rows: RoutineLogPlanRow[]): QuickLogLayerGroup[] {

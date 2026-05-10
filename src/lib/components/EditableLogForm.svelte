@@ -32,6 +32,7 @@
 		defaultConditionsForKind,
 		deriveAttemptCategory
 	} from '$lib/utils/attemptCategories';
+	import { routineHasO2StaticIntent } from '$lib/routineLayers/quickLogReadModel';
 
 	interface Props {
 		routine: RoutineTemplate;
@@ -82,9 +83,16 @@
 		gasMix: formData.gasMix,
 		breatheUpType: formData.breatheUpType
 	});
-	let attemptKind = $state<AttemptCategoryKind>(initialAttemptCategory.conditions.kind);
+	const isO2StaticRoutine = routineHasO2StaticIntent(routine);
+	let attemptKind = $state<AttemptCategoryKind>(
+		formData.attemptConditions?.kind
+			? initialAttemptCategory.conditions.kind
+			: isO2StaticRoutine
+				? 'o2-assisted'
+				: initialAttemptCategory.conditions.kind
+	);
 	let customAttemptLabel = $state(initialAttemptCategory.conditions.label ?? '');
-	let breathingGas = $state<BreathingGas>(initialAttemptCategory.conditions.breathingGas ?? 'air');
+	let breathingGas = $state<BreathingGas>(initialAttemptCategory.conditions.breathingGas ?? (isO2StaticRoutine ? 'oxygen' : 'air'));
 
 	// Check if this is an STA routine - show wet/dry toggle for all STA routines
 	const isSTARoutine = routine.disciplines.includes('STA');
@@ -141,7 +149,7 @@
 	let etco2 = $state<number | undefined>(formData.etco2);
 	let expiredAirPostHold = $state<number | undefined>(formData.expiredAirPostHold);
 	let lungVolumeLossPerMin = $state<number | undefined>(formData.lungVolumeLossPerMin);
-	let gasMix = $state<string | undefined>(formData.gasMix);
+	let gasMix = $state<string | undefined>(formData.gasMix ?? (isO2StaticRoutine ? DEFAULT_O2_GAS_MIX : undefined));
 	let co2TremorOnset = $state<number | undefined>(formData.co2TremorOnset);
 	let mentalChangeTime = $state<number | undefined>(formData.mentalChangeTime);
 	let recoveryQuality = $state<number | undefined>(formData.recoveryQuality);

@@ -4,6 +4,7 @@ import {
 	dryRvTableExample,
 	dynamicMaxExample,
 	dynamicSweet16Example,
+	o2StaticMaxExample,
 	staticMaxExample,
 	staticTwoBreathTableExample
 } from './defaults';
@@ -70,6 +71,16 @@ describe('quick log read model', () => {
 		expect(model.defaultAdvancedOpen).toBe(true);
 		expect(model.advancedControls.map((control) => control.id)).toEqual(
 			expect.arrayContaining(['biometric-import', 'per-rep-spo2', 'per-rep-hr'])
+		);
+	});
+
+	it('defaults O2 static routines into advanced O2 entry', () => {
+		const model = buildQuickLogReadModel(routineFromLayers('O2 Static Max', o2StaticMaxExample.layers));
+
+		expect(model.isO2StaticRoutine).toBe(true);
+		expect(model.defaultAdvancedOpen).toBe(true);
+		expect(model.advancedControls.map((control) => control.id)).toEqual(
+			expect.arrayContaining(['gas-mix', 'etco2', 'end-spo2', 'breathe-up-type', 'lucidity'])
 		);
 	});
 

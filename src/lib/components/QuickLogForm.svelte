@@ -36,6 +36,7 @@
 	import { buildQuickLogAttemptConditions } from '$lib/utils/quickLogAttempt';
 	import {
 		buildQuickLogReadModel,
+		routineHasO2StaticIntent,
 		type QuickLogControlId
 	} from '$lib/routineLayers/quickLogReadModel';
 	import {
@@ -214,9 +215,10 @@
 	// Selectable tags from routine - user can toggle these
 	let selectedTags = $state<string[]>([]);
 	let hasSelectableTags = $derived(routine.selectableTags && routine.selectableTags.length > 0);
-	let attemptKind = $state<AttemptCategoryKind>('standard');
+	const getInitialO2StaticIntent = () => routineHasO2StaticIntent(routine);
+	let attemptKind = $state<AttemptCategoryKind>(getInitialO2StaticIntent() ? 'o2-assisted' : 'standard');
 	let customAttemptLabel = $state('');
-	let breathingGas = $state<BreathingGas>('air');
+	let breathingGas = $state<BreathingGas>(getInitialO2StaticIntent() ? 'oxygen' : 'air');
 	
 	// Wet/Dry toggle - defaults to routine's isDryTraining setting for STA disciplines
 	// Only show for STA routines that support biometric tracking
@@ -295,7 +297,7 @@
 	let etco2 = $state<number | undefined>(undefined);
 	let expiredAirPostHold = $state<number | undefined>(undefined);
 	let lungVolumeLossPerMin = $state<number | undefined>(undefined);
-	let gasMix = $state<string | undefined>(undefined);
+	let gasMix = $state<string | undefined>(getInitialO2StaticIntent() ? DEFAULT_O2_GAS_MIX : undefined);
 	let co2TremorOnset = $state<number | undefined>(undefined);
 	let mentalChangeTime = $state<number | undefined>(undefined);
 	let recoveryQuality = $state<number | undefined>(undefined);
@@ -682,6 +684,14 @@
 		if (advancedDisclosureRoutineId !== routine.id) {
 			showAdvancedFields = quickLogModel.defaultAdvancedOpen;
 			advancedDisclosureRoutineId = routine.id;
+		}
+	});
+
+	$effect(() => {
+		if (quickLogModel.isO2StaticRoutine && attemptKind === 'standard') {
+			attemptKind = 'o2-assisted';
+			breathingGas = 'oxygen';
+			gasMix = gasMix ?? DEFAULT_O2_GAS_MIX;
 		}
 	});
 
