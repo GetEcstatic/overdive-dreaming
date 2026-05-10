@@ -30,6 +30,10 @@
 		attemptOptionsForDiscipline,
 		defaultConditionsForKind
 	} from '$lib/utils/attemptCategories';
+	import {
+		buildQuickLogReadModel,
+		type QuickLogControlId
+	} from '$lib/routineLayers/quickLogReadModel';
 
 	interface Props {
 		routine: RoutineTemplate;
@@ -624,6 +628,35 @@
 
 	// Use derived for tracking config to ensure reactivity
 	let config = $derived(routine.trackingConfig);
+	let quickLogModel = $derived(buildQuickLogReadModel(routine));
+	let showAdvancedFields = $state(false);
+	let advancedDisclosureRoutineId = $state<string | undefined>(undefined);
+	let advancedControlIds = $derived(new Set(quickLogModel.advancedControls.map((control) => control.id)));
+	let hasStandardContextControls = $derived(
+		quickLogModel.standardControls.some((control) => control.group === 'context')
+	);
+
+	$effect(() => {
+		if (advancedDisclosureRoutineId !== routine.id) {
+			showAdvancedFields = quickLogModel.defaultAdvancedOpen;
+			advancedDisclosureRoutineId = routine.id;
+		}
+	});
+
+	function isAdvancedControl(id: QuickLogControlId): boolean {
+		return advancedControlIds.has(id);
+	}
+
+	function formatPlanSeconds(seconds: number | undefined): string {
+		if (seconds === undefined) return 'open';
+		const minutes = Math.floor(seconds / 60);
+		const remainingSeconds = seconds % 60;
+		return minutes > 0 ? `${minutes}:${remainingSeconds.toString().padStart(2, '0')}` : `${remainingSeconds}s`;
+	}
+
+	function formatLayerDisciplines(discs: Discipline[]): string {
+		return discs.join(' / ');
+	}
 
 	// Per-metric capture-source decisions. Each decision tells the template
 	// whether to render an editable input, a read-only "From recording" view,
@@ -661,6 +694,9 @@
 			config.trackJoyScale ||
 			config.trackHoursSinceLastMeal ||
 			config.trackNotes
+	);
+	let showTrainingContextSection = $derived(
+		hasTrainingContext && (showAdvancedFields || hasStandardContextControls)
 	);
 	
 	// Check if biometric tracking is enabled - show CSV import for STA routines when user selects "Dry"
@@ -733,6 +769,45 @@
 		<p class="routine-subtitle">Quick Log</p>
 	</div>
 
+	{#if quickLogModel.layerGroups.length > 0}
+		<div class="form-section routine-plan-section">
+			<div class="section-header compact-header">
+				<div>
+					<h4 class="section-title">Routine Plan</h4>
+					<p class="section-description">{quickLogModel.plannedRows.length} planned row{quickLogModel.plannedRows.length === 1 ? '' : 's'} from {quickLogModel.layerGroups.length} layer{quickLogModel.layerGroups.length === 1 ? '' : 's'}</p>
+				</div>
+			</div>
+
+			<div class="plan-layer-list">
+				{#each quickLogModel.layerGroups as group}
+					<div class="plan-layer-row">
+						<div class="plan-layer-main">
+							<span class="plan-layer-name">{group.name}</span>
+							<span class="plan-layer-meta">{group.rowCount} row{group.rowCount === 1 ? '' : 's'} · {formatLayerDisciplines(group.disciplines)}</span>
+						</div>
+						<div class="plan-layer-badges">
+							<span class="plan-badge">{group.effort}</span>
+							<span class="plan-badge">{group.environment}</span>
+						</div>
+					</div>
+				{/each}
+			</div>
+
+			{#if quickLogModel.plannedRows.length <= 12}
+				<div class="plan-row-chips" aria-label="Planned rows">
+					{#each quickLogModel.plannedRows as row}
+						<span class="plan-row-chip">
+							<span>#{row.globalRowIndex}</span>
+							{#if row.plannedDurationSeconds}<span>{formatPlanSeconds(row.plannedDurationSeconds)}</span>{/if}
+							{#if row.plannedDistanceMeters}<span>{row.plannedDistanceMeters}m</span>{/if}
+							{#if row.plannedBreatheUpSeconds}<span>rest {formatPlanSeconds(row.plannedBreatheUpSeconds)}</span>{/if}
+						</span>
+					{/each}
+				</div>
+			{/if}
+		</div>
+	{/if}
+
 	<!-- Wet/Dry Toggle - Show for ALL STA routines so users can choose at session level -->
 	{#if isSTARoutine}
 		<div class="form-section environment-toggle">
@@ -743,7 +818,7 @@
 					class:active={!isDrySession}
 					onclick={() => isDrySession = false}
 				>
-					💧 Wet
+					Wet
 				</button>
 				<button
 					type="button"
@@ -751,7 +826,7 @@
 					class:active={isDrySession}
 					onclick={() => isDrySession = true}
 				>
-					🏠 Dry
+					Dry
 				</button>
 			</div>
 			<p class="field-hint">
@@ -1160,11 +1235,25 @@
 		</div>
 	{/if}
 
+	{#if quickLogModel.advancedControls.length > 0}
+		<div class="advanced-disclosure">
+			<button
+				type="button"
+				class="advanced-toggle"
+				aria-expanded={showAdvancedFields}
+				onclick={() => (showAdvancedFields = !showAdvancedFields)}
+			>
+				<span>Advanced fields</span>
+				<span class="advanced-toggle-count">{quickLogModel.advancedControls.length}</span>
+			</button>
+		</div>
+	{/if}
+
 	<!-- Interval Rep Logging Section (for routines with variable tables) -->
 	{#if showIntervalRepLogging}
 		<div class="form-section interval-section">
 			<div class="section-header">
-				<h4 class="section-title">⏱️ Rep Times</h4>
+				<h4 class="section-title">Row Results</h4>
 			</div>
 			
 			<p class="section-description">
@@ -1187,22 +1276,16 @@
 	{/if}
 
 	<!-- Biometric Tracking Section (for dry static training) -->
-	{#if hasBiometricTracking}
+	{#if hasBiometricTracking && showAdvancedFields}
 		<div class="form-section biometric-section">
 			<div class="section-header">
-				<h4 class="section-title">
-					{#if config.isDryTraining}
-						🫁 Dry Static Biometrics
-					{:else}
-						📊 SpO2/HR Tracking
-					{/if}
-				</h4>
+				<h4 class="section-title">{config.isDryTraining ? 'Dry Static Biometrics' : 'SpO2/HR Tracking'}</h4>
 				<button 
 					type="button" 
 					class="import-btn"
 					onclick={() => showBiometricImportModal = true}
 				>
-					📊 Import CSV
+					Import CSV
 				</button>
 			</div>
 
@@ -1225,22 +1308,22 @@
 					</div>
 					{#if (biometricSummary.totalTimeBelow70 || 0) > 0}
 						<div class="threshold-alert warning">
-							⚠️ {biometricSummary.totalTimeBelow70}s below 70% SpO2
+							{biometricSummary.totalTimeBelow70}s below 70% SpO2
 						</div>
 					{/if}
 					{#if (biometricSummary.totalTimeBelow60 || 0) > 0}
 						<div class="threshold-alert danger">
-							🚨 {biometricSummary.totalTimeBelow60}s below 60% SpO2
+							{biometricSummary.totalTimeBelow60}s below 60% SpO2
 						</div>
 					{/if}
 					{#if (biometricSummary.totalTimeBelow50 || 0) > 0}
 						<div class="threshold-alert critical">
-							💀 {biometricSummary.totalTimeBelow50}s below 50% SpO2
+							{biometricSummary.totalTimeBelow50}s below 50% SpO2
 						</div>
 					{/if}
 					{#if (biometricSummary.totalTimeBelow40 || 0) > 0}
 						<div class="threshold-alert extreme">
-							☠️ {biometricSummary.totalTimeBelow40}s below 40% SpO2
+							{biometricSummary.totalTimeBelow40}s below 40% SpO2
 						</div>
 					{/if}
 				</div>
@@ -1262,20 +1345,20 @@
 
 			<p class="biometric-hint">
 				{#if !biometricSummary}
-					💡 Tip: Import CSV data from your pulse oximeter app for detailed tracking
+					Import CSV data from your pulse oximeter app for detailed tracking.
 				{:else}
-					✅ Biometric data imported. Edit values below if needed.
+					Biometric data imported. Edit values below if needed.
 				{/if}
 			</p>
 		</div>
 	{/if}
 
 	<!-- Training Context Section -->
-	{#if hasTrainingContext}
+	{#if showTrainingContextSection}
 		<div class="form-section">
 			<h4 class="section-title">Training Context</h4>
 
-			{#if config.trackBreathingTechnique}
+			{#if config.trackBreathingTechnique && (!isAdvancedControl('breathing-technique') || showAdvancedFields)}
 				<div class="field-group">
 					<label for="breathingTechniqueLevel" class="field-label">
 						Breathing Technique{breathingTechniqueLevel !== undefined ? `: ${getTechniqueLabel(breathingTechniqueLevel)}` : ''}
@@ -1338,7 +1421,7 @@
 				</div>
 			{/if}
 
-			{#if config.trackHoursSinceLastMeal}
+			{#if config.trackHoursSinceLastMeal && (!isAdvancedControl('meal-timing') || showAdvancedFields)}
 				<div class="field-group">
 					<label for="hoursSinceLastMeal" class="field-label">Hours Since Last Meal</label>
 					<input
@@ -1366,7 +1449,7 @@
 				</div>
 			{/if}
 
-			{#if config.trackWaterTemperature}
+			{#if config.trackWaterTemperature && (!isAdvancedControl('water-temperature') || showAdvancedFields)}
 				<div class="field-group">
 					<label for="waterTemperature" class="field-label">Water Temperature (°C)</label>
 					<input
@@ -1382,7 +1465,7 @@
 				</div>
 			{/if}
 
-			{#if config.trackContractionsOnsetTime}
+			{#if config.trackContractionsOnsetTime && (!isAdvancedControl('contractions-onset') || showAdvancedFields)}
 				<div class="field-group">
 					<DurationInput
 						bind:value={contractionsOnsetTime}
@@ -1392,7 +1475,7 @@
 				</div>
 			{/if}
 
-			{#if config.trackEquipmentUsed}
+			{#if config.trackEquipmentUsed && (!isAdvancedControl('equipment') || showAdvancedFields)}
 				<div class="field-group">
 					<label for="equipmentUsed" class="field-label">Equipment Used</label>
 					<input
@@ -1418,7 +1501,7 @@
 				</div>
 			{/if}
 
-			{#if config.trackRestingHeartRate}
+			{#if config.trackRestingHeartRate && (!isAdvancedControl('resting-heart-rate') || showAdvancedFields)}
 				<div class="field-group">
 					<label for="restingHeartRate" class="field-label">Resting Heart Rate (bpm)</label>
 					<input
@@ -1433,7 +1516,7 @@
 				</div>
 			{/if}
 
-			{#if config.trackHRV}
+			{#if config.trackHRV && (!isAdvancedControl('hrv') || showAdvancedFields)}
 				<div class="field-group">
 					<label for="hrv" class="field-label">HRV (ms)</label>
 					<input
@@ -1447,7 +1530,7 @@
 				</div>
 			{/if}
 
-			{#if config.trackPoolType}
+			{#if config.trackPoolType && (!isAdvancedControl('pool-type') || showAdvancedFields)}
 				<div class="field-group">
 					<label for="poolType" class="field-label">Pool Type</label>
 					<select id="poolType" bind:value={poolType} class="field-input">
@@ -1481,7 +1564,7 @@
 			{/if}
 
 			<!-- NEW METRICS - Phase 1 -->
-			{#if config.trackMenstrualCycleDay && showMenstrualCycleTracking}
+			{#if config.trackMenstrualCycleDay && showMenstrualCycleTracking && (!isAdvancedControl('menstrual-cycle') || showAdvancedFields)}
 				<div class="field-group">
 					<NumberWheelInput
 						bind:value={menstrualCycleDay}
@@ -1495,7 +1578,7 @@
 				</div>
 			{/if}
 
-			{#if config.trackFacialGear}
+			{#if config.trackFacialGear && (!isAdvancedControl('facial-gear') || showAdvancedFields)}
 				<div class="field-group">
 					<label class="field-label">Facial Gear Used</label>
 					<div class="checkbox-group">
@@ -1519,7 +1602,7 @@
 				</div>
 			{/if}
 
-			{#if config.trackBasalMood}
+			{#if config.trackBasalMood && (!isAdvancedControl('basal-mood') || showAdvancedFields)}
 				<div class="field-group">
 					<label for="basalMood" class="field-label">
 						Basal Mood (before session){basalMood !== undefined ? `: ${basalMood}/10` : ''}
@@ -1540,7 +1623,7 @@
 				</div>
 			{/if}
 
-			{#if config.trackMinimumSpO2}
+			{#if config.trackMinimumSpO2 && (!isAdvancedControl('minimum-spo2') || showAdvancedFields)}
 				<div class="field-group">
 					<label for="minimumSpO2" class="field-label">Minimum SpO2 (%)</label>
 					<input
@@ -1555,7 +1638,7 @@
 				</div>
 			{/if}
 
-			{#if config.trackMinimumHR}
+			{#if config.trackMinimumHR && (!isAdvancedControl('minimum-hr') || showAdvancedFields)}
 				<div class="field-group">
 					<label for="minimumHR" class="field-label">Minimum HR (bpm)</label>
 					<input
@@ -1570,7 +1653,7 @@
 				</div>
 			{/if}
 
-			{#if config.trackBodyWeight}
+			{#if config.trackBodyWeight && (!isAdvancedControl('body-weight') || showAdvancedFields)}
 				<div class="field-group">
 					<label for="bodyWeight" class="field-label">Body Weight (kg)</label>
 					<input
@@ -1586,7 +1669,7 @@
 				</div>
 			{/if}
 
-			{#if config.trackFVC}
+			{#if config.trackFVC && (!isAdvancedControl('fvc') || showAdvancedFields)}
 				<div class="field-group">
 					<label for="fvc" class="field-label">FVC (liters)</label>
 					<input
@@ -1602,7 +1685,7 @@
 				</div>
 			{/if}
 
-			{#if config.trackFVCWithPacking}
+			{#if config.trackFVCWithPacking && (!isAdvancedControl('fvc-with-packing') || showAdvancedFields)}
 				<div class="field-group">
 					<label for="fvcWithPacking" class="field-label">FVC with Packing (liters)</label>
 					<input
@@ -1618,7 +1701,7 @@
 				</div>
 			{/if}
 
-			{#if config.trackPackingVolume}
+			{#if config.trackPackingVolume && (!isAdvancedControl('packing-volume') || showAdvancedFields)}
 				<div class="field-group">
 					<label for="packingVolume" class="field-label">
 						Packing Volume <span class="field-value-badge">{packingVolume ?? 0}%</span>
@@ -1638,9 +1721,9 @@
 	{/if}
 
 	<!-- O2-Assisted Static Apnea Section -->
-	{#if config.trackLucidity || config.trackUrgeToBreathe || config.trackContractions || config.trackETCO2 || config.trackExpiredAirPostHold || config.trackLungVolumeLossPerMin || config.trackGasMix || config.trackCO2TremorOnset || config.trackMentalChangeTime || config.trackRecoveryQuality || config.trackEndSpO2 || config.trackBreatheUpType}
+	{#if showAdvancedFields && (config.trackLucidity || config.trackUrgeToBreathe || config.trackContractions || config.trackETCO2 || config.trackExpiredAirPostHold || config.trackLungVolumeLossPerMin || config.trackGasMix || config.trackCO2TremorOnset || config.trackMentalChangeTime || config.trackRecoveryQuality || config.trackEndSpO2 || config.trackBreatheUpType)}
 		<div class="form-section">
-			<h4 class="section-title">🫁 O₂-Assisted Static Metrics</h4>
+			<h4 class="section-title">O2-Assisted Static Metrics</h4>
 
 			{#if config.trackGasMix}
 				<div class="field-group">
@@ -1960,6 +2043,128 @@
 		background: rgba(20, 184, 166, 0.03);
 		border: 1px solid rgba(148, 163, 184, 0.1);
 		border-radius: 8px;
+	}
+
+	.routine-plan-section {
+		background: rgba(15, 23, 42, 0.28);
+		border-color: rgba(148, 163, 184, 0.16);
+	}
+
+	.compact-header {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 1rem;
+	}
+
+	.plan-layer-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.plan-layer-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		padding: 0.75rem;
+		border: 1px solid rgba(148, 163, 184, 0.14);
+		border-radius: 8px;
+		background: rgba(15, 23, 42, 0.45);
+	}
+
+	.plan-layer-main {
+		display: flex;
+		min-width: 0;
+		flex-direction: column;
+		gap: 0.2rem;
+	}
+
+	.plan-layer-name {
+		color: var(--color-text);
+		font-size: 0.875rem;
+		font-weight: 650;
+	}
+
+	.plan-layer-meta {
+		color: var(--color-text-muted);
+		font-size: 0.75rem;
+	}
+
+	.plan-layer-badges,
+	.plan-row-chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+	}
+
+	.plan-layer-badges {
+		justify-content: flex-end;
+		flex-shrink: 0;
+	}
+
+	.plan-badge,
+	.plan-row-chip {
+		border: 1px solid rgba(148, 163, 184, 0.18);
+		border-radius: 999px;
+		background: rgba(148, 163, 184, 0.08);
+		color: var(--color-text-muted);
+		font-size: 0.7rem;
+		font-weight: 600;
+		line-height: 1;
+	}
+
+	.plan-badge {
+		padding: 0.3rem 0.5rem;
+		text-transform: capitalize;
+	}
+
+	.plan-row-chip {
+		display: inline-flex;
+		gap: 0.35rem;
+		align-items: center;
+		min-height: 1.75rem;
+		padding: 0.35rem 0.55rem;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.advanced-disclosure {
+		display: flex;
+		justify-content: flex-end;
+	}
+
+	.advanced-toggle {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		min-height: 2.25rem;
+		padding: 0.45rem 0.75rem;
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		border-radius: 999px;
+		background: rgba(15, 23, 42, 0.45);
+		color: var(--color-text-muted);
+		font-size: 0.8125rem;
+		font-weight: 650;
+		cursor: pointer;
+	}
+
+	.advanced-toggle[aria-expanded='true'] {
+		border-color: rgba(20, 184, 166, 0.45);
+		background: rgba(20, 184, 166, 0.1);
+		color: var(--color-primary);
+	}
+
+	.advanced-toggle-count {
+		display: inline-grid;
+		place-items: center;
+		min-width: 1.25rem;
+		height: 1.25rem;
+		padding: 0 0.25rem;
+		border-radius: 999px;
+		background: rgba(148, 163, 184, 0.14);
+		color: inherit;
+		font-size: 0.7rem;
 	}
 
 	.lung-volume-section {

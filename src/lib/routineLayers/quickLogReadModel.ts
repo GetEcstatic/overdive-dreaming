@@ -127,7 +127,6 @@ const directMetricControlIds: Partial<Record<MetricType, QuickLogControlId>> = {
 	repsCompleted: 'reps-completed',
 	repDuration: 'rep-duration',
 	holdDuration: 'rep-duration',
-	repDistance: 'rep-distance',
 	lapDistance: 'rep-distance',
 	avgSpeed: 'average-speed',
 	avgSpeedMs: 'average-speed',
