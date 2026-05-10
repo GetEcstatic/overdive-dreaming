@@ -163,7 +163,7 @@ Recommended change:
 
 ## Implementation Plan
 
-Current implementation status: Phases 1, 2, 3, and 4 are complete. Phase 5 has partial UI/data support landed. Phase 6 is still open and should be treated as the next data-safety work before broader Quick Log changes.
+Current implementation status: Phases 1 through 5 are complete. Phase 6 is still open and should be treated as the next data-safety work before broader Quick Log changes.
 
 ### Phase 1: Pure v2 log form read model
 
@@ -218,9 +218,9 @@ Acceptance check: A user can log a simple max attempt with date, result, notes, 
 ### Phase 5: Attempt/category consistency
 
 - [x] Add an attempt category preview showing PB/analytics bucket label.
-- [ ] Make lung volume, breathing gas, and custom category interactions explicit.
-- [ ] Ensure `attemptConditions`, direct `gasMix`, and `defaultLungVolume` cannot drift in contradictory ways.
-- [ ] Add tests for standard, FRC, RV, O2-assisted, and custom attempts.
+- [x] Make lung volume, breathing gas, and custom category interactions explicit.
+- [x] Ensure `attemptConditions`, direct `gasMix`, and `defaultLungVolume` cannot drift in contradictory ways.
+- [x] Add tests for standard, FRC, RV, O2-assisted, and custom attempts.
 
 Acceptance check: Saved logs have consistent `attemptConditions`, `pbCategoryKey`, `pbCategoryLabel`, `gasMix`, and `defaultLungVolume` behavior.
 

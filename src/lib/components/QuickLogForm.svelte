@@ -33,6 +33,7 @@
 		attemptOptionsForDiscipline,
 		defaultConditionsForKind
 	} from '$lib/utils/attemptCategories';
+	import { buildQuickLogAttemptConditions } from '$lib/utils/quickLogAttempt';
 	import {
 		buildQuickLogReadModel,
 		type QuickLogControlId
@@ -803,25 +804,13 @@
 	}
 
 	function buildAttemptConditions(): AttemptConditions {
-		const effectiveKind: AttemptCategoryKind =
-			attemptKind === 'standard' && defaultLungVolume === 'FRC'
-				? 'frc'
-				: attemptKind === 'standard' && defaultLungVolume === 'RV'
-					? 'rv'
-					: attemptKind;
-		const base = defaultConditionsForKind(effectiveKind, {
-			label: customAttemptLabel.trim() || undefined,
+		return buildQuickLogAttemptConditions({
+			attemptKind,
+			customAttemptLabel,
 			breathingGas,
-			gasMix: gasMix?.trim() || undefined,
-			lungVolume: defaultLungVolume
+			gasMix,
+			defaultLungVolume
 		});
-		return {
-			...base,
-			label: effectiveKind === 'custom' ? customAttemptLabel.trim() || undefined : base.label,
-			breathingGas,
-			gasMix: gasMix?.trim() || base.gasMix,
-			lungVolume: defaultLungVolume ?? base.lungVolume
-		};
 	}
 </script>
 
@@ -940,6 +929,7 @@
 			<span class="attempt-preview-label">Category</span>
 			<span class="attempt-preview-value">{attemptCategoryPreview.label}</span>
 			<span class="attempt-preview-meta">{attemptCategoryPreview.metric === 'time' ? 'time PB bucket' : 'distance PB bucket'}</span>
+			<span class="attempt-preview-detail">{attemptCategoryPreview.conditions.lungVolume ?? 'FL'} · {attemptCategoryPreview.conditions.gasMix ?? attemptCategoryPreview.conditions.breathingGas ?? 'air'}</span>
 		</div>
 	</div>
 
@@ -2401,6 +2391,13 @@
 		grid-column: 2;
 		color: var(--color-text-muted);
 		font-size: 0.75rem;
+	}
+
+	.attempt-preview-detail {
+		grid-column: 2;
+		color: var(--color-text-muted);
+		font-size: 0.75rem;
+		font-weight: 600;
 	}
 
 	/* Input Fields */
