@@ -66,6 +66,6 @@ This keeps official discipline reporting compatible while making O2 static a fir
 
 ## Open Questions
 
-- Naming: `O2STA` is compact and type-friendly, but UI labels should read "O2 Static" or "O2-assisted static".
-- Scope of mandatory O2 fields: gas mix should be on by default; ETCO2/end SpO2/recovery/lucidity may be advanced defaults rather than required fields.
-- Whether O2 static should be selectable inside generic Static Max. The safer first pass is a separate preset plus explicit layer selection in the editor.
+- Naming: `O2STA` is compact and type-friendly, but UI labels should read "O2 Static" or "O2-assisted static". *O2 assisted static is better*
+- Scope of mandatory O2 fields: gas mix should be on by default *yes, and default at 100%*; ETCO2/end SpO2/recovery/lucidity may be advanced defaults rather than required fields. *yes*
+- Whether O2 static should be selectable inside generic Static Max. The safer first pass is a separate preset plus explicit layer selection in the editor. *Hmm.... okay let's keep it as a separate preset then*
