@@ -13,7 +13,9 @@
 		LungVolume,
 		AttemptCategoryKind,
 		AttemptConditions,
-		BreathingGas
+		BreathingGas,
+		RoutineLogPlanRow,
+		RoutineLogResultRow
 	} from '$lib/types';
 	import PhotoCropper from '$lib/components/PhotoCropper.svelte';
 	import RepEditor from '$lib/components/RepEditor.svelte';
@@ -35,6 +37,10 @@
 		buildQuickLogReadModel,
 		type QuickLogControlId
 	} from '$lib/routineLayers/quickLogReadModel';
+	import {
+		buildInitialRoutineLogResultRows,
+		buildRoutineLogResultRowsFromLapData
+	} from '$lib/routineLayers/logPlan';
 
 	interface Props {
 		routine: RoutineTemplate;
@@ -146,6 +152,8 @@
 		breatheUpType?: string;
 		// Per-rep data (for detailed logging)
 		laps?: LapData[];
+		plannedRows?: RoutineLogPlanRow[];
+		resultRows?: RoutineLogResultRow[];
 		// Biometric session summary (aggregated from per-rep data)
 		hasBiometricData?: boolean;
 		longestHold?: number;
@@ -553,6 +561,18 @@
 		if (facialGearGoggles) facialGear.push('goggles');
 		if (facialGearNothing) facialGear.push('nothing');
 
+		const plannedRows = quickLogModel.plannedRows;
+		const editedLaps = repEditorData.length > 0 ? repEditorDataToLapData(repEditorData) : undefined;
+		const resultRows = editedLaps
+			? buildRoutineLogResultRowsFromLapData(plannedRows, editedLaps)
+			: buildInitialRoutineLogResultRows(plannedRows, {
+				repsCompleted,
+				totalTimeSeconds,
+				totalDistanceMeters: totalDistance,
+				repDurationSeconds,
+				repDistanceMeters: repDistance
+			});
+
 		const data: LogFormData = {
 			disciplineUsed,
 			sessionDate,
@@ -616,7 +636,9 @@
 			endSpO2,
 			breatheUpType: breatheUpType?.trim() || undefined,
 			// Per-rep data (biometric tracking)
-			laps: repEditorData.length > 0 ? repEditorDataToLapData(repEditorData) : seededLaps,
+			laps: editedLaps ?? seededLaps,
+			plannedRows,
+			resultRows,
 			// Session-level default lung volume (FL/RV/FRC)
 			defaultLungVolume,
 			// Biometric session summary

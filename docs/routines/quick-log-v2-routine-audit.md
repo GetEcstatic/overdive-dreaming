@@ -163,7 +163,7 @@ Recommended change:
 
 ## Implementation Plan
 
-Current implementation status: Phase 1 is complete. Phase 3, Phase 4, and Phase 5 have partial UI/data support landed. Phase 2 and Phase 6 are still open and should be treated as the next behavioral/data-safety work before broader Quick Log changes.
+Current implementation status: Phases 1 and 2 are complete. Phase 3, Phase 4, and Phase 5 have partial UI/data support landed. Phase 6 is still open and should be treated as the next data-safety work before broader Quick Log changes.
 
 ### Phase 1: Pure v2 log form read model
 
@@ -179,10 +179,10 @@ Acceptance check: Quick Log can answer what rows, layers, controls, and advanced
 
 ### Phase 2: Row-first result data
 
-- [ ] Move initial `plannedRows`/`resultRows` construction closer to the form read model.
-- [ ] Let QuickLogForm emit row-level results for edited reps rather than only summary fields.
-- [ ] Preserve current summary fields for compatibility during the transition.
-- [ ] Add tests proving multi-layer static tables preserve layer IDs and per-row completion.
+- [x] Move initial `plannedRows`/`resultRows` construction closer to the form read model.
+- [x] Let QuickLogForm emit row-level results for edited reps rather than only summary fields.
+- [x] Preserve current summary fields for compatibility during the transition.
+- [x] Add tests proving multi-layer static tables preserve layer IDs and per-row completion.
 
 Acceptance check: Static 2-Breath logs show one initial-breathe-up row plus repeated two-breath rows in `resultRows`, with correct source layer IDs and completion state.
 

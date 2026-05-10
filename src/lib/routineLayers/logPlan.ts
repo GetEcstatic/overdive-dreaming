@@ -1,4 +1,4 @@
-import type { RoutineTemplate, RoutineLogPlanRow, RoutineLogResultRow } from '$lib/types';
+import type { LapData, RoutineTemplate, RoutineLogPlanRow, RoutineLogResultRow } from '$lib/types';
 import { buildRoutineLayerReadModel } from './readModel';
 import type { ExpandedRoutinePlanRow } from './model';
 
@@ -30,6 +30,28 @@ export function buildInitialRoutineLogResultRows(
 		actualDurationSeconds: singleRow ? input.totalTimeSeconds : input.repDurationSeconds,
 		actualDistanceMeters: singleRow ? input.totalDistanceMeters : input.repDistanceMeters
 	}));
+}
+
+export function buildRoutineLogResultRowsFromLapData(
+	plannedRows: RoutineLogPlanRow[],
+	laps: LapData[]
+): RoutineLogResultRow[] {
+	const lapsByNumber = new Map(laps.map((lap) => [lap.lapNumber, lap]));
+
+	return plannedRows.map((row) => {
+		const lap = lapsByNumber.get(row.globalRowIndex) ?? laps[row.globalRowIndex - 1];
+		return {
+			planRowId: row.planRowId,
+			sourceLayerId: row.sourceLayerId,
+			repIndex: row.repIndex,
+			globalRowIndex: row.globalRowIndex,
+			completed: lap?.completed ?? false,
+			actualDurationSeconds: lap?.timeSeconds,
+			actualDistanceMeters: lap?.distanceMeters,
+			actualRestSeconds: lap?.restAfterSeconds,
+			notes: lap?.notes
+		};
+	});
 }
 
 function projectExpandedRowToLogPlanRow(row: ExpandedRoutinePlanRow): RoutineLogPlanRow {

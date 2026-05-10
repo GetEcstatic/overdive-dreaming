@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { RoutineTemplate } from '$lib/types';
 import { staticTwoBreathTableExample, dynamicMaxExample } from './defaults';
 import { withLayerRoutineTemplateContract } from './contract';
-import { buildInitialRoutineLogResultRows, buildRoutineLogPlanRows } from './logPlan';
+import {
+	buildInitialRoutineLogResultRows,
+	buildRoutineLogPlanRows,
+	buildRoutineLogResultRowsFromLapData
+} from './logPlan';
 
 function routineTemplate(overrides: Partial<RoutineTemplate> = {}): RoutineTemplate {
 	return {
@@ -98,6 +102,34 @@ describe('routine log plan rows', () => {
 			actualDurationSeconds: 125,
 			actualDistanceMeters: 100,
 			completed: true
+		});
+	});
+
+	it('builds result rows from edited lap data while preserving layer IDs', () => {
+		const routine = withLayerRoutineTemplateContract(routineTemplate(), staticTwoBreathTableExample.layers);
+		const plannedRows = buildRoutineLogPlanRows(routine);
+		const resultRows = buildRoutineLogResultRowsFromLapData(plannedRows, [
+			{ lapNumber: 1, timeSeconds: 91, restAfterSeconds: 240, completed: true },
+			{ lapNumber: 2, timeSeconds: 88, restAfterSeconds: 30, completed: true, notes: 'clean' },
+			{ lapNumber: 3, completed: false }
+		]);
+
+		expect(resultRows[0]).toMatchObject({
+			planRowId: 'static-two-breath-table-layer-1:1',
+			sourceLayerId: 'static-two-breath-table-layer-1',
+			completed: true,
+			actualDurationSeconds: 91,
+			actualRestSeconds: 240
+		});
+		expect(resultRows[1]).toMatchObject({
+			sourceLayerId: 'static-two-breath-table-layer-2',
+			completed: true,
+			actualDurationSeconds: 88,
+			notes: 'clean'
+		});
+		expect(resultRows[2]).toMatchObject({
+			sourceLayerId: 'static-two-breath-table-layer-2',
+			completed: false
 		});
 	});
 });

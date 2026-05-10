@@ -303,8 +303,8 @@
 				}
 			}
 
-			const plannedRows = buildRoutineLogPlanRows(routine);
-			const resultRows = buildInitialRoutineLogResultRows(plannedRows, {
+			const plannedRows = logData.plannedRows ?? buildRoutineLogPlanRows(routine);
+			const resultRows = logData.resultRows ?? buildInitialRoutineLogResultRows(plannedRows, {
 				repsCompleted: logData.repsCompleted,
 				totalTimeSeconds: logData.totalTime,
 				totalDistanceMeters: logData.totalDistance,
