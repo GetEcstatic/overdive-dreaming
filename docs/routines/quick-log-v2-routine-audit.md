@@ -163,7 +163,7 @@ Recommended change:
 
 ## Implementation Plan
 
-Current implementation status: Phases 1 through 5 are complete. Phase 6 is still open and should be treated as the next data-safety work before broader Quick Log changes.
+Current implementation status: Phases 1 through 6 are complete. The v2 dry-run audit is clean after backfilling the two stale layered routines; legacy routines remain report-only.
 
 ### Phase 1: Pure v2 log form read model
 
@@ -226,10 +226,12 @@ Acceptance check: Saved logs have consistent `attemptConditions`, `pbCategoryKey
 
 ### Phase 6: Existing routine safety
 
-- [ ] Run `npm run audit:routine-metric-attachment` before changing Quick Log behavior broadly.
-- [ ] Run `npm run audit:routine-metric-attachment:legacy` before deciding any legacy inference.
-- [ ] Backfill v2 routines after reviewing dry-run output.
-- [ ] Add an admin-only stale projection notice in Quick Log only if stale routines remain after backfill.
+- [x] Run `npm run audit:routine-metric-attachment` before changing Quick Log behavior broadly.
+- [x] Run `npm run audit:routine-metric-attachment:legacy` before deciding any legacy inference.
+- [x] Backfill v2 routines after reviewing dry-run output.
+- [x] Add an admin-only stale projection notice in Quick Log only if stale routines remain after backfill.
+
+Status: the first dry run found two stale v2 layered routines and no unknown display keys. `npm run backfill:routine-metric-attachment` wrote those two projections, and the follow-up dry run reported `Needs update: 0`. The legacy audit reported 22 report-only candidates and performed no writes. Because no stale v2 routines remain after backfill, no Quick Log stale-projection notice is currently needed.
 
 Acceptance check: Quick Log fields match the current layer-derived `trackingConfig` for existing v2 routines, not only newly created routines.
 
