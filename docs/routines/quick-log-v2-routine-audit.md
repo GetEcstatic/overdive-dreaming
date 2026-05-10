@@ -163,7 +163,7 @@ Recommended change:
 
 ## Implementation Plan
 
-Current implementation status: Phases 1 and 2 are complete. Phase 3, Phase 4, and Phase 5 have partial UI/data support landed. Phase 6 is still open and should be treated as the next data-safety work before broader Quick Log changes.
+Current implementation status: Phases 1, 2, and 3 are complete. Phase 4 and Phase 5 have partial UI/data support landed. Phase 6 is still open and should be treated as the next data-safety work before broader Quick Log changes.
 
 ### Phase 1: Pure v2 log form read model
 
@@ -189,11 +189,11 @@ Acceptance check: Static 2-Breath logs show one initial-breathe-up row plus repe
 ### Phase 3: Technique and split entry
 
 - [x] Extend `RepEditor` or add a v2 row editor mode for dynamic rows.
-- [ ] Add optional columns for lap time, distance, kicks, arm pulls, and notes based on `trackingConfig`.
+- [x] Add optional columns for lap time, distance, kicks, arm pulls, and notes based on `trackingConfig`.
 - [x] Calculate speed from row distance/time when no recorder speed is supplied.
-- [ ] Keep recorder-seeded rows read-only by default, with an explicit edit/review affordance.
+- [x] Keep recorder-seeded rows read-only by default, with an explicit edit/review affordance.
 
-Partial status: distance/time already existed, kicks and arm pulls now use wheel inputs and persist into `laps`; per-row notes and a clearer recorder review mode remain open.
+Status: distance/time already existed; kicks, arm pulls, optional row notes, calculated speed, and read-only recorder split review now land through Quick Log.
 
 Acceptance check: A DNF-capable routine with `trackArmPullsPerLap` can collect arm pulls in Quick Log and display `averageArmPullsPerLap` on cards.
 

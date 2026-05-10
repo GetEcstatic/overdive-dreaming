@@ -34,6 +34,7 @@
 		trackHR = false,
 		trackKicksPerLap = false,
 		trackArmPullsPerLap = false,
+		trackNotes = false,
 		isDryTraining = false,
 		// Allow editing planned values (for variable tables)
 		allowEditPlanned = false,
@@ -51,10 +52,13 @@
 		trackHR?: boolean;
 		trackKicksPerLap?: boolean;
 		trackArmPullsPerLap?: boolean;
+		trackNotes?: boolean;
 		isDryTraining?: boolean;
 		allowEditPlanned?: boolean;
 		defaultLungVolume?: LungVolume;
 	} = $props();
+
+	let showRowNotes = $state(false);
 
 	// Per-rep tagging only makes sense when there's more than one rep.
 	const isMultiRep = $derived(
@@ -254,6 +258,14 @@
 		</div>
 	{/if}
 
+	{#if trackNotes}
+		<div class="row-notes-toggle-row">
+			<button type="button" class="row-notes-toggle" aria-expanded={showRowNotes} onclick={() => (showRowNotes = !showRowNotes)}>
+				{showRowNotes ? 'Hide row notes' : 'Add row notes'}
+			</button>
+		</div>
+	{/if}
+
 	<div class="reps-table" class:has-biometrics={trackSpO2 || trackHR} class:has-volume={isMultiRep} class:has-technique={trackKicksPerLap || trackArmPullsPerLap}>
 		<div class="table-header">
 			<div class="col-rep">#</div>
@@ -283,11 +295,12 @@
 		</div>
 
 		{#each reps as rep, i}
-			<div 
-				class="table-row" 
-				class:skipped={!rep.completed}
-				class:extra={rep.repNumber > plannedReps}
-			>
+			<div class="table-row-group">
+				<div
+					class="table-row"
+					class:skipped={!rep.completed}
+					class:extra={rep.repNumber > plannedReps}
+				>
 				<div class="col-rep">
 					<span class="rep-number">{rep.repNumber}</span>
 					{#if !allowEditPlanned && rep.plannedDuration && rep.actualDuration !== rep.plannedDuration}
@@ -496,6 +509,15 @@
 						{rep.completed ? '✓' : '✗'}
 					</button>
 				</div>
+				</div>
+				{#if trackNotes && showRowNotes && rep.completed}
+					<input
+						class="rep-note-input"
+						bind:value={rep.notes}
+						placeholder={`Row ${rep.repNumber} note`}
+						aria-label={`Row ${rep.repNumber} note`}
+					/>
+				{/if}
 			</div>
 		{/each}
 	</div>
@@ -635,6 +657,52 @@
 		border-radius: 8px;
 		align-items: center;
 		transition: all 0.2s ease;
+	}
+
+	.table-row-group {
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+	}
+
+	.row-notes-toggle-row {
+		display: flex;
+		justify-content: flex-end;
+		margin-bottom: 0.25rem;
+	}
+
+	.row-notes-toggle {
+		min-height: 2rem;
+		padding: 0.35rem 0.65rem;
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		border-radius: 999px;
+		background: rgba(15, 23, 42, 0.45);
+		color: var(--color-text-muted);
+		font-size: 0.75rem;
+		font-weight: 650;
+		cursor: pointer;
+	}
+
+	.row-notes-toggle[aria-expanded='true'] {
+		border-color: rgba(20, 184, 166, 0.45);
+		background: rgba(20, 184, 166, 0.1);
+		color: var(--color-primary);
+	}
+
+	.rep-note-input {
+		width: 100%;
+		min-height: 2.25rem;
+		padding: 0.45rem 0.65rem;
+		border: 1px solid rgba(148, 163, 184, 0.16);
+		border-radius: 8px;
+		background: rgba(15, 23, 42, 0.45);
+		color: var(--color-text);
+		font: inherit;
+		font-size: 0.8125rem;
+	}
+
+	.rep-note-input::placeholder {
+		color: var(--color-text-muted);
 	}
 
 	.table-row.skipped {

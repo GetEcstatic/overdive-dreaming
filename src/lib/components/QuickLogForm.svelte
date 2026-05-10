@@ -250,6 +250,7 @@
 	// avgSpeed is editable (unless source === 'recorder'), so keep it in state
 	// seeded from the recorder output.
 	let avgSpeed = $state<number | undefined>(seededAvgSpeed);
+	let showRecordedSplits = $state(false);
 
 	// Training context
 	let breathingTechnique = $state<BreathingTechnique | undefined>(initialValues?.breathingTechnique);
@@ -695,6 +696,10 @@
 
 	function formatLayerDisciplines(discs: Discipline[]): string {
 		return discs.join(' / ');
+	}
+
+	function formatLapSpeed(lap: LapData): string {
+		return lap.speedMs !== undefined ? `${lap.speedMs.toFixed(2)} m/s` : 'speed open';
 	}
 
 	// Per-metric capture-source decisions. Each decision tells the template
@@ -1228,7 +1233,23 @@
 					{#if speedPerLapDecision.mode === 'disabled-needs-recorder' && timePerLapDecision.mode === 'disabled-needs-recorder'}
 						<a class="recorder-cta" href="/record">Record a dive to capture per-lap splits automatically</a>
 					{:else if seededLaps && seededLaps.length > 0}
-						<div class="readonly-display">{seededLaps.length} lap{seededLaps.length === 1 ? '' : 's'} captured from recording</div>
+						<div class="recorded-splits-review">
+							<button type="button" class="recorded-splits-toggle" aria-expanded={showRecordedSplits} onclick={() => (showRecordedSplits = !showRecordedSplits)}>
+								{showRecordedSplits ? 'Hide captured splits' : `Review ${seededLaps.length} captured split${seededLaps.length === 1 ? '' : 's'}`}
+							</button>
+							{#if showRecordedSplits}
+								<div class="recorded-splits-list">
+									{#each seededLaps as lap}
+										<div class="recorded-split-row">
+											<span>Lap {lap.lapNumber}</span>
+											<span>{lap.distanceMeters ?? '—'}m</span>
+											<span>{formatPlanSeconds(lap.timeSeconds)}</span>
+											<span>{formatLapSpeed(lap)}</span>
+										</div>
+									{/each}
+								</div>
+							{/if}
+						</div>
 					{:else}
 						<div class="field-hint">Per-lap splits are optional — add them later from video review.</div>
 					{/if}
@@ -1332,6 +1353,7 @@
 				trackHR={false}
 				trackKicksPerLap={config.trackKicksPerLap}
 				trackArmPullsPerLap={config.trackArmPullsPerLap}
+				trackNotes={config.trackNotes}
 				isDryTraining={false}
 				allowEditPlanned={hasVariableTable}
 				bind:defaultLungVolume
@@ -1404,6 +1426,7 @@
 				trackHR={config.trackPerRepHR ?? true}
 				trackKicksPerLap={config.trackKicksPerLap}
 				trackArmPullsPerLap={config.trackArmPullsPerLap}
+				trackNotes={config.trackNotes}
 				isDryTraining={config.isDryTraining ?? true}
 				allowEditPlanned={hasVariableTable}
 				bind:defaultLungVolume
@@ -3095,5 +3118,43 @@
 
 	.recorder-cta:hover {
 		background: rgba(20, 184, 166, 0.14);
+	}
+
+	.recorded-splits-review {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.recorded-splits-toggle {
+		min-height: 2.5rem;
+		padding: 0.55rem 0.75rem;
+		border: 1px solid rgba(20, 184, 166, 0.35);
+		border-radius: 8px;
+		background: rgba(20, 184, 166, 0.08);
+		color: var(--color-primary);
+		font-size: 0.85rem;
+		font-weight: 650;
+		cursor: pointer;
+	}
+
+	.recorded-splits-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+	}
+
+	.recorded-split-row {
+		display: grid;
+		grid-template-columns: 1fr auto auto auto;
+		gap: 0.5rem;
+		align-items: center;
+		padding: 0.45rem 0.55rem;
+		border: 1px solid rgba(148, 163, 184, 0.14);
+		border-radius: 8px;
+		background: rgba(15, 23, 42, 0.35);
+		color: var(--color-text-muted);
+		font-size: 0.75rem;
+		font-variant-numeric: tabular-nums;
 	}
 </style>
