@@ -21,6 +21,7 @@ export type QuickLogControlId =
 	| 'reps-completed'
 	| 'rep-duration'
 	| 'rep-distance'
+	| 'breaths-between-reps'
 	| 'row-results'
 	| 'lap-splits'
 	| 'kicks-per-lap'
@@ -187,6 +188,7 @@ const controlIdByTrackingFlag: Partial<Record<keyof TrackingConfig, QuickLogCont
 	trackRepDuration: 'rep-duration',
 	trackRepDistance: 'rep-distance',
 	trackRestBetweenLaps: 'row-results',
+	trackBreathsBetweenReps: 'breaths-between-reps',
 	trackPoolLength: 'pool-length',
 	trackInitialBreatheUpTime: 'initial-breathe-up',
 	trackAvgSpeed: 'average-speed',
@@ -318,6 +320,7 @@ function buildControls(routine: RoutineTemplate, plannedRows: RoutineLogPlanRow[
 	if (config.trackJoyScale) controls.push(control('joy-scale', 'Joy', 'context', 'standard', 'Enjoyment is a common post-attempt rating.'));
 	if (config.trackHoursSinceLastMeal) controls.push(control('meal-timing', 'Meal timing', 'context', 'advanced', 'Nutrition timing is supporting context.'));
 	if (config.trackNotes) controls.push(control('notes', 'Notes', 'context', 'standard', 'Notes capture the session context that metrics miss.'));
+	if (config.trackBreathsBetweenReps) controls.push(control('breaths-between-reps', 'Breaths between reps', 'context', 'standard', 'Constrained-breath routines need their recovery breath count.'));
 	if (config.trackWaterTemperature) controls.push(control('water-temperature', 'Water temperature', 'context', 'advanced', 'Environment values should not crowd the core result.'));
 	if (config.trackEquipmentUsed) controls.push(control('equipment', 'Equipment', 'context', 'advanced', 'Equipment is useful comparison context.'));
 	if (config.trackBuddyName) controls.push(control('buddy', 'Buddy', 'context', 'standard', 'Buddy/safety context is part of the session record.'));

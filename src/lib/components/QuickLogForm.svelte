@@ -27,6 +27,7 @@
 	import { resolveMetricInput } from '$lib/utils/resolveMetricInput';
 	import {
 		DEFAULT_O2_GAS_MIX,
+		deriveAttemptCategory,
 		attemptOptionsForDiscipline,
 		defaultConditionsForKind
 	} from '$lib/utils/attemptCategories';
@@ -300,6 +301,15 @@
 	// Per-rep starting lung volume (FL/RV/FRC) — opt-in via trackingConfig
 	let defaultLungVolume = $state<LungVolume | undefined>(initialValues?.defaultLungVolume);
 	const attemptOptions = $derived(attemptOptionsForDiscipline(disciplineUsed));
+	const attemptCategoryPreview = $derived(
+		deriveAttemptCategory({
+			disciplineUsed,
+			attemptConditions: buildAttemptConditions(),
+			defaultLungVolume,
+			gasMix,
+			breatheUpType
+		})
+	);
 
 	// Handle biometric import from CSV
 	function handleBiometricImport(
@@ -700,7 +710,25 @@
 			config.trackRPE ||
 			config.trackJoyScale ||
 			config.trackHoursSinceLastMeal ||
-			config.trackNotes
+			config.trackNotes ||
+			config.trackWaterTemperature ||
+			config.trackContractionsOnsetTime ||
+			config.trackEquipmentUsed ||
+			config.trackBuddyName ||
+			config.trackRestingHeartRate ||
+			config.trackHRV ||
+			config.trackPoolType ||
+			config.trackSambaBO ||
+			config.trackBreathsBetweenReps ||
+			(config.trackMenstrualCycleDay && showMenstrualCycleTracking) ||
+			config.trackFacialGear ||
+			config.trackBasalMood ||
+			config.trackMinimumSpO2 ||
+			config.trackMinimumHR ||
+			config.trackBodyWeight ||
+			config.trackFVC ||
+			config.trackFVCWithPacking ||
+			config.trackPackingVolume
 	);
 	let showTrainingContextSection = $derived(
 		hasTrainingContext && (showAdvancedFields || hasStandardContextControls)
@@ -880,6 +908,11 @@
 				<input class="field-input" bind:value={customAttemptLabel} placeholder="e.g., Hypoxic" />
 			</label>
 		{/if}
+		<div class="attempt-preview">
+			<span class="attempt-preview-label">Category</span>
+			<span class="attempt-preview-value">{attemptCategoryPreview.label}</span>
+			<span class="attempt-preview-meta">{attemptCategoryPreview.metric === 'time' ? 'time PB bucket' : 'distance PB bucket'}</span>
+		</div>
 	</div>
 
 	<!-- Session Date -->
@@ -1384,13 +1417,13 @@
 						class="slider breathing-slider"
 					/>
 					<div class="slider-labels breathing-labels">
-						<span>-3<br/><small>💀 Hypo</small></span>
+						<span>-3<br/><small>Hypo</small></span>
 						<span>-2</span>
 						<span>-1</span>
 						<span>0<br/><small>Tidal</small></span>
 						<span>+1</span>
 						<span>+2</span>
-						<span>+3<br/><small>Hyper 👽</small></span>
+						<span>+3<br/><small>Hyper</small></span>
 					</div>
 				</div>
 			{/if}
@@ -1418,7 +1451,7 @@
 			{#if config.trackJoyScale}
 				<div class="field-group">
 					<label for="joyScale" class="field-label">
-						Enjoyment{joyScale !== undefined ? `: ${joyScale}/10 ${joyHeartIcon()}` : ''}
+						Enjoyment{joyScale !== undefined ? `: ${joyScale}/10` : ''}
 					</label>
 					<input
 						id="joyScale"
@@ -2286,6 +2319,37 @@
 		border-color: rgba(56, 189, 248, 0.6);
 		background: rgba(56, 189, 248, 0.18);
 		color: #e0f2fe;
+	}
+
+	.attempt-preview {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: 0.25rem 0.6rem;
+		align-items: baseline;
+		padding: 0.65rem 0.75rem;
+		border: 1px solid rgba(148, 163, 184, 0.14);
+		border-radius: 8px;
+		background: rgba(15, 23, 42, 0.35);
+	}
+
+	.attempt-preview-label {
+		color: var(--color-text-muted);
+		font-size: 0.7rem;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+
+	.attempt-preview-value {
+		color: var(--color-text);
+		font-size: 0.875rem;
+		font-weight: 700;
+	}
+
+	.attempt-preview-meta {
+		grid-column: 2;
+		color: var(--color-text-muted);
+		font-size: 0.75rem;
 	}
 
 	/* Input Fields */
