@@ -152,10 +152,10 @@ Recommended change:
 |------------|-------------------|-----|
 | Single max dynamic/static attempts | Good | Needs calmer max-attempt layout and clearer recorder capability. |
 | Multi-discipline selectable routines | Good | Discipline selection is legacy list-based, not layer-role-aware. |
-| Multi-layer static tables | Partial | Data saves with plan rows, but UI does not show layer groupings. |
-| Repeated dynamic tables | Partial | Reps/distance/time supported; lap splits, kicks, and arm pulls are incomplete. |
-| Dry static biometrics | Good | UI is visually heavy and tied to dry toggle rather than layer environment. |
-| Lung volume defaults and per-row overrides | Partial | Supported in RepEditor, but single-rep and attempt-type interactions need clearer preview. |
+| Multi-layer static tables | Improved | UI now shows layer groupings; result row emission still happens in the route save shell. |
+| Repeated dynamic tables | Improved | Reps/distance/time plus kicks and arm pulls are supported; manual notes and recorder review affordance remain incomplete. |
+| Dry static biometrics | Improved | Advanced disclosure hides heavier biometric controls unless the routine is dry/advanced. |
+| Lung volume defaults and per-row overrides | Improved | Supported in RepEditor and now paired with an attempt category preview. |
 | Dynamic recorder-linked rows | Partial | Recorder seed values are accepted; row-level `diveCapabilities` are not visible. |
 | Competition/card/record comparison metrics | Good | Works when routine flags are current. |
 | Registry-backed display metrics | Partial | Most source fields are persisted, but some selectable metrics lack first-class entry controls. |
@@ -163,15 +163,17 @@ Recommended change:
 
 ## Implementation Plan
 
+Current implementation status: Phase 1 is complete. Phase 3, Phase 4, and Phase 5 have partial UI/data support landed. Phase 2 and Phase 6 are still open and should be treated as the next behavioral/data-safety work before broader Quick Log changes.
+
 ### Phase 1: Pure v2 log form read model
 
-- [ ] Add a pure helper that builds a Quick Log read model from `RoutineTemplate`:
+- [x] Add a pure helper that builds a Quick Log read model from `RoutineTemplate`:
   - `plannedRows` from `buildRoutineLogPlanRows(routine)`.
   - layer groups by `sourceLayerId`.
   - field groups derived from `trackingConfig` and row shape.
   - standard vs advanced visibility classification.
-- [ ] Add fixtures/tests for Dynamic Max, Static Max, Sweet 16, Static 2-Breath, Dry RV, and a blank custom layer routine.
-- [ ] Document which metric registry entries still have no direct input control.
+- [x] Add fixtures/tests for Dynamic Max, Static Max, Sweet 16, Static 2-Breath, Dry RV, and a blank custom layer routine.
+- [x] Document which metric registry entries still have no direct input control.
 
 Acceptance check: Quick Log can answer what rows, layers, controls, and advanced groups are relevant without reading Svelte component state.
 
@@ -186,10 +188,12 @@ Acceptance check: Static 2-Breath logs show one initial-breathe-up row plus repe
 
 ### Phase 3: Technique and split entry
 
-- [ ] Extend `RepEditor` or add a v2 row editor mode for dynamic rows.
+- [x] Extend `RepEditor` or add a v2 row editor mode for dynamic rows.
 - [ ] Add optional columns for lap time, distance, kicks, arm pulls, and notes based on `trackingConfig`.
-- [ ] Calculate speed from row distance/time when no recorder speed is supplied.
+- [x] Calculate speed from row distance/time when no recorder speed is supplied.
 - [ ] Keep recorder-seeded rows read-only by default, with an explicit edit/review affordance.
+
+Partial status: distance/time already existed, kicks and arm pulls now use wheel inputs and persist into `laps`; per-row notes and a clearer recorder review mode remain open.
 
 Acceptance check: A DNF-capable routine with `trackArmPullsPerLap` can collect arm pulls in Quick Log and display `averageArmPullsPerLap` on cards.
 
@@ -202,16 +206,18 @@ Acceptance check: A DNF-capable routine with `trackArmPullsPerLap` can collect a
   - Context
   - Advanced
   - Media
-- [ ] Show a compact layer/row overview before the detailed row editor.
-- [ ] Make advanced physiology/context fields collapsed by default unless the routine is specifically an advanced/O2/dry physiology routine.
+- [x] Show a compact layer/row overview before the detailed row editor.
+- [x] Make advanced physiology/context fields collapsed by default unless the routine is specifically an advanced/O2/dry physiology routine.
 - [ ] Remove emoji-led labels from form controls and replace them with restrained badges or shared icons.
 - [ ] Keep cards and panels shallow; avoid nested-card visual noise.
+
+Partial status: the routine plan overview and advanced disclosure have landed, and the loudest Quick Log labels/alerts have been quieted. A full section restructure and complete icon/text cleanup are still open.
 
 Acceptance check: A user can log a simple max attempt with date, result, notes, and save visible without scrolling through advanced fields.
 
 ### Phase 5: Attempt/category consistency
 
-- [ ] Add an attempt category preview showing PB/analytics bucket label.
+- [x] Add an attempt category preview showing PB/analytics bucket label.
 - [ ] Make lung volume, breathing gas, and custom category interactions explicit.
 - [ ] Ensure `attemptConditions`, direct `gasMix`, and `defaultLungVolume` cannot drift in contradictory ways.
 - [ ] Add tests for standard, FRC, RV, O2-assisted, and custom attempts.
