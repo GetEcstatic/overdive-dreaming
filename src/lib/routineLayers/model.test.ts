@@ -9,7 +9,7 @@ import {
 	isStaticDiscipline,
 	validateRoutineLayers
 } from './model';
-import { defaultRoutineExamples, dynamicMaxExample, staticMaxExample, staticTwoBreathTableExample } from './defaults';
+import { defaultRoutineExamples, dynamicMaxExample, o2StaticMaxExample, staticMaxExample, staticTwoBreathTableExample } from './defaults';
 import { findDefaultRoutineLayerExample } from './defaults';
 import type { RoutineAuthoringLayer } from './model';
 
@@ -167,6 +167,7 @@ describe('deriveMetricProfile / tags / display', () => {
 		expect(defaultRoutineExamples.map((example) => example.id)).toEqual([
 			'dynamic-max',
 			'static-max',
+			'o2-static-max',
 			'dynamic-sweet-16',
 			'static-two-breath-table',
 			'dry-rv-table'
@@ -181,19 +182,25 @@ describe('deriveMetricProfile / tags / display', () => {
 
 		expect(expandRoutineLayers(defaultRoutineExamples[0].layers)).toHaveLength(1);
 		expect(expandRoutineLayers(defaultRoutineExamples[1].layers)).toHaveLength(1);
-		expect(expandRoutineLayers(defaultRoutineExamples[2].layers)).toHaveLength(16);
-		expect(expandRoutineLayers(defaultRoutineExamples[3].layers)).toHaveLength(10);
-		expect(expandRoutineLayers(defaultRoutineExamples[4].layers)).toHaveLength(8);
+		expect(expandRoutineLayers(defaultRoutineExamples[2].layers)).toHaveLength(1);
+		expect(expandRoutineLayers(defaultRoutineExamples[3].layers)).toHaveLength(16);
+		expect(expandRoutineLayers(defaultRoutineExamples[4].layers)).toHaveLength(10);
+		expect(expandRoutineLayers(defaultRoutineExamples[5].layers)).toHaveLength(8);
 
-		expect(deriveRoutineClassifications(defaultRoutineExamples[2].layers)).toMatchObject({
+		expect(deriveRoutineClassifications(defaultRoutineExamples[3].layers)).toMatchObject({
 			intervalLike: true,
 			tableLike: true,
 			disciplineGroups: ['dynamic']
 		});
-		expect(deriveRoutineClassifications(defaultRoutineExamples[4].layers)).toMatchObject({
+		expect(deriveRoutineClassifications(defaultRoutineExamples[5].layers)).toMatchObject({
 			intervalLike: true,
 			tableLike: true,
 			dryCapable: true,
+			disciplineGroups: ['static']
+		});
+		expect(deriveRoutineClassifications(o2StaticMaxExample.layers)).toMatchObject({
+			maxLike: true,
+			containsO2Static: true,
 			disciplineGroups: ['static']
 		});
 	});
@@ -201,6 +208,7 @@ describe('deriveMetricProfile / tags / display', () => {
 	it('matches current system default routines to v2 layer fixtures', () => {
 		expect(findDefaultRoutineLayerExample({ id: 'system-dynamic-max', name: 'Dynamic Max Attempt' })?.id).toBe('dynamic-max');
 		expect(findDefaultRoutineLayerExample({ id: 'system-static-max', name: 'Static Max Attempt' })?.id).toBe('static-max');
+		expect(findDefaultRoutineLayerExample({ id: 'system-o2-assisted-static', name: 'O2-Assisted Static' })?.id).toBe('o2-static-max');
 		expect(findDefaultRoutineLayerExample({ id: 'system-sweet-16', name: 'Sweet 16' })?.id).toBe('dynamic-sweet-16');
 		expect(findDefaultRoutineLayerExample({ id: 'system-gentle-2-breath', name: 'Gentle 2-Breath' })?.id).toBe('static-two-breath-table');
 		expect(findDefaultRoutineLayerExample({ id: 'system-rv-breath-hold', name: 'RV Breath Hold' })?.id).toBe('dry-rv-table');

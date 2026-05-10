@@ -87,6 +87,30 @@ describe('projectLegacyRoutineToLayers', () => {
 		expect(layers[1].dive).toEqual({ duration: { mode: 'fixed', seconds: 75 } });
 	});
 
+	it('infers O2 static layers from high-confidence legacy O2 signals', () => {
+		const layers = projectLegacyRoutineToLayers(
+			legacyRoutine({
+				id: 'system-o2-assisted-static',
+				name: 'O2-Assisted Static',
+				disciplines: ['STA'],
+				tags: ['static', 'o2'],
+				trackingConfig: {
+					trackTotalTime: true,
+					trackGasMix: true,
+					trackETCO2: true,
+					trackEndSpO2: true
+				} as RoutineTemplate['trackingConfig']
+			})
+		);
+
+		expect(validateRoutineLayers(layers)).toEqual([]);
+		expect(layers[0]).toMatchObject({
+			discipline: 'O2STA',
+			dive: { duration: { mode: 'open' } },
+			attributes: { effort: 'standard', repeatCount: 1 }
+		});
+	});
+
 	it('marks a legacy hybrid max rep as the max-attempt layer', () => {
 		const layers = projectLegacyRoutineToLayers(
 			legacyRoutine({

@@ -7,7 +7,7 @@ import type {
 	RoutineAuthoringLayer,
 	TrainingEnvironment
 } from './model';
-import { groupDiscipline, isDynamicDiscipline } from './model';
+import { groupDiscipline, isDynamicDiscipline, isStaticDiscipline } from './model';
 
 export type LayerModifierSegmentKey = 'discipline' | 'breatheUp' | 'dive' | 'setup' | 'reps';
 
@@ -166,7 +166,7 @@ function appliesToLayer(definition: LayerModifierDefinition, layer: RoutineAutho
 	if (dependencies.environments && !dependencies.environments.includes(layer.attributes.environment)) return false;
 	if (dependencies.requiresRepeat && layer.attributes.repeatCount <= 1) return false;
 	if (dependencies.requiresDynamicDive && !isDynamicDiscipline(layer.discipline)) return false;
-	if (dependencies.requiresStaticDive && layer.discipline !== 'STA') return false;
+	if (dependencies.requiresStaticDive && !isStaticDiscipline(layer.discipline)) return false;
 	if (dependencies.requiresDiveCapability && !layer.diveCapabilities?.includes(dependencies.requiresDiveCapability)) return false;
 	if (dependencies.targetModes && !layerHasTargetMode(layer, dependencies.targetModes)) return false;
 

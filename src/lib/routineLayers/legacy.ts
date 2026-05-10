@@ -6,6 +6,7 @@ import type {
 	RoutineAuthoringLayer,
 	TrainingEnvironment
 } from './model';
+import { isStaticDiscipline } from './model';
 
 const dynamicDisciplines: LayerDiscipline[] = ['DYN', 'DYNB', 'DNF', 'TORT'];
 
@@ -18,7 +19,7 @@ export function projectLegacyRoutineToLayers(routine: RoutineTemplate): RoutineA
 }
 
 function projectUniformOrSingleRoutine(routine: RoutineTemplate): RoutineAuthoringLayer {
-	const discipline = firstSupportedDiscipline(routine.disciplines);
+	const discipline = inferLayerDiscipline(routine);
 	const repeatCount = routine.numberOfReps && routine.numberOfReps > 0 ? routine.numberOfReps : 1;
 
 	return {
@@ -39,7 +40,7 @@ function projectUniformOrSingleRoutine(routine: RoutineTemplate): RoutineAuthori
 }
 
 function projectTableRow(routine: RoutineTemplate, row: TableRow): RoutineAuthoringLayer {
-	const discipline = firstSupportedDiscipline(routine.disciplines);
+	const discipline = inferLayerDiscipline(routine);
 
 	return {
 		id: `${routine.id || 'legacy-routine'}:row-${row.repNumber}`,
@@ -59,7 +60,7 @@ function projectTableRow(routine: RoutineTemplate, row: TableRow): RoutineAuthor
 }
 
 function uniformDiveTarget(routine: RoutineTemplate, discipline: LayerDiscipline): LayerDiveTarget {
-	if (discipline === 'STA') {
+	if (isStaticDiscipline(discipline)) {
 		return { duration: { mode: 'open' } };
 	}
 
@@ -70,7 +71,7 @@ function uniformDiveTarget(routine: RoutineTemplate, discipline: LayerDiscipline
 }
 
 function tableRowDiveTarget(row: TableRow, discipline: LayerDiscipline): LayerDiveTarget {
-	if (discipline === 'STA') {
+	if (isStaticDiscipline(discipline)) {
 		return {
 			duration: row.targetDuration ? { mode: 'fixed', seconds: row.targetDuration } : { mode: 'open' }
 		};
@@ -101,6 +102,11 @@ function firstSupportedDiscipline(disciplines: Discipline[]): LayerDiscipline {
 	return disciplines.find(isSupportedDiscipline) ?? 'DYN';
 }
 
+function inferLayerDiscipline(routine: RoutineTemplate): LayerDiscipline {
+	const discipline = firstSupportedDiscipline(routine.disciplines);
+	return discipline === 'STA' && hasO2StaticSignal(routine) ? 'O2STA' : discipline;
+}
+
 function isSupportedDiscipline(discipline: Discipline | LayerDiscipline): discipline is LayerDiscipline {
 	return discipline === 'STA' || dynamicDisciplines.includes(discipline as LayerDiscipline);
 }
@@ -124,6 +130,26 @@ function inferAnalyticsRole(routine: RoutineTemplate, repNumber?: number): Routi
 function hasAnyTag(routine: RoutineTemplate, tags: string[]): boolean {
 	const allTags = [...routine.tags, ...(routine.routineTags ?? []), ...(routine.defaultTags ?? [])];
 	return tags.some((tag) => allTags.includes(tag));
+}
+
+function hasO2StaticSignal(routine: RoutineTemplate): boolean {
+	const searchable = [routine.id, routine.name, routine.description, ...routine.tags, ...(routine.routineTags ?? []), ...(routine.defaultTags ?? [])]
+		.filter(Boolean)
+		.join(' ')
+		.toLowerCase();
+	const config = routine.trackingConfig;
+
+	return (
+		/\bo2\b/.test(searchable) ||
+		searchable.includes('o2-assisted') ||
+		searchable.includes('oxygen') ||
+		searchable.includes('nitrox') ||
+		searchable.includes('zero-nitrogen') ||
+		config.trackGasMix === true ||
+		config.trackETCO2 === true ||
+		config.trackEndSpO2 === true ||
+		config.trackBreatheUpType === true
+	);
 }
 
 function projectEnvironment(environment: RoutineTemplate['trainingEnvironment']): TrainingEnvironment {

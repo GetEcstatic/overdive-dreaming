@@ -84,6 +84,38 @@ export const staticMaxExample: RoutineLayerExample = {
 	safetyContext: ['buddyName', 'safetyOutcome']
 };
 
+export const o2StaticMaxExample: RoutineLayerExample = {
+	id: 'o2-static-max',
+	name: 'O2 Assisted Static Max',
+	purpose: 'Measure O2-assisted static apnea hold duration with gas and physiology context.',
+	layers: [
+		{
+			id: 'o2-static-max-layer-1',
+			name: 'O2 assisted static max attempt',
+			discipline: 'O2STA',
+			disciplineSelectionMode: 'fixed',
+			breatheUp: openDuration,
+			dive: {
+				duration: openDuration
+			},
+			attributes: {
+				lungVolume: 'FL',
+				effort: 'max',
+				environment: 'wet',
+				repeatCount: 1
+			},
+			analyticsRole: 'max-attempt',
+			locks: {}
+		}
+	],
+	standardMetrics: ['durationSeconds', 'breatheUpSeconds', 'rpe', 'joyScale', 'basalMood', 'buddyName', 'safetyOutcome', 'notes'],
+	geekMetrics: ['gasMix', 'endSpO2', 'recoveryQuality', 'lucidity', 'urgeToBreathe', 'contractions', 'heartRateSeries', 'spO2Series', 'minHeartRate', 'minSpO2', 'breathingTechnique', 'hoursSinceLastMeal', 'hrv', 'restingHeartRate', 'equipment', 'facialGear', 'bodyWeightKg', 'fvcLiters', 'fvcWithPackingLiters', 'packingVolumePercent', 'contractionsOnsetSeconds'],
+	display: { hero: 'durationSeconds', secondary: 'gasMix', tertiary: 'endSpO2' },
+	defaultTags: ['static', 'o2', 'max'],
+	selectableTags: ['pb-attempt', 'experimental', 'wet', 'dry'],
+	safetyContext: ['buddyName', 'safetyOutcome', 'gasMix']
+};
+
 export const dynamicSweet16Example: RoutineLayerExample = {
 	id: 'dynamic-sweet-16',
 	name: 'Dynamic Sweet 16',
@@ -202,6 +234,7 @@ export const dryRvTableExample: RoutineLayerExample = {
 export const defaultRoutineExamples = [
 	dynamicMaxExample,
 	staticMaxExample,
+	o2StaticMaxExample,
 	dynamicSweet16Example,
 	staticTwoBreathTableExample,
 	dryRvTableExample
@@ -212,6 +245,8 @@ export const starterMaxRoutineExamples = [dynamicMaxExample, staticMaxExample] a
 const defaultRoutineExampleMatches: Record<string, RoutineLayerExample> = {
 	'system-dynamic-max': dynamicMaxExample,
 	'system-static-max': staticMaxExample,
+	'system-o2-static-max': o2StaticMaxExample,
+	'system-o2-assisted-static': o2StaticMaxExample,
 	'system-sweet-16': dynamicSweet16Example,
 	'system-gentle-2-breath': staticTwoBreathTableExample,
 	'system-rv-breath-hold': dryRvTableExample
@@ -222,6 +257,10 @@ const defaultRoutineNameMatches: Record<string, RoutineLayerExample> = {
 	'dynamic max attempt': dynamicMaxExample,
 	'static max': staticMaxExample,
 	'static max attempt': staticMaxExample,
+	'o2 assisted static max': o2StaticMaxExample,
+	'o2-assisted static max': o2StaticMaxExample,
+	'o2 assisted static': o2StaticMaxExample,
+	'o2-assisted static': o2StaticMaxExample,
 	'dynamic sweet 16': dynamicSweet16Example,
 	'sweet 16': dynamicSweet16Example,
 	'static 2-breath table': staticTwoBreathTableExample,
