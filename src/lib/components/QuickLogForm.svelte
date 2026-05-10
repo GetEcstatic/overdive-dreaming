@@ -21,7 +21,7 @@
 	import DurationInput from '$lib/components/DurationInput.svelte';
 	import NumberWheelInput from '$lib/components/NumberWheelInput.svelte';
 	import { isValidYouTubeUrl } from '$lib/storage';
-	import { biometricsToLapData, calculateSessionBiometricSummary } from '$lib/utils/biometricCsvParser';
+	import { calculateSessionBiometricSummary } from '$lib/utils/biometricCsvParser';
 	import { applyDefaultLungVolume } from '$lib/utils/lungVolume';
 	import { getTagByValue } from '$lib/config/tagConfig';
 	import { resolveMetricInput } from '$lib/utils/resolveMetricInput';
@@ -479,6 +479,30 @@
 		}
 	}
 
+	function repEditorDataToLapData(reps: RepEditorData[]): LapData[] {
+		return reps.map((rep) => ({
+			lapNumber: rep.repNumber,
+			timeSeconds: rep.actualDuration,
+			distanceMeters: rep.actualDistance,
+			restAfterSeconds: rep.actualRest,
+			kicks: rep.kicks,
+			armPulls: rep.armPulls,
+			speedMs: rep.actualDistance && rep.actualDuration ? rep.actualDistance / rep.actualDuration : undefined,
+			completed: rep.completed,
+			notes: rep.notes?.trim() || undefined,
+			lungVolume: rep.lungVolume,
+			spo2Min: rep.spo2Min,
+			spo2Avg: rep.spo2Avg,
+			hrMin: rep.hrMin,
+			hrMax: rep.hrMax,
+			hrAvg: rep.hrAvg,
+			timeBelow70: rep.timeBelow70,
+			timeBelow60: rep.timeBelow60,
+			timeBelow50: rep.timeBelow50,
+			timeBelow40: rep.timeBelow40
+		}));
+	}
+
 	function toggleRecordTag(tag: RecordTag) {
 		recordTag = recordTag === tag ? undefined : tag;
 	}
@@ -582,24 +606,7 @@
 			endSpO2,
 			breatheUpType: breatheUpType?.trim() || undefined,
 			// Per-rep data (biometric tracking)
-			laps: repEditorData.length > 0 ? biometricsToLapData(repEditorData.map(r => ({
-				repNumber: r.repNumber,
-				apneaDuration: r.actualDuration || 0,
-				recoveryDuration: r.actualRest || 0,
-				spo2Min: r.spo2Min || 0,
-				spo2Avg: r.spo2Avg || 0,
-				hrMin: r.hrMin || 0,
-				hrMax: r.hrMax || 0,
-				hrAvg: r.hrAvg || 0,
-				timeBelow70: r.timeBelow70 || 0,
-				timeBelow60: r.timeBelow60 || 0,
-				timeBelow50: r.timeBelow50 || 0,
-				timeBelow40: r.timeBelow40 || 0,
-				readings: []
-			}))).map((lap, i) => ({
-				...lap,
-				lungVolume: repEditorData[i]?.lungVolume
-			})) : seededLaps,
+			laps: repEditorData.length > 0 ? repEditorDataToLapData(repEditorData) : seededLaps,
 			// Session-level default lung volume (FL/RV/FRC)
 			defaultLungVolume,
 			// Biometric session summary
@@ -1268,6 +1275,8 @@
 				bind:reps={repEditorData}
 				trackSpO2={false}
 				trackHR={false}
+				trackKicksPerLap={config.trackKicksPerLap}
+				trackArmPullsPerLap={config.trackArmPullsPerLap}
 				isDryTraining={false}
 				allowEditPlanned={hasVariableTable}
 				bind:defaultLungVolume
@@ -1338,6 +1347,8 @@
 				bind:reps={repEditorData}
 				trackSpO2={config.trackPerRepSpO2 ?? true}
 				trackHR={config.trackPerRepHR ?? true}
+				trackKicksPerLap={config.trackKicksPerLap}
+				trackArmPullsPerLap={config.trackArmPullsPerLap}
 				isDryTraining={config.isDryTraining ?? true}
 				allowEditPlanned={hasVariableTable}
 				bind:defaultLungVolume

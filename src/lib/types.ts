@@ -539,6 +539,8 @@ export interface RepEditorData {
 	actualRest?: number; // User-entered
 	completed: boolean;
 	notes?: string;
+	kicks?: number;
+	armPulls?: number;
 	// Starting lung volume for this rep (FL/RV/FRC)
 	lungVolume?: LungVolume;
 

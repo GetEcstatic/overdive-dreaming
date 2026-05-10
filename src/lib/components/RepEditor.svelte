@@ -32,6 +32,8 @@
 		// Biometric tracking options
 		trackSpO2 = false,
 		trackHR = false,
+		trackKicksPerLap = false,
+		trackArmPullsPerLap = false,
 		isDryTraining = false,
 		// Allow editing planned values (for variable tables)
 		allowEditPlanned = false,
@@ -47,6 +49,8 @@
 		reps: RepEditorData[];
 		trackSpO2?: boolean;
 		trackHR?: boolean;
+		trackKicksPerLap?: boolean;
+		trackArmPullsPerLap?: boolean;
 		isDryTraining?: boolean;
 		allowEditPlanned?: boolean;
 		defaultLungVolume?: LungVolume;
@@ -250,7 +254,7 @@
 		</div>
 	{/if}
 
-	<div class="reps-table" class:has-biometrics={trackSpO2 || trackHR} class:has-volume={isMultiRep}>
+	<div class="reps-table" class:has-biometrics={trackSpO2 || trackHR} class:has-volume={isMultiRep} class:has-technique={trackKicksPerLap || trackArmPullsPerLap}>
 		<div class="table-header">
 			<div class="col-rep">#</div>
 			{#if isStatic}
@@ -262,6 +266,12 @@
 			<div class="col-rest">Rest</div>
 			{#if isMultiRep}
 				<div class="col-volume">Vol</div>
+			{/if}
+			{#if trackKicksPerLap}
+				<div class="col-technique">Kicks</div>
+			{/if}
+			{#if trackArmPullsPerLap}
+				<div class="col-technique">Pulls</div>
 			{/if}
 			{#if trackSpO2}
 				<div class="col-spo2">SpO2</div>
@@ -402,6 +412,40 @@
 							/>
 						{:else}
 							<span class="skipped-value">{rep.lungVolume ?? '—'}</span>
+						{/if}
+					</div>
+				{/if}
+
+				{#if trackKicksPerLap}
+					<div class="col-technique">
+						{#if rep.completed}
+							<NumberWheelInput
+								bind:value={rep.kicks}
+								min={0}
+								max={100}
+								step={1}
+								compact={true}
+								showLabel={false}
+							/>
+						{:else}
+							<span class="skipped-value">—</span>
+						{/if}
+					</div>
+				{/if}
+
+				{#if trackArmPullsPerLap}
+					<div class="col-technique">
+						{#if rep.completed}
+							<NumberWheelInput
+								bind:value={rep.armPulls}
+								min={0}
+								max={100}
+								step={1}
+								compact={true}
+								showLabel={false}
+							/>
+						{:else}
+							<span class="skipped-value">—</span>
 						{/if}
 					</div>
 				{/if}
@@ -630,7 +674,8 @@
 
 	/* Biometric columns */
 	.col-spo2,
-	.col-hr {
+	.col-hr,
+	.col-technique {
 		flex: 0.8;
 		display: flex;
 		align-items: center;
@@ -726,14 +771,17 @@
 
 		/* Biometric columns slightly smaller on mobile */
 		.col-spo2,
-		.col-hr {
+		.col-hr,
+		.col-technique {
 			flex: 0.7;
 		}
 	}
 
 	/* When biometrics enabled, adjust table layout */
 	.reps-table.has-biometrics .table-header,
-	.reps-table.has-biometrics .table-row {
+	.reps-table.has-biometrics .table-row,
+	.reps-table.has-technique .table-header,
+	.reps-table.has-technique .table-row {
 		gap: 0.375rem;
 	}
 
@@ -768,7 +816,8 @@
 	.col-distance :global(.number-wheel),
 	.col-rest :global(.duration-input),
 	.col-spo2 :global(.number-wheel),
-	.col-hr :global(.number-wheel) {
+	.col-hr :global(.number-wheel),
+	.col-technique :global(.number-wheel) {
 		margin: 0;
 		padding: 0;
 	}
@@ -777,7 +826,8 @@
 	.col-distance :global(.wheel-container),
 	.col-rest :global(.wheel-container),
 	.col-spo2 :global(.wheel-container),
-	.col-hr :global(.wheel-container) {
+	.col-hr :global(.wheel-container),
+	.col-technique :global(.wheel-container) {
 		height: 84px;
 	}
 </style>
