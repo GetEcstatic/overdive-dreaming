@@ -1,4 +1,6 @@
-export type LayerDiscipline = 'STA' | 'DYN' | 'DYNB' | 'DNF' | 'TORT';
+import type { Discipline } from '$lib/types';
+
+export type LayerDiscipline = 'STA' | 'O2STA' | 'DYN' | 'DYNB' | 'DNF' | 'TORT';
 export type DisciplineGroup = 'static' | 'dynamic' | 'dynamicTraining';
 export type DisciplineSelectionMode = 'fixed' | 'log-time-selectable';
 export type LayerValueMode = 'fixed' | 'open';
@@ -123,6 +125,7 @@ export type RoutineClassifications = {
 	mixedDiscipline: boolean;
 	dryCapable: boolean;
 	containsTort: boolean;
+	containsO2Static: boolean;
 	disciplineGroups: DisciplineGroup[];
 };
 
@@ -145,13 +148,21 @@ export type RoutineLayerValidationIssue = {
 	message: string;
 };
 
+const staticDisciplines: LayerDiscipline[] = ['STA'];
+const staticTrainingDisciplines: LayerDiscipline[] = ['O2STA'];
 const dynamicDisciplines: LayerDiscipline[] = ['DYN', 'DYNB', 'DNF'];
 const dynamicTrainingDisciplines: LayerDiscipline[] = ['TORT'];
 
 export function groupDiscipline(discipline: LayerDiscipline): DisciplineGroup {
-	if (discipline === 'STA') return 'static';
+	if (isStaticDiscipline(discipline)) return 'static';
 	if (dynamicTrainingDisciplines.includes(discipline)) return 'dynamicTraining';
 	return 'dynamic';
+}
+
+export function storedDisciplineForLayer(discipline: LayerDiscipline): Discipline {
+	if (discipline === 'O2STA') return 'STA';
+	if (discipline === 'TORT') return 'DYN';
+	return discipline;
 }
 
 export function expandRoutineLayers(layers: RoutineAuthoringLayer[]): ExpandedRoutinePlanRow[] {
@@ -205,17 +216,20 @@ export function deriveRoutineClassifications(layers: RoutineAuthoringLayer[]): R
 		mixedDiscipline: groups.length > 1 || plannedDisciplines.size > 1,
 		dryCapable: layers.some((layer) => layer.attributes.environment === 'dry' || layer.attributes.environment === 'both'),
 		containsTort: allPossibleDisciplines.has('TORT'),
+		containsO2Static: allPossibleDisciplines.has('O2STA'),
 		disciplineGroups: groups
 	};
 }
 
 export function deriveMetricProfile(layers: RoutineAuthoringLayer[]): RoutineMetricProfile {
-	const groups = unique(layers.map((layer) => groupDiscipline(layer.discipline)));
+	const allDisciplines = allLayerDisciplines(layers);
+	const groups = unique(allDisciplines.map(groupDiscipline));
 	const hasDynamic = groups.includes('dynamic') || groups.includes('dynamicTraining');
 	const hasStatic = groups.includes('static');
 	const hasDry = layers.some((layer) => layer.attributes.environment === 'dry');
 	const hasRepeat = layers.some((layer) => layer.attributes.repeatCount > 1);
-	const hasDnf = layers.some((layer) => layer.discipline === 'DNF' || layer.allowedDisciplines?.includes('DNF'));
+	const hasDnf = allDisciplines.includes('DNF');
+	const hasO2Static = allDisciplines.includes('O2STA');
 
 	const standard: CanonicalMetricKey[] = ['durationSeconds', 'breatheUpSeconds', 'rpe', 'joyScale', 'basalMood', 'buddyName', 'safetyOutcome', 'notes'];
 	const geek: CanonicalMetricKey[] = ['heartRateSeries', 'spO2Series', 'breathingTechnique', 'hoursSinceLastMeal', 'hrv', 'restingHeartRate', 'bodyWeightKg', 'equipment', 'facialGear', 'fvcLiters', 'fvcWithPackingLiters', 'packingVolumePercent'];
@@ -231,6 +245,10 @@ export function deriveMetricProfile(layers: RoutineAuthoringLayer[]): RoutineMet
 
 	if (hasStatic) {
 		geek.push('minSpO2', 'minHeartRate', 'contractionsOnsetSeconds');
+	}
+
+	if (hasO2Static) {
+		geek.push('gasMix', 'endSpO2', 'recoveryQuality', 'urgeToBreathe', 'lucidity', 'contractions');
 	}
 
 	if (hasDry) {
@@ -261,6 +279,7 @@ export function deriveDefaultTags(layers: RoutineAuthoringLayer[]): string[] {
 	if (classifications.disciplineGroups.includes('static')) tags.push('static');
 	if (classifications.disciplineGroups.includes('dynamic')) tags.push('dynamic');
 	if (classifications.containsTort) tags.push('tort');
+	if (classifications.containsO2Static) tags.push('o2');
 	if (classifications.dryCapable) tags.push('dry');
 	if (classifications.intervalLike || classifications.tableLike) tags.push('table');
 	if (layers.some((layer) => layer.attributes.effort === 'max')) tags.push('max');
@@ -323,7 +342,7 @@ function validateLayer(layer: RoutineAuthoringLayer): RoutineLayerValidationIssu
 		});
 	}
 
-	if (layer.discipline === 'STA' && layer.dive.distance) {
+	if (isStaticDiscipline(layer.discipline) && layer.dive.distance) {
 		issues.push({
 			layerId: layer.id,
 			code: 'static-distance-target',
@@ -374,4 +393,12 @@ function unique<T>(items: T[]): T[] {
 
 export function isDynamicDiscipline(discipline: LayerDiscipline): boolean {
 	return dynamicDisciplines.includes(discipline) || dynamicTrainingDisciplines.includes(discipline);
+}
+
+export function isStaticDiscipline(discipline: LayerDiscipline): boolean {
+	return staticDisciplines.includes(discipline) || staticTrainingDisciplines.includes(discipline);
+}
+
+function allLayerDisciplines(layers: RoutineAuthoringLayer[]): LayerDiscipline[] {
+	return layers.flatMap((layer) => [layer.discipline, ...(layer.allowedDisciplines ?? [])]);
 }

@@ -68,6 +68,23 @@ describe('routine log plan rows', () => {
 		expect(rows[0].diveCapabilities).toEqual(['recording-link']);
 	});
 
+	it('maps O2 static plan rows to stored static discipline for current log compatibility', () => {
+		const routine = withLayerRoutineTemplateContract(routineTemplate(), [
+			{
+				...staticTwoBreathTableExample.layers[0],
+				id: 'o2-static-layer-1',
+				discipline: 'O2STA',
+				disciplineSelectionMode: 'fixed',
+				allowedDisciplines: undefined
+			}
+		]);
+		const rows = buildRoutineLogPlanRows(routine);
+
+		expect(rows[0].sourceLayerId).toBe('o2-static-layer-1');
+		expect(rows[0].discipline).toBe('STA');
+		expect(rows[0].plannedDurationSeconds).toBe(90);
+	});
+
 	it('builds initial result rows from quick-log actuals while preserving source layer IDs', () => {
 		const routine = withLayerRoutineTemplateContract(routineTemplate(), staticTwoBreathTableExample.layers);
 		const plannedRows = buildRoutineLogPlanRows(routine);

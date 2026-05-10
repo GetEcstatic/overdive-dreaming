@@ -8,6 +8,8 @@ import {
 	deriveRoutineClassifications,
 	expandRoutineLayers,
 	isDynamicDiscipline,
+	isStaticDiscipline,
+	storedDisciplineForLayer,
 	validateRoutineLayers
 } from './model';
 import type {
@@ -204,8 +206,10 @@ export function projectLayersToLegacyRoutineTemplateFields(
 }
 
 export function deriveTrackingConfigFromLayers(layers: RoutineAuthoringLayer[]): TrackingConfig {
-	const hasDynamic = layers.some((layer) => isDynamicDiscipline(layer.discipline));
-	const hasStatic = layers.some((layer) => layer.discipline === 'STA');
+	const allDisciplines = layers.flatMap((layer) => [layer.discipline, ...(layer.allowedDisciplines ?? [])]);
+	const hasDynamic = allDisciplines.some(isDynamicDiscipline);
+	const hasStatic = allDisciplines.some(isStaticDiscipline);
+	const hasO2Static = allDisciplines.includes('O2STA');
 	const hasRepeated = layers.some((layer) => layer.attributes.repeatCount > 1) || layers.length > 1;
 	const hasBreatheUp = layers.some((layer) => layer.breatheUp.mode === 'fixed' || layer.breatheUp.mode === 'open');
 	const hasDistance = layers.some((layer) => layer.dive.distance !== undefined);
@@ -213,7 +217,7 @@ export function deriveTrackingConfigFromLayers(layers: RoutineAuthoringLayer[]):
 	const hasDryLayer = layers.some((layer) => layer.attributes.environment === 'dry');
 	const isDryTraining = layers.every((layer) => layer.attributes.environment === 'dry');
 	const hasWetCapableLayer = layers.some((layer) => layer.attributes.environment === 'wet' || layer.attributes.environment === 'both');
-	const hasDnf = layers.some((layer) => layer.discipline === 'DNF' || layer.allowedDisciplines?.includes('DNF'));
+	const hasDnf = allDisciplines.includes('DNF');
 	const hasNonFullLungLayer = layers.some((layer) => layer.attributes.lungVolume !== 'FL');
 	const hasMaxAttemptLayer = layers.some((layer) => layer.attributes.effort === 'max' || layer.analyticsRole === 'max-attempt');
 	const isSingleMaxAttempt = expandRoutineLayers(layers).length === 1 && hasMaxAttemptLayer && (hasDynamic || hasStatic);
@@ -267,7 +271,19 @@ export function deriveTrackingConfigFromLayers(layers: RoutineAuthoringLayer[]):
 		trackLungVolume: hasDynamic || hasStatic || hasNonFullLungLayer,
 		trackCompetitionStatus: isSingleMaxAttempt,
 		trackCardColor: isSingleMaxAttempt,
-		trackRecordTag: isSingleMaxAttempt
+		trackRecordTag: isSingleMaxAttempt,
+		trackLucidity: hasO2Static,
+		trackUrgeToBreathe: hasO2Static,
+		trackContractions: hasO2Static,
+		trackETCO2: hasO2Static,
+		trackExpiredAirPostHold: hasO2Static,
+		trackLungVolumeLossPerMin: hasO2Static,
+		trackGasMix: hasO2Static,
+		trackCO2TremorOnset: hasO2Static,
+		trackMentalChangeTime: hasO2Static,
+		trackRecoveryQuality: hasO2Static,
+		trackEndSpO2: hasO2Static,
+		trackBreatheUpType: hasO2Static
 	};
 }
 
@@ -280,7 +296,7 @@ function metricTypeForCanonical(canonical: Parameters<typeof metricTypeForCanoni
 function projectDisciplines(layers: RoutineAuthoringLayer[]): Discipline[] {
 	const projected = layers
 		.flatMap((layer) => [layer.discipline, ...(layer.allowedDisciplines ?? [])])
-		.filter((discipline): discipline is Discipline => discipline !== 'TORT');
+		.map(storedDisciplineForLayer);
 	const fallbackDisciplines: Discipline[] = ['DYN'];
 
 	return [...new Set(projected.length ? projected : fallbackDisciplines)];

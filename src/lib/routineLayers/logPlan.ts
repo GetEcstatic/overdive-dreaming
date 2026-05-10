@@ -1,6 +1,6 @@
 import type { LapData, RoutineTemplate, RoutineLogPlanRow, RoutineLogResultRow } from '$lib/types';
 import { buildRoutineLayerReadModel } from './readModel';
-import type { ExpandedRoutinePlanRow } from './model';
+import { storedDisciplineForLayer, type ExpandedRoutinePlanRow } from './model';
 
 export function buildRoutineLogPlanRows(routine: RoutineTemplate): RoutineLogPlanRow[] {
 	return buildRoutineLayerReadModel(routine).expandedRows.map(projectExpandedRowToLogPlanRow);
@@ -61,7 +61,7 @@ function projectExpandedRowToLogPlanRow(row: ExpandedRoutinePlanRow): RoutineLog
 		layerName: row.name,
 		repIndex: row.repIndex,
 		globalRowIndex: row.globalRowIndex,
-		discipline: row.discipline === 'TORT' ? 'DYN' : row.discipline,
+		discipline: storedDisciplineForLayer(row.discipline),
 		plannedBreatheUpSeconds: row.breatheUp.mode === 'fixed' ? row.breatheUp.seconds : undefined,
 		plannedDurationSeconds: row.dive.duration?.mode === 'fixed' ? row.dive.duration.seconds : undefined,
 		plannedDistanceMeters: row.dive.distance?.mode === 'fixed' ? row.dive.distance.meters : undefined,

@@ -6,6 +6,7 @@ import {
 	deriveRoutineClassifications,
 	expandRoutineLayers,
 	groupDiscipline,
+	isStaticDiscipline,
 	validateRoutineLayers
 } from './model';
 import { defaultRoutineExamples, dynamicMaxExample, staticMaxExample, staticTwoBreathTableExample } from './defaults';
@@ -39,12 +40,14 @@ function dynamicMaxLayer(overrides: Partial<RoutineAuthoringLayer> = {}): Routin
 }
 
 describe('groupDiscipline', () => {
-	it('separates official static, dynamic, and TORT training disciplines', () => {
+	it('separates official static, O2 static, dynamic, and TORT training disciplines', () => {
 		expect(groupDiscipline('STA')).toBe('static');
+		expect(groupDiscipline('O2STA')).toBe('static');
 		expect(groupDiscipline('DYN')).toBe('dynamic');
 		expect(groupDiscipline('DYNB')).toBe('dynamic');
 		expect(groupDiscipline('DNF')).toBe('dynamic');
 		expect(groupDiscipline('TORT')).toBe('dynamicTraining');
+		expect(isStaticDiscipline('O2STA')).toBe(true);
 	});
 });
 
@@ -84,6 +87,7 @@ describe('deriveRoutineClassifications', () => {
 			mixedDiscipline: true,
 			dryCapable: false,
 			containsTort: true,
+			containsO2Static: false,
 			disciplineGroups: ['dynamic', 'dynamicTraining']
 		});
 	});
@@ -97,8 +101,33 @@ describe('deriveRoutineClassifications', () => {
 			mixedDiscipline: false,
 			dryCapable: false,
 			containsTort: false,
+			containsO2Static: false,
 			disciplineGroups: ['static']
 		});
+	});
+
+	it('classifies O2 static as a static training capability', () => {
+		const layer = dynamicMaxLayer({
+			discipline: 'O2STA',
+			disciplineSelectionMode: 'fixed',
+			allowedDisciplines: undefined,
+			dive: { duration: openDuration },
+			attributes: {
+				lungVolume: 'FL',
+				effort: 'max',
+				environment: 'wet',
+				repeatCount: 1
+			}
+		});
+
+		expect(deriveRoutineClassifications([layer])).toMatchObject({
+			maxLike: true,
+			mixedDiscipline: false,
+			containsO2Static: true,
+			disciplineGroups: ['static']
+		});
+		expect(deriveDefaultTags([layer])).toEqual(expect.arrayContaining(['static', 'o2', 'max']));
+		expect(deriveMetricProfile([layer]).geek).toEqual(expect.arrayContaining(['gasMix', 'endSpO2', 'lucidity']));
 	});
 });
 
@@ -212,7 +241,7 @@ describe('deriveMetricProfile / tags / display', () => {
 describe('validateRoutineLayers', () => {
 	it('rejects impossible static distance targets', () => {
 		const layer = dynamicMaxLayer({
-			discipline: 'STA',
+			discipline: 'O2STA',
 			disciplineSelectionMode: 'fixed',
 			allowedDisciplines: undefined,
 			dive: { duration: openDuration, distance: openDistance }

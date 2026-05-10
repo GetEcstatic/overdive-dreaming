@@ -148,6 +148,26 @@ describe('layer routine template contract', () => {
 		expect(trackingConfig.trackHoursSinceLastMeal).toBe(true);
 	});
 
+	it('projects O2 static layers as stored STA while preserving O2 tracking intent', () => {
+		const o2StaticLayer = {
+			...staticTwoBreathTableExample.layers[0],
+			id: 'o2-static-layer-1',
+			discipline: 'O2STA' as const,
+			disciplineSelectionMode: 'fixed' as const,
+			allowedDisciplines: undefined
+		};
+		const fields = projectLayersToLegacyRoutineTemplateFields([o2StaticLayer]);
+
+		expect(fields.disciplines).toEqual(['STA']);
+		expect(fields.tags).toEqual(expect.arrayContaining(['static', 'o2']));
+		expect(fields.trackingConfig.trackTotalTime).toBe(true);
+		expect(fields.trackingConfig.trackGasMix).toBe(true);
+		expect(fields.trackingConfig.trackETCO2).toBe(true);
+		expect(fields.trackingConfig.trackEndSpO2).toBe(true);
+		expect(fields.trackingConfig.trackBreatheUpType).toBe(true);
+		expect(fields.displayConfig.heroMetric).toBe('totalTime');
+	});
+
 	it('rejects empty layer contracts before any Firestore write path uses them', () => {
 		expect(validateLayerRoutineTemplateContract({ routineTemplateVersion: ROUTINE_TEMPLATE_LAYER_VERSION, layers: [] })).toEqual([
 			expect.objectContaining({ code: 'missing-layers' })
