@@ -9,7 +9,8 @@ import {
 	staticTwoBreathTableExample
 } from './defaults';
 import { buildBlankRoutineLayer, buildLayerRoutineCreateData } from './create';
-import { buildQuickLogReadModel } from './quickLogReadModel';
+import { buildQuickLogReadModel, deriveQuickLogRowSummary } from './quickLogReadModel';
+import type { RoutineAuthoringLayer } from './model';
 
 function routineFromLayers(name: string, layers: Parameters<typeof buildLayerRoutineCreateData>[0]['layers']): RoutineTemplate {
 	const createData = buildLayerRoutineCreateData({ name, description: '', layers });
@@ -26,6 +27,31 @@ function routineFromLayers(name: string, layers: Parameters<typeof buildLayerRou
 function controlIds(routine: RoutineTemplate): string[] {
 	return buildQuickLogReadModel(routine).standardControls.map((control) => control.id);
 }
+
+const mixedStaticDynamicLayers: RoutineAuthoringLayer[] = [
+	{
+		id: 'mixed-layer-1',
+		name: 'Static entry',
+		discipline: 'STA',
+		disciplineSelectionMode: 'fixed',
+		breatheUp: { mode: 'open' },
+		dive: { duration: { mode: 'open' } },
+		attributes: { lungVolume: 'FL', effort: 'standard', environment: 'wet', repeatCount: 1 },
+		analyticsRole: 'working-rep',
+		locks: {}
+	},
+	{
+		id: 'mixed-layer-2',
+		name: 'Dynamic exit',
+		discipline: 'DYN',
+		disciplineSelectionMode: 'fixed',
+		breatheUp: { mode: 'fixed', seconds: 0 },
+		dive: { duration: { mode: 'open' }, distance: { mode: 'open' } },
+		attributes: { lungVolume: 'FL', effort: 'standard', environment: 'wet', repeatCount: 1 },
+		analyticsRole: 'working-rep',
+		locks: {}
+	}
+];
 
 describe('quick log read model', () => {
 	it('builds a compact dynamic max logging surface', () => {
@@ -101,5 +127,38 @@ describe('quick log read model', () => {
 		expect(model.plannedRows).toHaveLength(1);
 		expect(model.layerGroups[0].name).toBe('Blank layer');
 		expect(model.unsupportedMetricInputs).toEqual([]);
+	});
+
+	it('uses row-first rules for mixed static-to-dynamic routines', () => {
+		const model = buildQuickLogReadModel(routineFromLayers('Pingu style', mixedStaticDynamicLayers));
+
+		expect(model.plannedRows.map((row) => row.discipline)).toEqual(['STA', 'DYN']);
+		expect(model.hasMixedRowDisciplines).toBe(true);
+		expect(model.attemptOptions.map((option) => option.kind)).not.toContain('o2-assisted');
+		expect(model.canUseRecordingCapture).toBe(false);
+		expect(model.showRepDurationShortcut).toBe(false);
+		expect(model.showRepDistanceShortcut).toBe(false);
+	});
+
+	it('keeps recording capture scoped to a single dynamic max attempt', () => {
+		const dynamicModel = buildQuickLogReadModel(routineFromLayers('Dynamic max', dynamicMaxExample.layers));
+		const sweet16Model = buildQuickLogReadModel(routineFromLayers('Sweet 16', dynamicSweet16Example.layers));
+
+		expect(dynamicModel.canUseRecordingCapture).toBe(true);
+		expect(sweet16Model.canUseRecordingCapture).toBe(false);
+	});
+
+	it('summarizes completed rows with dynamic-only speed math', () => {
+		const plannedRows = buildQuickLogReadModel(routineFromLayers('Pingu style', mixedStaticDynamicLayers)).plannedRows;
+		const summary = deriveQuickLogRowSummary(plannedRows, [
+			{ repNumber: 1, completed: true, actualDuration: 120, actualDistance: 0 },
+			{ repNumber: 2, completed: true, actualDuration: 40, actualDistance: 50 }
+		]);
+
+		expect(summary.completedCount).toBe(2);
+		expect(summary.totalDurationSeconds).toBe(160);
+		expect(summary.dynamicDistanceMeters).toBe(50);
+		expect(summary.dynamicDurationSeconds).toBe(40);
+		expect(summary.averageDynamicSpeedMs).toBe(1.25);
 	});
 });

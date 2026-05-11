@@ -1,4 +1,6 @@
-import type { Discipline, MetricType, RoutineLogPlanRow, RoutineTemplate, TrackingConfig } from '$lib/types';
+import type { AttemptOption } from '$lib/utils/attemptCategories';
+import { attemptOptionsForDiscipline } from '$lib/utils/attemptCategories';
+import type { Discipline, MetricType, RepEditorData, RoutineLogPlanRow, RoutineTemplate, TrackingConfig } from '$lib/types';
 import { metricRegistry, type MetricRegistryEntry } from '$lib/metrics/registry';
 import { buildRoutineLogPlanRows } from './logPlan';
 
@@ -104,8 +106,13 @@ export type QuickLogReadModel = {
 	fieldGroups: QuickLogFieldGroup[];
 	standardControls: QuickLogControl[];
 	advancedControls: QuickLogControl[];
+	attemptOptions: AttemptOption[];
 	defaultAdvancedOpen: boolean;
 	isO2StaticRoutine: boolean;
+	canUseRecordingCapture: boolean;
+	showRepDurationShortcut: boolean;
+	showRepDistanceShortcut: boolean;
+	hasMixedRowDisciplines: boolean;
 	hasRowFirstPlan: boolean;
 	hasManualSplitEntry: boolean;
 	hasTechniqueEntry: boolean;
@@ -248,6 +255,9 @@ export function buildQuickLogReadModel(routine: RoutineTemplate): QuickLogReadMo
 	const standardControls = controls.filter((control) => control.priority === 'standard');
 	const advancedControls = controls.filter((control) => control.priority === 'advanced');
 	const isO2StaticRoutine = routineHasO2StaticIntent(routine);
+	const hasDynamicRows = plannedRows.some(isDynamicRow);
+	const hasStaticRows = plannedRows.some(isStaticRow);
+	const hasMixedRowDisciplines = hasDynamicRows && hasStaticRows;
 
 	return {
 		plannedRows,
@@ -255,12 +265,68 @@ export function buildQuickLogReadModel(routine: RoutineTemplate): QuickLogReadMo
 		fieldGroups: buildFieldGroups(controls),
 		standardControls,
 		advancedControls,
+		attemptOptions: buildAttemptOptions(routine, plannedRows),
 		defaultAdvancedOpen: isO2StaticRoutine || shouldOpenAdvancedByDefault(routine.trackingConfig, plannedRows),
 		isO2StaticRoutine,
+		canUseRecordingCapture: canUseRecordingCapture(plannedRows),
+		showRepDurationShortcut: shouldShowRepDurationShortcut(routine.trackingConfig, plannedRows),
+		showRepDistanceShortcut: shouldShowRepDistanceShortcut(routine.trackingConfig, plannedRows),
+		hasMixedRowDisciplines,
 		hasRowFirstPlan: plannedRows.length > 0,
 		hasManualSplitEntry: controlIds.has('lap-splits'),
 		hasTechniqueEntry: controlIds.has('kicks-per-lap') || controlIds.has('arm-pulls-per-lap'),
 		unsupportedMetricInputs: findUnsupportedMetricInputs(routine.trackingConfig, controlIds)
+	};
+}
+
+export type QuickLogRowSummary = {
+	completedCount: number;
+	totalDurationSeconds?: number;
+	dynamicDurationSeconds?: number;
+	dynamicDistanceMeters?: number;
+	averageDynamicSpeedMs?: number;
+	uniformRepDurationSeconds?: number;
+	uniformRepDistanceMeters?: number;
+};
+
+export function deriveQuickLogRowSummary(plannedRows: RoutineLogPlanRow[], reps: RepEditorData[]): QuickLogRowSummary {
+	const rowsByIndex = new Map(plannedRows.map((row) => [row.globalRowIndex, row]));
+	const completedReps = reps.filter((rep) => rep.completed);
+	let totalDurationSeconds = 0;
+	let hasAnyDuration = false;
+	let dynamicDurationSeconds = 0;
+	let dynamicDistanceMeters = 0;
+	const completedDurations: number[] = [];
+	const completedDistances: number[] = [];
+
+	for (const rep of completedReps) {
+		const row = rowsByIndex.get(rep.repNumber);
+		const duration = rep.actualDuration;
+		const distance = rep.actualDistance;
+
+		if (duration !== undefined) {
+			totalDurationSeconds += duration;
+			hasAnyDuration = true;
+			completedDurations.push(duration);
+		}
+
+		if (row && isDynamicRow(row)) {
+			if (duration !== undefined) dynamicDurationSeconds += duration;
+			if (distance !== undefined) dynamicDistanceMeters += distance;
+			if (distance !== undefined) completedDistances.push(distance);
+		}
+	}
+
+	return {
+		completedCount: completedReps.length,
+		totalDurationSeconds: hasAnyDuration ? totalDurationSeconds : undefined,
+		dynamicDurationSeconds: dynamicDurationSeconds > 0 ? dynamicDurationSeconds : undefined,
+		dynamicDistanceMeters: dynamicDistanceMeters > 0 ? dynamicDistanceMeters : undefined,
+		averageDynamicSpeedMs: dynamicDurationSeconds > 0 && dynamicDistanceMeters > 0
+			? dynamicDistanceMeters / dynamicDurationSeconds
+			: undefined,
+		uniformRepDurationSeconds: uniformNumber(completedDurations),
+		uniformRepDistanceMeters: uniformNumber(completedDistances)
 	};
 }
 
@@ -298,6 +364,8 @@ function buildLayerGroups(rows: RoutineLogPlanRow[]): QuickLogLayerGroup[] {
 
 function buildControls(routine: RoutineTemplate, plannedRows: RoutineLogPlanRow[]): QuickLogControl[] {
 	const config = routine.trackingConfig;
+	const showRepDurationShortcut = shouldShowRepDurationShortcut(config, plannedRows);
+	const showRepDistanceShortcut = shouldShowRepDistanceShortcut(config, plannedRows);
 	const controls: QuickLogControl[] = [
 		control('date-time', 'Date and time', 'session', 'standard', 'Every quick log needs a session timestamp.'),
 		control('visibility', 'Visibility', 'session', 'standard', 'Visibility is saved with the routine log.'),
@@ -317,8 +385,8 @@ function buildControls(routine: RoutineTemplate, plannedRows: RoutineLogPlanRow[
 	if (config.trackTotalTime) controls.push(control('total-time', 'Total time', 'results', 'standard', 'Primary static or dynamic duration field.'));
 	if (config.trackAvgSpeed) controls.push(control('average-speed', 'Average speed', 'results', 'standard', 'Average speed can be recorded or reviewed from video.'));
 	if (config.trackRepsCompleted) controls.push(control('reps-completed', 'Reps completed', 'results', 'standard', 'Repeated routines need completion count.'));
-	if (config.trackRepDuration) controls.push(control('rep-duration', 'Rep duration', 'results', 'standard', 'Repeated holds use row durations.'));
-	if (config.trackRepDistance) controls.push(control('rep-distance', 'Rep distance', 'results', 'standard', 'Repeated dynamic rows use row distance.'));
+	if (showRepDurationShortcut) controls.push(control('rep-duration', 'Rep duration', 'results', 'standard', 'Repeated holds use row durations.'));
+	if (showRepDistanceShortcut) controls.push(control('rep-distance', 'Rep distance', 'results', 'standard', 'Repeated dynamic rows use row distance.'));
 
 	if (plannedRows.length > 1 || config.trackRepDuration || config.trackRepDistance || config.trackRestBetweenLaps) {
 		controls.push(control('row-results', 'Row results', 'row-details', 'standard', 'The routine expands into row-level plan/results.'));
@@ -370,6 +438,47 @@ function buildControls(routine: RoutineTemplate, plannedRows: RoutineLogPlanRow[
 	if (config.trackBreatheUpType) controls.push(control('breathe-up-type', 'Breathe-up type', 'advanced', 'advanced', 'O2/static physiology detail belongs in advanced entry.'));
 
 	return uniqueControls(controls);
+}
+
+function buildAttemptOptions(routine: RoutineTemplate, plannedRows: RoutineLogPlanRow[]): AttemptOption[] {
+	const defaultDiscipline = routine.disciplines[0] ?? plannedRows[0]?.discipline ?? 'STA';
+	const hasDynamic = plannedRows.some(isDynamicRow) || routine.disciplines.some((discipline) => discipline !== 'STA');
+	const isSingleStaticMax = plannedRows.length === 1 && plannedRows[0]?.discipline === 'STA' && plannedRows[0]?.effort === 'max';
+
+	return attemptOptionsForDiscipline(defaultDiscipline).filter((option) => (
+		option.kind !== 'o2-assisted' || (isSingleStaticMax && !hasDynamic)
+	));
+}
+
+function canUseRecordingCapture(plannedRows: RoutineLogPlanRow[]): boolean {
+	return plannedRows.length === 1 && isDynamicRow(plannedRows[0]) && plannedRows[0].effort === 'max';
+}
+
+function shouldShowRepDurationShortcut(config: TrackingConfig, plannedRows: RoutineLogPlanRow[]): boolean {
+	if (!config.trackRepDuration) return false;
+	const durationRows = plannedRows.filter((row) => row.plannedDurationSeconds !== undefined);
+	return durationRows.length > 1 && uniformNumber(durationRows.map((row) => row.plannedDurationSeconds)) !== undefined;
+}
+
+function shouldShowRepDistanceShortcut(config: TrackingConfig, plannedRows: RoutineLogPlanRow[]): boolean {
+	if (!config.trackRepDistance) return false;
+	const distanceRows = plannedRows.filter((row) => isDynamicRow(row) && row.plannedDistanceMeters !== undefined);
+	return distanceRows.length > 1 && uniformNumber(distanceRows.map((row) => row.plannedDistanceMeters)) !== undefined;
+}
+
+function isStaticRow(row: RoutineLogPlanRow): boolean {
+	return row.discipline === 'STA';
+}
+
+function isDynamicRow(row: RoutineLogPlanRow): boolean {
+	return row.discipline !== 'STA';
+}
+
+function uniformNumber(values: Array<number | undefined>): number | undefined {
+	const numbers = values.filter((value): value is number => value !== undefined);
+	if (numbers.length === 0) return undefined;
+	const [first] = numbers;
+	return numbers.every((value) => value === first) ? first : undefined;
 }
 
 function buildFieldGroups(controls: QuickLogControl[]): QuickLogFieldGroup[] {

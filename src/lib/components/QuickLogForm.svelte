@@ -29,13 +29,12 @@
 	import { resolveMetricInput } from '$lib/utils/resolveMetricInput';
 	import {
 		DEFAULT_O2_GAS_MIX,
-		deriveAttemptCategory,
-		attemptOptionsForDiscipline,
 		defaultConditionsForKind
 	} from '$lib/utils/attemptCategories';
 	import { buildQuickLogAttemptConditions } from '$lib/utils/quickLogAttempt';
 	import {
 		buildQuickLogReadModel,
+		deriveQuickLogRowSummary,
 		routineHasO2StaticIntent,
 		type QuickLogControlId
 	} from '$lib/routineLayers/quickLogReadModel';
@@ -225,6 +224,8 @@
 	let isSTARoutine = $derived(routine.disciplines.includes('STA'));
 	let supportsBiometrics = $derived(routine.trackingConfig.trackPerRepSpO2 || routine.trackingConfig.trackPerRepHR || routine.trackingConfig.isDryTraining);
 	let isDrySession = $state<boolean>(routine.trackingConfig.isDryTraining ?? false);
+	let config = $derived(routine.trackingConfig);
+	let quickLogModel = $derived(buildQuickLogReadModel(routine));
 
 	// Smart defaults from routine table - use derived for reactivity
 	let defaultRepsCompleted = $derived(routine.table?.rows.length);
@@ -312,16 +313,8 @@
 
 	// Per-rep starting lung volume (FL/RV/FRC) — opt-in via trackingConfig
 	let defaultLungVolume = $state<LungVolume | undefined>(initialValues?.defaultLungVolume);
-	const attemptOptions = $derived(attemptOptionsForDiscipline(disciplineUsed));
-	const attemptCategoryPreview = $derived(
-		deriveAttemptCategory({
-			disciplineUsed,
-			attemptConditions: buildAttemptConditions(),
-			defaultLungVolume,
-			gasMix,
-			breatheUpType
-		})
-	);
+	const attemptOptions = $derived(quickLogModel.attemptOptions);
+	const rowSummary = $derived(deriveQuickLogRowSummary(quickLogModel.plannedRows, repEditorData));
 
 	// Handle biometric import from CSV
 	function handleBiometricImport(
@@ -352,31 +345,29 @@
 		}
 	}
 
-	// Auto-calculate total time/distance from interval data based on best (longest) rep
-	// For interval training, "total time" means the best rep duration, not sum of all
+	// Auto-calculate overall results from completed row data. Dynamic speed
+	// deliberately ignores static rows in mixed routines.
 	let isIntervalRoutine = $derived(routine.table && routine.table.rows.length > 0);
 	let isStaticDiscipline = $derived(disciplineUsed === 'STA');
 	
 	$effect(() => {
-		if (!isIntervalRoutine) return; // Only for interval routines
-		
-		// Calculate longest rep from either repEditorData (if edited) or routine table (default)
+		if (repEditorData.length > 0) {
+			repsCompleted = rowSummary.completedCount || repsCompleted;
+			if (rowSummary.totalDurationSeconds !== undefined) totalTimeSeconds = rowSummary.totalDurationSeconds;
+			if (rowSummary.dynamicDistanceMeters !== undefined) totalDistance = rowSummary.dynamicDistanceMeters;
+			if (rowSummary.averageDynamicSpeedMs !== undefined) avgSpeed = rowSummary.averageDynamicSpeedMs;
+			if (quickLogModel.showRepDurationShortcut && rowSummary.uniformRepDurationSeconds !== undefined) repDurationSeconds = rowSummary.uniformRepDurationSeconds;
+			if (quickLogModel.showRepDistanceShortcut && rowSummary.uniformRepDistanceMeters !== undefined) repDistance = rowSummary.uniformRepDistanceMeters;
+			return;
+		}
+
+		if (!isIntervalRoutine || !routine.table) return;
+
+		// Before row data exists, seed legacy interval summaries from table targets.
 		let longestDuration = 0;
 		let longestDistance = 0;
-		
-		if (repEditorData.length > 0) {
-			// Use edited data - only completed reps
-			for (const rep of repEditorData) {
-				if (rep.completed) {
-					if (rep.actualDuration && rep.actualDuration > longestDuration) {
-						longestDuration = rep.actualDuration;
-					}
-					if (rep.actualDistance && rep.actualDistance > longestDistance) {
-						longestDistance = rep.actualDistance;
-					}
-				}
-			}
-		} else if (routine.table) {
+
+		if (routine.table) {
 			// Use routine table targets (based on reps completed)
 			const rowsToUse = routine.table.rows.slice(0, repsCompleted || routine.table.rows.length);
 			for (const row of rowsToUse) {
@@ -388,7 +379,7 @@
 				}
 			}
 		}
-		
+
 		if (isStaticDiscipline && longestDuration > 0) {
 			// For STA intervals: total time = longest hold duration
 			totalTimeSeconds = longestDuration;
@@ -670,9 +661,6 @@
 		onSubmit(data);
 	}
 
-	// Use derived for tracking config to ensure reactivity
-	let config = $derived(routine.trackingConfig);
-	let quickLogModel = $derived(buildQuickLogReadModel(routine));
 	let showAdvancedFields = $state(false);
 	let advancedDisclosureRoutineId = $state<string | undefined>(undefined);
 	let advancedControlIds = $derived(new Set(quickLogModel.advancedControls.map((control) => control.id)));
@@ -692,6 +680,12 @@
 			attemptKind = 'o2-assisted';
 			breathingGas = 'oxygen';
 			gasMix = gasMix ?? DEFAULT_O2_GAS_MIX;
+		}
+	});
+
+	$effect(() => {
+		if (!attemptOptions.some((option) => option.kind === attemptKind)) {
+			selectAttemptKind(attemptOptions[0]?.kind ?? 'standard');
 		}
 	});
 
@@ -739,8 +733,8 @@
 		config.trackTotalDistance ||
 			config.trackTotalTime ||
 			config.trackRepsCompleted ||
-			config.trackRepDuration ||
-			config.trackRepDistance ||
+			quickLogModel.showRepDurationShortcut ||
+			quickLogModel.showRepDistanceShortcut ||
 			config.trackAvgSpeed
 	);
 	const hasCompetitionLogging = $derived(config.trackCompetitionStatus || config.trackCardColor || config.trackRecordTag);
@@ -786,7 +780,7 @@
 	// Show interval rep logging if has variable table but NOT showing biometric tracking
 	// (biometric tracking already includes the RepEditor with SpO2/HR)
 	const showIntervalRepLogging = $derived(
-		hasVariableTable && !hasBiometricTracking
+		quickLogModel.plannedRows.length > 1 && !hasBiometricTracking
 	);
 
 	function selectAttemptKind(kind: AttemptCategoryKind): void {
@@ -831,41 +825,32 @@
 		<p class="routine-subtitle">Quick Log</p>
 	</div>
 
-	{#if quickLogModel.layerGroups.length > 0}
-		<div class="form-section routine-plan-section">
-			<div class="section-header compact-header">
-				<div>
-					<h4 class="section-title">Routine Plan</h4>
-					<p class="section-description">{quickLogModel.plannedRows.length} planned row{quickLogModel.plannedRows.length === 1 ? '' : 's'} from {quickLogModel.layerGroups.length} layer{quickLogModel.layerGroups.length === 1 ? '' : 's'}</p>
-				</div>
-			</div>
+	{#if routine.description?.trim() || quickLogModel.layerGroups.length > 0}
+		<div class="form-section routine-narrative-section">
+			{#if routine.description?.trim()}
+				<p class="routine-description">{routine.description}</p>
+			{:else}
+				<p class="routine-description">Log the planned rows for this routine.</p>
+			{/if}
 
-			<div class="plan-layer-list">
-				{#each quickLogModel.layerGroups as group}
-					<div class="plan-layer-row">
-						<div class="plan-layer-main">
-							<span class="plan-layer-name">{group.name}</span>
-							<span class="plan-layer-meta">{group.rowCount} row{group.rowCount === 1 ? '' : 's'} · {formatLayerDisciplines(group.disciplines)}</span>
-						</div>
-						<div class="plan-layer-badges">
-							<span class="plan-badge">{group.effort}</span>
-							<span class="plan-badge">{group.environment}</span>
-						</div>
+			{#if quickLogModel.layerGroups.length > 0}
+				<details class="plan-details">
+					<summary>{quickLogModel.plannedRows.length} row{quickLogModel.plannedRows.length === 1 ? '' : 's'} across {quickLogModel.layerGroups.length} layer{quickLogModel.layerGroups.length === 1 ? '' : 's'}</summary>
+					<div class="plan-layer-list compact-plan-list">
+						{#each quickLogModel.layerGroups as group}
+							<div class="plan-layer-row">
+								<div class="plan-layer-main">
+									<span class="plan-layer-name">{group.name}</span>
+									<span class="plan-layer-meta">{group.rowCount} row{group.rowCount === 1 ? '' : 's'} · {formatLayerDisciplines(group.disciplines)}</span>
+								</div>
+								<div class="plan-layer-badges">
+									<span class="plan-badge">{group.effort}</span>
+									<span class="plan-badge">{group.environment}</span>
+								</div>
+							</div>
+						{/each}
 					</div>
-				{/each}
-			</div>
-
-			{#if quickLogModel.plannedRows.length <= 12}
-				<div class="plan-row-chips" aria-label="Planned rows">
-					{#each quickLogModel.plannedRows as row}
-						<span class="plan-row-chip">
-							<span>#{row.globalRowIndex}</span>
-							{#if row.plannedDurationSeconds}<span>{formatPlanSeconds(row.plannedDurationSeconds)}</span>{/if}
-							{#if row.plannedDistanceMeters}<span>{row.plannedDistanceMeters}m</span>{/if}
-							{#if row.plannedBreatheUpSeconds}<span>rest {formatPlanSeconds(row.plannedBreatheUpSeconds)}</span>{/if}
-						</span>
-					{/each}
-				</div>
+				</details>
 			{/if}
 		</div>
 	{/if}
@@ -935,12 +920,6 @@
 				<input class="field-input" bind:value={customAttemptLabel} placeholder="e.g., Hypoxic" />
 			</label>
 		{/if}
-		<div class="attempt-preview">
-			<span class="attempt-preview-label">Category</span>
-			<span class="attempt-preview-value">{attemptCategoryPreview.label}</span>
-			<span class="attempt-preview-meta">{attemptCategoryPreview.metric === 'time' ? 'time PB bucket' : 'distance PB bucket'}</span>
-			<span class="attempt-preview-detail">{attemptCategoryPreview.conditions.lungVolume ?? 'FL'} · {attemptCategoryPreview.conditions.gasMix ?? attemptCategoryPreview.conditions.breathingGas ?? 'air'}</span>
-		</div>
 	</div>
 
 	<!-- Session Date -->
@@ -1068,8 +1047,38 @@
 		</div>
 	</div>
 
+	<!-- Interval Rep Logging Section (for routines with row-level plans) -->
+	{#if showIntervalRepLogging}
+		<div class="form-section interval-section">
+			<div class="section-header">
+				<h4 class="section-title">Row Results</h4>
+			</div>
+
+			<p class="section-description">
+				Complete each planned row. Totals update from completed rows.
+			</p>
+
+			<RepEditor
+				discipline={disciplineUsed}
+				plannedRows={quickLogModel.plannedRows}
+				plannedReps={quickLogModel.plannedRows.length || routine.numberOfReps || routine.table?.rows.length || 8}
+				routineTable={routine.table}
+				defaultRestSeconds={routine.restBetweenReps || 180}
+				bind:reps={repEditorData}
+				trackSpO2={false}
+				trackHR={false}
+				trackKicksPerLap={config.trackKicksPerLap}
+				trackArmPullsPerLap={config.trackArmPullsPerLap}
+				trackNotes={config.trackNotes}
+				isDryTraining={false}
+				allowEditPlanned={hasVariableTable}
+				bind:defaultLungVolume
+			/>
+		</div>
+	{/if}
+
 	<!-- Discipline Selector (if multi-discipline) -->
-	{#if routine.disciplines.length > 1}
+	{#if routine.disciplines.length > 1 && !quickLogModel.hasMixedRowDisciplines}
 		<div class="form-section">
 			<label class="section-label">Discipline *</label>
 			<div class="discipline-buttons">
@@ -1231,8 +1240,10 @@
 							<span class="from-recorder-badge">From recording</span>
 						{/if}
 					</label>
-					{#if speedPerLapDecision.mode === 'disabled-needs-recorder' && timePerLapDecision.mode === 'disabled-needs-recorder'}
+					{#if speedPerLapDecision.mode === 'disabled-needs-recorder' && timePerLapDecision.mode === 'disabled-needs-recorder' && quickLogModel.canUseRecordingCapture}
 						<a class="recorder-cta" href="/record">Record a dive to capture per-lap splits automatically</a>
+					{:else if !quickLogModel.canUseRecordingCapture && !seededLaps?.length}
+						<div class="field-hint">Recording capture is only available for single dynamic max attempts.</div>
 					{:else if seededLaps && seededLaps.length > 0}
 						<div class="recorded-splits-review">
 							<button type="button" class="recorded-splits-toggle" aria-expanded={showRecordedSplits} onclick={() => (showRecordedSplits = !showRecordedSplits)}>
@@ -1271,7 +1282,7 @@
 				</div>
 			{/if}
 
-			{#if config.trackRepDuration}
+			{#if quickLogModel.showRepDurationShortcut}
 				<div class="field-group">
 					<DurationInput
 						bind:value={repDurationSeconds}
@@ -1282,7 +1293,7 @@
 				</div>
 			{/if}
 
-			{#if config.trackRepDistance}
+			{#if quickLogModel.showRepDistanceShortcut}
 				<div class="field-group">
 					<label for="repDistance" class="field-label">Rep Distance (m)</label>
 					<input
@@ -1320,45 +1331,16 @@
 	{/if}
 
 	{#if quickLogModel.advancedControls.length > 0}
-		<div class="advanced-disclosure">
+		<div class="advanced-disclosure geek-mode-disclosure">
 			<button
 				type="button"
 				class="advanced-toggle"
 				aria-expanded={showAdvancedFields}
 				onclick={() => (showAdvancedFields = !showAdvancedFields)}
 			>
-				<span>Advanced fields</span>
+				<span>Geek Mode Metrics</span>
 				<span class="advanced-toggle-count">{quickLogModel.advancedControls.length}</span>
 			</button>
-		</div>
-	{/if}
-
-	<!-- Interval Rep Logging Section (for routines with variable tables) -->
-	{#if showIntervalRepLogging}
-		<div class="form-section interval-section">
-			<div class="section-header">
-				<h4 class="section-title">Row Results</h4>
-			</div>
-			
-			<p class="section-description">
-				Edit actual times for each rep. Tap a row to mark it skipped.
-			</p>
-
-			<RepEditor
-				discipline={disciplineUsed}
-				plannedReps={routine.numberOfReps || routine.table?.rows.length || 8}
-				routineTable={routine.table}
-				defaultRestSeconds={routine.restBetweenReps || 180}
-				bind:reps={repEditorData}
-				trackSpO2={false}
-				trackHR={false}
-				trackKicksPerLap={config.trackKicksPerLap}
-				trackArmPullsPerLap={config.trackArmPullsPerLap}
-				trackNotes={config.trackNotes}
-				isDryTraining={false}
-				allowEditPlanned={hasVariableTable}
-				bind:defaultLungVolume
-			/>
 		</div>
 	{/if}
 
@@ -1419,7 +1401,8 @@
 			<!-- Per-rep editor -->
 			<RepEditor
 				discipline={disciplineUsed}
-				plannedReps={routine.numberOfReps || routine.table?.rows.length || 8}
+				plannedRows={quickLogModel.plannedRows}
+				plannedReps={quickLogModel.plannedRows.length || routine.numberOfReps || routine.table?.rows.length || 8}
 				routineTable={routine.table}
 				defaultRestSeconds={routine.restBetweenReps || 180}
 				bind:reps={repEditorData}
@@ -2140,16 +2123,30 @@
 		border-radius: 8px;
 	}
 
-	.routine-plan-section {
+	.routine-narrative-section {
 		background: rgba(15, 23, 42, 0.28);
 		border-color: rgba(148, 163, 184, 0.16);
 	}
 
-	.compact-header {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 1rem;
+	.routine-description {
+		color: var(--color-text);
+		font-size: 0.95rem;
+		line-height: 1.5;
+		margin: 0;
+	}
+
+	.plan-details {
+		color: var(--color-text-muted);
+		font-size: 0.8rem;
+	}
+
+	.plan-details summary {
+		cursor: pointer;
+		font-weight: 650;
+	}
+
+	.compact-plan-list {
+		margin-top: 0.75rem;
 	}
 
 	.plan-layer-list {
@@ -2187,8 +2184,7 @@
 		font-size: 0.75rem;
 	}
 
-	.plan-layer-badges,
-	.plan-row-chips {
+	.plan-layer-badges {
 		display: flex;
 		flex-wrap: wrap;
 		gap: 0.35rem;
@@ -2199,8 +2195,7 @@
 		flex-shrink: 0;
 	}
 
-	.plan-badge,
-	.plan-row-chip {
+	.plan-badge {
 		border: 1px solid rgba(148, 163, 184, 0.18);
 		border-radius: 999px;
 		background: rgba(148, 163, 184, 0.08);
@@ -2213,15 +2208,6 @@
 	.plan-badge {
 		padding: 0.3rem 0.5rem;
 		text-transform: capitalize;
-	}
-
-	.plan-row-chip {
-		display: inline-flex;
-		gap: 0.35rem;
-		align-items: center;
-		min-height: 1.75rem;
-		padding: 0.35rem 0.55rem;
-		font-variant-numeric: tabular-nums;
 	}
 
 	.advanced-disclosure {
@@ -2372,43 +2358,6 @@
 		color: #e0f2fe;
 	}
 
-	.attempt-preview {
-		display: grid;
-		grid-template-columns: auto minmax(0, 1fr);
-		gap: 0.25rem 0.6rem;
-		align-items: baseline;
-		padding: 0.65rem 0.75rem;
-		border: 1px solid rgba(148, 163, 184, 0.14);
-		border-radius: 8px;
-		background: rgba(15, 23, 42, 0.35);
-	}
-
-	.attempt-preview-label {
-		color: var(--color-text-muted);
-		font-size: 0.7rem;
-		font-weight: 700;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-	}
-
-	.attempt-preview-value {
-		color: var(--color-text);
-		font-size: 0.875rem;
-		font-weight: 700;
-	}
-
-	.attempt-preview-meta {
-		grid-column: 2;
-		color: var(--color-text-muted);
-		font-size: 0.75rem;
-	}
-
-	.attempt-preview-detail {
-		grid-column: 2;
-		color: var(--color-text-muted);
-		font-size: 0.75rem;
-		font-weight: 600;
-	}
 
 	/* Input Fields */
 	.field-input,

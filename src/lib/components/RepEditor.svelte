@@ -10,7 +10,7 @@
 	 * - Track per-rep SpO2/HR for dry static breath hold training
 	 */
 
-	import type { RepEditorData, Discipline, RoutineTable, LungVolume } from '$lib/types';
+	import type { RepEditorData, Discipline, RoutineLogPlanRow, RoutineTable, LungVolume } from '$lib/types';
 	import { formatTime, parseTimeInput } from '$lib/utils/time';
 	import { getSpO2ColorClass } from '$lib/utils/biometricCsvParser';
 	import {
@@ -26,6 +26,7 @@
 		discipline,
 		plannedReps = 0,
 		routineTable = undefined as RoutineTable | undefined,
+		plannedRows = undefined as RoutineLogPlanRow[] | undefined,
 		defaultRestSeconds = 0,
 		defaultDistanceMeters = 0,
 		reps = $bindable<RepEditorData[]>([]),
@@ -56,6 +57,7 @@
 		isDryTraining?: boolean;
 		allowEditPlanned?: boolean;
 		defaultLungVolume?: LungVolume;
+		plannedRows?: RoutineLogPlanRow[];
 	} = $props();
 
 	let showRowNotes = $state(false);
@@ -80,23 +82,30 @@
 		reps = [...reps];
 	}
 
-	// Is this a static discipline (STA)?
-	const isStatic = $derived(discipline === 'STA');
+	const rowPlansByIndex = $derived(new Map((plannedRows ?? []).map((row) => [row.globalRowIndex, row])));
+	const rowMode = (rep: RepEditorData): 'static' | 'dynamic' => {
+		const plannedRow = rowPlansByIndex.get(rep.repNumber);
+		if (plannedRow) return plannedRow.discipline === 'STA' ? 'static' : 'dynamic';
+		return discipline === 'STA' ? 'static' : 'dynamic';
+	};
+	const hasDynamicRows = $derived(plannedRows?.some((row) => row.discipline !== 'STA') ?? discipline !== 'STA');
+	const hasStaticRows = $derived(plannedRows?.some((row) => row.discipline === 'STA') ?? discipline === 'STA');
 
 	// Initialize reps if empty
 	$effect(() => {
 		if (reps.length === 0 && plannedReps > 0) {
 			const initialReps: RepEditorData[] = [];
 			for (let i = 0; i < plannedReps; i++) {
+				const plannedRow = plannedRows?.[i];
 				const row = routineTable?.rows[i];
 				initialReps.push({
 					repNumber: i + 1,
-					plannedDuration: row?.targetDuration,
-					plannedDistance: row?.targetDistance || defaultDistanceMeters,
-					plannedRest: row?.restBefore || defaultRestSeconds,
-					actualDuration: row?.targetDuration,
-					actualDistance: row?.targetDistance || defaultDistanceMeters,
-					actualRest: row?.restBefore || defaultRestSeconds,
+					plannedDuration: plannedRow?.plannedDurationSeconds ?? row?.targetDuration,
+					plannedDistance: plannedRow?.plannedDistanceMeters ?? row?.targetDistance ?? defaultDistanceMeters,
+					plannedRest: plannedRow?.plannedBreatheUpSeconds ?? row?.restBefore ?? defaultRestSeconds,
+					actualDuration: plannedRow?.plannedDurationSeconds ?? row?.targetDuration,
+					actualDistance: plannedRow?.plannedDistanceMeters ?? row?.targetDistance ?? defaultDistanceMeters,
+					actualRest: plannedRow?.plannedBreatheUpSeconds ?? row?.restBefore ?? defaultRestSeconds,
 					completed: true,
 					notes: ''
 				});
@@ -269,11 +278,11 @@
 	<div class="reps-table" class:has-biometrics={trackSpO2 || trackHR} class:has-volume={isMultiRep} class:has-technique={trackKicksPerLap || trackArmPullsPerLap}>
 		<div class="table-header">
 			<div class="col-rep">#</div>
-			{#if isStatic}
-				<div class="col-duration">{allowEditPlanned ? 'Target' : 'Hold'}</div>
-			{:else}
+			{#if hasDynamicRows}
 				<div class="col-distance">Dist</div>
-				<div class="col-duration">Time</div>
+			{/if}
+			{#if hasStaticRows || hasDynamicRows}
+				<div class="col-duration">{hasStaticRows && !hasDynamicRows ? (allowEditPlanned ? 'Target' : 'Hold') : 'Time'}</div>
 			{/if}
 			<div class="col-rest">Rest</div>
 			{#if isMultiRep}
@@ -295,6 +304,7 @@
 		</div>
 
 		{#each reps as rep, i}
+			{@const mode = rowMode(rep)}
 			<div class="table-row-group">
 				<div
 					class="table-row"
@@ -308,64 +318,45 @@
 					{/if}
 				</div>
 
-				{#if isStatic}
-					<!-- STA: Duration only -->
-					<div class="col-duration">
-						{#if rep.completed}
-							{#if allowEditPlanned}
-								<DurationInput
-									bind:value={rep.plannedDuration}
-									compact={true}
-									showLabel={false}
-									max={600}
-								/>
-							{:else}
-								<DurationInput
-									bind:value={rep.actualDuration}
-									compact={true}
-									showLabel={false}
-									max={600}
-								/>
-							{/if}
-						{:else}
-							<span class="skipped-value">
-								{formatTimeForInput(allowEditPlanned ? rep.plannedDuration : rep.actualDuration) || '—'}
-							</span>
-						{/if}
-					</div>
-				{:else}
-					<!-- Dynamic: Distance + Time -->
+				{#if hasDynamicRows}
 					<div class="col-distance">
-						{#if rep.completed}
-							{#if allowEditPlanned}
-								<NumberWheelInput
-									bind:value={rep.plannedDistance}
-									variant="chip"
-									min={5}
-									max={200}
-									step={5}
-									unit="m"
-									compact={true}
-									showLabel={false}
-								/>
+						{#if mode === 'dynamic'}
+							{#if rep.completed}
+								{#if allowEditPlanned}
+									<NumberWheelInput
+										bind:value={rep.plannedDistance}
+										variant="chip"
+										min={5}
+										max={200}
+										step={5}
+										unit="m"
+										compact={true}
+										showLabel={false}
+									/>
+								{:else}
+									<NumberWheelInput
+										bind:value={rep.actualDistance}
+										variant="chip"
+										min={5}
+										max={200}
+										step={5}
+										unit="m"
+										compact={true}
+										showLabel={false}
+									/>
+								{/if}
 							{:else}
-								<NumberWheelInput
-									bind:value={rep.actualDistance}
-									variant="chip"
-									min={5}
-									max={200}
-									step={5}
-									unit="m"
-									compact={true}
-									showLabel={false}
-								/>
+								<span class="skipped-value">
+									{allowEditPlanned ? (rep.plannedDistance || '—') : (rep.actualDistance || '—')}m
+								</span>
 							{/if}
 						{:else}
-							<span class="skipped-value">
-								{allowEditPlanned ? (rep.plannedDistance || '—') : (rep.actualDistance || '—')}m
-							</span>
+							<span class="not-applicable">—</span>
 						{/if}
 					</div>
+				{/if}
+
+				{#if hasStaticRows || hasDynamicRows}
 					<div class="col-duration">
 						{#if rep.completed}
 							{#if allowEditPlanned}
@@ -876,6 +867,14 @@
 		color: var(--color-text-muted);
 		font-size: 0.875rem;
 		text-align: center;
+		padding: 0.375rem;
+	}
+
+	.not-applicable {
+		color: var(--color-text-muted);
+		font-size: 0.875rem;
+		text-align: center;
+		opacity: 0.45;
 		padding: 0.375rem;
 	}
 
