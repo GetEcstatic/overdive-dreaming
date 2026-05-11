@@ -307,6 +307,7 @@
 
 	// BIOMETRIC TRACKING - Per-rep SpO2/HR for dry static training
 	let repEditorData = $state<RepEditorData[]>([]);
+	let selectedLayerDisciplines = $state<Record<string, Discipline>>({});
 	let showBiometricImportModal = $state(false);
 	let biometricSummary = $state<ReturnType<typeof calculateSessionBiometricSummary>>(null);
 	let rawBiometricCsv = $state<string>(''); // Raw CSV for storage
@@ -314,7 +315,13 @@
 	// Per-rep starting lung volume (FL/RV/FRC) — opt-in via trackingConfig
 	let defaultLungVolume = $state<LungVolume | undefined>(initialValues?.defaultLungVolume);
 	const attemptOptions = $derived(quickLogModel.attemptOptions);
-	const rowSummary = $derived(deriveQuickLogRowSummary(quickLogModel.plannedRows, repEditorData));
+	const effectivePlannedRows = $derived(
+		quickLogModel.plannedRows.map((row) => ({
+			...row,
+			discipline: selectedLayerDisciplines[row.sourceLayerId] ?? row.discipline
+		}))
+	);
+	const rowSummary = $derived(deriveQuickLogRowSummary(effectivePlannedRows, repEditorData));
 
 	// Handle biometric import from CSV
 	function handleBiometricImport(
@@ -557,7 +564,7 @@
 		if (facialGearGoggles) facialGear.push('goggles');
 		if (facialGearNothing) facialGear.push('nothing');
 
-		const plannedRows = quickLogModel.plannedRows;
+		const plannedRows = effectivePlannedRows;
 		const editedLaps = repEditorData.length > 0 ? repEditorDataToLapData(repEditorData) : undefined;
 		const resultRows = editedLaps
 			? buildRoutineLogResultRowsFromLapData(plannedRows, editedLaps)
@@ -569,8 +576,10 @@
 				repDistanceMeters: repDistance
 			});
 
+		const primaryDiscipline = plannedRows.find((row) => row.discipline !== 'STA')?.discipline ?? plannedRows[0]?.discipline ?? disciplineUsed;
+
 		const data: LogFormData = {
-			disciplineUsed,
+			disciplineUsed: quickLogModel.hasMixedRowDisciplines ? primaryDiscipline : disciplineUsed,
 			sessionDate,
 			sessionTime,
 			isCompetition,
@@ -706,6 +715,13 @@
 
 	function formatLapSpeed(lap: LapData): string {
 		return lap.speedMs !== undefined ? `${lap.speedMs.toFixed(2)} m/s` : 'speed open';
+	}
+
+	function selectLayerDiscipline(sourceLayerId: string, discipline: Discipline): void {
+		selectedLayerDisciplines = {
+			...selectedLayerDisciplines,
+			[sourceLayerId]: discipline
+		};
 	}
 
 	// Per-metric capture-source decisions. Each decision tells the template
@@ -1058,10 +1074,30 @@
 				Complete each planned row. Totals update from completed rows.
 			</p>
 
+			{#if quickLogModel.layerGroups.some((group) => group.selectableDisciplines.length > 1)}
+				<div class="layer-discipline-selectors">
+					{#each quickLogModel.layerGroups as group}
+						{#if group.selectableDisciplines.length > 1}
+							<label class="layer-discipline-select">
+								<span>{group.name}</span>
+								<select
+									value={selectedLayerDisciplines[group.sourceLayerId] ?? group.disciplines[0]}
+									onchange={(event) => selectLayerDiscipline(group.sourceLayerId, event.currentTarget.value as Discipline)}
+								>
+									{#each group.selectableDisciplines as discipline}
+										<option value={discipline}>{discipline}</option>
+									{/each}
+								</select>
+							</label>
+						{/if}
+					{/each}
+				</div>
+			{/if}
+
 			<RepEditor
 				discipline={disciplineUsed}
-				plannedRows={quickLogModel.plannedRows}
-				plannedReps={quickLogModel.plannedRows.length || routine.numberOfReps || routine.table?.rows.length || 8}
+				plannedRows={effectivePlannedRows}
+				plannedReps={effectivePlannedRows.length || routine.numberOfReps || routine.table?.rows.length || 8}
 				routineTable={routine.table}
 				defaultRestSeconds={routine.restBetweenReps || 180}
 				bind:reps={repEditorData}
@@ -1401,8 +1437,8 @@
 			<!-- Per-rep editor -->
 			<RepEditor
 				discipline={disciplineUsed}
-				plannedRows={quickLogModel.plannedRows}
-				plannedReps={quickLogModel.plannedRows.length || routine.numberOfReps || routine.table?.rows.length || 8}
+				plannedRows={effectivePlannedRows}
+				plannedReps={effectivePlannedRows.length || routine.numberOfReps || routine.table?.rows.length || 8}
 				routineTable={routine.table}
 				defaultRestSeconds={routine.restBetweenReps || 180}
 				bind:reps={repEditorData}
@@ -2246,6 +2282,37 @@
 		background: rgba(148, 163, 184, 0.14);
 		color: inherit;
 		font-size: 0.7rem;
+	}
+
+	.layer-discipline-selectors {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.layer-discipline-select {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		padding: 0.55rem 0.65rem;
+		border: 1px solid rgba(148, 163, 184, 0.14);
+		border-radius: 8px;
+		background: rgba(15, 23, 42, 0.35);
+		color: var(--color-text-muted);
+		font-size: 0.8rem;
+		font-weight: 650;
+	}
+
+	.layer-discipline-select select {
+		min-width: 5rem;
+		border: 1px solid rgba(148, 163, 184, 0.22);
+		border-radius: 8px;
+		background: rgba(15, 23, 42, 0.75);
+		color: var(--color-text);
+		padding: 0.35rem 0.5rem;
+		font-size: 0.8rem;
+		font-weight: 700;
 	}
 
 	.lung-volume-section {

@@ -3,6 +3,8 @@ import { attemptOptionsForDiscipline } from '$lib/utils/attemptCategories';
 import type { Discipline, MetricType, RepEditorData, RoutineLogPlanRow, RoutineTemplate, TrackingConfig } from '$lib/types';
 import { metricRegistry, type MetricRegistryEntry } from '$lib/metrics/registry';
 import { buildRoutineLogPlanRows } from './logPlan';
+import { buildRoutineLayerReadModel } from './readModel';
+import { storedDisciplineForLayer } from './model';
 
 export type QuickLogControlPriority = 'standard' | 'advanced';
 export type QuickLogControlGroup = 'session' | 'results' | 'row-details' | 'context' | 'advanced' | 'media';
@@ -83,6 +85,7 @@ export type QuickLogLayerGroup = {
 	name: string;
 	rows: RoutineLogPlanRow[];
 	disciplines: Discipline[];
+	selectableDisciplines: Discipline[];
 	rowCount: number;
 	environment: RoutineLogPlanRow['environment'];
 	effort: RoutineLogPlanRow['effort'];
@@ -249,7 +252,8 @@ const controlIdByTrackingFlag: Partial<Record<keyof TrackingConfig, QuickLogCont
 
 export function buildQuickLogReadModel(routine: RoutineTemplate): QuickLogReadModel {
 	const plannedRows = buildRoutineLogPlanRows(routine);
-	const layerGroups = buildLayerGroups(plannedRows);
+	const layerReadModel = buildRoutineLayerReadModel(routine);
+	const layerGroups = buildLayerGroups(plannedRows, layerReadModel.layers);
 	const controls = buildControls(routine, plannedRows);
 	const controlIds = new Set(controls.map((control) => control.id));
 	const standardControls = controls.filter((control) => control.priority === 'standard');
@@ -340,8 +344,12 @@ export function routineHasO2StaticIntent(routine: RoutineTemplate): boolean {
 	return hasO2StaticLayer || (routine.disciplines.includes('STA') && (hasO2Tracking || hasO2Tag));
 }
 
-function buildLayerGroups(rows: RoutineLogPlanRow[]): QuickLogLayerGroup[] {
+function buildLayerGroups(
+	rows: RoutineLogPlanRow[],
+	layers: ReturnType<typeof buildRoutineLayerReadModel>['layers']
+): QuickLogLayerGroup[] {
 	const groups = new Map<string, RoutineLogPlanRow[]>();
+	const layersById = new Map(layers.map((layer) => [layer.id, layer]));
 
 	for (const row of rows) {
 		groups.set(row.sourceLayerId, [...(groups.get(row.sourceLayerId) ?? []), row]);
@@ -349,11 +357,17 @@ function buildLayerGroups(rows: RoutineLogPlanRow[]): QuickLogLayerGroup[] {
 
 	return [...groups.entries()].map(([sourceLayerId, groupRows]) => {
 		const firstRow = groupRows[0];
+		const sourceLayer = layersById.get(sourceLayerId);
+		const selectableDisciplines = sourceLayer?.disciplineSelectionMode === 'log-time-selectable'
+			? unique((sourceLayer.allowedDisciplines ?? [sourceLayer.discipline]).map(storedDisciplineForLayer))
+			: [];
+
 		return {
 			sourceLayerId,
 			name: firstRow.layerName ?? `Layer ${sourceLayerId}`,
 			rows: groupRows,
 			disciplines: unique(groupRows.map((row) => row.discipline)),
+			selectableDisciplines,
 			rowCount: groupRows.length,
 			environment: firstRow.environment,
 			effort: firstRow.effort,

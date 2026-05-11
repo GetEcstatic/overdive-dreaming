@@ -278,13 +278,13 @@
 	<div class="reps-table" class:has-biometrics={trackSpO2 || trackHR} class:has-volume={isMultiRep} class:has-technique={trackKicksPerLap || trackArmPullsPerLap}>
 		<div class="table-header">
 			<div class="col-rep">#</div>
+			<div class="col-rest">Rest</div>
 			{#if hasDynamicRows}
 				<div class="col-distance">Dist</div>
 			{/if}
 			{#if hasStaticRows || hasDynamicRows}
 				<div class="col-duration">{hasStaticRows && !hasDynamicRows ? (allowEditPlanned ? 'Target' : 'Hold') : 'Time'}</div>
 			{/if}
-			<div class="col-rest">Rest</div>
 			{#if isMultiRep}
 				<div class="col-volume">Vol</div>
 			{/if}
@@ -315,6 +315,30 @@
 					<span class="rep-number">{rep.repNumber}</span>
 					{#if !allowEditPlanned && rep.plannedDuration && rep.actualDuration !== rep.plannedDuration}
 						<span class="deviation-marker" title="Differs from planned">⚡</span>
+					{/if}
+				</div>
+
+				<div class="col-rest">
+					{#if rep.completed}
+						{#if allowEditPlanned}
+							<DurationInput
+								bind:value={rep.plannedRest}
+								compact={true}
+								showLabel={false}
+								max={600}
+							/>
+						{:else}
+							<DurationInput
+								bind:value={rep.actualRest}
+								compact={true}
+								showLabel={false}
+								max={600}
+							/>
+						{/if}
+					{:else}
+						<span class="skipped-value">
+							{formatTimeForInput(allowEditPlanned ? rep.plannedRest : rep.actualRest) || '—'}
+						</span>
 					{/if}
 				</div>
 
@@ -382,30 +406,6 @@
 					</div>
 				{/if}
 
-				<div class="col-rest">
-					{#if rep.completed}
-						{#if allowEditPlanned}
-							<DurationInput
-								bind:value={rep.plannedRest}
-								compact={true}
-								showLabel={false}
-								max={600}
-							/>
-						{:else}
-							<DurationInput
-								bind:value={rep.actualRest}
-								compact={true}
-								showLabel={false}
-								max={600}
-							/>
-						{/if}
-					{:else}
-						<span class="skipped-value">
-							{formatTimeForInput(allowEditPlanned ? rep.plannedRest : rep.actualRest) || '—'}
-						</span>
-					{/if}
-				</div>
-
 				{#if isMultiRep}
 					<div class="col-volume">
 						{#if rep.completed}
@@ -422,7 +422,7 @@
 
 				{#if trackKicksPerLap}
 					<div class="col-technique">
-						{#if rep.completed}
+						{#if mode === 'dynamic' && rep.completed}
 							<NumberWheelInput
 								bind:value={rep.kicks}
 								min={0}
@@ -431,6 +431,8 @@
 								compact={true}
 								showLabel={false}
 							/>
+						{:else if mode !== 'dynamic'}
+							<span class="not-applicable">—</span>
 						{:else}
 							<span class="skipped-value">—</span>
 						{/if}
@@ -439,7 +441,7 @@
 
 				{#if trackArmPullsPerLap}
 					<div class="col-technique">
-						{#if rep.completed}
+						{#if mode === 'dynamic' && rep.completed}
 							<NumberWheelInput
 								bind:value={rep.armPulls}
 								min={0}
@@ -448,6 +450,8 @@
 								compact={true}
 								showLabel={false}
 							/>
+						{:else if mode !== 'dynamic'}
+							<span class="not-applicable">—</span>
 						{:else}
 							<span class="skipped-value">—</span>
 						{/if}
