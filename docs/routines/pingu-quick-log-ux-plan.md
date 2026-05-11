@@ -23,6 +23,7 @@ For future mixed routines, derive the UI from:
 - each row's planned duration and distance targets;
 - each layer's environment, effort, analytics role, and metric profile;
 - routine-level safety constraints, especially whether any dynamic layer is present;
+- whether a metric can be derived from completed rows instead of manually entered;
 - the routine narrative and description for user-facing context.
 
 ## Evaluation
@@ -63,6 +64,10 @@ Recommendation: row result inputs should be driven by each planned row's layer d
 - fixed planned values should appear as compact context, while editable fields should represent actual completion;
 - the global discipline control should not rewrite row input shape for routines with fixed layer disciplines.
 
+When row results are complete, the overall results card should be autopopulated from those rows. The user should not need to duplicate totals that can be derived from completed row data.
+
+Any average speed or speed-per-lap calculations must use only dynamic portions of the routine. Static rows should contribute to total routine time where appropriate, but they must not be included in dynamic speed calculations.
+
 ### Move Row Results Higher
 
 For mixed-layer routines, completion of the planned rows is the core logging task. The Row Results card should appear much earlier.
@@ -77,20 +82,48 @@ Recommendation: for row/layer plans with selectable disciplines, use a per-row o
 
 The dropdown should be generated from that row or layer's allowed disciplines. It should not let a user pick a discipline that changes unrelated rows.
 
+### Restrict Per-Lap Recording
+
+Recording a dive from the Per Lap Data card should only be offered for a single dynamic max attempt.
+
+Recommendation: hide recording entry points when the routine has multiple layers, includes any static layer, or is not a dynamic max attempt. Mixed routines can still store manually entered row results, but recording-assisted lap capture should remain scoped to simple dynamic max workflows until a mixed-routine recorder flow is explicitly designed.
+
+### Only Show Uniform Rep Shortcuts When Valid
+
+Rep duration and rep distance shortcuts are useful only when a routine has regular repeated work.
+
+Recommendation: offer Rep Duration only when the static portions have uniform rep durations, and offer Rep Distance only when the dynamic portions have uniform rep distances. If a table or mixed routine contains multiple layers with different durations or distances, hide these shortcuts and rely on row-level result entry.
+
+### Move And Rename Advanced Mode
+
+The current Advanced Mode pill appears too early and reads like a form-wide mode switch.
+
+Recommendation: move the pill directly above the advanced metrics section and rename it to "Geek Mode Metrics". It should clearly control optional detailed metrics, not the core logging flow.
+
 ## Proposed Implementation Steps
 
 1. Add a pure Quick Log layout/read-model rule for attempt option availability.
 2. Remove the Attempt Category preview tile from Quick Log.
 3. Replace the opening Routine Plan card with a routine narrative section and move structural plan details into compact supporting context.
 4. Promote Row Results above advanced/context sections.
-5. Update row result rendering so each row's editable fields come from its own planned row metadata.
-6. Add per-row or per-layer discipline controls for selectable mixed routines.
-7. Cover Pingu-style static-to-dynamic routines and at least one additional mixed-layer shape in read-model tests before component changes.
+5. Autopopulate overall result fields from completed row results when the derivation is unambiguous.
+6. Ensure average speed calculations use only dynamic rows and ignore static rows.
+7. Update row result rendering so each row's editable fields come from its own planned row metadata.
+8. Add per-row or per-layer discipline controls for selectable mixed routines.
+9. Restrict recording-assisted Per Lap Data to single dynamic max attempts.
+10. Show Rep Duration and Rep Distance shortcuts only for uniform repeated work.
+11. Move the advanced metrics toggle directly above the advanced section and rename it "Geek Mode Metrics".
+12. Cover Pingu-style static-to-dynamic routines and at least one additional mixed-layer shape in read-model tests before component changes.
 
 ## Acceptance Notes
 
 - Pingu should show static completion fields for the static row and dynamic completion fields for the dynamic row in the same Row Results card.
 - Future mixed-layer routines should derive row fields from the row/layer plan, not from routine name or one global selected discipline.
+- Completed row results should populate overall results whenever the total can be derived safely.
+- Dynamic speed and average-speed metrics should ignore static rows.
+- Recording from Per Lap Data should be unavailable for multi-layer routines and routines containing static layers.
+- Rep Duration and Rep Distance shortcuts should be unavailable for non-uniform tables or mixed routines with different planned durations/distances.
+- The advanced metrics toggle should sit above the detailed metrics section and be labelled "Geek Mode Metrics".
 - O2 assisted should not appear as an attempt option for Pingu or any routine with a dynamic layer.
 - The Quick Log opening should communicate the routine narrative before implementation-level row structure.
 - The fastest path through the form should be visibility, row results, then optional context.
