@@ -4,7 +4,7 @@ import type { Discipline, MetricType, RepEditorData, RoutineLogPlanRow, RoutineT
 import { metricRegistry, type MetricRegistryEntry } from '$lib/metrics/registry';
 import { buildRoutineLogPlanRows } from './logPlan';
 import { buildRoutineLayerReadModel } from './readModel';
-import { storedDisciplineForLayer } from './model';
+import type { LayerDiscipline } from './model';
 
 export type QuickLogControlPriority = 'standard' | 'advanced';
 export type QuickLogControlGroup = 'session' | 'results' | 'row-details' | 'context' | 'advanced' | 'media';
@@ -85,7 +85,7 @@ export type QuickLogLayerGroup = {
 	name: string;
 	rows: RoutineLogPlanRow[];
 	disciplines: Discipline[];
-	selectableDisciplines: Discipline[];
+	selectableDisciplines: LayerDiscipline[];
 	rowCount: number;
 	environment: RoutineLogPlanRow['environment'];
 	effort: RoutineLogPlanRow['effort'];
@@ -359,7 +359,7 @@ function buildLayerGroups(
 		const firstRow = groupRows[0];
 		const sourceLayer = layersById.get(sourceLayerId);
 		const selectableDisciplines = sourceLayer?.disciplineSelectionMode === 'log-time-selectable'
-			? unique((sourceLayer.allowedDisciplines ?? [sourceLayer.discipline]).map(storedDisciplineForLayer))
+			? unique(sourceLayer.allowedDisciplines ?? [sourceLayer.discipline])
 			: [];
 
 		return {

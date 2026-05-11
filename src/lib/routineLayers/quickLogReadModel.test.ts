@@ -60,7 +60,7 @@ describe('quick log read model', () => {
 		expect(model.plannedRows).toHaveLength(1);
 		expect(model.layerGroups).toHaveLength(1);
 		expect(model.layerGroups[0]).toMatchObject({ name: 'Max attempt', rowCount: 1, effort: 'max' });
-		expect(model.layerGroups[0].selectableDisciplines).toEqual(['DYN', 'DYNB', 'DNF']);
+		expect(model.layerGroups[0].selectableDisciplines).toEqual(['DYN', 'DYNB', 'DNF', 'TORT']);
 		expect(controlIds(routineFromLayers('Dynamic max', dynamicMaxExample.layers))).toEqual(
 			expect.arrayContaining(['total-distance', 'total-time', 'pool-length', 'lap-splits', 'kicks-per-lap'])
 		);

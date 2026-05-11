@@ -42,6 +42,7 @@
 		buildInitialRoutineLogResultRows,
 		buildRoutineLogResultRowsFromLapData
 	} from '$lib/routineLayers/logPlan';
+	import { storedDisciplineForLayer, type LayerDiscipline } from '$lib/routineLayers/model';
 
 	interface Props {
 		routine: RoutineTemplate;
@@ -307,7 +308,7 @@
 
 	// BIOMETRIC TRACKING - Per-rep SpO2/HR for dry static training
 	let repEditorData = $state<RepEditorData[]>([]);
-	let selectedLayerDisciplines = $state<Record<string, Discipline>>({});
+	let selectedLayerDisciplines = $state<Record<string, LayerDiscipline>>({});
 	let showBiometricImportModal = $state(false);
 	let biometricSummary = $state<ReturnType<typeof calculateSessionBiometricSummary>>(null);
 	let rawBiometricCsv = $state<string>(''); // Raw CSV for storage
@@ -318,7 +319,9 @@
 	const effectivePlannedRows = $derived(
 		quickLogModel.plannedRows.map((row) => ({
 			...row,
-			discipline: selectedLayerDisciplines[row.sourceLayerId] ?? row.discipline
+			discipline: selectedLayerDisciplines[row.sourceLayerId]
+				? storedDisciplineForLayer(selectedLayerDisciplines[row.sourceLayerId])
+				: row.discipline
 		}))
 	);
 	const rowSummary = $derived(deriveQuickLogRowSummary(effectivePlannedRows, repEditorData));
@@ -717,7 +720,7 @@
 		return lap.speedMs !== undefined ? `${lap.speedMs.toFixed(2)} m/s` : 'speed open';
 	}
 
-	function selectLayerDiscipline(sourceLayerId: string, discipline: Discipline): void {
+	function selectLayerDiscipline(sourceLayerId: string, discipline: LayerDiscipline): void {
 		selectedLayerDisciplines = {
 			...selectedLayerDisciplines,
 			[sourceLayerId]: discipline
@@ -1081,8 +1084,8 @@
 							<label class="layer-discipline-select">
 								<span>{group.name}</span>
 								<select
-									value={selectedLayerDisciplines[group.sourceLayerId] ?? group.disciplines[0]}
-									onchange={(event) => selectLayerDiscipline(group.sourceLayerId, event.currentTarget.value as Discipline)}
+									value={selectedLayerDisciplines[group.sourceLayerId] ?? group.selectableDisciplines[0]}
+									onchange={(event) => selectLayerDiscipline(group.sourceLayerId, event.currentTarget.value as LayerDiscipline)}
 								>
 									{#each group.selectableDisciplines as discipline}
 										<option value={discipline}>{discipline}</option>
