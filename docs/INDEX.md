@@ -37,6 +37,7 @@ Things designed but not yet shipped, or shipped partially.
 - [V2 create routine flow](routines/v2-create-routine-flow-plan.md) — plan for making Create Routine start from the layer model and route into the production layer editor
 - [Quick Log v2 routine audit](routines/quick-log-v2-routine-audit.md) — audit and implementation plan for aligning Quick Log with v2 routines
 - [O2 static layer discipline](routines/o2-static-layer-discipline-plan.md) — plan for modelling O2 static as a layer-only unofficial static discipline
+- [Mixed-layer Quick Log UX](routines/pingu-quick-log-ux-plan.md) — evaluation and plan for Pingu-style and future mixed-layer quick-log form improvements
 
 ### Revisit later (shipped but flagged for follow-up)
 - [Routine analytics](metrics-analytics/shipped/routine-analytics.md) — shipped per-routine page; flagged to revisit in future
