@@ -11,6 +11,7 @@
 	 */
 
 	import type { RepEditorData, Discipline, RoutineLogPlanRow, RoutineTable, LungVolume } from '$lib/types';
+	import type { LayerDiscipline } from '$lib/routineLayers/model';
 	import { formatTime, parseTimeInput } from '$lib/utils/time';
 	import { getSpO2ColorClass } from '$lib/utils/biometricCsvParser';
 	import {
@@ -39,6 +40,9 @@
 		isDryTraining = false,
 		// Allow editing planned values (for variable tables)
 		allowEditPlanned = false,
+		selectableLayerDisciplines = {} as Record<string, LayerDiscipline[]>,
+		selectedLayerDisciplines = {} as Record<string, LayerDiscipline>,
+		onLayerDisciplineChange = undefined as ((sourceLayerId: string, discipline: LayerDiscipline) => void) | undefined,
 		// Lung-volume tag (FL/RV/FRC) — universal: session-default banner is
 		// always shown; per-row pill is gated on multi-rep routines (derived).
 		defaultLungVolume = $bindable<LungVolume | undefined>(undefined)
@@ -56,6 +60,9 @@
 		trackNotes?: boolean;
 		isDryTraining?: boolean;
 		allowEditPlanned?: boolean;
+		selectableLayerDisciplines?: Record<string, LayerDiscipline[]>;
+		selectedLayerDisciplines?: Record<string, LayerDiscipline>;
+		onLayerDisciplineChange?: (sourceLayerId: string, discipline: LayerDiscipline) => void;
 		defaultLungVolume?: LungVolume;
 		plannedRows?: RoutineLogPlanRow[];
 	} = $props();
@@ -83,11 +90,18 @@
 	}
 
 	const rowPlansByIndex = $derived(new Map((plannedRows ?? []).map((row) => [row.globalRowIndex, row])));
+	const rowPlan = (rep: RepEditorData): RoutineLogPlanRow | undefined => rowPlansByIndex.get(rep.repNumber);
 	const rowMode = (rep: RepEditorData): 'static' | 'dynamic' => {
-		const plannedRow = rowPlansByIndex.get(rep.repNumber);
+		const plannedRow = rowPlan(rep);
 		if (plannedRow) return plannedRow.discipline === 'STA' ? 'static' : 'dynamic';
 		return discipline === 'STA' ? 'static' : 'dynamic';
 	};
+	const isFirstLayerRow = (rep: RepEditorData): boolean => {
+		const plannedRow = rowPlan(rep);
+		const previousRow = rowPlansByIndex.get(rep.repNumber - 1);
+		return Boolean(plannedRow && plannedRow.sourceLayerId !== previousRow?.sourceLayerId);
+	};
+	const layerModeLabel = (row: RoutineLogPlanRow): string => row.discipline === 'STA' ? 'Static' : 'Dynamic';
 	const hasDynamicRows = $derived(plannedRows?.some((row) => row.discipline !== 'STA') ?? discipline !== 'STA');
 	const hasStaticRows = $derived(plannedRows?.some((row) => row.discipline === 'STA') ?? discipline === 'STA');
 
@@ -304,8 +318,32 @@
 		</div>
 
 		{#each reps as rep, i}
+			{@const planRow = rowPlan(rep)}
 			{@const mode = rowMode(rep)}
 			<div class="table-row-group">
+				{#if planRow && isFirstLayerRow(rep)}
+					{@const options = selectableLayerDisciplines[planRow.sourceLayerId] ?? []}
+					<div class="layer-row-header" class:static-layer={planRow.discipline === 'STA'} class:dynamic-layer={planRow.discipline !== 'STA'}>
+						<div class="layer-row-copy">
+							<span class="layer-row-name">{planRow.layerName ?? `Layer ${planRow.sourceLayerId}`}</span>
+							<span class="layer-row-meta">{layerModeLabel(planRow)} rows</span>
+						</div>
+						{#if options.length > 1}
+							<select
+								class="layer-row-select"
+								aria-label={`Discipline for ${planRow.layerName ?? `Layer ${planRow.sourceLayerId}`}`}
+								value={selectedLayerDisciplines[planRow.sourceLayerId] ?? options[0]}
+								onchange={(event) => onLayerDisciplineChange?.(planRow.sourceLayerId, event.currentTarget.value as LayerDiscipline)}
+							>
+								{#each options as option}
+									<option value={option}>{option}</option>
+								{/each}
+							</select>
+						{:else}
+							<span class="layer-discipline-badge">{planRow.discipline}</span>
+						{/if}
+					</div>
+				{/if}
 				<div
 					class="table-row"
 					class:skipped={!rep.completed}
@@ -658,6 +696,65 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.4rem;
+	}
+
+	.layer-row-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		padding: 0.55rem 0.65rem;
+		border: 1px solid rgba(148, 163, 184, 0.16);
+		border-radius: 8px;
+		background: rgba(15, 23, 42, 0.42);
+	}
+
+	.layer-row-header.static-layer {
+		border-color: rgba(125, 211, 252, 0.28);
+		background: rgba(14, 116, 144, 0.12);
+	}
+
+	.layer-row-header.dynamic-layer {
+		border-color: rgba(20, 184, 166, 0.28);
+		background: rgba(20, 184, 166, 0.1);
+	}
+
+	.layer-row-copy {
+		display: flex;
+		align-items: baseline;
+		gap: 0.5rem;
+		min-width: 0;
+	}
+
+	.layer-row-name {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		color: var(--color-text);
+		font-size: 0.82rem;
+		font-weight: 750;
+	}
+
+	.layer-row-meta,
+	.layer-discipline-badge {
+		color: var(--color-text-muted);
+		font-size: 0.72rem;
+		font-weight: 700;
+		text-transform: uppercase;
+	}
+
+	.layer-row-select {
+		flex: 0 0 auto;
+		min-width: 5rem;
+		min-height: 2rem;
+		border: 1px solid rgba(148, 163, 184, 0.24);
+		border-radius: 8px;
+		background: rgba(15, 23, 42, 0.78);
+		color: var(--color-text);
+		padding: 0.35rem 0.5rem;
+		font-size: 0.8rem;
+		font-weight: 750;
 	}
 
 	.row-notes-toggle-row {
