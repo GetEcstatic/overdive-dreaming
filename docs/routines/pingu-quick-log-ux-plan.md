@@ -1,3 +1,82 @@
+# Updates to implement
+
+## Mobile Row Results Plan
+
+Status: planned.
+
+The current Rep Logging table is clear enough on desktop, but it does not scale well in mobile portrait. A single horizontal row has to fit row number, rest, distance, duration, lung volume, kicks, pulls, and completion state. Once mixed static/dynamic rows and layer headers are present, the row becomes too dense to scan or tap accurately.
+
+The mobile solution should not be a smaller table. It should switch to a mobile-first row card layout while keeping the desktop table for wider screens.
+
+### UX Decision
+
+Use a responsive layout split:
+
+- desktop and tablet landscape keep the current compact table layout;
+- mobile portrait uses stacked row cards;
+- each layer still has one clear layer header above its rows;
+- selectable layer discipline controls live in that layer header;
+- each row card shows only fields that apply to that row's effective discipline;
+- static rows do not show dynamic-only inputs like distance, kicks, or pulls;
+- dynamic rows show rest first, then distance/time, then technique fields if tracked;
+- completion is a clear row-level toggle, not a tiny trailing table cell.
+
+This preserves the good part of the current table for scanning on wide screens while giving mobile users bigger tap targets and clearer field labels.
+
+### Mobile Row Card Shape
+
+Each mobile row should render as a compact card with this structure:
+
+1. Row header: row number, planned layer name/context if needed, completion toggle.
+2. Primary fields grid: Rest first, then Distance and Time/Hold where applicable.
+3. Secondary fields grid: Lung Volume, Kicks, Pulls, SpO2, HR, and other tracked details.
+4. Row notes below the field grids when enabled.
+
+The primary grid should use two columns on common phone widths. If only one primary field applies, it should take the full row. Labels should be visible in card mode because table headers are no longer present.
+
+### Static And Dynamic Clarity
+
+Layer headers should make the row type obvious before the user reaches the fields:
+
+- static layer headers use a `Static rows` badge;
+- dynamic layer headers use a `Dynamic rows` badge;
+- selectable dynamic layer headers show the dropdown beside the badge;
+- when a selectable layer changes from one dynamic discipline to another, the row remains visually dynamic;
+- unofficial dynamic options such as Tortuga remain selectable but still behave as dynamic rows.
+
+Within row cards, do not render disabled dynamic controls for static rows. Static cards should simply omit Distance, Kicks, and Pulls. This is clearer than filling the small mobile card with strike-through placeholders.
+
+### Implementation Steps
+
+1. Keep `RepEditor` as the single source of row editing UI, but add responsive markup inside the existing component rather than creating a second component.
+2. Preserve the desktop `.table-header` and `.table-row` layout for wider screens.
+3. Add mobile-only labels inside each editable cell so card mode remains self-explanatory without table headers.
+4. At mobile portrait breakpoints, hide the table header and switch `.table-row` from flex row to card/grid layout.
+5. In mobile card mode, make `.col-rep` span the top of the card with the row number and completion button aligned together.
+6. Order mobile fields as Rest, Distance, Time/Hold, Volume, Kicks, Pulls, SpO2, HR.
+7. Omit static-row dynamic fields entirely in mobile card mode; keep desktop not-applicable placeholders where they help preserve table alignment.
+8. Ensure layer headers wrap cleanly, with long layer names truncated only when necessary and the discipline selector still reachable.
+9. Check the most crowded tracked state: dynamic rows with volume, kicks, pulls, and biometrics.
+10. Validate that completed row data still derives overall Results exactly as before.
+11. Run focused Quick Log tests and `npm run check`.
+12. Commit the responsive row editor implementation separately.
+
+### Acceptance Checklist
+
+- [ ] On mobile portrait, Row Results no longer requires a cramped horizontal table layout.
+- [ ] Static and dynamic sections are visually distinct through layer headers.
+- [ ] Selectable discipline controls are clearly attached to the rows they affect.
+- [ ] Rest appears before Distance and Time/Hold on mobile and desktop.
+- [ ] Static row cards omit Distance, Kicks, and Pulls.
+- [ ] Dynamic row cards keep Distance, Time/Hold, Kicks, and Pulls available when tracked.
+- [ ] Completion controls are easy to tap on mobile.
+- [ ] Lung volume remains usable in multi-rep mobile layouts.
+- [ ] Row notes still work without disrupting the card layout.
+- [ ] Derived Results continue to use the row logging data.
+- [ ] Focused tests pass.
+- [ ] `npm run check` reports no new errors.
+
+
 # Mixed-Layer Quick Log UX Plan
 
 Status: planned.
