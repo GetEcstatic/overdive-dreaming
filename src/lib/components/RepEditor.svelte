@@ -356,7 +356,7 @@
 					{/if}
 				</div>
 
-				<div class="col-rest">
+				<div class="col-rest" data-label="Rest">
 					{#if rep.completed}
 						{#if allowEditPlanned}
 							<DurationInput
@@ -381,7 +381,7 @@
 				</div>
 
 				{#if hasDynamicRows}
-					<div class="col-distance">
+					<div class="col-distance" class:not-applicable-cell={mode !== 'dynamic'} data-label="Distance">
 						{#if mode === 'dynamic'}
 							{#if rep.completed}
 								{#if allowEditPlanned}
@@ -419,7 +419,7 @@
 				{/if}
 
 				{#if hasStaticRows || hasDynamicRows}
-					<div class="col-duration">
+					<div class="col-duration" data-label={mode === 'static' ? 'Hold' : 'Time'}>
 						{#if rep.completed}
 							{#if allowEditPlanned}
 								<DurationInput
@@ -445,7 +445,7 @@
 				{/if}
 
 				{#if isMultiRep}
-					<div class="col-volume">
+					<div class="col-volume" data-label="Volume">
 						{#if rep.completed}
 							<LungVolumePill
 								value={rep.lungVolume ?? defaultLungVolume ?? 'FL'}
@@ -459,7 +459,7 @@
 				{/if}
 
 				{#if trackKicksPerLap}
-					<div class="col-technique">
+					<div class="col-technique" class:not-applicable-cell={mode !== 'dynamic'} data-label="Kicks">
 						{#if mode === 'dynamic' && rep.completed}
 							<NumberWheelInput
 								bind:value={rep.kicks}
@@ -478,7 +478,7 @@
 				{/if}
 
 				{#if trackArmPullsPerLap}
-					<div class="col-technique">
+					<div class="col-technique" class:not-applicable-cell={mode !== 'dynamic'} data-label="Pulls">
 						{#if mode === 'dynamic' && rep.completed}
 							<NumberWheelInput
 								bind:value={rep.armPulls}
@@ -497,7 +497,7 @@
 				{/if}
 
 				{#if trackSpO2}
-					<div class="col-spo2">
+					<div class="col-spo2" data-label="SpO2">
 						{#if rep.completed}
 							<NumberWheelInput
 								bind:value={rep.spo2Min}
@@ -515,7 +515,7 @@
 				{/if}
 
 				{#if trackHR}
-					<div class="col-hr">
+					<div class="col-hr" data-label="HR">
 						{#if rep.completed}
 							<NumberWheelInput
 								bind:value={rep.hrMin}
@@ -918,25 +918,6 @@
 		background: rgba(239, 68, 68, 0.2);
 	}
 
-	/* Mobile responsive */
-	@media (max-width: 480px) {
-		.rep-editor {
-			padding: 0.75rem;
-		}
-
-		.table-header,
-		.table-row {
-			font-size: 0.8125rem;
-		}
-
-		/* Biometric columns slightly smaller on mobile */
-		.col-spo2,
-		.col-hr,
-		.col-technique {
-			flex: 0.7;
-		}
-	}
-
 	/* When biometrics enabled, adjust table layout */
 	.reps-table.has-biometrics .table-header,
 	.reps-table.has-biometrics .table-row,
@@ -960,6 +941,128 @@
 	@media (max-width: 480px) {
 		.reps-table.has-volume .col-volume {
 			min-width: 5.5rem;
+		}
+	}
+
+	@media (max-width: 640px) {
+		.rep-editor {
+			padding: 0.75rem;
+		}
+
+		.default-volume-row {
+			align-items: stretch;
+			flex-direction: column;
+		}
+
+		.default-volume-hint {
+			margin-left: 0;
+		}
+
+		.table-header {
+			display: none;
+		}
+
+		.table-row-group {
+			gap: 0.45rem;
+		}
+
+		.layer-row-header {
+			align-items: stretch;
+			flex-direction: column;
+			gap: 0.5rem;
+		}
+
+		.layer-row-copy {
+			justify-content: space-between;
+			width: 100%;
+		}
+
+		.layer-row-select {
+			width: 100%;
+		}
+
+		.table-row,
+		.reps-table.has-biometrics .table-row,
+		.reps-table.has-technique .table-row,
+		.reps-table.has-volume .table-row {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+			gap: 0.65rem;
+			padding: 0.75rem;
+			font-size: 0.8125rem;
+			align-items: stretch;
+		}
+
+		.col-rep {
+			grid-column: 1;
+			width: auto;
+			align-self: center;
+		}
+
+		.rep-number::before {
+			content: 'Row ';
+			color: var(--color-text-muted);
+			font-weight: 650;
+		}
+
+		.col-status {
+			grid-column: 2;
+			width: auto;
+			align-self: center;
+			justify-content: flex-end;
+		}
+
+		.status-btn {
+			width: 2.25rem;
+			height: 2.25rem;
+		}
+
+		.col-rest,
+		.col-distance,
+		.col-duration,
+		.col-volume,
+		.col-technique,
+		.col-spo2,
+		.col-hr {
+			min-width: 0;
+			width: 100%;
+			flex: none;
+			display: flex;
+			flex-direction: column;
+			align-items: stretch;
+			justify-content: flex-start;
+			gap: 0.3rem;
+		}
+
+		.col-rest::before,
+		.col-distance::before,
+		.col-duration::before,
+		.col-volume::before,
+		.col-technique::before,
+		.col-spo2::before,
+		.col-hr::before {
+			content: attr(data-label);
+			color: var(--color-text-muted);
+			font-size: 0.68rem;
+			font-weight: 750;
+			text-transform: uppercase;
+		}
+
+		.not-applicable-cell {
+			display: none;
+		}
+
+		.col-duration :global(.wheel-container),
+		.col-distance :global(.wheel-container),
+		.col-rest :global(.wheel-container),
+		.col-spo2 :global(.wheel-container),
+		.col-hr :global(.wheel-container),
+		.col-technique :global(.wheel-container) {
+			height: 72px;
+		}
+
+		.rep-note-input {
+			font-size: 0.85rem;
 		}
 	}
 
