@@ -85,7 +85,14 @@
 	}
 
 	function setRepLungVolume(index: number, vol: LungVolume) {
-		reps[index].lungVolume = vol;
+		setRepValue(index, 'lungVolume', vol);
+	}
+
+	function setRepValue<K extends keyof RepEditorData>(index: number, key: K, value: RepEditorData[K]) {
+		reps[index] = {
+			...reps[index],
+			[key]: value
+		};
 		reps = [...reps];
 	}
 
@@ -154,8 +161,7 @@
 
 	// Toggle rep completion
 	function toggleCompletion(index: number) {
-		reps[index].completed = !reps[index].completed;
-		reps = [...reps]; // Trigger reactivity
+		setRepValue(index, 'completed', !reps[index].completed);
 	}
 
 	// Handle time input change
@@ -163,8 +169,7 @@
 		const input = event.target as HTMLInputElement;
 		const seconds = parseTimeInput(input.value);
 		if (seconds !== null) {
-			reps[index][field] = seconds;
-			reps = [...reps];
+			setRepValue(index, field, seconds);
 		}
 	}
 
@@ -173,12 +178,13 @@
 		const input = event.target as HTMLInputElement;
 		const seconds = parseTimeInput(input.value);
 		if (seconds !== null) {
-			reps[index][field] = seconds;
+			const updatedRep = { ...reps[index], [field]: seconds };
 			// Also update actual if it matches the old planned (user hasn't changed it)
 			const actualField = field === 'plannedDuration' ? 'actualDuration' : 'actualRest';
-			if (reps[index][actualField] === undefined || reps[index][actualField] === 0) {
-				reps[index][actualField] = seconds;
+			if (updatedRep[actualField] === undefined || updatedRep[actualField] === 0) {
+				updatedRep[actualField] = seconds;
 			}
+			reps[index] = updatedRep;
 			reps = [...reps];
 		}
 	}
@@ -188,12 +194,12 @@
 		const input = event.target as HTMLInputElement;
 		const meters = parseInt(input.value, 10);
 		if (!isNaN(meters)) {
-			// Update planned
-			reps[index].plannedDistance = meters;
+			const updatedRep = { ...reps[index], plannedDistance: meters };
 			// Also update actual if it matches the old planned (user hasn't changed it)
-			if (reps[index].actualDistance === undefined || reps[index].actualDistance === 0) {
-				reps[index].actualDistance = meters;
+			if (updatedRep.actualDistance === undefined || updatedRep.actualDistance === 0) {
+				updatedRep.actualDistance = meters;
 			}
+			reps[index] = updatedRep;
 			reps = [...reps];
 		}
 	}
@@ -203,8 +209,7 @@
 		const input = event.target as HTMLInputElement;
 		const meters = parseInt(input.value, 10);
 		if (!isNaN(meters)) {
-			reps[index].actualDistance = meters;
-			reps = [...reps];
+			setRepValue(index, 'actualDistance', meters);
 		}
 	}
 
@@ -213,8 +218,7 @@
 		const input = event.target as HTMLInputElement;
 		const value = parseInt(input.value, 10);
 		if (!isNaN(value) && value >= 0 && value <= 100) {
-			reps[index][field] = value;
-			reps = [...reps];
+			setRepValue(index, field, value);
 		}
 	}
 
@@ -223,8 +227,7 @@
 		const input = event.target as HTMLInputElement;
 		const value = parseInt(input.value, 10);
 		if (!isNaN(value) && value >= 0 && value <= 300) {
-			reps[index][field] = value;
-			reps = [...reps];
+			setRepValue(index, field, value);
 		}
 	}
 
@@ -360,14 +363,16 @@
 					{#if rep.completed}
 						{#if allowEditPlanned}
 							<DurationInput
-								bind:value={rep.plannedRest}
+								value={rep.plannedRest}
+								onValueChange={(value) => setRepValue(i, 'plannedRest', value)}
 								compact={true}
 								showLabel={false}
 								max={600}
 							/>
 						{:else}
 							<DurationInput
-								bind:value={rep.actualRest}
+								value={rep.actualRest}
+								onValueChange={(value) => setRepValue(i, 'actualRest', value)}
 								compact={true}
 								showLabel={false}
 								max={600}
@@ -386,7 +391,8 @@
 							{#if rep.completed}
 								{#if allowEditPlanned}
 									<NumberWheelInput
-										bind:value={rep.plannedDistance}
+										value={rep.plannedDistance}
+										onValueChange={(value) => setRepValue(i, 'plannedDistance', value)}
 										variant="chip"
 										min={5}
 										max={200}
@@ -397,7 +403,8 @@
 									/>
 								{:else}
 									<NumberWheelInput
-										bind:value={rep.actualDistance}
+										value={rep.actualDistance}
+										onValueChange={(value) => setRepValue(i, 'actualDistance', value)}
 										variant="chip"
 										min={5}
 										max={200}
@@ -423,14 +430,16 @@
 						{#if rep.completed}
 							{#if allowEditPlanned}
 								<DurationInput
-									bind:value={rep.plannedDuration}
+									value={rep.plannedDuration}
+									onValueChange={(value) => setRepValue(i, 'plannedDuration', value)}
 									compact={true}
 									showLabel={false}
 									max={600}
 								/>
 							{:else}
 								<DurationInput
-									bind:value={rep.actualDuration}
+									value={rep.actualDuration}
+									onValueChange={(value) => setRepValue(i, 'actualDuration', value)}
 									compact={true}
 									showLabel={false}
 									max={600}
@@ -462,7 +471,8 @@
 					<div class="col-technique" class:not-applicable-cell={mode !== 'dynamic'} data-label="Kicks">
 						{#if mode === 'dynamic' && rep.completed}
 							<NumberWheelInput
-								bind:value={rep.kicks}
+								value={rep.kicks}
+								onValueChange={(value) => setRepValue(i, 'kicks', value)}
 								min={0}
 								max={100}
 								step={1}
@@ -481,7 +491,8 @@
 					<div class="col-technique" class:not-applicable-cell={mode !== 'dynamic'} data-label="Pulls">
 						{#if mode === 'dynamic' && rep.completed}
 							<NumberWheelInput
-								bind:value={rep.armPulls}
+								value={rep.armPulls}
+								onValueChange={(value) => setRepValue(i, 'armPulls', value)}
 								min={0}
 								max={100}
 								step={1}
@@ -500,7 +511,8 @@
 					<div class="col-spo2" data-label="SpO2">
 						{#if rep.completed}
 							<NumberWheelInput
-								bind:value={rep.spo2Min}
+								value={rep.spo2Min}
+								onValueChange={(value) => setRepValue(i, 'spo2Min', value)}
 								min={40}
 								max={100}
 								step={1}
@@ -518,7 +530,8 @@
 					<div class="col-hr" data-label="HR">
 						{#if rep.completed}
 							<NumberWheelInput
-								bind:value={rep.hrMin}
+								value={rep.hrMin}
+								onValueChange={(value) => setRepValue(i, 'hrMin', value)}
 								min={30}
 								max={200}
 								step={1}
@@ -546,7 +559,8 @@
 				{#if trackNotes && showRowNotes && rep.completed}
 					<input
 						class="rep-note-input"
-						bind:value={rep.notes}
+						value={rep.notes ?? ''}
+						oninput={(event) => setRepValue(i, 'notes', event.currentTarget.value)}
 						placeholder={`Row ${rep.repNumber} note`}
 						aria-label={`Row ${rep.repNumber} note`}
 					/>

@@ -23,7 +23,11 @@
 	import { deriveAttemptCategory } from '$lib/utils/attemptCategories';
 	import { getTimeOfDay } from '$lib/utils/sessions';
 	import { clearDashboardCache } from '$lib/utils/dashboardCache';
-	import { buildInitialRoutineLogResultRows, buildRoutineLogPlanRows } from '$lib/routineLayers/logPlan';
+	import {
+		buildInitialRoutineLogResultRows,
+		buildRoutineLogPlanRows,
+		deriveRoutineLogSummaryFromRows
+	} from '$lib/routineLayers/logPlan';
 	import RoutineSelector from '$lib/components/RoutineSelector.svelte';
 	import QuickLogForm, { type LogFormData } from '$lib/components/QuickLogForm.svelte';
 	import DiveBuddyPicker from '$lib/components/DiveBuddyPicker.svelte';
@@ -287,12 +291,28 @@
 				breatheUpType: logData.breatheUpType
 			});
 
+			const plannedRows = logData.plannedRows ?? buildRoutineLogPlanRows(routine);
+			const resultRows = logData.resultRows ?? buildInitialRoutineLogResultRows(plannedRows, {
+				repsCompleted: logData.repsCompleted,
+				totalTimeSeconds: logData.totalTime,
+				totalDistanceMeters: logData.totalDistance,
+				repDurationSeconds: logData.repDuration,
+				repDistanceMeters: logData.repDistance
+			});
+			const rowSummary = deriveRoutineLogSummaryFromRows(plannedRows, resultRows);
+			const totalDistance = rowSummary.dynamicDistanceMeters ?? logData.totalDistance;
+			const totalTime = rowSummary.totalDurationSeconds ?? logData.totalTime;
+			const repsCompleted = rowSummary.completedCount || logData.repsCompleted;
+			const avgSpeed = rowSummary.averageDynamicSpeedMs ?? logData.avgSpeed;
+			const repDuration = rowSummary.uniformRepDurationSeconds ?? logData.repDuration;
+			const repDistance = rowSummary.uniformRepDistanceMeters ?? logData.repDistance;
+
 			// 2. Check if this is a PB (for max-attempt routines only)
 			let isPB = false;
 			const isMaxAttempt = routine.tags.includes('max-attempt') || routine.tags.includes('pb');
 			const result = logData.disciplineUsed === 'STA'
-				? logData.totalTime
-				: logData.totalDistance;
+				? totalTime
+				: totalDistance;
 
 			if (isMaxAttempt && result !== undefined) {
 				try {
@@ -302,15 +322,6 @@
 					console.warn('Could not check PB status before saving routine:', pbCheckError);
 				}
 			}
-
-			const plannedRows = logData.plannedRows ?? buildRoutineLogPlanRows(routine);
-			const resultRows = logData.resultRows ?? buildInitialRoutineLogResultRows(plannedRows, {
-				repsCompleted: logData.repsCompleted,
-				totalTimeSeconds: logData.totalTime,
-				totalDistanceMeters: logData.totalDistance,
-				repDurationSeconds: logData.repDuration,
-				repDistanceMeters: logData.repDistance
-			});
 
 			// 3. Build routine log data, filtering out undefined values
 				const routineLogData: any = {
@@ -370,23 +381,39 @@
 			if (logData.initialBreatheUpTime !== undefined) routineLogData.initialBreatheUpTime = logData.initialBreatheUpTime;
 
 			// Performance metrics
-			if (logData.totalDistance !== undefined) routineLogData.totalDistance = logData.totalDistance;
-			if (logData.totalTime !== undefined) routineLogData.totalTime = logData.totalTime;
-			if (logData.repDuration !== undefined) routineLogData.repDuration = logData.repDuration;
-			if (logData.repDistance !== undefined) routineLogData.repDistance = logData.repDistance;
+			if (totalDistance !== undefined) {
+				routineLogData.totalDistance = totalDistance;
+				routineLogData.cumulativeDistance = totalDistance;
+			}
+			if (totalTime !== undefined) {
+				routineLogData.totalTime = totalTime;
+				routineLogData.cumulativeHoldTime = rowSummary.cumulativeHoldSeconds ?? totalTime;
+			}
+			if (repDuration !== undefined) routineLogData.repDuration = repDuration;
+			if (repDistance !== undefined) routineLogData.repDistance = repDistance;
 			// Average speed + per-lap splits — either user-entered or seeded
 			// from the dynamic dive recorder. Persisted on the routineLog so
 			// analytics + session detail can show the per-lap breakdown.
-			if (logData.avgSpeed !== undefined) routineLogData.avgSpeed = logData.avgSpeed;
+			if (avgSpeed !== undefined) {
+				routineLogData.avgSpeed = avgSpeed;
+				routineLogData.avgSpeedMs = avgSpeed;
+			}
+			if (rowSummary.longestHoldSeconds !== undefined) {
+				routineLogData.longestHold = rowSummary.longestHoldSeconds;
+			}
 
 			// Summary (for interval routines)
-			if (logData.repsCompleted !== undefined || logData.totalTime !== undefined) {
+			if (repsCompleted !== undefined || totalTime !== undefined) {
 				routineLogData.summary = {};
-				if (logData.repsCompleted !== undefined) {
-					routineLogData.summary.repsCompleted = logData.repsCompleted;
+				if (repsCompleted !== undefined) {
+					routineLogData.summary.repsCompleted = repsCompleted;
 				}
-				if (logData.totalTime !== undefined) {
-					routineLogData.summary.totalTimeSeconds = logData.totalTime;
+				if (totalTime !== undefined) {
+					routineLogData.summary.totalTimeSeconds = totalTime;
+				}
+				if (repsCompleted && totalTime !== undefined) {
+					routineLogData.summary.averageTimePerRep = totalTime / repsCompleted;
+					routineLogData.summary.averageTimePerLap = totalTime / repsCompleted;
 				}
 			}
 

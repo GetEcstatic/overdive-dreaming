@@ -1100,7 +1100,7 @@
 				trackArmPullsPerLap={config.trackArmPullsPerLap}
 				trackNotes={config.trackNotes}
 				isDryTraining={false}
-				allowEditPlanned={hasVariableTable}
+				allowEditPlanned={false}
 				bind:defaultLungVolume
 			/>
 		</div>
@@ -1444,7 +1444,7 @@
 				trackArmPullsPerLap={config.trackArmPullsPerLap}
 				trackNotes={config.trackNotes}
 				isDryTraining={config.isDryTraining ?? true}
-				allowEditPlanned={hasVariableTable}
+				allowEditPlanned={false}
 				bind:defaultLungVolume
 			/>
 
