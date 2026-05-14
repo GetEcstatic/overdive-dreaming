@@ -18,7 +18,7 @@
 	import { parseBiometricCsv } from '$lib/utils/biometricCsvParser';
 	import { formatAttemptBadge } from '$lib/utils/attemptCategories';
 	import { deleteDiveVideosForSession } from '$lib/services/diveVideos';
-	import type { RoutineLog, Discipline, BiometricReading } from '$lib/types';
+	import type { RoutineLog, Discipline, BiometricReading, LapData } from '$lib/types';
 	import CommentSection from '$lib/components/CommentSection.svelte';
 	import SessionDiveVideos from '$lib/components/SessionDiveVideos.svelte';
 
@@ -26,6 +26,28 @@
 	let { log, routine, showMenstrualCycleTracking } = $derived(data);
 	const attemptBadge = $derived(formatAttemptBadge(log));
 	const rowReadModel = $derived(buildRoutineLogResultReadModel(log, routine));
+	const dynamicSplitLaps = $derived.by((): LapData[] => {
+		if (rowReadModel.rows.length === 0) return log.laps ?? [];
+
+		return rowReadModel.rows
+			.filter((row) => row.isDynamic)
+			.map((row) => {
+				const timeSeconds = row.result?.actualDurationSeconds ?? row.lap?.timeSeconds;
+				const distanceMeters = row.result?.actualDistanceMeters ?? row.lap?.distanceMeters;
+
+				return {
+					...(row.lap ?? {}),
+					lapNumber: row.plan.globalRowIndex,
+					timeSeconds,
+					distanceMeters,
+					restAfterSeconds: row.result?.actualRestSeconds ?? row.lap?.restAfterSeconds,
+					speedMs: distanceMeters && timeSeconds ? distanceMeters / timeSeconds : row.lap?.speedMs,
+					completed: row.result?.completed ?? row.lap?.completed ?? true,
+					notes: row.result?.notes ?? row.lap?.notes
+				};
+			})
+			.filter((lap) => typeof lap.timeSeconds === 'number');
+	});
 	const totalDistanceValue = $derived(getMetricValue('totalDistance', log, routine));
 	const totalTimeValue = $derived(getMetricValue('totalTime', log, routine));
 	const avgSpeedValue = $derived(getMetricValue('avgSpeedMs', log, routine));
@@ -419,10 +441,10 @@
 	{/if}
 
 	<!-- Per-lap table for dynamic dives with lap data -->
-	{#if (log.disciplineUsed === 'DYN' || log.disciplineUsed === 'DYNB' || log.disciplineUsed === 'DNF') && log.laps && log.laps.length > 0 && log.laps.some((l) => typeof l.timeSeconds === 'number')}
+	{#if (log.disciplineUsed === 'DYN' || log.disciplineUsed === 'DYNB' || log.disciplineUsed === 'DNF') && dynamicSplitLaps.length > 0}
 		<section class="metrics-section">
 			<h2>Per-lap Splits</h2>
-			<LapTable laps={log.laps} poolLength={log.poolLength} />
+			<LapTable laps={dynamicSplitLaps} poolLength={log.poolLength} />
 		</section>
 	{/if}
 
