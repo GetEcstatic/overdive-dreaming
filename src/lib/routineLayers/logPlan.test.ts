@@ -3,9 +3,13 @@ import type { RoutineTemplate } from '$lib/types';
 import { staticTwoBreathTableExample, dynamicMaxExample } from './defaults';
 import { withLayerRoutineTemplateContract } from './contract';
 import {
+	buildRoutineLogResultReadModel,
 	buildInitialRoutineLogResultRows,
+	deriveRoutineLogSummaryFromRows,
 	buildRoutineLogPlanRows,
-	buildRoutineLogResultRowsFromLapData
+	buildRoutineLogResultRowsFromLapData,
+	repEditorDataToRoutineLogRows,
+	routineLogRowsToRepEditorData
 } from './logPlan';
 
 function routineTemplate(overrides: Partial<RoutineTemplate> = {}): RoutineTemplate {
@@ -148,5 +152,104 @@ describe('routine log plan rows', () => {
 			sourceLayerId: 'static-two-breath-table-layer-2',
 			completed: false
 		});
+	});
+
+	it('hydrates rep editor rows from saved result rows before falling back to laps', () => {
+		const routine = withLayerRoutineTemplateContract(routineTemplate(), staticTwoBreathTableExample.layers);
+		const plannedRows = buildRoutineLogPlanRows(routine);
+		const resultRows = buildRoutineLogResultRowsFromLapData(plannedRows, [
+			{ lapNumber: 1, timeSeconds: 90, restAfterSeconds: 240, completed: true },
+			{ lapNumber: 2, timeSeconds: 60, restAfterSeconds: 30, completed: true, notes: 'old lap' }
+		]);
+		resultRows[1] = {
+			...resultRows[1],
+			actualDurationSeconds: 75,
+			notes: 'saved result'
+		};
+
+		const reps = routineLogRowsToRepEditorData(plannedRows, resultRows, [
+			{ lapNumber: 2, timeSeconds: 60, restAfterSeconds: 30, completed: true, notes: 'old lap', spo2Min: 82 }
+		]);
+
+		expect(reps[1]).toMatchObject({
+			repNumber: 2,
+			actualDuration: 75,
+			actualRest: 30,
+			notes: 'saved result',
+			spo2Min: 82
+		});
+	});
+
+	it('converts edited mixed rows to laps and result rows without static distance artifacts', () => {
+		const routine = withLayerRoutineTemplateContract(routineTemplate(), staticTwoBreathTableExample.layers);
+		const plannedRows = buildRoutineLogPlanRows(routine);
+		plannedRows[1] = { ...plannedRows[1], discipline: 'DYN', plannedDistanceMeters: 50 };
+
+		const { laps, resultRows } = repEditorDataToRoutineLogRows(plannedRows.slice(0, 2), [
+			{ repNumber: 1, actualDuration: 92, actualDistance: 10, actualRest: 240, kicks: 5, completed: true },
+			{ repNumber: 2, actualDuration: 44, actualDistance: 50, actualRest: 30, kicks: 18, completed: true }
+		]);
+
+		expect(laps[0]).toMatchObject({
+			lapNumber: 1,
+			timeSeconds: 92,
+			distanceMeters: undefined,
+			kicks: undefined
+		});
+		expect(laps[1]).toMatchObject({
+			lapNumber: 2,
+			distanceMeters: 50,
+			kicks: 18
+		});
+		expect(resultRows[0].actualDistanceMeters).toBeUndefined();
+		expect(resultRows[1].actualDistanceMeters).toBe(50);
+	});
+
+	it('derives saved row summaries from dynamic rows only for distance and speed', () => {
+		const routine = withLayerRoutineTemplateContract(routineTemplate(), staticTwoBreathTableExample.layers);
+		const plannedRows = buildRoutineLogPlanRows(routine).slice(0, 2);
+		plannedRows[1] = { ...plannedRows[1], discipline: 'DYN', plannedDistanceMeters: 50 };
+		const resultRows = buildRoutineLogResultRowsFromLapData(plannedRows, [
+			{ lapNumber: 1, timeSeconds: 90, distanceMeters: 20, restAfterSeconds: 240, completed: true },
+			{ lapNumber: 2, timeSeconds: 50, distanceMeters: 50, restAfterSeconds: 30, completed: true }
+		]);
+
+		const summary = deriveRoutineLogSummaryFromRows(plannedRows, resultRows);
+
+		expect(summary).toMatchObject({
+			completedCount: 2,
+			totalDurationSeconds: 140,
+			dynamicDurationSeconds: 50,
+			dynamicDistanceMeters: 50,
+			averageDynamicSpeedMs: 1,
+			longestHoldSeconds: 90,
+			cumulativeHoldSeconds: 140,
+			totalRestSeconds: 270
+		});
+	});
+
+	it('builds a saved log result read model grouped by layer', () => {
+		const routine = withLayerRoutineTemplateContract(routineTemplate(), staticTwoBreathTableExample.layers);
+		const plannedRows = buildRoutineLogPlanRows(routine).slice(0, 2);
+		const resultRows = buildRoutineLogResultRowsFromLapData(plannedRows, [
+			{ lapNumber: 1, timeSeconds: 90, restAfterSeconds: 240, completed: true },
+			{ lapNumber: 2, timeSeconds: 88, restAfterSeconds: 30, completed: true }
+		]);
+		const log = {
+			id: 'log-1',
+			routineId: routine.id,
+			userId: 'user-1',
+			date: null,
+			disciplineUsed: 'STA',
+			plannedRows,
+			resultRows
+		} as never;
+
+		const readModel = buildRoutineLogResultReadModel(log, routine);
+
+		expect(readModel.hasRowResults).toBe(true);
+		expect(readModel.rows).toHaveLength(2);
+		expect(readModel.layerGroups).toHaveLength(2);
+		expect(readModel.completedCount).toBe(2);
 	});
 });
