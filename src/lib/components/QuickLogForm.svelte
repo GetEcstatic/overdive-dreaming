@@ -40,7 +40,8 @@
 	} from '$lib/routineLayers/quickLogReadModel';
 	import {
 		buildInitialRoutineLogResultRows,
-		buildRoutineLogResultRowsFromLapData
+		buildRoutineLogResultRowsFromLapData,
+		repEditorDataToLapData
 	} from '$lib/routineLayers/logPlan';
 	import { storedDisciplineForLayer, type LayerDiscipline } from '$lib/routineLayers/model';
 
@@ -510,30 +511,6 @@
 		}
 	}
 
-	function repEditorDataToLapData(reps: RepEditorData[]): LapData[] {
-		return reps.map((rep) => ({
-			lapNumber: rep.repNumber,
-			timeSeconds: rep.actualDuration,
-			distanceMeters: rep.actualDistance,
-			restAfterSeconds: rep.actualRest,
-			kicks: rep.kicks,
-			armPulls: rep.armPulls,
-			speedMs: rep.actualDistance && rep.actualDuration ? rep.actualDistance / rep.actualDuration : undefined,
-			completed: rep.completed,
-			notes: rep.notes?.trim() || undefined,
-			lungVolume: rep.lungVolume,
-			spo2Min: rep.spo2Min,
-			spo2Avg: rep.spo2Avg,
-			hrMin: rep.hrMin,
-			hrMax: rep.hrMax,
-			hrAvg: rep.hrAvg,
-			timeBelow70: rep.timeBelow70,
-			timeBelow60: rep.timeBelow60,
-			timeBelow50: rep.timeBelow50,
-			timeBelow40: rep.timeBelow40
-		}));
-	}
-
 	function toggleRecordTag(tag: RecordTag) {
 		recordTag = recordTag === tag ? undefined : tag;
 	}
@@ -575,7 +552,7 @@
 		if (facialGearNothing) facialGear.push('nothing');
 
 		const plannedRows = effectivePlannedRows;
-		const editedLaps = repEditorData.length > 0 ? repEditorDataToLapData(repEditorData) : undefined;
+		const editedLaps = repEditorData.length > 0 ? repEditorDataToLapData(plannedRows, repEditorData) : undefined;
 		const resultRows = editedLaps
 			? buildRoutineLogResultRowsFromLapData(plannedRows, editedLaps)
 			: buildInitialRoutineLogResultRows(plannedRows, {

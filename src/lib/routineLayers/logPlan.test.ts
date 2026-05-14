@@ -126,6 +126,27 @@ describe('routine log plan rows', () => {
 		});
 	});
 
+	it('does not assign distance to static initial result rows', () => {
+		const routine = withLayerRoutineTemplateContract(routineTemplate({ disciplines: ['STA'] }), [
+			{
+				...staticTwoBreathTableExample.layers[0],
+				id: 'static-layer-1',
+				discipline: 'STA'
+			}
+		]);
+		const plannedRows = buildRoutineLogPlanRows(routine);
+		const resultRows = buildInitialRoutineLogResultRows(plannedRows, {
+			totalTimeSeconds: 90,
+			totalDistanceMeters: 50
+		});
+
+		expect(resultRows[0]).toMatchObject({
+			actualDurationSeconds: 90,
+			actualDistanceMeters: undefined,
+			completed: true
+		});
+	});
+
 	it('builds result rows from edited lap data while preserving layer IDs', () => {
 		const routine = withLayerRoutineTemplateContract(routineTemplate(), staticTwoBreathTableExample.layers);
 		const plannedRows = buildRoutineLogPlanRows(routine);

@@ -119,13 +119,14 @@
 			for (let i = 0; i < plannedReps; i++) {
 				const plannedRow = plannedRows?.[i];
 				const row = routineTable?.rows[i];
+				const isDynamicRow = plannedRow ? plannedRow.discipline !== 'STA' : discipline !== 'STA';
 				initialReps.push({
 					repNumber: i + 1,
 					plannedDuration: plannedRow?.plannedDurationSeconds ?? row?.targetDuration,
-					plannedDistance: plannedRow?.plannedDistanceMeters ?? row?.targetDistance ?? defaultDistanceMeters,
+					plannedDistance: isDynamicRow ? plannedRow?.plannedDistanceMeters ?? row?.targetDistance ?? defaultDistanceMeters : undefined,
 					plannedRest: plannedRow?.plannedBreatheUpSeconds ?? row?.restBefore ?? defaultRestSeconds,
 					actualDuration: plannedRow?.plannedDurationSeconds ?? row?.targetDuration,
-					actualDistance: plannedRow?.plannedDistanceMeters ?? row?.targetDistance ?? defaultDistanceMeters,
+					actualDistance: isDynamicRow ? plannedRow?.plannedDistanceMeters ?? row?.targetDistance ?? defaultDistanceMeters : undefined,
 					actualRest: plannedRow?.plannedBreatheUpSeconds ?? row?.restBefore ?? defaultRestSeconds,
 					completed: true,
 					notes: ''

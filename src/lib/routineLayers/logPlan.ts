@@ -61,7 +61,9 @@ export function buildInitialRoutineLogResultRows(
 		globalRowIndex: row.globalRowIndex,
 		completed: row.globalRowIndex <= completedCount,
 		actualDurationSeconds: singleRow ? input.totalTimeSeconds : input.repDurationSeconds,
-		actualDistanceMeters: singleRow ? input.totalDistanceMeters : input.repDistanceMeters
+		actualDistanceMeters: isDynamicPlanRow(row)
+			? singleRow ? input.totalDistanceMeters : input.repDistanceMeters
+			: undefined
 	}));
 }
 
