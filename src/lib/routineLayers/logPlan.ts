@@ -217,7 +217,7 @@ export function buildRoutineLogResultReadModel(
 ): RoutineLogResultReadModel {
 	const plannedRows = log.plannedRows && log.plannedRows.length > 0
 		? log.plannedRows
-		: routine ? buildRoutineLogPlanRows(routine) : [];
+		: routine?.disciplines?.length ? buildRoutineLogPlanRows(routine) : [];
 	const resultRows = log.resultRows && log.resultRows.length > 0
 		? log.resultRows
 		: plannedRows.length > 0 && log.laps && log.laps.length > 0

@@ -6,8 +6,9 @@
 	import EditRoutineLogModal from '$lib/components/EditRoutineLogModal.svelte';
 	import BiometricTimeChart from '$lib/components/BiometricTimeChart.svelte';
 	import LapTable from '$lib/components/LapTable.svelte';
-	import { getFormattedMetric } from '$lib/utils/metrics';
+	import { getFormattedMetric, getMetricValue } from '$lib/utils/metrics';
 	import { formatTime } from '$lib/utils/time';
+	import { buildRoutineLogResultReadModel } from '$lib/routineLayers/logPlan';
 	import { getYouTubeEmbedUrl, deleteSessionPhotoMedia, deleteBiometricCsv } from '$lib/storage';
 	import { format } from 'date-fns';
 	import { updateRoutineLog, deleteRoutineLog } from '$lib/firestore';
@@ -24,6 +25,12 @@
 	let { data } = $props();
 	let { log, routine, showMenstrualCycleTracking } = $derived(data);
 	const attemptBadge = $derived(formatAttemptBadge(log));
+	const rowReadModel = $derived(buildRoutineLogResultReadModel(log, routine));
+	const totalDistanceValue = $derived(getMetricValue('totalDistance', log, routine));
+	const totalTimeValue = $derived(getMetricValue('totalTime', log, routine));
+	const avgSpeedValue = $derived(getMetricValue('avgSpeedMs', log, routine));
+	const repsCompletedValue = $derived(getMetricValue('repsCompleted', log, routine));
+	const cumulativeHoldValue = $derived(getMetricValue('cumulativeHoldTime', log, routine));
 
 	// Edit modal state
 	let editingLog = $state<{ log: RoutineLog; routine: typeof routine } | null>(null);
@@ -229,6 +236,18 @@
 		if (level < 0) return `Hypoventilation (${level})`;
 		return `Hyperventilation (+${level})`;
 	}
+
+	function rowDisciplineLabel(discipline: string): string {
+		return discipline === 'STA' ? 'Static' : 'Dynamic';
+	}
+
+	function formatOptionalTime(seconds: number | undefined): string {
+		return seconds !== undefined ? formatTime(seconds) : '—';
+	}
+
+	function formatOptionalDistance(meters: number | undefined): string {
+		return meters !== undefined ? `${meters}m` : '—';
+	}
 </script>
 
 <svelte:head>
@@ -284,35 +303,34 @@
 	</section>
 
 	<!-- Performance Metrics -->
-	{#if log.totalDistance || log.totalTime || log.summary?.repsCompleted || log.repDuration || log.avgSpeedMs || log.avgSpeed}
-		{@const avgSpeedVal = log.avgSpeedMs ?? log.avgSpeed}
+	{#if totalDistanceValue || totalTimeValue || repsCompletedValue || log.repDuration || avgSpeedValue || cumulativeHoldValue}
 		{@const fastestVal = log.fastestLapSpeedMs ?? log.maxRepSpeed}
 		{@const slowestVal = log.slowestLapSpeedMs ?? log.minRepSpeed}
 		<section class="metrics-section">
 			<h2>Performance Metrics</h2>
 			<div class="metrics-grid">
-				{#if log.totalDistance}
+				{#if totalDistanceValue}
 					<div class="metric-item">
 						<span class="label">Total Distance</span>
-						<span class="value">{log.totalDistance}m</span>
+						<span class="value">{totalDistanceValue}m</span>
 					</div>
 				{/if}
-				{#if log.totalTime}
+				{#if totalTimeValue}
 					<div class="metric-item">
 						<span class="label">Total Time</span>
-						<span class="value">{formatTime(log.totalTime)}</span>
+						<span class="value">{formatTime(totalTimeValue)}</span>
 					</div>
 				{/if}
-				{#if avgSpeedVal}
+				{#if avgSpeedValue}
 					<div class="metric-item">
 						<span class="label">Avg Speed</span>
-						<span class="value">{avgSpeedVal.toFixed(2)} m/s</span>
+						<span class="value">{avgSpeedValue.toFixed(2)} m/s</span>
 					</div>
 				{/if}
-				{#if log.summary?.repsCompleted}
+				{#if repsCompletedValue}
 					<div class="metric-item">
 						<span class="label">Reps Completed</span>
-						<span class="value">{log.summary.repsCompleted}</span>
+						<span class="value">{repsCompletedValue}</span>
 					</div>
 				{/if}
 				{#if log.repDuration}
@@ -339,12 +357,63 @@
 						<span class="value">{slowestVal.toFixed(2)} m/s</span>
 					</div>
 				{/if}
-				{#if log.cumulativeHoldTime}
+				{#if cumulativeHoldValue}
 					<div class="metric-item">
 						<span class="label">Cumulative Hold Time</span>
-						<span class="value">{formatTime(log.cumulativeHoldTime)}</span>
+						<span class="value">{formatTime(cumulativeHoldValue)}</span>
 					</div>
 				{/if}
+			</div>
+		</section>
+	{/if}
+
+	{#if rowReadModel.hasRowResults}
+		<section class="metrics-section row-results-section">
+			<h2>Row Results</h2>
+			<div class="row-results-list">
+				{#each rowReadModel.layerGroups as group}
+					<div class="row-layer-group">
+						<div class="row-layer-header">
+							<h3>{group.name}</h3>
+							<span>{group.disciplines.map(rowDisciplineLabel).join(' / ')}</span>
+						</div>
+						<div class="row-result-grid">
+							{#each group.rows as row}
+								<div class="row-result-item" class:skipped={!row.rep.completed}>
+									<div class="row-result-title">
+										<span>Row {row.plan.globalRowIndex}</span>
+										<span>{row.rep.completed ? 'Completed' : 'Skipped'}</span>
+									</div>
+									<div class="row-result-values">
+										<span><strong>Rest</strong>{formatOptionalTime(row.rep.actualRest)}</span>
+										<span><strong>Time</strong>{formatOptionalTime(row.rep.actualDuration)}</span>
+										{#if row.isDynamic}
+											<span><strong>Distance</strong>{formatOptionalDistance(row.rep.actualDistance)}</span>
+										{/if}
+										{#if row.rep.lungVolume}
+											<span><strong>Volume</strong>{row.rep.lungVolume}</span>
+										{/if}
+										{#if row.rep.kicks !== undefined}
+											<span><strong>Kicks</strong>{row.rep.kicks}</span>
+										{/if}
+										{#if row.rep.armPulls !== undefined}
+											<span><strong>Pulls</strong>{row.rep.armPulls}</span>
+										{/if}
+										{#if row.rep.spo2Min !== undefined}
+											<span><strong>Min SpO2</strong>{row.rep.spo2Min}%</span>
+										{/if}
+										{#if row.rep.hrMin !== undefined}
+											<span><strong>Min HR</strong>{row.rep.hrMin} bpm</span>
+										{/if}
+									</div>
+									{#if row.rep.notes}
+										<p>{row.rep.notes}</p>
+									{/if}
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/each}
 			</div>
 		</section>
 	{/if}
@@ -977,6 +1046,102 @@
 
 	.metric-item .value.capitalize {
 		text-transform: capitalize;
+	}
+
+	.row-results-list {
+		display: grid;
+		gap: 1rem;
+	}
+
+	.row-layer-group {
+		display: grid;
+		gap: 0.75rem;
+	}
+
+	.row-layer-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		padding-bottom: 0.5rem;
+		border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+	}
+
+	.row-layer-header h3 {
+		margin: 0;
+		font-size: 0.9375rem;
+		font-weight: 650;
+		color: var(--color-text);
+	}
+
+	.row-layer-header span {
+		font-size: 0.75rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.025em;
+		color: var(--color-text-muted);
+	}
+
+	.row-result-grid {
+		display: grid;
+		gap: 0.75rem;
+	}
+
+	.row-result-item {
+		display: grid;
+		gap: 0.75rem;
+		padding: 0.875rem;
+		border: 1px solid rgba(148, 163, 184, 0.14);
+		border-radius: 8px;
+		background: rgba(148, 163, 184, 0.05);
+	}
+
+	.row-result-item.skipped {
+		opacity: 0.72;
+	}
+
+	.row-result-title {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		font-size: 0.8125rem;
+		font-weight: 700;
+		color: var(--color-text);
+	}
+
+	.row-result-title span:last-child {
+		color: var(--color-text-muted);
+		font-weight: 600;
+	}
+
+	.row-result-values {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+		gap: 0.625rem;
+	}
+
+	.row-result-values span {
+		display: grid;
+		gap: 0.2rem;
+		font-size: 0.875rem;
+		font-variant-numeric: tabular-nums;
+		color: var(--color-text);
+	}
+
+	.row-result-values strong {
+		font-size: 0.6875rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.025em;
+		color: var(--color-text-muted);
+	}
+
+	.row-result-item p {
+		margin: 0;
+		font-size: 0.875rem;
+		line-height: 1.5;
+		color: var(--color-text-muted);
 	}
 
 	/* Notes */

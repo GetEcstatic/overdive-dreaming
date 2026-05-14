@@ -7,6 +7,7 @@
 
 import type { RoutineLog, RoutineTemplate, MetricType } from '$lib/types';
 import { getMetricRegistryEntry } from '$lib/metrics/registry';
+import { buildRoutineLogResultReadModel } from '$lib/routineLayers/logPlan';
 import { formatTime } from './time';
 
 type MetricValueResolver = (log: RoutineLog, routine: RoutineTemplate) => number;
@@ -116,30 +117,32 @@ export function calculateTotalRepDistance(log: RoutineLog): number {
 }
 
 const metricValueResolvers = {
-	totalDistance: (log) => log.totalDistance || log.diveDistance || 0,
-	diveDistance: (log) => log.totalDistance || log.diveDistance || 0,
-	cumulativeDistance: (log) => {
+	totalDistance: (log, routine) => rowMetric(log, routine, (row) => row.dynamicDistanceMeters) ?? log.totalDistance ?? log.diveDistance ?? 0,
+	diveDistance: (log, routine) => rowMetric(log, routine, (row) => row.dynamicDistanceMeters) ?? log.totalDistance ?? log.diveDistance ?? 0,
+	cumulativeDistance: (log, routine) => {
+		const rowDistance = rowMetric(log, routine, (row) => row.dynamicDistanceMeters);
+		if (rowDistance !== undefined) return rowDistance;
 		if (log.cumulativeDistance) return log.cumulativeDistance;
 		if (log.laps && log.laps.length > 0) {
 			return log.laps.reduce((sum, lap) => sum + (lap.distanceMeters || 0), 0);
 		}
 		return calculateTotalRepDistance(log);
 	},
-	totalTime: (log) => log.totalTime || log.diveDuration || 0,
-	diveDuration: (log) => log.totalTime || log.diveDuration || 0,
-	repsCompleted: (log) => log.repsCompleted || log.summary?.repsCompleted || 0,
-	totalRepDistance: (log) => calculateTotalRepDistance(log),
+	totalTime: (log, routine) => rowMetric(log, routine, (row) => row.totalDurationSeconds) ?? log.totalTime ?? log.diveDuration ?? 0,
+	diveDuration: (log, routine) => rowMetric(log, routine, (row) => row.totalDurationSeconds) ?? log.totalTime ?? log.diveDuration ?? 0,
+	repsCompleted: (log, routine) => rowMetric(log, routine, (row) => row.completedCount) ?? log.repsCompleted ?? log.summary?.repsCompleted ?? 0,
+	totalRepDistance: (log, routine) => rowMetric(log, routine, (row) => row.dynamicDistanceMeters) ?? calculateTotalRepDistance(log),
 	repDuration: (log) => log.repDuration || 0,
-	holdDuration: (log) => log.repDuration || log.totalTime || log.diveDuration || 0,
+	holdDuration: (log, routine) => rowMetric(log, routine, (row) => row.longestHoldSeconds) ?? log.repDuration ?? log.totalTime ?? log.diveDuration ?? 0,
 	lapDistance: (log) => log.repDistance || 0,
-	avgTimePerLap: (log) => calculateAvgTimePerLap(log),
-	avgTimePerRep: (log) => calculateAvgTimePerLap(log),
-	avgRestBetweenLaps: (log) => calculateAvgRestBetweenLaps(log),
+	avgTimePerLap: (log, routine) => averageRowDuration(log, routine) ?? calculateAvgTimePerLap(log),
+	avgTimePerRep: (log, routine) => averageRowDuration(log, routine) ?? calculateAvgTimePerLap(log),
+	avgRestBetweenLaps: (log, routine) => averageRowRest(log, routine) ?? calculateAvgRestBetweenLaps(log),
 	totalBreathHoldTime: (log, routine) => resolveCumulativeHoldTime(log, routine),
 	cumulativeHoldTime: (log, routine) => resolveCumulativeHoldTime(log, routine),
-	longestHold: (log) => log.longestHold ?? maxLapValue(log, (lap) => lap.timeSeconds) ?? 0,
-	totalBreathingTime: (log) => calculateTotalBreathingTime(log),
-	sessionDuration: (log) => log.sessionDuration || log.totalTime || log.diveDuration || 0,
+	longestHold: (log, routine) => rowMetric(log, routine, (row) => row.longestHoldSeconds) ?? log.longestHold ?? maxLapValue(log, (lap) => lap.timeSeconds) ?? 0,
+	totalBreathingTime: (log, routine) => rowMetric(log, routine, (row) => row.totalRestSeconds) ?? calculateTotalBreathingTime(log),
+	sessionDuration: (log, routine) => rowSessionDuration(log, routine) ?? log.sessionDuration ?? log.totalTime ?? log.diveDuration ?? 0,
 	totalBreaths: (log) => calculateTotalBreaths(log),
 	poolLength: (log) => log.poolLength || 0,
 	initialBreatheUpTime: (log) => log.initialBreatheUpTime || 0,
@@ -162,8 +165,8 @@ const metricValueResolvers = {
 	urgeToBreathe: (log) => log.urgeToBreathe ?? 0,
 	lucidity: (log) => log.lucidity ?? 0,
 	contractions: (log) => log.contractions ?? 0,
-	avgSpeed: (log) => log.avgSpeedMs ?? log.avgSpeed ?? calculateAvgSpeed(log),
-	avgSpeedMs: (log) => log.avgSpeedMs ?? log.avgSpeed ?? calculateAvgSpeed(log),
+	avgSpeed: (log, routine) => rowMetric(log, routine, (row) => row.averageDynamicSpeedMs) ?? log.avgSpeedMs ?? log.avgSpeed ?? calculateAvgSpeed(log),
+	avgSpeedMs: (log, routine) => rowMetric(log, routine, (row) => row.averageDynamicSpeedMs) ?? log.avgSpeedMs ?? log.avgSpeed ?? calculateAvgSpeed(log),
 	maxRepSpeed: (log) => log.fastestLapSpeedMs ?? log.maxRepSpeed ?? maxLapValue(log, speedForLap) ?? 0,
 	fastestLapSpeedMs: (log) => log.fastestLapSpeedMs ?? log.maxRepSpeed ?? maxLapValue(log, speedForLap) ?? 0,
 	minRepSpeed: (log) => log.slowestLapSpeedMs ?? log.minRepSpeed ?? minLapValue(log, speedForLap) ?? 0,
@@ -225,11 +228,41 @@ export function getMetricValue(
 }
 
 function resolveCumulativeHoldTime(log: RoutineLog, routine: RoutineTemplate): number {
+	const rowHold = rowMetric(log, routine, (row) => row.cumulativeHoldSeconds);
+	if (rowHold !== undefined) return rowHold;
 	if (log.cumulativeHoldTime) return log.cumulativeHoldTime;
 	if (log.laps && log.laps.length > 0) {
 		return log.laps.reduce((sum, lap) => sum + (lap.timeSeconds || 0), 0);
 	}
 	return calculateTotalBreathHoldTime(log, routine);
+}
+
+function rowMetric(
+	log: RoutineLog,
+	routine: RoutineTemplate,
+	selector: (readModel: ReturnType<typeof buildRoutineLogResultReadModel>) => number | undefined
+): number | undefined {
+	const readModel = buildRoutineLogResultReadModel(log, routine);
+	if (!readModel.hasRowResults) return undefined;
+	return selector(readModel);
+}
+
+function averageRowDuration(log: RoutineLog, routine: RoutineTemplate): number | undefined {
+	const readModel = buildRoutineLogResultReadModel(log, routine);
+	if (!readModel.hasRowResults || !readModel.completedCount || readModel.totalDurationSeconds === undefined) return undefined;
+	return readModel.totalDurationSeconds / readModel.completedCount;
+}
+
+function averageRowRest(log: RoutineLog, routine: RoutineTemplate): number | undefined {
+	const readModel = buildRoutineLogResultReadModel(log, routine);
+	if (!readModel.hasRowResults || !readModel.completedCount || readModel.totalRestSeconds === undefined) return undefined;
+	return readModel.totalRestSeconds / readModel.completedCount;
+}
+
+function rowSessionDuration(log: RoutineLog, routine: RoutineTemplate): number | undefined {
+	const readModel = buildRoutineLogResultReadModel(log, routine);
+	if (!readModel.hasRowResults) return undefined;
+	return (readModel.totalDurationSeconds ?? 0) + (readModel.totalRestSeconds ?? 0) || undefined;
 }
 
 function zeroMetric(): number {

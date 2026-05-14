@@ -14,6 +14,61 @@ describe('metric value resolution', () => {
 		expect(formatMetricValue('cumulativeDistance', 100)).toBe('100m');
 	});
 
+	it('prefers saved row results for mixed routine totals', () => {
+		const log = {
+			totalDistance: 999,
+			totalTime: 999,
+			plannedRows: [
+				{
+					planRowId: 'static:1',
+					sourceLayerId: 'static',
+					repIndex: 1,
+					globalRowIndex: 1,
+					discipline: 'STA',
+					lungVolume: 'FL',
+					effort: 'standard',
+					environment: 'wet'
+				},
+				{
+					planRowId: 'dynamic:1',
+					sourceLayerId: 'dynamic',
+					repIndex: 1,
+					globalRowIndex: 2,
+					discipline: 'DYN',
+					lungVolume: 'FL',
+					effort: 'standard',
+					environment: 'wet'
+				}
+			],
+			resultRows: [
+				{
+					planRowId: 'static:1',
+					sourceLayerId: 'static',
+					repIndex: 1,
+					globalRowIndex: 1,
+					completed: true,
+					actualDurationSeconds: 90,
+					actualDistanceMeters: 25
+				},
+				{
+					planRowId: 'dynamic:1',
+					sourceLayerId: 'dynamic',
+					repIndex: 1,
+					globalRowIndex: 2,
+					completed: true,
+					actualDurationSeconds: 50,
+					actualDistanceMeters: 50
+				}
+			]
+		} as RoutineLog;
+
+		expect(getMetricValue('totalDistance', log, routine)).toBe(50);
+		expect(getMetricValue('totalTime', log, routine)).toBe(140);
+		expect(getMetricValue('avgSpeedMs', log, routine)).toBe(1);
+		expect(getMetricValue('cumulativeHoldTime', log, routine)).toBe(140);
+		expect(getMetricValue('longestHold', log, routine)).toBe(90);
+	});
+
 	it('rolls up P0 biometric display metrics from lap data', () => {
 		const log = {
 			laps: [
