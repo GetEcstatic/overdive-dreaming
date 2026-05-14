@@ -7,6 +7,7 @@
 	import { onMount } from 'svelte';
 	import { getTimeOfDay } from '$lib/utils/sessions';
 	import { deriveAttemptCategory } from '$lib/utils/attemptCategories';
+	import { deriveRoutineLogSummaryFromRows } from '$lib/routineLayers/logPlan';
 
 	interface Props {
 		open: boolean;
@@ -108,12 +109,36 @@
 				updates.pbCategoryLabel = attemptCategory.label;
 				if (formData.initialBreatheUpTime !== log.initialBreatheUpTime)
 					updates.initialBreatheUpTime = formData.initialBreatheUpTime;
+			const rowSummary = formData.plannedRows && formData.resultRows
+				? deriveRoutineLogSummaryFromRows(formData.plannedRows, formData.resultRows)
+				: undefined;
 			if (formData.totalDistance !== log.totalDistance) updates.totalDistance = formData.totalDistance;
 			if (formData.totalTime !== log.totalTime) updates.totalTime = formData.totalTime;
-			if (formData.repsCompleted !== log.summary?.repsCompleted) {
-				if (formData.repsCompleted !== undefined) {
+			if (rowSummary?.dynamicDistanceMeters !== undefined) {
+				updates.cumulativeDistance = rowSummary.dynamicDistanceMeters;
+			}
+			if (rowSummary?.cumulativeHoldSeconds !== undefined) {
+				updates.cumulativeHoldTime = rowSummary.cumulativeHoldSeconds;
+			}
+			if (rowSummary?.longestHoldSeconds !== undefined) {
+				updates.longestHold = rowSummary.longestHoldSeconds;
+			}
+			if (rowSummary?.averageDynamicSpeedMs !== undefined) {
+				updates.avgSpeedMs = rowSummary.averageDynamicSpeedMs;
+				updates.avgSpeed = rowSummary.averageDynamicSpeedMs;
+			}
+			if (formData.repsCompleted !== log.summary?.repsCompleted || rowSummary) {
+				if (formData.repsCompleted !== undefined || rowSummary) {
 					updates.summary = {
-						repsCompleted: formData.repsCompleted
+						...log.summary,
+						repsCompleted: formData.repsCompleted ?? rowSummary?.completedCount ?? log.summary?.repsCompleted ?? 0,
+						totalTimeSeconds: formData.totalTime ?? rowSummary?.totalDurationSeconds ?? log.summary?.totalTimeSeconds,
+						averageTimePerRep: rowSummary?.completedCount && rowSummary.totalDurationSeconds
+							? rowSummary.totalDurationSeconds / rowSummary.completedCount
+							: log.summary?.averageTimePerRep,
+						averageTimePerLap: rowSummary?.completedCount && rowSummary.totalDurationSeconds
+							? rowSummary.totalDurationSeconds / rowSummary.completedCount
+							: log.summary?.averageTimePerLap
 					};
 				}
 			}
@@ -188,6 +213,8 @@
 			if (formData.hasBiometricData !== log.hasBiometricData) 
 				updates.hasBiometricData = formData.hasBiometricData;
 			if (formData.laps !== log.laps) updates.laps = formData.laps;
+			if (formData.plannedRows) updates.plannedRows = formData.plannedRows;
+			if (formData.resultRows) updates.resultRows = formData.resultRows;
 			if (formData.longestHold !== log.longestHold) updates.longestHold = formData.longestHold;
 			if (formData.cumulativeHoldTime !== log.cumulativeHoldTime) 
 				updates.cumulativeHoldTime = formData.cumulativeHoldTime;

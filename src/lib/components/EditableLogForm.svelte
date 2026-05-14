@@ -12,7 +12,9 @@
 		RepEditorData,
 		AttemptCategoryKind,
 		BreathingGas,
-		LungVolume
+		LungVolume,
+		RoutineLogPlanRow,
+		RoutineLogResultRow
 	} from '$lib/types';
 	import type { LogFormData } from '$lib/components/QuickLogForm.svelte';
 	import {
@@ -33,6 +35,12 @@
 		deriveAttemptCategory
 	} from '$lib/utils/attemptCategories';
 	import { routineHasO2StaticIntent } from '$lib/routineLayers/quickLogReadModel';
+	import {
+		buildRoutineLogPlanRows,
+		deriveRoutineLogSummaryFromRows,
+		repEditorDataToRoutineLogRows,
+		routineLogRowsToRepEditorData
+	} from '$lib/routineLayers/logPlan';
 
 	interface Props {
 		routine: RoutineTemplate;
@@ -158,26 +166,13 @@
 
 	// Biometric tracking state (from CSV import)
 	let showBiometricModal = $state(false);
+	const savedPlannedRows = $derived<RoutineLogPlanRow[]>(
+		formData.plannedRows && formData.plannedRows.length > 0
+			? formData.plannedRows
+			: buildRoutineLogPlanRows(routine)
+	);
 	let repEditorData = $state<RepEditorData[]>(
-		// Hydrate from existing log laps so the rep editor round-trips edits.
-		(formData.laps ?? []).map((lap): RepEditorData => ({
-			repNumber: lap.lapNumber,
-			actualDuration: lap.timeSeconds,
-			actualDistance: lap.distanceMeters,
-			actualRest: lap.restAfterSeconds,
-			completed: lap.completed ?? true,
-			notes: lap.notes,
-			lungVolume: lap.lungVolume,
-			spo2Min: lap.spo2Min,
-			spo2Avg: lap.spo2Avg,
-			hrMin: lap.hrMin,
-			hrMax: lap.hrMax,
-			hrAvg: lap.hrAvg,
-			timeBelow70: lap.timeBelow70,
-			timeBelow60: lap.timeBelow60,
-			timeBelow50: lap.timeBelow50,
-			timeBelow40: lap.timeBelow40
-		}))
+		routineLogRowsToRepEditorData(savedPlannedRows, formData.resultRows, formData.laps)
 	);
 	// Session-level default lung volume (FL/RV/FRC) — carries through to log payload
 		let defaultLungVolume = $state<LungVolume | undefined>(formData.defaultLungVolume ?? initialAttemptCategory.conditions.lungVolume);
@@ -313,26 +308,15 @@
 		if (facialGearGoggles) facialGear.push('goggles');
 		if (facialGearNothing) facialGear.push('nothing');
 
-		// Prepare per-rep biometric lap data (convert RepEditorData to LapData)
-		const lapsData: LapData[] | undefined = repEditorData.length > 0 
-			? repEditorData.map((r): LapData => ({
-				lapNumber: r.repNumber,
-				timeSeconds: r.actualDuration || 0,
-				restAfterSeconds: r.actualRest || 0,
-				completed: r.completed,
-				notes: r.notes,
-				lungVolume: r.lungVolume,
-				spo2Min: r.spo2Min,
-				spo2Avg: r.spo2Avg,
-				hrMin: r.hrMin,
-				hrMax: r.hrMax,
-				hrAvg: r.hrAvg,
-				timeBelow70: r.timeBelow70 || 0,
-				timeBelow60: r.timeBelow60 || 0,
-				timeBelow50: r.timeBelow50 || 0,
-				timeBelow40: r.timeBelow40 || 0
-			}))
-			: existingLaps; // Keep existing laps if no new import
+
+		const rowPayload = repEditorData.length > 0
+			? repEditorDataToRoutineLogRows(savedPlannedRows, repEditorData)
+			: undefined;
+		const rowSummary = rowPayload
+			? deriveRoutineLogSummaryFromRows(savedPlannedRows, rowPayload.resultRows)
+			: undefined;
+		const lapsData: LapData[] | undefined = rowPayload?.laps ?? existingLaps;
+		const resultRows: RoutineLogResultRow[] | undefined = rowPayload?.resultRows ?? formData.resultRows;
 
 		const data: LogFormData = {
 			disciplineUsed,
@@ -349,11 +333,11 @@
 			poolLength: normalizeNumber(poolLength),
 			initialBreatheUpTime: initialBreatheUpTime,
 			// Performance metrics
-			totalDistance: normalizeNumber(totalDistance),
-			totalTime: totalTimeSeconds,
-			repsCompleted: normalizeNumber(repsCompleted),
-			repDuration: repDurationSeconds,
-			repDistance: normalizeNumber(repDistance),
+			totalDistance: rowSummary?.dynamicDistanceMeters ?? normalizeNumber(totalDistance),
+			totalTime: rowSummary?.totalDurationSeconds ?? totalTimeSeconds,
+			repsCompleted: rowSummary?.completedCount ?? normalizeNumber(repsCompleted),
+			repDuration: rowSummary?.uniformRepDurationSeconds ?? repDurationSeconds,
+			repDistance: rowSummary?.uniformRepDistanceMeters ?? normalizeNumber(repDistance),
 			// Training context
 			breathingTechnique,
 			waterTemperature: normalizeNumber(waterTemperature),
@@ -396,6 +380,8 @@
 			breatheUpType: breatheUpType?.trim() || undefined,
 			// Biometric tracking data
 			laps: lapsData,
+			plannedRows: savedPlannedRows,
+			resultRows,
 			hasBiometricData: biometricSummary?.hasBiometricData,
 			longestHold: biometricSummary?.longestHold,
 			cumulativeHoldTime: biometricSummary?.cumulativeHoldTime,
@@ -881,8 +867,9 @@
 		{#if isMultiRepRoutine}
 			<RepEditor
 				discipline={disciplineUsed}
-				plannedReps={routine.numberOfReps || routine.table?.rows.length || repEditorData.length || 8}
+				plannedReps={savedPlannedRows.length || routine.numberOfReps || routine.table?.rows.length || repEditorData.length || 8}
 				routineTable={routine.table}
+				plannedRows={savedPlannedRows}
 				defaultRestSeconds={routine.restBetweenReps || 0}
 				bind:reps={repEditorData}
 				trackSpO2={config.trackPerRepSpO2 ?? false}

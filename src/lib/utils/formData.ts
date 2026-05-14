@@ -37,6 +37,7 @@ export function routineLogToFormData(log: RoutineLog): LogFormData {
 		totalTime: log.totalTime,
 		repsCompleted: log.summary?.repsCompleted,
 		repDuration: log.repDuration,
+		repDistance: log.repDistance,
 
 		// Training context
 		breathingTechnique: log.breathingTechnique,
@@ -86,6 +87,8 @@ export function routineLogToFormData(log: RoutineLog): LogFormData {
 
 		// Biometric tracking data (from CSV import)
 		laps: log.laps,
+		plannedRows: log.plannedRows,
+		resultRows: log.resultRows,
 		hasBiometricData: log.hasBiometricData,
 		longestHold: log.longestHold,
 		cumulativeHoldTime: log.cumulativeHoldTime,
