@@ -2,132 +2,155 @@
 
 Overdive Dreaming — a Strava-like training tracker for pool freediving (STA, DYN, DNF, DYNB). Mobile-first SvelteKit + Firebase web app.
 
+This file is the working guide for coding agents in **Pi**. Keep it practical, current, and biased toward safe edits.
+
+## Pi operating rules
+
+- Use Pi tools directly: `read` for files, `bash` for discovery (`find`, `rg`, `npm`), `edit` for precise patches, `write` for new files or full rewrites.
+- Prefer `rg`/`find` over broad manual browsing. Use parallel tool calls when reading independent files.
+- Before changing code, check the relevant existing implementation and nearby tests. Do not guess APIs from memory.
+- Before editing, run `git status --short` and avoid overwriting human work. If unrelated files are dirty, leave them alone.
+- Use `edit` with small, unique exact replacements. Merge nearby edits in the same file into one `edit` call.
+- Do not read or print secrets (`.env`, service-account JSON, Wasabi credentials, Firebase private keys). Never commit generated credentials or local-only files.
+- Be concise in final responses: summarize what changed, list files touched, and mention checks run or not run.
+- If asked about Pi itself (extensions, SDK, TUI, themes, skills), read the Pi docs under `/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent/` before answering or implementing.
+
 ## Where to look first
 
-- **[`CLAUDE.md`](CLAUDE.md)** — full project context: vision, design system, data model, conventions. Read this for deep background.
-- **[`docs/INDEX.md`](docs/INDEX.md)** — index to all planning, design, and reference docs (organised by topic; status-grouped view in the index).
-  - `docs/reference/` — stable docs (data model, training session design, PWA/auth setup, how-it-works).
-  - `docs/<topic>/` — active plans + topic references.
-  - `docs/<topic>/shipped/` — completed plans (historical context).
-  - `docs/archive/` — superseded/stale docs (don't follow as guidance).
-- **`src/lib/types.ts`** — canonical TypeScript types for all data shapes.
-- **`README.md`** — user-facing setup; **`DEVELOPMENT.md`** — VS Code workflow (mostly for the human, not agents).
+- **[`docs/INDEX.md`](docs/INDEX.md)** — current map of active plans, stable references, shipped history, and archive. Start here for any feature area.
+- **[`src/lib/types.ts`](src/lib/types.ts)** — canonical TypeScript data shapes.
+- **[`src/lib/firestore.ts`](src/lib/firestore.ts)** — Firestore CRUD and schema edge.
+- **[`src/lib/capture/`](src/lib/capture/)** — recorder state machine, media capture helpers, timeline conversion, upload processing.
+- **[`src/lib/routineLayers/`](src/lib/routineLayers/)** — v2 routine/layer model, read models, modifiers, transfer, quick-log planning.
+- **[`src/lib/metrics/registry.ts`](src/lib/metrics/registry.ts)** and **[`src/lib/utils/`](src/lib/utils/)** — metrics and pure domain helpers.
+- **[`CLAUDE.md`](CLAUDE.md)** — broad historical project context. Useful background, but prefer `docs/INDEX.md` + code for current truth.
+- **[`README.md`](README.md)** — user-facing setup; **[`DEVELOPMENT.md`](DEVELOPMENT.md)** — local workflow notes.
+
+Docs conventions:
+- `docs/reference/` = stable reference.
+- `docs/<topic>/` = active plans and topic references.
+- `docs/<topic>/shipped/` = completed plans for history.
+- `docs/archive/` = superseded/stale; do not follow as guidance unless explicitly asked for history.
 
 ## Tech stack
 
-SvelteKit + TypeScript + Svelte 5 (runes). Firebase Auth (Google) + Firestore + Cloud Functions. Wasabi S3 for video/photo/CSV storage. Tailwind v4 + scoped CSS. Vitest for tests. Vercel for app hosting; Firebase Hosting for `auth.overdive.app` only.
+SvelteKit + TypeScript + Svelte 5 runes. Firebase Auth (Google) + Firestore + Cloud Functions. Wasabi S3 for video/photo/CSV storage via signed URLs. Tailwind v4 + scoped CSS. Vitest for tests. Vercel for app hosting; Firebase Hosting only for `auth.overdive.app`.
 
-## Approach to planning and implementation
+## Architecture and data-oriented style
 
-**Use a "data oriented design". Express whatever possible as plain data structures. Clojure philosophy. Try to implement the majority of logic as pure functions. Move side effects to the edges of the system.**
+Use data-oriented design: plain data structures, pure transformations, side effects at the edges.
 
-This applies to both **planning** (when sketching how a feature should work, lead with the data shape and the pure transformations on it; treat side effects as a thin outer layer) and **implementation** (when writing the code, prefer plain records / arrays / discriminated unions and pure `(input) → output` functions; isolate Firestore, DOM, timers, fetch, vibrate at the edges).
+1. **Data is data** — readonly records / arrays / discriminated unions in `types.ts` or feature-local model files.
+2. **Logic is pure functions** — `(input) -> output`, no DOM, timers, `Date.now()`, fetch, Firestore, or browser APIs.
+3. **Side effects at edges** — Svelte components, Firestore adapters, media/camera adapters, upload processors, and scripts own effects.
+4. **Reducers > setters** — prefer explicit intents and state reducers over scattered mutation.
+5. **Derive, don't duplicate** — use `$derived` or pure helpers for computed values; avoid multiple sources of truth.
+6. **Tests next to logic** — add/update `*.test.ts` beside new pure functions.
 
-Concretely:
-1. **Data is data** — readonly records / arrays / discriminated unions in `types.ts`. Don't bury data inside DOM, stores, or class instances.
-2. **Logic is pure functions** — `(input) → output`, no DOM / no `Date.now()` / no `fetch` / no Firestore calls. Test these directly.
-3. **Side-effects at the edges** — Firestore, DOM listeners, vibrate, `setTimeout`, file IO live in thin adapter layers. UI components subscribe to data and dispatch *intents*; they don't own business logic.
-4. **Reducers > setters** — single `reduce(state, intent)` pure function over scattered imperative mutations.
-5. **Derive, don't store** — if a value can be computed from other state, compute it (`$derived`, helper). No two sources of truth.
+Reference patterns:
+- `src/lib/components/numberWheel/wheel.ts` (pure) consumed by `NumberWheelInput.svelte` (UI/effects).
+- `src/lib/capture/recorderState.ts`, `timeline.ts`, `orientation.ts` with sibling tests.
+- `src/lib/routineLayers/*` for layer-model pure transformations and read models.
 
-Reference example: `src/lib/components/numberWheel/wheel.ts` (pure data + pure functions) consumed by `NumberWheelInput.svelte` (side effects). The `src/lib/capture/` subsystem follows the same shape — recorder state machine, timeline conversion, orientation logic are all pure with `*.test.ts` siblings; the Svelte recorder component is the side-effect edge. See `docs/ui-patterns/wheel-selector.md`.
-
-When adding logic, default to a `.test.ts` file alongside the pure function.
-
-## Project Structure
+## Project map
 
 ```
 src/
   routes/
     +page.svelte                 # Landing / sign-in
-    (app)/                       # Authenticated route group
-      dashboard/  dives/  dive/  record/  session/  routines/
-      analytics/  gift/  import/  profile/
+    (app)/                       # Authenticated routes
+      dashboard/ analytics/ dives/ record/ routines/
+      routines/create/ session/[id]/ gift/[videoId]/ import/aida/
+      dive/webcodecs-spike/ profile/
   lib/
     components/                  # Svelte components (PascalCase)
-    stores/                      # Svelte stores (auth, video playback, etc.)
-    services/                    # Higher-level domain services (e.g. diveVideos)
-    capture/                     # Recorder state machine, timeline, orientation, camera, codec capabilities
+    stores/                      # Auth and UI stores
+    services/                    # Higher-level domain services
+    capture/                     # Recorder, timeline, orientation, camera, uploads
+    routineLayers/               # V2 routine layer model and read/log plans
+    metrics/                     # Metric registry
     media/                       # Video / overlay / export helpers
     config/                      # tagConfig, defaults
-    utils/                       # Pure helpers (metrics, time, lap tables, parsers)
+    utils/                       # Pure helpers and app utilities
     firebase.ts                  # Firebase init
-    firestore.ts                 # CRUD ops for all collections
-    storage.ts                   # Storage helpers (photos, thumbnails)
-    types.ts                     # All TypeScript interfaces
-functions/                       # Firebase Cloud Functions (signed URLs, server-side work)
-public-auth/                     # Static stub for auth.overdive.app (Firebase Hosting only)
-scripts/                         # Seed, backfill, migration, audit, backup utilities
-static/                          # Static assets
-tools/                           # Local Python helpers (e.g. stop_app.py)
-firestore.rules                  # Security rules
-firestore.indexes.json           # Composite index definitions
+    firestore.ts                 # Firestore CRUD
+    storage.ts                   # Wasabi signed upload/download helpers
+    types.ts                     # Canonical app types
+functions/                       # Firebase Cloud Functions
+public-auth/                     # Static auth.overdive.app hosting stub
+scripts/                         # Seed, audit, backup, migration, backfill utilities
+static/                          # Static assets / PWA manifest
 ```
 
-## Key Modules
+## Key modules
 
 ### Authentication — `src/lib/stores/auth.ts`
-- Stores: `user`, `loading`, `authError`; derived `isAuthenticated`, `userId`
-- `initAuthListener()` — call once at app startup
-- `signInWithGoogle()`, `signOut()`, `getCurrentUser()`, `getCurrentUserId()`, `waitForAuth()`
-- iOS standalone PWAs use redirect flow (see `docs/reference/webapp-pwa.md`)
+- Stores: `user`, `loading`, `authError`; derived `isAuthenticated`, `userId`.
+- Entry points: `initAuthListener()`, `signInWithGoogle()`, `signOut()`, `getCurrentUser()`, `getCurrentUserId()`, `waitForAuth()`.
+- iOS standalone PWA auth uses redirect/custom domain behavior; see `docs/reference/webapp-pwa.md`.
 
 ### Firestore — `src/lib/firestore.ts`
-CRUD ops for: routine templates (system + custom), routine logs, sessions, dives, seasons, user settings, personal bests. Schema reference: `docs/reference/data-model.md`.
+CRUD for routine templates/logs, sessions, dives, seasons, user settings, profiles, personal bests, gifts/group flows. Schema reference: `docs/reference/data-model.md`.
 
-### Storage — `src/lib/storage.ts` + Wasabi
-Photos / thumbnails / videos / CSVs go through signed URLs from Cloud Functions to Wasabi S3 (migrated off Firebase Storage). See `docs/storage-infra/shipped/wasabi-migration.md`.
+### Storage / media — `src/lib/storage.ts`, `src/lib/media/`, `functions/`
+Photos, thumbnails, videos, and CSVs use Cloud Function signed URLs to Wasabi S3. See `docs/storage-infra/shipped/wasabi-migration.md`. Call out any storage path or Cloud Function changes explicitly.
 
 ### Capture — `src/lib/capture/`
-Recorder state machine (`recorderState.ts`), timeline → routine log conversion, orientation/posture detection, camera device + codec capability probing. **This subsystem is data-oriented**: pure functions in `.ts`, side effects in components.
+Recorder state machine, timeline -> routine log conversion, orientation/posture, camera device selection, codec capabilities, upload queue/status/processing. Keep domain logic pure; browser/media APIs stay at the edge.
 
-## Build, Test, and Development
+### Routine layers — `src/lib/routineLayers/`
+Layer-based routine model, creation defaults, modifiers, display/read models, quick-log read model, attachment audit, legacy transfer. Prefer this subsystem for new routine work; check active routine docs in `docs/routines/`.
+
+## Build, test, and development
 
 ```bash
 npm run dev              # Vite dev server
 npm run build            # Production build
 npm run preview          # Preview production build
-npm run check            # SvelteKit sync + svelte-check (types)
+npm run check            # SvelteKit sync + svelte-check
 npm run check:watch      # Type check, watch mode
 npm test                 # Vitest, single run
 npm run test:watch       # Vitest, watch mode
 ```
 
-**Data scripts** (`scripts/`):
-- `npm run seed` / `seed:logs` — seed Firestore with system routines / historical logs
-- `npm run backup` — Firestore backup
-- `npm run audit` — data audit
-- `npm run backfill:profiles` / `backfill:dive-video-routine-logs[:dry]` — backfills (most have a `:dry` mode — **always run `:dry` first**)
-- `npm run migrate:activity-types[:dry]` / `migrate:packing-volume[:dry]` — data migrations
-- `npm run rollback:aida` — emergency rollback for AIDA import
+Data scripts:
+- `npm run seed` / `npm run seed:logs`
+- `npm run audit` / `npm run backup`
+- `npm run backfill:profiles`
+- `npm run backfill:dive-video-routine-logs:dry` before live backfill
+- `npm run migrate:activity-types:dry` / `npm run migrate:packing-volume:dry` before live migrations
+- `npm run audit:routine-metric-attachment`
+- `npm run rollback:aida` for emergency rollback
 
-## Coding Style & Conventions
+Any script that mutates production data must support and be run in dry-run mode first.
 
-- **Indentation:** 2 spaces.
-- **Language:** TypeScript everywhere, including Svelte `<script lang="ts">`.
-- **Svelte 5 runes:** `$state`, `$derived`, `$props`, `$effect`. Don't mix with old syntax (`$:`, `export let`). Auto-subscribe `$store` and `bind:value` are still fine.
-- **Components:** PascalCase (`SessionCard.svelte`).
-- **Routes:** SvelteKit conventions (`+page.svelte`, `+layout.svelte`, `(group)`, `[param]`).
-- **Styling:** Scoped `<style>` blocks preferred over Tailwind utilities. Use CSS variables from `src/app.css` (`var(--color-primary)`, etc.). Dark theme is the only theme.
-- **Mobile-first:** Test at 375px width. Bottom nav on `(app)` layout. Safe-area aware.
+## Coding style
 
-## Testing
+- 2-space indentation.
+- TypeScript everywhere, including `<script lang="ts">`.
+- Svelte 5 runes: `$state`, `$derived`, `$props`, `$effect`. Do not introduce legacy `$:` or `export let` in new Svelte components. Auto-subscribe `$store` and `bind:value` are fine.
+- Components: PascalCase (`SessionCard.svelte`). Routes: SvelteKit conventions (`+page.svelte`, `+page.ts`, `[param]`, route groups).
+- Styling: prefer scoped `<style>` blocks over dense Tailwind utilities. Use CSS variables from `src/app.css`. Dark theme only.
+- Mobile-first: test mentally and/or in browser at ~375px width. Respect bottom nav and safe-area insets.
 
-- Vitest. Tests live next to the code: `foo.ts` ↔ `foo.test.ts`. No separate test directory.
-- 15+ existing test files concentrated in `src/lib/capture/` and `src/lib/utils/` — pure-function suites. Follow the same pattern when adding tests.
-- `npm run check` for type / Svelte issues; `npm test` for unit tests.
+## Testing expectations
 
-## Commit & PR Guidelines
+- Vitest tests live next to code: `foo.ts` -> `foo.test.ts`.
+- For pure logic, add focused tests for normal cases and edge cases.
+- For UI-only changes, run at least `npm run check` when practical.
+- For logic changes, run targeted Vitest first, then broader tests if the change is cross-cutting.
+- If checks are skipped, say why in the final response.
 
-- Short, imperative commit messages (`Add ...`, `Fix ...`, `Refactor ...`). Match the existing log style.
-- PRs: short summary, affected routes/components, screenshots for UI changes.
-- **Call out explicitly:** Firestore rules/indexes changes, schema/type changes, Cloud Function changes, anything touching auth or storage paths.
-- Don't `--no-verify`; don't force-push without asking.
+## Documentation maintenance
 
-## Security & Configuration
+- If an implementation changes a documented design, update the relevant doc or explicitly note the mismatch.
+- When a plan ships, move it to the topic's `shipped/` folder and update `docs/INDEX.md`.
+- When a plan is superseded, move it to `docs/archive/` and note the replacement in `docs/INDEX.md`.
+- New plans: create kebab-case markdown under the relevant topic and add it to `docs/INDEX.md`.
 
-- Copy `.env.example` to `.env` and fill in Firebase keys. `PUBLIC_FIREBASE_AUTH_DOMAIN` should be `auth.overdive.app` (custom domain) — see `docs/reference/webapp-pwa.md` §7.
-- Firestore rules: `firestore.rules`. Indexes: `firestore.indexes.json`. Storage rules: `storage.rules`.
-- Cloud Functions in `functions/` — deployment is separate from the Vercel app.
-- Never commit `.env`, service-account JSONs, or Wasabi credentials.
-- All scripts that mutate prod data must support a dry-run flag — verify before running live.
+## Commit / PR hygiene
+
+- Short imperative commit messages (`Add ...`, `Fix ...`, `Refactor ...`).
+- PR summaries should include affected routes/components and screenshots for UI changes.
+- Call out explicitly: Firestore rules/indexes, schema/type changes, Cloud Functions, auth, storage paths, migrations/backfills.
+- Do not `--no-verify`; do not force-push without asking.
