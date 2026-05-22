@@ -20,8 +20,10 @@ export type DurationSheetRequest = Readonly<{
 	max?: number;
 	label?: string;
 	hint?: string;
-	/** Called with the confirmed total seconds. */
-	onConfirm: (totalSeconds: number) => void;
+	/** Show an explicit action for clearing the field. */
+	allowClear?: boolean;
+	/** Called with the confirmed total seconds, or undefined when cleared. */
+	onConfirm: (totalSeconds: number | undefined) => void;
 	/** Called when the user dismisses without committing. */
 	onCancel?: () => void;
 }>;

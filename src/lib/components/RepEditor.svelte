@@ -96,6 +96,16 @@
 		reps = [...reps];
 	}
 
+	type OptionalNumberRepField = 'plannedRest' | 'actualRest' | 'plannedDistance' | 'actualDistance' | 'plannedDuration' | 'actualDuration';
+
+	function setOptionalRepValue(index: number, key: OptionalNumberRepField, value: number | undefined) {
+		reps[index] = {
+			...reps[index],
+			[key]: value
+		};
+		reps = [...reps];
+	}
+
 	const rowPlansByIndex = $derived(new Map((plannedRows ?? []).map((row) => [row.globalRowIndex, row])));
 	const rowPlan = (rep: RepEditorData): RoutineLogPlanRow | undefined => rowPlansByIndex.get(rep.repNumber);
 	const rowMode = (rep: RepEditorData): 'static' | 'dynamic' => {
@@ -365,17 +375,19 @@
 						{#if allowEditPlanned}
 							<DurationInput
 								value={rep.plannedRest}
-								onValueChange={(value) => setRepValue(i, 'plannedRest', value)}
+								onValueChange={(value) => setOptionalRepValue(i, 'plannedRest', value)}
 								compact={true}
 								showLabel={false}
+								allowClear={true}
 								max={600}
 							/>
 						{:else}
 							<DurationInput
 								value={rep.actualRest}
-								onValueChange={(value) => setRepValue(i, 'actualRest', value)}
+								onValueChange={(value) => setOptionalRepValue(i, 'actualRest', value)}
 								compact={true}
 								showLabel={false}
+								allowClear={true}
 								max={600}
 							/>
 						{/if}
@@ -393,26 +405,28 @@
 								{#if allowEditPlanned}
 									<NumberWheelInput
 										value={rep.plannedDistance}
-										onValueChange={(value) => setRepValue(i, 'plannedDistance', value)}
+										onValueChange={(value) => setOptionalRepValue(i, 'plannedDistance', value)}
 										variant="chip"
-										min={5}
+										min={0}
 										max={200}
 										step={5}
 										unit="m"
 										compact={true}
 										showLabel={false}
+										allowClear={true}
 									/>
 								{:else}
 									<NumberWheelInput
 										value={rep.actualDistance}
-										onValueChange={(value) => setRepValue(i, 'actualDistance', value)}
+										onValueChange={(value) => setOptionalRepValue(i, 'actualDistance', value)}
 										variant="chip"
-										min={5}
+										min={0}
 										max={200}
 										step={5}
 										unit="m"
 										compact={true}
 										showLabel={false}
+										allowClear={true}
 									/>
 								{/if}
 							{:else}
@@ -432,17 +446,19 @@
 							{#if allowEditPlanned}
 								<DurationInput
 									value={rep.plannedDuration}
-									onValueChange={(value) => setRepValue(i, 'plannedDuration', value)}
+									onValueChange={(value) => setOptionalRepValue(i, 'plannedDuration', value)}
 									compact={true}
 									showLabel={false}
+									allowClear={true}
 									max={600}
 								/>
 							{:else}
 								<DurationInput
 									value={rep.actualDuration}
-									onValueChange={(value) => setRepValue(i, 'actualDuration', value)}
+									onValueChange={(value) => setOptionalRepValue(i, 'actualDuration', value)}
 									compact={true}
 									showLabel={false}
+									allowClear={true}
 									max={600}
 								/>
 							{/if}

@@ -18,8 +18,10 @@ export type WheelSheetRequest = Readonly<{
 	placeholder?: string;
 	/** Hint text shown below the wheel. */
 	hint?: string;
-	/** Called when the user confirms (✓). */
-	onConfirm: (value: number) => void;
+	/** Show an explicit action for clearing the field. */
+	allowClear?: boolean;
+	/** Called when the user confirms (✓), or clears to no value. */
+	onConfirm: (value: number | undefined) => void;
 	/** Called when the user dismisses without committing. */
 	onCancel?: () => void;
 }>;

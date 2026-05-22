@@ -843,28 +843,25 @@
 		</div>
 	{/if}
 
-	<!-- Lung Volume Section — universal: every log carries a default volume.
-	     For multi-rep routines we additionally render the per-rep editor so
-	     individual reps can be tagged FL/RV/FRC. -->
+	<!-- Lung Volume Section — single-rep logs need standalone chips; multi-rep
+	     logs use the default-volume controls inside RepEditor. -->
 	<div class="form-section lung-volume-section">
-		<h4 class="section-title">🫁 Lung Volume</h4>
-		<div class="lv-chip-row" role="group" aria-label="Default lung volume">
-			{#each ['FL', 'RV', 'FRC'] as const as vol}
-				<button
-					type="button"
-					class="lv-chip"
-					class:selected={(defaultLungVolume ?? 'FL') === vol}
-					aria-pressed={(defaultLungVolume ?? 'FL') === vol}
-					onclick={() => {
-						selectLungVolume(vol);
-						repEditorData = applyDefaultLungVolume(repEditorData, vol);
-					}}
-				>
-					{vol}
-				</button>
-			{/each}
-		</div>
-		{#if isMultiRepRoutine}
+		{#if !isMultiRepRoutine}
+			<h4 class="section-title">Lung Volume</h4>
+			<div class="lv-chip-row" role="group" aria-label="Default lung volume">
+				{#each ['FL', 'RV', 'FRC'] as const as vol}
+					<button
+						type="button"
+						class="lv-chip"
+						class:selected={(defaultLungVolume ?? 'FL') === vol}
+						aria-pressed={(defaultLungVolume ?? 'FL') === vol}
+						onclick={() => selectLungVolume(vol)}
+					>
+						{vol}
+					</button>
+				{/each}
+			</div>
+		{:else}
 			<RepEditor
 				discipline={disciplineUsed}
 				plannedReps={savedPlannedRows.length || routine.numberOfReps || routine.table?.rows.length || repEditorData.length || 8}

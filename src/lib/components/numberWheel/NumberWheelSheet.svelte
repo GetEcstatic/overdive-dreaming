@@ -84,7 +84,7 @@
 		await tick();
 		releaseLock = lockBodyScroll();
 		if (sheetEl) {
-			releaseTrap = trapFocus(sheetEl, { initial: inputEl });
+			releaseTrap = trapFocus(sheetEl);
 		}
 	});
 
@@ -113,6 +113,11 @@
 
 	function cancel() {
 		request?.onCancel?.();
+		closeWheelSheet();
+	}
+
+	function clearValue() {
+		request?.onConfirm(undefined);
 		closeWheelSheet();
 	}
 
@@ -309,6 +314,10 @@
 				{#if spec.unit}<span class="numeric-unit">{spec.unit}</span>{/if}
 			</div>
 
+			{#if request.allowClear}
+				<button type="button" class="clear-btn" onclick={clearValue}>No value</button>
+			{/if}
+
 			{#if request.hint}
 				<p class="hint">{request.hint}</p>
 			{/if}
@@ -324,7 +333,7 @@
 		backdrop-filter: blur(6px);
 		-webkit-backdrop-filter: blur(6px);
 		display: flex;
-		align-items: flex-end;
+		align-items: center;
 		justify-content: center;
 		z-index: 1000;
 		animation: fade-in 180ms ease-out;
@@ -339,17 +348,16 @@
 		width: 100%;
 		max-width: 480px;
 		background: var(--color-bg-card-solid, #0a0f14);
-		border-top-left-radius: 22px;
-		border-top-right-radius: 22px;
-		border-top: 1px solid rgba(148, 163, 184, 0.18);
-		box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.45);
-		padding: 0.5rem 1rem
-			calc(1rem + env(safe-area-inset-bottom, 0px));
-		max-height: 85dvh;
+		border-radius: 18px;
+		border: 1px solid rgba(148, 163, 184, 0.18);
+		box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+		padding: 0.75rem 1rem 1rem;
+		max-height: min(86dvh, 720px);
+		margin: 1rem;
 		display: flex;
 		flex-direction: column;
 		gap: 0.75rem;
-		animation: slide-up 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+		animation: pop-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 		outline: none;
 	}
 	.backdrop.reduced-motion .sheet {
@@ -530,6 +538,20 @@
 		color: var(--color-text-muted);
 		font-size: 0.95rem;
 	}
+	.clear-btn {
+		min-height: 42px;
+		border-radius: 10px;
+		border: 1px solid rgba(148, 163, 184, 0.18);
+		background: rgba(148, 163, 184, 0.08);
+		color: var(--color-text-muted);
+		font-size: 0.95rem;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.clear-btn:hover {
+		background: rgba(148, 163, 184, 0.14);
+		color: var(--color-text);
+	}
 
 	.hint {
 		font-size: 0.75rem;
@@ -538,12 +560,14 @@
 		margin: 0;
 	}
 
-	@keyframes slide-up {
+	@keyframes pop-in {
 		from {
-			transform: translateY(100%);
+			transform: translateY(12px) scale(0.98);
+			opacity: 0;
 		}
 		to {
 			transform: translateY(0);
+			opacity: 1;
 		}
 	}
 	@keyframes fade-in {

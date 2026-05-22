@@ -251,7 +251,11 @@
 	// Pre-seeded per-lap splits + average speed parsed from a dynamic dive
 	// video. These are passed straight through to the log so coaches don't
 	// have to retype numbers that the recorder already measured.
-	const seededAvgSpeed = initialValues?.avgSpeed;
+	function roundAvgSpeed(value: number | undefined): number | undefined {
+		return value === undefined ? undefined : Math.round(value * 10) / 10;
+	}
+
+	const seededAvgSpeed = roundAvgSpeed(initialValues?.avgSpeed);
 	const seededLaps = initialValues?.laps;
 	// avgSpeed is editable (unless source === 'recorder'), so keep it in state
 	// seeded from the recorder output.
@@ -373,7 +377,7 @@
 			repsCompleted = rowSummary.completedCount || repsCompleted;
 			if (rowSummary.totalDurationSeconds !== undefined) totalTimeSeconds = rowSummary.totalDurationSeconds;
 			if (rowSummary.dynamicDistanceMeters !== undefined) totalDistance = rowSummary.dynamicDistanceMeters;
-			if (rowSummary.averageDynamicSpeedMs !== undefined) avgSpeed = rowSummary.averageDynamicSpeedMs;
+			if (rowSummary.averageDynamicSpeedMs !== undefined) avgSpeed = roundAvgSpeed(rowSummary.averageDynamicSpeedMs);
 			if (quickLogModel.showRepDurationShortcut && rowSummary.uniformRepDurationSeconds !== undefined) repDurationSeconds = rowSummary.uniformRepDurationSeconds;
 			if (quickLogModel.showRepDistanceShortcut && rowSummary.uniformRepDistanceMeters !== undefined) repDistance = rowSummary.uniformRepDistanceMeters;
 			return;
@@ -585,7 +589,7 @@
 			repsCompleted,
 			repDuration: repDurationSeconds,
 			repDistance,
-			avgSpeed: avgSpeed,
+			avgSpeed: roundAvgSpeed(avgSpeed),
 			// Training context
 			breathingTechnique,
 			rpe,
@@ -701,7 +705,7 @@
 	}
 
 	function formatLapSpeed(lap: LapData): string {
-		return lap.speedMs !== undefined ? `${lap.speedMs.toFixed(2)} m/s` : 'speed open';
+		return lap.speedMs !== undefined ? `${lap.speedMs.toFixed(1)} m/s` : 'speed open';
 	}
 
 	function selectLayerDiscipline(sourceLayerId: string, discipline: LayerDiscipline): void {
@@ -1229,9 +1233,9 @@
 							type="number"
 							bind:value={avgSpeed}
 							min="0"
-							step="0.01"
+							step="0.1"
 							class="field-input"
-							placeholder="e.g., 1.25"
+							placeholder="e.g., 1.2"
 							readonly={avgSpeedDecision.mode === 'readonly-from-recorder'}
 						/>
 					{/if}
@@ -1295,6 +1299,7 @@
 						label="Rep Duration"
 						hint="Target: 1:30"
 						compact={true}
+						allowClear={true}
 					/>
 				</div>
 			{/if}
