@@ -246,7 +246,7 @@
 	let totalDistance = $state<number | undefined>(initialValues?.totalDistance);
 	let totalTimeSeconds = $state<number | undefined>(initialValues?.totalTimeSeconds); // in seconds
 	let repsCompleted = $state<number | undefined>(initialValues?.repsCompleted ?? defaultRepsCompleted ?? 3);
-	let repDurationSeconds = $state<number | undefined>(initialValues?.repDuration ?? avgRepDuration); // in seconds
+	let repDurationSeconds = $state<number | undefined>(initialValues?.repDuration); // in seconds
 	let repDistance = $state<number | undefined>(initialValues?.repDistance);
 	// Pre-seeded per-lap splits + average speed parsed from a dynamic dive
 	// video. These are passed straight through to the log so coaches don't
@@ -556,6 +556,7 @@
 		if (facialGearNothing) facialGear.push('nothing');
 
 		const plannedRows = effectivePlannedRows;
+		const repDurationShortcutValue = quickLogModel.showRepDurationShortcut ? repDurationSeconds : undefined;
 		const editedLaps = repEditorData.length > 0 ? repEditorDataToLapData(plannedRows, repEditorData) : undefined;
 		const resultRows = editedLaps
 			? buildRoutineLogResultRowsFromLapData(plannedRows, editedLaps)
@@ -563,7 +564,7 @@
 				repsCompleted,
 				totalTimeSeconds,
 				totalDistanceMeters: totalDistance,
-				repDurationSeconds,
+				repDurationSeconds: repDurationShortcutValue,
 				repDistanceMeters: repDistance
 			});
 
@@ -587,7 +588,7 @@
 			totalDistance,
 			totalTime: totalTimeSeconds,
 			repsCompleted,
-			repDuration: repDurationSeconds,
+			repDuration: repDurationShortcutValue,
 			repDistance,
 			avgSpeed: roundAvgSpeed(avgSpeed),
 			// Training context

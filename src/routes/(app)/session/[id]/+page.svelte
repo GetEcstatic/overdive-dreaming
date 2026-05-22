@@ -53,6 +53,14 @@
 	const avgSpeedValue = $derived(getMetricValue('avgSpeedMs', log, routine));
 	const repsCompletedValue = $derived(getMetricValue('repsCompleted', log, routine));
 	const cumulativeHoldValue = $derived(getMetricValue('cumulativeHoldTime', log, routine));
+	const repDurationValue = $derived(
+		rowReadModel.hasRowResults ? rowReadModel.uniformRepDurationSeconds : log.repDuration
+	);
+	const avgTimePerRepValue = $derived(
+		rowReadModel.hasRowResults && rowReadModel.completedCount && rowReadModel.totalDurationSeconds !== undefined
+			? rowReadModel.totalDurationSeconds / rowReadModel.completedCount
+			: log.summary?.averageTimePerRep
+	);
 
 	// Edit modal state
 	let editingLog = $state<{ log: RoutineLog; routine: typeof routine } | null>(null);
@@ -325,7 +333,7 @@
 	</section>
 
 	<!-- Performance Metrics -->
-	{#if totalDistanceValue || totalTimeValue || repsCompletedValue || log.repDuration || avgSpeedValue || cumulativeHoldValue}
+	{#if totalDistanceValue || totalTimeValue || repsCompletedValue || repDurationValue || avgTimePerRepValue || avgSpeedValue || cumulativeHoldValue}
 		{@const fastestVal = log.fastestLapSpeedMs ?? log.maxRepSpeed}
 		{@const slowestVal = log.slowestLapSpeedMs ?? log.minRepSpeed}
 		<section class="metrics-section">
@@ -355,16 +363,16 @@
 						<span class="value">{repsCompletedValue}</span>
 					</div>
 				{/if}
-				{#if log.repDuration}
+				{#if repDurationValue}
 					<div class="metric-item">
 						<span class="label">Rep Duration</span>
-						<span class="value">{formatTime(log.repDuration)}</span>
+						<span class="value">{formatTime(repDurationValue)}</span>
 					</div>
 				{/if}
-				{#if log.summary?.averageTimePerRep}
+				{#if avgTimePerRepValue}
 					<div class="metric-item">
 						<span class="label">Avg Time Per Rep</span>
-						<span class="value">{formatTime(log.summary.averageTimePerRep)}</span>
+						<span class="value">{formatTime(avgTimePerRepValue)}</span>
 					</div>
 				{/if}
 				{#if fastestVal}
