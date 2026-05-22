@@ -5,6 +5,7 @@
 	import { user, loading } from '$lib/stores/auth';
 	import { auth, authPersistenceReady } from '$lib/firebase';
 	import { onAuthStateChanged, getRedirectResult } from 'firebase/auth';
+	import AuthLoadingSplash from '$lib/components/AuthLoadingSplash.svelte';
 	import BottomNav from '$lib/components/BottomNav.svelte';
 	import { drainUploadQueue, installOnlineDrainer } from '$lib/capture/uploadProcessor';
 	import { uploadQueueStatus } from '$lib/capture/uploadStatus';
@@ -77,9 +78,7 @@
 </script>
 
 {#if $loading}
-	<div class="flex items-center justify-center min-h-screen">
-		<div class="text-2xl text-(--color-primary)">Loading...</div>
-	</div>
+	<AuthLoadingSplash />
 {:else if $user}
 	<div class="app-wrapper">
 		<!-- Top Navigation Menu -->
