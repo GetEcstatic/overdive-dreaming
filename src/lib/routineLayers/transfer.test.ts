@@ -58,9 +58,17 @@ describe('buildRoutineTemplateTransferData', () => {
 
 		expect(payload.routineTemplateVersion).toBe(ROUTINE_TEMPLATE_LAYER_VERSION);
 		expect(payload.table?.rows).toHaveLength(10);
+		expect(payload.table?.rows[0]).not.toHaveProperty('targetDistance');
 		expect(payload.numberOfReps).toBeUndefined();
 		expect(payload.restBetweenReps).toBeUndefined();
 		expect(payload.displayConfig.heroMetric).toBe('cumulativeHoldTime');
+	});
+
+	it('removes nested undefined values from Firestore transfer payloads', () => {
+		const routine = withLayerRoutineTemplateContract(routineTemplate(), staticTwoBreathTableExample.layers);
+		const payload = buildRoutineTemplateTransferData(routine);
+
+		expect(findUndefinedPath(payload)).toBeNull();
 	});
 
 	it('keeps duplicate and edit payloads consistent for v2 source routines', () => {
@@ -103,3 +111,21 @@ describe('buildRoutineTemplateTransferData', () => {
 		expect(payload.disciplines).toEqual(['STA']);
 	});
 });
+
+function findUndefinedPath(value: unknown, path = 'payload'): string | null {
+	if (value === undefined) return path;
+	if (Array.isArray(value)) {
+		for (const [index, entry] of value.entries()) {
+			const nestedPath = findUndefinedPath(entry, `${path}[${index}]`);
+			if (nestedPath) return nestedPath;
+		}
+		return null;
+	}
+	if (value !== null && typeof value === 'object') {
+		for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+			const nestedPath = findUndefinedPath(entry, `${path}.${key}`);
+			if (nestedPath) return nestedPath;
+		}
+	}
+	return null;
+}

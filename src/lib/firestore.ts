@@ -215,9 +215,7 @@ export async function createRoutine(
 	const routinesRef = collection(db, 'routines');
 
 	// Remove undefined values - Firestore doesn't accept undefined
-	const cleanedData = Object.fromEntries(
-		Object.entries(routineData).filter(([_, v]) => v !== undefined)
-	);
+	const cleanedData = removeUndefinedDeep(routineData as Record<string, unknown>);
 
 	const newRoutine = {
 		...cleanedData,
@@ -242,19 +240,31 @@ export async function updateRoutine(
 	const docRef = doc(db, 'routines', routineId);
 
 	// Remove undefined values deeply - Firestore doesn't accept undefined
-	const removeUndefined = (obj: Record<string, any>): Record<string, any> => {
-		return Object.fromEntries(
-			Object.entries(obj)
-				.filter(([_, v]) => v !== undefined)
-				.map(([k, v]) => [k, v !== null && typeof v === 'object' && !Array.isArray(v) ? removeUndefined(v) : v])
-		);
-	};
-	const cleanedUpdates = removeUndefined(updates as Record<string, any>);
+	const cleanedUpdates = removeUndefinedDeep(updates as Record<string, unknown>);
 
 	await updateDoc(docRef, {
 		...cleanedUpdates,
 		updatedAt: serverTimestamp()
 	});
+}
+
+function removeUndefinedDeep<T>(value: T): T {
+	return removeUndefinedValue(value) as T;
+}
+
+function removeUndefinedValue(value: unknown): unknown {
+	if (value === undefined) return undefined;
+	if (Array.isArray(value)) {
+		return value.map(removeUndefinedValue).filter((entry) => entry !== undefined);
+	}
+	if (value !== null && typeof value === 'object') {
+		return Object.fromEntries(
+			Object.entries(value as Record<string, unknown>)
+				.map(([key, entry]) => [key, removeUndefinedValue(entry)] as const)
+				.filter(([, entry]) => entry !== undefined)
+		);
+	}
+	return value;
 }
 
 /**

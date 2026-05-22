@@ -55,6 +55,21 @@ export function mergeRoutineTemplateFormDataWithLayerContract(
 	});
 }
 
-function stripUndefined<T extends Record<string, unknown>>(value: T): T {
-	return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T;
+function stripUndefined<T>(value: T): T {
+	return stripUndefinedValue(value) as T;
+}
+
+function stripUndefinedValue(value: unknown): unknown {
+	if (value === undefined) return undefined;
+	if (Array.isArray(value)) {
+		return value.map(stripUndefinedValue).filter((entry) => entry !== undefined);
+	}
+	if (value !== null && typeof value === 'object') {
+		return Object.fromEntries(
+			Object.entries(value as Record<string, unknown>)
+				.map(([key, entry]) => [key, stripUndefinedValue(entry)] as const)
+				.filter(([, entry]) => entry !== undefined)
+		);
+	}
+	return value;
 }
