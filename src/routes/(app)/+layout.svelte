@@ -14,8 +14,9 @@
 	let { children } = $props();
 	let mobileMenuOpen = $state(false);
 	let minimumSplashElapsed = $state(false);
+	let showStartupSplash = $state(true);
 	let isRecording = $derived($diveRecording > 0);
-	const showAuthSplash = $derived($loading || !minimumSplashElapsed);
+	const showAuthSplash = $derived(showStartupSplash && ($loading || !minimumSplashElapsed));
 	const showUploadBanner = $derived(!isRecording && ($uploadQueueStatus.active || $uploadQueueStatus.pendingCount > 0));
 	const uploadPercent = $derived(Math.round($uploadQueueStatus.fraction * 100));
 
@@ -25,6 +26,15 @@
 	}
 
 	onMount(() => {
+		const startupSplashKey = 'overdive:startup-splash-shown';
+		const hasShownStartupSplash = window.sessionStorage.getItem(startupSplashKey) === 'true';
+		showStartupSplash = !hasShownStartupSplash;
+		if (hasShownStartupSplash) {
+			minimumSplashElapsed = true;
+		} else {
+			window.sessionStorage.setItem(startupSplashKey, 'true');
+		}
+
 		const minimumSplashTimer = window.setTimeout(() => {
 			minimumSplashElapsed = true;
 		}, 4000);
