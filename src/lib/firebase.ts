@@ -6,7 +6,7 @@ import {
 	indexedDBLocalPersistence,
 	browserLocalPersistence
 } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
 import { browser } from '$app/environment';
@@ -33,10 +33,18 @@ const firebaseConfig = {
 // Initialize Firebase (guard against HMR / SSR re-initialization)
 export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const db = getConfiguredFirestore();
 export const storage = getStorage(app);
 export const functions = getFunctions(app);
 export const googleProvider = new GoogleAuthProvider();
+
+function getConfiguredFirestore() {
+	try {
+		return initializeFirestore(app, { ignoreUndefinedProperties: true });
+	} catch {
+		return getFirestore(app);
+	}
+}
 
 // Auth persistence: prefer IndexedDB so installed PWAs survive iOS/Android
 // storage eviction better than the default in-memory/localStorage setup.
