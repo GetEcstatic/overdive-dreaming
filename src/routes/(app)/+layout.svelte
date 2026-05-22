@@ -13,7 +13,9 @@
 
 	let { children } = $props();
 	let mobileMenuOpen = $state(false);
+	let minimumSplashElapsed = $state(false);
 	let isRecording = $derived($diveRecording > 0);
+	const showAuthSplash = $derived($loading || !minimumSplashElapsed);
 	const showUploadBanner = $derived(!isRecording && ($uploadQueueStatus.active || $uploadQueueStatus.pendingCount > 0));
 	const uploadPercent = $derived(Math.round($uploadQueueStatus.fraction * 100));
 
@@ -23,6 +25,10 @@
 	}
 
 	onMount(() => {
+		const minimumSplashTimer = window.setTimeout(() => {
+			minimumSplashElapsed = true;
+		}, 4000);
+
 		// On iOS standalone PWAs, Google sign-in uses signInWithRedirect.
 		// When the OAuth callback lands directly on a protected route
 		// (e.g. /dashboard), Firebase needs a tick to consume the redirect
@@ -71,13 +77,14 @@
 		);
 
 		return () => {
+			window.clearTimeout(minimumSplashTimer);
 			cleanupOnlineDrainer();
 			unsubscribe();
 		};
 	});
 </script>
 
-{#if $loading}
+{#if showAuthSplash}
 	<AuthLoadingSplash />
 {:else if $user}
 	<div class="app-wrapper">
