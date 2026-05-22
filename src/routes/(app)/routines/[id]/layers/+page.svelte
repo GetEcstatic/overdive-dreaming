@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import { Trash2 } from 'lucide-svelte';
 	import DurationInput from '$lib/components/DurationInput.svelte';
 	import NumberWheelInput from '$lib/components/NumberWheelInput.svelte';
 	import { user } from '$lib/stores/auth';
@@ -567,13 +568,27 @@
 		selectedSegmentKey = null;
 	}
 
-	function removeSelectedLayer() {
-		if (!selectedLayer || editableLayers.length <= 1) return;
+	function requestDeleteLayer(layerId: string) {
+		if (editableLayers.length <= 1) {
+			editorStatus = 'A routine needs at least one layer.';
+			return;
+		}
 
-		const nextLayers = editableLayers.filter((layer) => layer.id !== selectedLayer.id);
-		const nextIndex = Math.min(selectedLayerIndex, nextLayers.length - 1);
+		const layer = editableLayers.find((item) => item.id === layerId);
+		if (!layer) return;
+
+		const label = layerLabel(layer, editableLayers.findIndex((item) => item.id === layerId));
+		const confirmed = window.confirm(`Delete ${label}? This removes the layer from the routine builder. Save the routine to make the deletion permanent.`);
+		if (!confirmed) return;
+
+		const removedIndex = editableLayers.findIndex((item) => item.id === layerId);
+		const nextLayers = editableLayers.filter((item) => item.id !== layerId);
+		const nextIndex = Math.min(removedIndex, nextLayers.length - 1);
 		editableLayers = nextLayers;
 		selectedLayerId = nextLayers[nextIndex]?.id ?? null;
+		selectedSegmentKey = null;
+		editingLayerNameId = null;
+		editorStatus = `${label} deleted. Save to keep this change.`;
 	}
 
 	function moveSelectedLayer(direction: -1 | 1) {
@@ -811,6 +826,16 @@
 							</button>
 						{/if}
 						<span>{layer.discipline} · {layer.attributes.repeatCount} rep{layer.attributes.repeatCount === 1 ? '' : 's'}</span>
+						<button
+							type="button"
+							class="layer-delete-button"
+							onclick={() => requestDeleteLayer(layer.id)}
+							disabled={editableLayers.length <= 1 || savingLayers}
+							aria-label={`Delete ${layerLabel(layer, index)}`}
+							title={editableLayers.length <= 1 ? 'A routine needs at least one layer' : `Delete ${layerLabel(layer, index)}`}
+						>
+							<Trash2 size={18} aria-hidden="true" />
+						</button>
 					</div>
 
 					<div class="segment-row" aria-label={`${layerLabel(layer, index)} segments`}>
@@ -1340,7 +1365,7 @@
 
 	.layer-heading {
 		display: grid;
-		grid-template-columns: auto minmax(0, 1fr) auto;
+		grid-template-columns: auto minmax(0, 1fr) auto auto;
 		align-items: center;
 		gap: 0.75rem;
 	}
@@ -1387,6 +1412,30 @@
 		border-color: rgba(148, 163, 184, 0.22);
 		background: rgba(2, 6, 23, 0.28);
 		outline: none;
+	}
+
+	.layer-delete-button {
+		display: inline-grid;
+		place-items: center;
+		width: 2.5rem;
+		height: 2.5rem;
+		border: 1px solid rgba(248, 113, 113, 0.34);
+		border-radius: 8px;
+		background: rgba(248, 113, 113, 0.08);
+		color: #fecaca;
+		cursor: pointer;
+	}
+
+	.layer-delete-button:hover:not(:disabled),
+	.layer-delete-button:focus-visible {
+		background: rgba(248, 113, 113, 0.14);
+		border-color: rgba(248, 113, 113, 0.5);
+		outline: none;
+	}
+
+	.layer-delete-button:disabled {
+		cursor: not-allowed;
+		opacity: 0.45;
 	}
 
 	.segment-stack {
