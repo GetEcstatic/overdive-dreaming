@@ -33,6 +33,9 @@ Things designed but not yet shipped, or shipped partially.
 ### UI / code health
 - [Medium-priority improvements](ui-patterns/medium-priority-improvements.md) — partial; remaining: integration, shared styles, form validation
 
+### Public release
+- [Free public version](public-release/free-public-version.md) — discussion starter for a simpler public UX with curated logging, PBs, and share cards
+
 ### Routines
 - [V2 create routine flow](routines/v2-create-routine-flow-plan.md) — plan for making Create Routine start from the layer model and route into the production layer editor
 - [Quick Log v2 routine audit](routines/quick-log-v2-routine-audit.md) — audit and implementation plan for aligning Quick Log with v2 routines
