@@ -85,15 +85,19 @@ Keep analytics to a small number of friendly views:
 
 Avoid exposing the full metrics catalog, advanced filters, routine analytics, or dense comparison tools in the first public release.
 
-### 6. Optional video later
+### 6. Simple video capture and review
 
-Video is powerful but increases complexity quickly. For the first public release, consider keeping video out of the primary path unless it is limited to:
+Video is a major point of difference for Overdive, especially for dynamic dives. It should be included in the public version, but as a simple capture-and-review workflow rather than the full private/beta video system.
 
-- Attach a YouTube link
-- Attach one photo
-- Generate a share card
+The public version should support:
 
-Recorder, overlay exports, gifted videos, and server-side processing can remain private/beta features until the public app has proven the core logging loop.
+- Record a dynamic dive in-app
+- Tap start/end and key waypoints during playback
+- Review the dive with distance/time overlays
+- Upload a prerecorded dive video and mark it up as if it had been recorded in Overdive
+- Generate a share card or short social-friendly output from the result
+
+The public version does not need every existing video feature. Gifted videos, coach workflows, heavy server-side processing controls, and advanced export settings can remain private/beta features until the simplified capture loop is polished.
 
 ## Suggested public navigation
 
@@ -116,7 +120,6 @@ The following should probably be hidden from the free public version at first:
 - Advanced metric configuration
 - Group routine invites
 - Gifted dive workflow
-- Recorder pipeline and video processing
 - Biometric CSV import
 - Experimental O2/static physiology fields
 - Dense per-rep analytics
@@ -170,17 +173,20 @@ Start with Option A for a prototype, but structure it like Option B: define a pu
    - Curated routine preset
    - Max attempt
 4. Hide advanced routine builder/editor surfaces from public users.
-5. Polish share-card generation from a completed log.
-6. Simplify the dashboard feed around recent sessions and share actions.
-7. Add a public onboarding sentence or two only where it reduces confusion.
+5. Keep dynamic recording available as a simple guided flow.
+6. Add prerecorded video upload/review as a standard public feature.
+7. Polish share-card generation from a completed log or reviewed video.
+8. Simplify the dashboard feed around recent sessions and share actions.
+9. Add a public onboarding sentence or two only where it reduces confusion.
 
 ## Open questions
 
-- Should public users be allowed to create any custom routines, or only use presets?
-- Is video attachment important enough for v1, or should share cards carry the public release?
-- Should advanced mode be admin-only, invite-only, or a visible toggle?
-- What is the one result a new user should feel proud to share after their first session?
-- Should public mode emphasize safety notes more explicitly for max attempts?
+- Should public users be allowed to create any custom routines, or only use presets? Current leaning: start with presets only.
+- How simple can dynamic recording be while still feeling reliable enough for public users?
+- What is the minimum viable prerecorded-video upload flow?
+- Should advanced mode be admin-only, invite-only, or a visible toggle? Current leaning: invite-only, with a way to request access.
+- What is the one result a new user should feel proud to share after their first session? Current leaning: a dive or routine summary with beautiful metrics, plus an overlay video for dynamic dives.
+- Should public mode emphasize safety notes more explicitly for max attempts? Current leaning: do not crowd the app flow, but include a clear disclaimer during signup.
 
 ## Success criteria
 
@@ -189,5 +195,7 @@ A public v1 is working if a new user can:
 - Sign in
 - Log a session in under one minute
 - Understand their best result
-- Generate a shareable card
+- Record or upload a dynamic dive video and review it without learning advanced tools
+- Generate a shareable card or overlay output
 - Return later and see progress without learning the full internal model
+
