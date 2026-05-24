@@ -182,11 +182,11 @@ Start with Option A for a prototype, but structure it like Option B: define a pu
 ## Open questions
 
 - Should public users be allowed to create any custom routines, or only use presets? Current leaning: start with presets only.
-- How simple can dynamic recording be while still feeling reliable enough for public users?
-- What is the minimum viable prerecorded-video upload flow?
+- How simple can dynamic recording be while still feeling reliable enough for public users? Current leaning: the current recording UX is close. The main complexity is tapping waypoints. Automatic image recognition could simplify this later, but is not realistic for v1.
+- What is the minimum viable prerecorded-video upload flow? Current leaning: import a video, choose discipline/pool length, tap dive start/end, then optionally tap only the halfway point instead of every waypoint. This keeps the public version much easier while still producing useful overlay metrics.
 - Should advanced mode be admin-only, invite-only, or a visible toggle? Current leaning: invite-only, with a way to request access.
 - What is the one result a new user should feel proud to share after their first session? Current leaning: a dive or routine summary with beautiful metrics, plus an overlay video for dynamic dives.
-- Should public mode emphasize safety notes more explicitly for max attempts? Current leaning: do not crowd the app flow, but include a clear disclaimer during signup.
+- Should public mode emphasize safety notes more explicitly for max attempts? Current leaning: do not crowd the app flow, but include a clear disclaimer during signup and keep it accessible from the profile page.
 
 ## Success criteria
 
