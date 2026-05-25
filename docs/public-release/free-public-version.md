@@ -330,7 +330,7 @@ Goal: ship public mode without breaking the private/beta app.
 - [x] Save reviewed video results into compatible routine log records.
 - [x] Generate public share cards from saved logs and reviewed videos.
 - [x] Keep share-card options minimal and story-format first.
-- [ ] Add signup/first-log safety note and Profile safety link.
+- [x] Add signup/first-log safety note and Profile safety link.
 - [x] Add focused Vitest coverage for public-mode pure helpers.
 - [x] Run `npm run check` before shipping implementation commits.
 - [ ] Mobile-test the public happy path at phone width.
