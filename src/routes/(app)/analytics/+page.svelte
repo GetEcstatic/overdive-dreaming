@@ -25,6 +25,8 @@
 	import { formatTime } from '$lib/utils/time';
 	import { format, intervalToDuration, type Duration } from 'date-fns';
 	import { getUserSettings, getSeasonsForUser } from '$lib/firestore';
+	import { derivePublicModeCapabilities, readLocalAdvancedOverride } from '$lib/publicMode/capabilities';
+	import { buildPublicProgressReadModel } from '$lib/publicMode/progress';
 	import {
 		buildAvgSpeedSeries,
 		buildFastestLapScatter,
@@ -36,6 +38,7 @@
 	let allLogs = $state<RoutineLog[]>([]);
 	let loading = $state(true);
 	let seasons = $state<Season[]>([]);
+	let isPublicMode = $state(true);
 	let selectedProgressDisciplines = $state<Discipline[]>(['DYN', 'DNF', 'DYNB']);
 	let progressMetric = $state<'distance' | 'time'>('distance');
 
@@ -80,6 +83,7 @@
 		}
 		return filterLogsByTimeframe(allLogs, activeTimeframe);
 	});
+	const publicProgress = $derived(buildPublicProgressReadModel(allLogs));
 	// Only show max attempt routines in progress chart
 	const MAX_ATTEMPT_ROUTINE_IDS = ['system-dynamic-max', 'system-static-max'];
 	const progressLogs = $derived.by(() => {
@@ -406,6 +410,14 @@
 		if (!$user) return;
 		try {
 			const settings = await getUserSettings($user.uid);
+			isPublicMode = derivePublicModeCapabilities({
+				uid: $user.uid,
+				email: $user.email,
+				settings,
+				localAdvancedOverride: typeof window !== 'undefined'
+					? readLocalAdvancedOverride(window.localStorage)
+					: false
+			}).isPublicMode;
 			if (settings?.defaultAnalyticsFilter && filterKey === 'tf:1month') {
 				filterKey = settings.defaultAnalyticsFilter;
 			} else if (settings?.defaultTimeframe && filterKey === 'tf:1month') {
@@ -415,6 +427,19 @@
 		} catch (error) {
 			console.error('Error loading settings or seasons:', error);
 		}
+	}
+
+	function formatPublicBestValue(best: { metric: 'distance' | 'time'; value: number }): string {
+		return best.metric === 'distance' ? `${best.value}m` : formatTime(best.value);
+	}
+
+	function formatRecentLogResult(log: RoutineLog): string {
+		if (log.disciplineUsed === 'STA') {
+			const seconds = log.totalTime ?? log.diveDuration ?? log.longestHold ?? log.cumulativeHoldTime;
+			return seconds ? formatTime(seconds) : 'Session logged';
+		}
+		const distance = log.totalDistance ?? log.diveDistance ?? log.cumulativeDistance;
+		return distance ? `${distance}m` : 'Session logged';
 	}
 
 	onMount(() => {
@@ -441,24 +466,26 @@
 
 <div class="analytics-container">
 	<div class="header">
-		<h1 class="title">Analytics</h1>
-		<select
-			bind:value={filterKey}
-			class="timeframe-select"
-		>
-			<optgroup label="Timeframes">
-				{#each timeframes as tf}
-					<option value={`tf:${tf.value}`}>{tf.label}</option>
-				{/each}
-			</optgroup>
-			{#if seasons.length > 0}
-				<optgroup label="Seasons">
-					{#each seasons as season}
-						<option value={`season:${season.id}`}>{season.name}</option>
+		<h1 class="title">{isPublicMode ? 'Progress' : 'Analytics'}</h1>
+		{#if !isPublicMode}
+			<select
+				bind:value={filterKey}
+				class="timeframe-select"
+			>
+				<optgroup label="Timeframes">
+					{#each timeframes as tf}
+						<option value={`tf:${tf.value}`}>{tf.label}</option>
 					{/each}
 				</optgroup>
-			{/if}
-		</select>
+				{#if seasons.length > 0}
+					<optgroup label="Seasons">
+						{#each seasons as season}
+							<option value={`season:${season.id}`}>{season.name}</option>
+						{/each}
+					</optgroup>
+				{/if}
+			</select>
+		{/if}
 	</div>
 
 	{#if loading}
@@ -471,6 +498,76 @@
 			<div class="empty-icon">📊</div>
 			<h3>No training data yet</h3>
 			<p>Start logging dives to see your progress</p>
+		</div>
+	{:else if isPublicMode}
+		<div class="public-progress-content">
+			<section class="public-progress-grid">
+				<div class="stat-card public-progress-card">
+					<h2>Personal Bests</h2>
+					<div class="public-best-list">
+						{#each publicProgress.bests as best}
+							<div class="public-best-row">
+								<span>{best.discipline}</span>
+								<strong>{formatPublicBestValue(best)}</strong>
+							</div>
+						{/each}
+					</div>
+				</div>
+
+				<div class="stat-card public-progress-card">
+					<h2>Last 30 Days</h2>
+					<div class="stat-list">
+						<div class="stat-item">
+							<span class="stat-label">Sessions</span>
+							<span class="stat-value">{publicProgress.totals['30d'].sessions}</span>
+						</div>
+						<div class="stat-item">
+							<span class="stat-label">Distance</span>
+							<span class="stat-value">{publicProgress.totals['30d'].dynamicDistanceMeters}m</span>
+						</div>
+						<div class="stat-item">
+							<span class="stat-label">Hold Time</span>
+							<span class="stat-value">{formatTime(publicProgress.totals['30d'].staticHoldSeconds)}</span>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<section class="public-progress-grid">
+				<div class="stat-card public-progress-card">
+					<h2>Milestones</h2>
+					<div class="public-timeline-list">
+						{#each publicProgress.milestones.slice(-5).reverse() as milestone}
+							<div class="public-timeline-row">
+								<strong>{milestone.label}</strong>
+								<span>{format(milestone.date, 'MMM d, yyyy')}</span>
+							</div>
+						{/each}
+					</div>
+				</div>
+
+				<div class="stat-card public-progress-card">
+					<h2>Recent Sessions</h2>
+					<div class="public-timeline-list">
+						{#each publicProgress.recentLogs.slice(0, 5) as log}
+							<a class="public-timeline-row" href={`/session/${log.id}`}>
+								<strong>{log.disciplineUsed} · {formatRecentLogResult(log)}</strong>
+								<span>{format(log.date.toDate(), 'MMM d, yyyy')}</span>
+							</a>
+						{/each}
+					</div>
+				</div>
+			</section>
+
+			<section class="public-window-strip" aria-label="Longer term totals">
+				{#each ['90d', '365d'] as window}
+					{@const totals = publicProgress.totals[window as '90d' | '365d']}
+					<div>
+						<span>{window === '90d' ? 'Last 90 days' : 'Last year'}</span>
+						<strong>{totals.sessions} sessions · {totals.dynamicDistanceMeters}m · {formatTime(totals.staticHoldSeconds)}</strong>
+					</div>
+				{/each}
+			</section>
 		</div>
 	{:else}
 		<div class="content">
@@ -969,6 +1066,90 @@
 		display: flex;
 		flex-direction: column;
 		gap: 2rem;
+	}
+
+	.public-progress-content {
+		display: flex;
+		flex-direction: column;
+		gap: 1.25rem;
+	}
+
+	.public-progress-grid {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 1rem;
+	}
+
+	@media (min-width: 760px) {
+		.public-progress-grid {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+	}
+
+	.public-progress-card {
+		border-radius: 8px;
+	}
+
+	.public-best-list,
+	.public-timeline-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.65rem;
+	}
+
+	.public-best-row,
+	.public-timeline-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.8rem;
+		padding: 0.8rem 0.85rem;
+		border: 1px solid rgba(148, 163, 184, 0.14);
+		border-radius: 8px;
+		background: rgba(15, 23, 42, 0.42);
+		color: var(--color-text);
+		text-decoration: none;
+	}
+
+	.public-best-row span,
+	.public-timeline-row span {
+		font-size: 0.78rem;
+		color: var(--color-text-muted);
+	}
+
+	.public-best-row strong,
+	.public-timeline-row strong {
+		font-size: 0.92rem;
+		font-weight: 750;
+		color: var(--color-text);
+	}
+
+	.public-window-strip {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 0.75rem;
+	}
+
+	.public-window-strip div {
+		padding: 0.85rem 1rem;
+		border: 1px solid rgba(20, 184, 166, 0.2);
+		border-radius: 8px;
+		background: rgba(20, 184, 166, 0.06);
+	}
+
+	.public-window-strip span {
+		display: block;
+		font-size: 0.75rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		color: var(--color-primary);
+	}
+
+	.public-window-strip strong {
+		display: block;
+		margin-top: 0.25rem;
+		font-size: 0.92rem;
+		color: var(--color-text);
 	}
 
 	.chart-card {
