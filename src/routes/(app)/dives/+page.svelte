@@ -23,6 +23,8 @@
 	import { deriveAttemptCategory } from '$lib/utils/attemptCategories';
 	import { getTimeOfDay } from '$lib/utils/sessions';
 	import { clearDashboardCache } from '$lib/utils/dashboardCache';
+	import { derivePublicModeCapabilities, readLocalAdvancedOverride } from '$lib/publicMode/capabilities';
+	import { publicRoutinePresets, type PublicRoutinePreset } from '$lib/publicMode/presets';
 	import {
 		buildInitialRoutineLogResultRows,
 		buildRoutineLogPlanRows,
@@ -50,8 +52,13 @@
 	let success = $state<string | null>(null);
 	let defaultSessionVisibility = $state<SessionVisibility>('private');
 	let showMenstrualCycleTracking = $state<boolean>(false);
+	let isPublicMode = $state(true);
 	let selectedDiveBuddies = $state<PublicUserProfile[]>([]);
 	let activeGroupInvite = $state<GroupRoutineInvite | null>(null);
+	let publicPresetRows = $derived(publicRoutinePresets.map((preset) => ({
+		preset,
+		routine: findRoutineForPublicPreset(preset)
+	})));
 
 	// Seed values passed in by the dynamic dive recorder via ?seed=<sessionId>
 	// and a sessionStorage bundle at `dive-log-seed:<sessionId>`.
@@ -90,6 +97,14 @@
 		try {
 			routines = await getRoutinesForUser($user.uid);
 			const settings = await getUserSettings($user.uid);
+			isPublicMode = derivePublicModeCapabilities({
+				uid: $user.uid,
+				email: $user.email,
+				settings,
+				localAdvancedOverride: typeof window !== 'undefined'
+					? readLocalAdvancedOverride(window.localStorage)
+					: false
+			}).isPublicMode;
 			if (settings?.defaultSessionVisibility) {
 				defaultSessionVisibility = settings.defaultSessionVisibility;
 			}
@@ -217,8 +232,27 @@
 
 	function handleRoutineSelect(routine: RoutineTemplate) {
 		selectedRoutine = routine;
+		selectedRoutineId = routine.id;
 		error = null;
 		success = null;
+	}
+
+	function handlePublicPresetSelect(routine: RoutineTemplate | undefined) {
+		if (!routine) return;
+		handleRoutineSelect(routine);
+	}
+
+	function findRoutineForPublicPreset(preset: PublicRoutinePreset): RoutineTemplate | undefined {
+		const presetName = preset.name.trim().toLowerCase();
+		const exampleName = preset.example.name.trim().toLowerCase();
+		return routines.find((routine) => {
+			const routineName = routine.name.trim().toLowerCase();
+			return routine.id === `system-${preset.id}`
+				|| routine.id === preset.id
+				|| routineName === presetName
+				|| routineName === exampleName
+				|| preset.example.defaultTags.every((tag) => routine.tags.includes(tag));
+		});
 	}
 
 	function handleCancel() {
@@ -687,7 +721,32 @@
 		<div class="bg-(--color-bg-card) p-6 rounded-lg">
 			{#if !selectedRoutine}
 				<!-- Step 1: Select Routine -->
-				<RoutineSelector {routines} bind:selectedRoutineId onSelect={handleRoutineSelect} />
+				{#if isPublicMode}
+					<section class="public-presets" aria-labelledby="public-presets-title">
+						<div class="public-presets-head">
+							<h2 id="public-presets-title">Choose a session</h2>
+							<p>Start with a simple preset and log only the useful result.</p>
+						</div>
+						<div class="public-preset-list">
+							{#each publicPresetRows as row}
+								<button
+									type="button"
+									class="public-preset-button"
+									disabled={!row.routine}
+									onclick={() => handlePublicPresetSelect(row.routine)}
+								>
+									<span>
+										<strong>{row.preset.name}</strong>
+										<small>{row.preset.description}</small>
+									</span>
+									<em>{row.routine ? row.preset.shareEmphasis : 'Unavailable'}</em>
+								</button>
+							{/each}
+						</div>
+					</section>
+				{:else}
+					<RoutineSelector {routines} bind:selectedRoutineId onSelect={handleRoutineSelect} />
+				{/if}
 			{:else}
 				<!-- Step 2: Quick Log Form -->
 				{#if activeGroupInvite}
@@ -731,7 +790,7 @@
 		</div>
 
 		<!-- Info Card -->
-		{#if !selectedRoutine && routines.length > 0}
+		{#if !selectedRoutine && routines.length > 0 && !isPublicMode}
 			<div class="info-card">
 				<h3 class="info-title">💡 Quick Tips</h3>
 				<ul class="info-list">
@@ -805,6 +864,87 @@
 		color: #0f172a;
 		font-size: 0.8rem;
 		font-weight: 800;
+	}
+
+	.public-presets {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+	}
+
+	.public-presets-head h2 {
+		font-size: 1.2rem;
+		font-weight: 750;
+		color: var(--color-text);
+		margin: 0;
+	}
+
+	.public-presets-head p {
+		margin: 0.25rem 0 0;
+		font-size: 0.9rem;
+		color: var(--color-text-muted);
+	}
+
+	.public-preset-list {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 0.7rem;
+	}
+
+	.public-preset-button {
+		width: 100%;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		padding: 0.9rem 1rem;
+		border: 1px solid rgba(148, 163, 184, 0.18);
+		border-radius: 8px;
+		background: rgba(15, 23, 42, 0.62);
+		color: var(--color-text);
+		text-align: left;
+		transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
+	}
+
+	.public-preset-button:not(:disabled):hover {
+		border-color: rgba(20, 184, 166, 0.48);
+		background: rgba(20, 184, 166, 0.08);
+		transform: translateY(-1px);
+	}
+
+	.public-preset-button:disabled {
+		cursor: not-allowed;
+		opacity: 0.52;
+	}
+
+	.public-preset-button span {
+		display: flex;
+		min-width: 0;
+		flex-direction: column;
+		gap: 0.18rem;
+	}
+
+	.public-preset-button strong {
+		font-size: 0.98rem;
+		font-weight: 720;
+	}
+
+	.public-preset-button small {
+		font-size: 0.82rem;
+		line-height: 1.35;
+		color: var(--color-text-muted);
+	}
+
+	.public-preset-button em {
+		flex: 0 0 auto;
+		padding: 0.22rem 0.45rem;
+		border-radius: 999px;
+		background: rgba(20, 184, 166, 0.12);
+		color: var(--color-primary);
+		font-size: 0.72rem;
+		font-style: normal;
+		font-weight: 750;
+		text-transform: capitalize;
 	}
 
 	/* Info Card */
