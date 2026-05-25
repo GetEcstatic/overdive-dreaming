@@ -123,6 +123,7 @@
 			// from the dynamic dive recorder.
 			const searchParams = $page.url.searchParams;
 			const routineParam = searchParams.get('routine');
+			const publicPresetParam = searchParams.get('publicPreset');
 			const seedParam = searchParams.get('seed');
 			const groupInviteParam = searchParams.get('groupInvite');
 
@@ -201,6 +202,15 @@
 				} else {
 					console.warn(
 						`[dives] routine "${routineParam}" not found for user; skipping auto-select`
+					);
+				}
+			} else if (publicPresetParam) {
+				const preset = publicRoutinePresets.find((entry) => entry.id === publicPresetParam);
+				if (preset) {
+					await handlePublicPresetSelect(preset, findRoutineForPublicPreset(preset));
+				} else {
+					console.warn(
+						`[dives] public preset "${publicPresetParam}" not found; skipping auto-select`
 					);
 				}
 			}

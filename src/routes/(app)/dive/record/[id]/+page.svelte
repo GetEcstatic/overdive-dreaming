@@ -508,7 +508,7 @@
 			// the `dive-log-seed:{sessionId}` sessionStorage bundle and
 			// auto-selects the system-dynamic-max routine.
 			await goto(
-				`/dives?routine=system-dynamic-max&seed=${encodeURIComponent(sessionId)}`
+				`/dives?publicPreset=dynamic-max&seed=${encodeURIComponent(sessionId)}`
 			);
 		} catch (err) {
 			saveError = err instanceof Error ? err.message : String(err);
