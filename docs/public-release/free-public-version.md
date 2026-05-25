@@ -326,7 +326,7 @@ Goal: ship public mode without breaking the private/beta app.
 - [x] Add public progress UI for PBs, recent sessions, 30/90/365 day totals, milestones, and discipline filtering.
 - [x] Keep in-app dynamic recording available from public Log.
 - [x] Add the simplified prerecorded video import/review flow.
-- [ ] Support start/end and optional halfway-point markup before detailed waypoint markup.
+- [x] Support start/end and optional halfway-point markup before detailed waypoint markup.
 - [ ] Save reviewed video results into compatible routine log records.
 - [ ] Generate public share cards from saved logs and reviewed videos.
 - [ ] Keep share-card options minimal and story-format first.
