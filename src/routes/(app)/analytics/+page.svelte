@@ -39,6 +39,7 @@
 	let loading = $state(true);
 	let seasons = $state<Season[]>([]);
 	let isPublicMode = $state(true);
+	let publicDisciplineFilter = $state<'ALL' | Discipline>('ALL');
 	let selectedProgressDisciplines = $state<Discipline[]>(['DYN', 'DNF', 'DYNB']);
 	let progressMetric = $state<'distance' | 'time'>('distance');
 
@@ -83,7 +84,12 @@
 		}
 		return filterLogsByTimeframe(allLogs, activeTimeframe);
 	});
-	const publicProgress = $derived(buildPublicProgressReadModel(allLogs));
+	const publicFilteredLogs = $derived(
+		publicDisciplineFilter === 'ALL'
+			? allLogs
+			: allLogs.filter((log) => log.disciplineUsed === publicDisciplineFilter)
+	);
+	const publicProgress = $derived(buildPublicProgressReadModel(publicFilteredLogs));
 	// Only show max attempt routines in progress chart
 	const MAX_ATTEMPT_ROUTINE_IDS = ['system-dynamic-max', 'system-static-max'];
 	const progressLogs = $derived.by(() => {
@@ -501,6 +507,25 @@
 		</div>
 	{:else if isPublicMode}
 		<div class="public-progress-content">
+			<div class="public-filter-row" aria-label="Filter progress by discipline">
+				<button
+					type="button"
+					class:active={publicDisciplineFilter === 'ALL'}
+					onclick={() => publicDisciplineFilter = 'ALL'}
+				>
+					All
+				</button>
+				{#each disciplines as discipline}
+					<button
+						type="button"
+						class:active={publicDisciplineFilter === discipline}
+						onclick={() => publicDisciplineFilter = discipline}
+					>
+						{discipline}
+					</button>
+				{/each}
+			</div>
+
 			<section class="public-progress-grid">
 				<div class="stat-card public-progress-card">
 					<h2>Personal Bests</h2>
@@ -1078,6 +1103,31 @@
 		display: grid;
 		grid-template-columns: 1fr;
 		gap: 1rem;
+	}
+
+	.public-filter-row {
+		display: flex;
+		gap: 0.45rem;
+		overflow-x: auto;
+		padding-bottom: 0.2rem;
+	}
+
+	.public-filter-row button {
+		min-width: 3.25rem;
+		padding: 0.55rem 0.75rem;
+		border: 1px solid rgba(148, 163, 184, 0.18);
+		border-radius: 8px;
+		background: rgba(15, 23, 42, 0.45);
+		color: var(--color-text-muted);
+		font-size: 0.82rem;
+		font-weight: 700;
+		cursor: pointer;
+	}
+
+	.public-filter-row button.active {
+		border-color: rgba(20, 184, 166, 0.6);
+		background: rgba(20, 184, 166, 0.12);
+		color: var(--color-text);
 	}
 
 	@media (min-width: 760px) {
