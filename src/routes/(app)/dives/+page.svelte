@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { Timestamp } from 'firebase/firestore';
 	import { page } from '$app/stores';
+	import { Video } from 'lucide-svelte';
 	import { user } from '$lib/stores/auth';
 	import {
 		getRoutinesForUser,
@@ -752,6 +753,10 @@
 							<h2 id="public-presets-title">Choose a session</h2>
 							<p>Start with a simple preset and log only the useful result.</p>
 						</div>
+						<a class="public-record-link" href="/record">
+							<Video size={18} aria-hidden="true" />
+							<span>Record a dynamic dive</span>
+						</a>
 						<div class="public-preset-list">
 							{#each publicPresetRows as row}
 								<button
@@ -915,6 +920,28 @@
 		display: grid;
 		grid-template-columns: 1fr;
 		gap: 0.7rem;
+	}
+
+	.public-record-link {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.55rem;
+		width: 100%;
+		min-height: 3rem;
+		padding: 0.8rem 1rem;
+		border: 1px solid rgba(20, 184, 166, 0.45);
+		border-radius: 8px;
+		background: rgba(20, 184, 166, 0.12);
+		color: var(--color-text);
+		font-size: 0.94rem;
+		font-weight: 780;
+		text-decoration: none;
+	}
+
+	.public-record-link:hover {
+		border-color: rgba(20, 184, 166, 0.72);
+		background: rgba(20, 184, 166, 0.16);
 	}
 
 	.public-preset-button {

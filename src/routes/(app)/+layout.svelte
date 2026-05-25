@@ -41,8 +41,6 @@
 
 	function isAdvancedOnlyPath(pathname: string): boolean {
 		return pathname.startsWith('/routines')
-			|| pathname.startsWith('/record')
-			|| pathname.startsWith('/dive/record')
 			|| pathname.startsWith('/dive/webcodecs-spike')
 			|| pathname.startsWith('/import')
 			|| pathname.startsWith('/gift');
