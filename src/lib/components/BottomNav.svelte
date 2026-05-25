@@ -5,6 +5,8 @@
 	import { onMount } from 'svelte';
 	import { Home, Plus, List, TrendingUp, Video } from 'lucide-svelte';
 
+	let { canUseAdvancedMode = true } = $props<{ canUseAdvancedMode?: boolean }>();
+
 	let visible = $state(true);
 	// Hide the bottom nav entirely while a dive video is playing so the video
 	// isn't obscured on mobile and the landscape fullscreen lock has an
@@ -77,23 +79,25 @@
 			<Plus size={28} strokeWidth={2} />
 		</a>
 
-		<!-- Record dive -->
-		<a
-			href="/record"
-			class="nav-item"
-			class:active={$page.url.pathname.startsWith('/record') || $page.url.pathname.startsWith('/dive/record')}
-		>
-			<Video size={24} strokeWidth={2} />
-		</a>
+		{#if canUseAdvancedMode}
+			<!-- Record dive -->
+			<a
+				href="/record"
+				class="nav-item"
+				class:active={$page.url.pathname.startsWith('/record') || $page.url.pathname.startsWith('/dive/record')}
+			>
+				<Video size={24} strokeWidth={2} />
+			</a>
 
-		<!-- Routines -->
-		<a
-			href="/routines"
-			class="nav-item"
-			class:active={$page.url.pathname.startsWith('/routines')}
-		>
-			<List size={24} strokeWidth={2} />
-		</a>
+			<!-- Routines -->
+			<a
+				href="/routines"
+				class="nav-item"
+				class:active={$page.url.pathname.startsWith('/routines')}
+			>
+				<List size={24} strokeWidth={2} />
+			</a>
+		{/if}
 
 		<!-- Analytics -->
 		<a

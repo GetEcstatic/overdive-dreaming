@@ -7,14 +7,21 @@
 	import { onAuthStateChanged, getRedirectResult } from 'firebase/auth';
 	import AuthLoadingSplash from '$lib/components/AuthLoadingSplash.svelte';
 	import BottomNav from '$lib/components/BottomNav.svelte';
+	import { getUserSettings } from '$lib/firestore';
 	import { drainUploadQueue, installOnlineDrainer } from '$lib/capture/uploadProcessor';
 	import { uploadQueueStatus } from '$lib/capture/uploadStatus';
 	import { diveRecording } from '$lib/stores/videoPlayback';
+	import {
+		derivePublicModeCapabilities,
+		readLocalAdvancedOverride,
+		type PublicModeCapabilities
+	} from '$lib/publicMode/capabilities';
 
 	let { children } = $props();
 	let mobileMenuOpen = $state(false);
 	let minimumSplashElapsed = $state(false);
 	let showStartupSplash = $state(true);
+	let capabilities = $state<PublicModeCapabilities>(derivePublicModeCapabilities());
 	let isRecording = $derived($diveRecording > 0);
 	const showAuthSplash = $derived(showStartupSplash && ($loading || !minimumSplashElapsed));
 	const showUploadBanner = $derived(!isRecording && ($uploadQueueStatus.active || $uploadQueueStatus.pendingCount > 0));
@@ -24,6 +31,48 @@
 		if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
 		return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 	}
+
+	function isActive(pathname: string, href: string): boolean {
+		return href === '/dashboard' || href === '/dives' || href === '/analytics' || href === '/profile'
+			? pathname === href
+			: pathname.startsWith(href);
+	}
+
+	$effect(() => {
+		const currentUser = $user;
+		if (!currentUser) {
+			capabilities = derivePublicModeCapabilities();
+			return;
+		}
+
+		let cancelled = false;
+		const localAdvancedOverride = typeof window !== 'undefined'
+			? readLocalAdvancedOverride(window.localStorage)
+			: false;
+		capabilities = derivePublicModeCapabilities({
+			uid: currentUser.uid,
+			email: currentUser.email,
+			localAdvancedOverride
+		});
+
+		getUserSettings(currentUser.uid)
+			.then((settings) => {
+				if (cancelled) return;
+				capabilities = derivePublicModeCapabilities({
+					uid: currentUser.uid,
+					email: currentUser.email,
+					settings,
+					localAdvancedOverride
+				});
+			})
+			.catch((err) => {
+				if (!cancelled) console.warn('[app-layout] failed to load public mode settings', err);
+			});
+
+		return () => {
+			cancelled = true;
+		};
+	});
 
 	onMount(() => {
 		const startupSplashKey = 'overdive:startup-splash-shown';
@@ -116,11 +165,13 @@
 
 				<!-- Navigation Links -->
 				<div class="nav-links" class:open={mobileMenuOpen}>
-					<a href="/dashboard" class="nav-link" class:active={$page.url.pathname === '/dashboard'} onclick={() => mobileMenuOpen = false}>Feed</a>
-					<a href="/dives" class="nav-link" class:active={$page.url.pathname === '/dives'} onclick={() => mobileMenuOpen = false}>Log Dive</a>
-					<a href="/routines" class="nav-link" class:active={$page.url.pathname.startsWith('/routines')} onclick={() => mobileMenuOpen = false}>Routines</a>
-					<a href="/analytics" class="nav-link" class:active={$page.url.pathname === '/analytics'} onclick={() => mobileMenuOpen = false}>Analytics</a>
-					<a href="/profile" class="nav-link" class:active={$page.url.pathname === '/profile'} onclick={() => mobileMenuOpen = false}>Profile</a>
+					<a href="/dashboard" class="nav-link" class:active={isActive($page.url.pathname, '/dashboard')} onclick={() => mobileMenuOpen = false}>Feed</a>
+					<a href="/dives" class="nav-link" class:active={isActive($page.url.pathname, '/dives')} onclick={() => mobileMenuOpen = false}>Log</a>
+					{#if capabilities.canUseAdvancedMode}
+						<a href="/routines" class="nav-link" class:active={isActive($page.url.pathname, '/routines')} onclick={() => mobileMenuOpen = false}>Routines</a>
+					{/if}
+					<a href="/analytics" class="nav-link" class:active={isActive($page.url.pathname, '/analytics') || $page.url.pathname.startsWith('/routines/')} onclick={() => mobileMenuOpen = false}>{capabilities.isPublicMode ? 'Progress' : 'Analytics'}</a>
+					<a href="/profile" class="nav-link" class:active={isActive($page.url.pathname, '/profile')} onclick={() => mobileMenuOpen = false}>Profile</a>
 				</div>
 			</div>
 		</nav>
@@ -156,7 +207,7 @@
 			{@render children()}
 		</div>
 	</div>
-	<BottomNav />
+	<BottomNav canUseAdvancedMode={capabilities.canUseAdvancedMode} />
 {/if}
 
 <style>
