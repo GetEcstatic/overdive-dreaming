@@ -346,8 +346,8 @@ Goal: ship public mode without breaking the private/beta app.
 - [x] Preserve admin access so admin accounts do not accidentally downgrade themselves from the Profile toggle.
 - [x] Show public users a Profile mail link to request full access at `getecstatic.comp@gmail.com`.
 - [x] Validate with focused capability tests and `npm run check`.
-- [ ] Run the public-mode access migration dry-run before live data changes.
-- [ ] Run the live public-mode access migration after confirming the dry-run output.
+- [x] Run the public-mode access migration dry-run before live data changes.
+- [x] Run the live public-mode access migration after confirming the dry-run output.
 
 ## Open questions
 

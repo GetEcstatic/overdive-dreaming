@@ -10,17 +10,20 @@
  *   npm run migrate:public-mode-access
  */
 
-import { initializeApp, cert } from 'firebase-admin/app';
+import { initializeApp, applicationDefault, cert } from 'firebase-admin/app';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import 'dotenv/config';
 
 const serviceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-if (!serviceAccountPath) {
-	console.error('ERROR: GOOGLE_APPLICATION_CREDENTIALS environment variable not set');
-	console.error('Set it to the path of your Firebase service account JSON file');
-	process.exit(1);
-}
+const projectId = process.env.FIREBASE_PROJECT_ID
+	?? process.env.PUBLIC_FIREBASE_PROJECT_ID
+	?? process.env.GCLOUD_PROJECT
+	?? process.env.GOOGLE_CLOUD_PROJECT;
 
-initializeApp({ credential: cert(serviceAccountPath) });
+initializeApp({
+	credential: serviceAccountPath ? cert(serviceAccountPath) : applicationDefault(),
+	projectId
+});
 
 const db = getFirestore();
 const isDryRun = process.argv.includes('--dry-run');
