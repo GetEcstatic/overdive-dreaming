@@ -757,6 +757,10 @@
 		<div class="bg-(--color-bg-card) p-6 rounded-lg">
 			{#if !selectedRoutine}
 				<!-- Step 1: Select Routine -->
+				<a class="public-record-link" href="/record">
+					<Video size={18} aria-hidden="true" />
+					<span>Record a dynamic dive</span>
+				</a>
 				{#if isPublicMode}
 					<section class="public-presets" aria-labelledby="public-presets-title">
 						<div class="public-presets-head">
@@ -768,10 +772,6 @@
 							<span>Never freedive alone. Log sessions with a trained buddy and stop if anything feels off.</span>
 							<a href="/profile#safety">Safety resources</a>
 						</div>
-						<a class="public-record-link" href="/record">
-							<Video size={18} aria-hidden="true" />
-							<span>Record a dynamic dive</span>
-						</a>
 						<div class="public-preset-list">
 							{#each publicPresetRows as row}
 								<button
