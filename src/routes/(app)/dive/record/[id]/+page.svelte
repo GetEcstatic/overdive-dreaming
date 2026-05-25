@@ -82,6 +82,7 @@
 	}
 
 	type Stage = 'setup' | 'record' | 'importPlayback' | 'review' | 'saving' | 'done';
+	type ImportFlowPhase = 'ready' | 'playing' | 'diving' | 'ended';
 	let stage = $state<Stage>('setup');
 
 	/**
@@ -122,6 +123,10 @@
 	let importingVideo = $state(false);
 	let importPreviewPlaying = $state(false);
 	let importPreviewTimeMs = $state(0);
+	let importFlowPhase = $state<ImportFlowPhase>('ready');
+	let importEndDiveHeld = $state(false);
+	let importPrimaryClickSuppressed = false;
+	let importEndDiveHoldHandle: ReturnType<typeof setTimeout> | null = null;
 	let importPreviewUrl = $state<string | null>(null);
 	let importPreviewVideo = $state<HTMLVideoElement | null>(null);
 	let storageHealthy = $state<boolean | null>(null);
@@ -130,6 +135,7 @@
 	const waypointSpacing = $derived(
 		poolLength && waypointsPerLap ? poolLength / waypointsPerLap : 0
 	);
+	const IMPORT_END_DIVE_HOLD_MS = 500;
 
 	function formatMeters(m: number): string {
 		return Number.isInteger(m) ? `${m}` : m.toFixed(1);
@@ -303,36 +309,15 @@
 				displayRotationDeg: 0
 			};
 			importPreviewTimeMs = 0;
+			importFlowPhase = 'ready';
+			importEndDiveHeld = false;
+			importPrimaryClickSuppressed = false;
 			stage = 'importPlayback';
 		} catch (err) {
 			importError = err instanceof Error ? err.message : 'Could not read this video file.';
 		} finally {
 			importingVideo = false;
 		}
-	}
-
-	function setImportedTimelineMarker(kind: 'start' | 'end'): void {
-		if (!capture || capture.source !== 'import' || !importPreviewVideo) return;
-		const atMs = Math.round(importPreviewVideo.currentTime * 1000);
-		const current = capture.timeline;
-		let next: DiveTimeline = {
-			...current,
-			laps: [...current.laps],
-			subSplits: current.subSplits ? [...current.subSplits] : undefined
-		};
-
-		if (kind === 'start') {
-			next.diveStartMs = Math.min(atMs, Math.max(0, next.diveEndMs - 100));
-			next.laps = next.laps.filter((lap) => lap.atMs > next.diveStartMs);
-			next.subSplits = next.subSplits?.filter((event) => event.atMs > next.diveStartMs);
-		} else if (kind === 'end') {
-			next.diveEndMs = Math.max(atMs, next.diveStartMs + 100);
-			next.laps = next.laps.filter((lap) => lap.atMs < next.diveEndMs);
-			next.subSplits = next.subSplits?.filter((event) => event.atMs < next.diveEndMs);
-		}
-		next = rebuildImportedWaypoints(next, waypointTimesFromTimeline(next));
-
-		capture = { ...capture, timeline: next };
 	}
 
 	function addImportedWaypointAtCurrentTime(): void {
@@ -346,14 +331,6 @@
 			...waypointTimesFromTimeline(capture.timeline),
 			atMs
 		]);
-		capture = { ...capture, timeline: next };
-	}
-
-	function undoImportedWaypoint(): void {
-		if (!capture || capture.source !== 'import') return;
-		const times = waypointTimesFromTimeline(capture.timeline);
-		if (times.length === 0) return;
-		const next = rebuildImportedWaypoints(capture.timeline, times.slice(0, -1));
 		capture = { ...capture, timeline: next };
 	}
 
@@ -412,10 +389,16 @@
 	}
 
 	function importElapsedMs(timeline: DiveTimeline): number {
+		if (importFlowPhase === 'ready' || importFlowPhase === 'playing') return 0;
+		if (importFlowPhase === 'ended') return Math.max(0, timeline.diveEndMs - timeline.diveStartMs);
 		return Math.max(0, clamp(importPreviewTimeMs, timeline.diveStartMs, timeline.diveEndMs) - timeline.diveStartMs);
 	}
 
 	function importDistanceAt(timeline: DiveTimeline): number {
+		if (importFlowPhase === 'ready' || importFlowPhase === 'playing') return 0;
+		if (importFlowPhase === 'ended') {
+			return totalDistanceM(timeline, discipline ? defaultSpeedMs(discipline) : 1);
+		}
 		const atMs = clamp(importPreviewTimeMs, timeline.diveStartMs, timeline.diveEndMs);
 		const rows = importWaypointRows(timeline);
 		const defaultSpeed = discipline ? defaultSpeedMs(discipline) : 1;
@@ -441,6 +424,7 @@
 	}
 
 	function importSpeedAt(timeline: DiveTimeline): number {
+		if (importFlowPhase === 'ready' || importFlowPhase === 'playing' || importFlowPhase === 'ended') return 0;
 		const atMs = clamp(importPreviewTimeMs, timeline.diveStartMs, timeline.diveEndMs);
 		const rows = importWaypointRows(timeline);
 		const defaultSpeed = discipline ? defaultSpeedMs(discipline) : 1;
@@ -467,6 +451,76 @@
 		stage = 'review';
 	}
 
+	async function playImportedPreview(): Promise<void> {
+		await toggleImportPreviewPlayback();
+		if (importFlowPhase === 'ready') importFlowPhase = 'playing';
+	}
+
+	function startImportedDiveAtCurrentTime(): void {
+		if (!capture || capture.source !== 'import' || !importPreviewVideo) return;
+		const atMs = Math.round(importPreviewVideo.currentTime * 1000);
+		const endMs = Math.max(capture.timeline.diveEndMs, atMs + 100);
+		const next = rebuildImportedWaypoints(
+			{ ...capture.timeline, diveStartMs: atMs, diveEndMs: endMs, laps: [], subSplits: [] },
+			[]
+		);
+		capture = { ...capture, timeline: next };
+		importFlowPhase = 'diving';
+		importPreviewTimeMs = atMs;
+	}
+
+	function endImportedDiveAtCurrentTime(): void {
+		if (!capture || capture.source !== 'import' || !importPreviewVideo) return;
+		const atMs = Math.round(importPreviewVideo.currentTime * 1000);
+		let next: DiveTimeline = {
+			...capture.timeline,
+			diveEndMs: Math.max(atMs, capture.timeline.diveStartMs + 100)
+		};
+		next = rebuildImportedWaypoints(next, waypointTimesFromTimeline(next));
+		capture = { ...capture, timeline: next };
+		importFlowPhase = 'ended';
+		importPreviewTimeMs = next.diveEndMs;
+	}
+
+	function handleImportPrimaryAction(): void {
+		if (importPrimaryClickSuppressed) {
+			importPrimaryClickSuppressed = false;
+			return;
+		}
+		if (importFlowPhase === 'ready') {
+			void playImportedPreview();
+			return;
+		}
+		if (importFlowPhase === 'playing') {
+			startImportedDiveAtCurrentTime();
+			return;
+		}
+		if (importFlowPhase === 'diving') {
+			addImportedWaypointAtCurrentTime();
+			return;
+		}
+		reviewImportedCapture();
+	}
+
+	function onImportPrimaryHoldStart(): void {
+		if (importFlowPhase !== 'diving') return;
+		importEndDiveHeld = true;
+		if (importEndDiveHoldHandle) clearTimeout(importEndDiveHoldHandle);
+		importEndDiveHoldHandle = setTimeout(() => {
+			importEndDiveHoldHandle = null;
+			importEndDiveHeld = false;
+			importPrimaryClickSuppressed = true;
+			endImportedDiveAtCurrentTime();
+		}, IMPORT_END_DIVE_HOLD_MS);
+	}
+
+	function onImportPrimaryHoldEnd(): void {
+		importEndDiveHeld = false;
+		if (!importEndDiveHoldHandle) return;
+		clearTimeout(importEndDiveHoldHandle);
+		importEndDiveHoldHandle = null;
+	}
+
 	function seekImportedPreview(deltaSeconds: number): void {
 		if (!importPreviewVideo || !capture) return;
 		const nextSeconds = clamp(
@@ -478,8 +532,20 @@
 		importPreviewTimeMs = Math.round(nextSeconds * 1000);
 	}
 
-	function shouldShowImportPlayPrimary(timeline: DiveTimeline): boolean {
-		return !importPreviewPlaying && importPreviewTimeMs <= timeline.diveStartMs;
+	function importPrimaryLabel(): string {
+		if (importEndDiveHeld) return 'Hold';
+		if (importFlowPhase === 'ready') return 'Play';
+		if (importFlowPhase === 'playing') return 'Start dive';
+		if (importFlowPhase === 'diving') return 'Waypoint';
+		return 'Review';
+	}
+
+	function importPrimarySubLabel(): string {
+		if (importEndDiveHeld) return 'end dive';
+		if (importFlowPhase === 'ready') return 'Start playback';
+		if (importFlowPhase === 'playing') return 'Diver leaves wall';
+		if (importFlowPhase === 'diving') return `Mark ${formatMeters((importWaypointRows(capture?.timeline ?? { diveStartMs: 0, diveEndMs: 0, laps: [] }).length + 1) * waypointSpacing)} m · hold to end`;
+		return 'Save with markers';
 	}
 
 	function summaryWithWaypointSegments(summary: ReturnType<typeof summariseTimeline>, timeline: DiveTimeline): ReturnType<typeof summariseTimeline> {
@@ -1034,32 +1100,33 @@
 		<div class="import-recorder-controls">
 			<div class="import-secondary-actions left">
 				<button class="utility-button" type="button" onclick={() => (stage = 'setup')}>Cancel</button>
-				<button class="utility-button" type="button" onclick={undoImportedWaypoint} disabled={importWaypointRows(capture.timeline).length === 0}>Undo</button>
 			</div>
 
 			<div class="import-secondary-actions right">
 				<button class="utility-button" type="button" onclick={() => seekImportedPreview(-10)}>-10s</button>
 				<button class="utility-button" type="button" onclick={() => seekImportedPreview(10)}>+10s</button>
-				<button class="utility-button" type="button" onclick={() => setImportedTimelineMarker('start')}>Set start</button>
-				<button class="utility-button" type="button" onclick={() => setImportedTimelineMarker('end')}>Set end</button>
 			</div>
 
 			<div class="primary-wrap import-primary-wrap">
 				<button
 					class="primary-action"
-					class:action-startDive={shouldShowImportPlayPrimary(capture.timeline)}
-					class:action-waypoint={!shouldShowImportPlayPrimary(capture.timeline)}
+					class:action-startDive={importFlowPhase === 'ready' || importFlowPhase === 'playing'}
+					class:action-waypoint={importFlowPhase === 'diving'}
+					class:action-disabled={importFlowPhase === 'ended'}
 					type="button"
-					onclick={shouldShowImportPlayPrimary(capture.timeline) ? toggleImportPreviewPlayback : addImportedWaypointAtCurrentTime}
+					onpointerdown={onImportPrimaryHoldStart}
+					onpointerup={onImportPrimaryHoldEnd}
+					onpointercancel={onImportPrimaryHoldEnd}
+					onpointerleave={onImportPrimaryHoldEnd}
+					oncontextmenu={(e) => e.preventDefault()}
+					onclick={handleImportPrimaryAction}
 				>
-					<span class="btn-main">{shouldShowImportPlayPrimary(capture.timeline) ? 'Play' : 'Waypoint'}</span>
-					<span class="btn-sub">{shouldShowImportPlayPrimary(capture.timeline) ? 'Start playback' : `Mark ${formatMeters((importWaypointRows(capture.timeline).length + 1) * waypointSpacing)} m`}</span>
+					<span class="btn-main">{importPrimaryLabel()}</span>
+					<span class="btn-sub">{importPrimarySubLabel()}</span>
+					{#if importEndDiveHeld}
+						<span class="hold-progress" aria-hidden="true"></span>
+					{/if}
 				</button>
-			</div>
-
-			<div class="import-playback-actions">
-				<button class="utility-button" type="button" onclick={toggleImportPreviewPlayback}>{importPreviewPlaying ? 'Pause' : 'Play/Pause'}</button>
-				<button class="utility-button review-button" type="button" onclick={reviewImportedCapture}>Review &amp; save</button>
 			</div>
 
 			{#if importWaypointRows(capture.timeline).length > 0}
@@ -1560,7 +1627,7 @@
 	}
 
 	.import-primary-wrap {
-		bottom: calc(4.1rem + env(safe-area-inset-bottom));
+		bottom: calc(1rem + env(safe-area-inset-bottom));
 	}
 
 	.primary-action {
@@ -1598,6 +1665,28 @@
 		color: #042f2e;
 	}
 
+	.primary-action.action-disabled {
+		background: rgba(30, 41, 59, 0.9);
+	}
+
+	.primary-action .hold-progress {
+		position: absolute;
+		inset: 0;
+		background: rgba(255, 255, 255, 0.18);
+		transform-origin: left center;
+		animation: hold-fill 500ms linear forwards;
+		pointer-events: none;
+	}
+
+	@keyframes hold-fill {
+		from {
+			transform: scaleX(0);
+		}
+		to {
+			transform: scaleX(1);
+		}
+	}
+
 	.btn-main {
 		font-size: clamp(1.25rem, 5.2vw, 1.7rem);
 		line-height: 1.1;
@@ -1611,26 +1700,10 @@
 		text-align: center;
 	}
 
-	.import-playback-actions {
-		position: absolute;
-		left: 50%;
-		bottom: calc(1rem + env(safe-area-inset-bottom));
-		transform: translateX(-50%);
-		display: flex;
-		gap: 0.5rem;
-		pointer-events: auto;
-	}
-
-	.review-button {
-		border-color: rgba(20, 184, 166, 0.5);
-		background: rgba(20, 184, 166, 0.18);
-		color: #ccfbf1;
-	}
-
 	.summary-line {
 		position: absolute;
 		left: 50%;
-		bottom: calc(10rem + env(safe-area-inset-bottom));
+		bottom: calc(8.9rem + env(safe-area-inset-bottom));
 		transform: translateX(-50%);
 		padding: 0.3rem 0.55rem;
 		border-radius: 999px;
@@ -1650,14 +1723,6 @@
 		border-radius: 12px;
 		padding: 0.8rem;
 		margin-bottom: 1rem;
-	}
-
-	.import-preview {
-		display: block;
-		width: 100%;
-		max-height: 60vh;
-		border-radius: 8px;
-		background: #000;
 	}
 
 	.import-review-hint,
