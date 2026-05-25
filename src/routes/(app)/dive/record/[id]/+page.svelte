@@ -105,6 +105,8 @@
 
 	let capture = $state<CaptureResult | null>(null);
 	let saveError = $state<string | null>(null);
+	let importError = $state<string | null>(null);
+	let importingVideo = $state(false);
 	let storageHealthy = $state<boolean | null>(null);
 
 	const canStartRecording = $derived(Boolean(discipline && poolLength && waypointsPerLap));
@@ -227,6 +229,73 @@
 	function onCaptured(result: CaptureResult): void {
 		capture = result;
 		stage = 'review';
+	}
+
+	async function importVideoFile(event: Event): Promise<void> {
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file) return;
+		if (!discipline) {
+			importError = 'Choose a discipline before selecting a video.';
+			return;
+		}
+
+		importingVideo = true;
+		importError = null;
+		try {
+			const metadata = await readVideoMetadata(file);
+			const durationSeconds = Math.max(0, metadata.durationSeconds);
+			const durationMs = Math.round(durationSeconds * 1000);
+			capture = {
+				blob: file,
+				mimeType: file.type || 'video/mp4',
+				sizeBytes: file.size,
+				widthPx: metadata.widthPx,
+				heightPx: metadata.heightPx,
+				durationSeconds,
+				deviceLabel: 'Imported video',
+				cameraPreference: AUTO_REAR_CAMERA,
+				cameraFacing: 'unknown',
+				qualityPreset,
+				requestedVideoBitrateBps: bitrateForResolution(resolution, qualityPreset),
+				actualAverageBitrateBps: durationSeconds > 0 ? Math.round((file.size * 8) / durationSeconds) : undefined,
+				timeline: {
+					diveStartMs: 0,
+					diveEndMs: durationMs,
+					laps: []
+				},
+				capturePosture: 'unknown',
+				displayOrientation: metadata.heightPx > metadata.widthPx ? 'portrait-left' : 'landscape',
+				displayRotationDeg: 0
+			};
+			stage = 'review';
+		} catch (err) {
+			importError = err instanceof Error ? err.message : 'Could not read this video file.';
+		} finally {
+			importingVideo = false;
+		}
+	}
+
+	function readVideoMetadata(file: File): Promise<{ durationSeconds: number; widthPx: number; heightPx: number }> {
+		return new Promise((resolve, reject) => {
+			const url = URL.createObjectURL(file);
+			const video = document.createElement('video');
+			video.preload = 'metadata';
+			video.onloadedmetadata = () => {
+				URL.revokeObjectURL(url);
+				resolve({
+					durationSeconds: Number.isFinite(video.duration) ? video.duration : 0,
+					widthPx: video.videoWidth || 0,
+					heightPx: video.videoHeight || 0
+				});
+			};
+			video.onerror = () => {
+				URL.revokeObjectURL(url);
+				reject(new Error('Could not read this video file.'));
+			};
+			video.src = url;
+		});
 	}
 
 	async function save(): Promise<void> {
@@ -485,6 +554,13 @@
 				</div>
 			{/if}
 
+			{#if importError}
+				<div class="storage-warning" role="alert">
+					<strong>Video import failed.</strong>
+					<p>{importError}</p>
+				</div>
+			{/if}
+
 			<section class="card discipline-card" class:needs-choice={!discipline}>
 				<div class="field">
 					<span class="field-label">Choose discipline</span>
@@ -642,6 +718,15 @@
 				<button class="btn btn-secondary" onclick={() => history.back()}>
 					Cancel
 				</button>
+				<label class="btn btn-secondary import-video-button" class:disabled={!discipline || importingVideo}>
+					<input
+						type="file"
+						accept="video/*"
+						disabled={!discipline || importingVideo}
+						onchange={importVideoFile}
+					/>
+					{importingVideo ? 'Reading video...' : 'Select video'}
+				</label>
 				<button
 					class="btn btn-primary"
 					disabled={!canStartRecording}
@@ -932,6 +1017,32 @@
 		background: transparent;
 		border-color: rgba(148, 163, 184, 0.25);
 		color: var(--color-text-muted);
+	}
+	.import-video-button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		text-align: center;
+	}
+	.import-video-button input {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+	}
+	.import-video-button.disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+	@media (max-width: 520px) {
+		.actions {
+			flex-wrap: wrap;
+		}
+		.actions .btn,
+		.actions .import-video-button {
+			flex-basis: 100%;
+		}
 	}
 
 	.review-title {
