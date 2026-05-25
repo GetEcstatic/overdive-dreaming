@@ -4,7 +4,7 @@ import type {
 	MediaObjectRef
 } from '$lib/types';
 
-export const SERVER_OVERLAY_STYLE_VERSION = 'overdive-overlay-v2';
+export const SERVER_OVERLAY_STYLE_VERSION = 'overdive-overlay-v3';
 
 export function initialDiveVideoProcessingState(): DiveVideoProcessingState {
 	return {

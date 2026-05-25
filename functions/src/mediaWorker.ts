@@ -22,7 +22,7 @@ const require = createRequire(import.meta.url);
 const ffmpegPath = require('ffmpeg-static') as string | null;
 const ffprobeStatic = require('ffprobe-static') as { path?: string };
 const execFileAsync = promisify(execFile);
-const OVERLAY_STYLE_VERSION = 'overdive-overlay-v2';
+const OVERLAY_STYLE_VERSION = 'overdive-overlay-v3';
 
 const HUD_REFERENCE_SHORT_EDGE_PX = 390;
 const CSS_PX_PER_REM = 16;
@@ -373,6 +373,8 @@ function overlayAss(args: {
 	const valueLineHeight = scaledCssPx((isPortrait ? rem(1.9) : rem(1.35)) * 1.1, scale);
 	const subLineHeight = scaledCssPx((isPortrait ? rem(0.85) : rem(0.76)) * 1.2, scale);
 	const subMarginTop = scaledCssPx(rem(0.4), scale);
+	const watermarkSize = scaledCssPx(isPortrait ? rem(0.68) : rem(0.62), scale);
+	const watermarkMargin = scaledCssPx(rem(0.75), scale);
 	const boxH = padY * 2 + labelLineHeight + valueLineHeight + subMarginTop + subLineHeight;
 	const radius = scaledCssPx(14, scale);
 	const labelSpacing = Math.max(0, labelSize * 0.08).toFixed(2);
@@ -403,6 +405,10 @@ function overlayAss(args: {
 		);
 	}
 
+	events.push(
+		`Dialogue: 2,${formatAssTime(0)},${formatAssTime(durationSeconds)},Watermark,,0,0,0,,{\an3\pos(${args.width - watermarkMargin},${args.height - watermarkMargin})}${escapeAssText('overdive.app')}`
+	);
+
 	return `[Script Info]
 ScriptType: v4.00+
 PlayResX: ${args.width}
@@ -415,6 +421,7 @@ Style: HUDLabel,Arial,${labelSize},&H00E1D5CB,&H000000FF,&H00000000,&H00000000,1
 Style: HUDValue,Menlo,${valueSize},&H00FCFAF8,&H000000FF,&H00000000,&H00000000,1,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 Style: HUDSub,Arial,${subSize},&H00E1D5CB,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 Style: HUDSubMono,Menlo,${subSize},&H00E1D5CB,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
+Style: Watermark,Arial,${watermarkSize},&H66FCFAF8,&H000000FF,&H00000000,&H00000000,1,0,0,0,100,100,0,0,1,0,0,3,0,0,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
