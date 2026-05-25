@@ -319,8 +319,8 @@ Goal: ship public mode without breaking the private/beta app.
 - [x] Include dynamic max, static max, two-breath static CO2, dynamic Sweet 16 CO2, increasing static intervals, and increasing dynamic intervals.
 - [x] Project public presets into existing routine/log data shapes without exposing layer terminology.
 - [x] Build the simplified public Log entry screen.
-- [ ] Trim public quick-log fields to the short core set.
-- [ ] Preserve row result storage for preset routines.
+- [x] Trim public quick-log fields to the short core set.
+- [x] Preserve row result storage for preset routines.
 - [ ] Ensure rep duration only displays when completed reps have a uniform duration.
 - [ ] Build a public progress read model.
 - [ ] Add public progress UI for PBs, recent sessions, 30/90/365 day totals, milestones, and discipline filtering.
