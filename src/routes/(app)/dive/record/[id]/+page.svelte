@@ -830,6 +830,7 @@
 			{#if capture && discipline}
 				{#if capture.source === 'import' && importPreviewUrl}
 					<section class="import-review-card">
+						<!-- svelte-ignore a11y_media_has_caption -->
 						<video
 							bind:this={importPreviewVideo}
 							class="import-preview"
@@ -841,9 +842,7 @@
 							onpause={() => (importPreviewPlaying = false)}
 							onended={() => (importPreviewPlaying = false)}
 							onerror={handleImportPreviewPlaybackError}
-						>
-							<track kind="captions" />
-						</video>
+						></video>
 						<p class="import-review-hint">Play or scrub the clip, then mark the dive moments you want saved.</p>
 						<div class="import-marker-grid">
 							<button type="button" onclick={toggleImportPreviewPlayback}>{importPreviewPlaying ? 'Pause' : 'Play'}</button>
