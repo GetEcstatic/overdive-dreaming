@@ -321,9 +321,9 @@ Goal: ship public mode without breaking the private/beta app.
 - [x] Build the simplified public Log entry screen.
 - [x] Trim public quick-log fields to the short core set.
 - [x] Preserve row result storage for preset routines.
-- [ ] Ensure rep duration only displays when completed reps have a uniform duration.
-- [ ] Build a public progress read model.
-- [ ] Add public progress UI for PBs, recent sessions, 30/90/365 day totals, milestones, and discipline filtering.
+- [x] Ensure rep duration only displays when completed reps have a uniform duration.
+- [x] Build a public progress read model.
+- [x] Add public progress UI for PBs, recent sessions, 30/90/365 day totals, milestones, and discipline filtering.
 - [ ] Keep in-app dynamic recording available from public Log.
 - [ ] Add the simplified prerecorded video import/review flow.
 - [ ] Support start/end and optional halfway-point markup before detailed waypoint markup.
@@ -331,11 +331,11 @@ Goal: ship public mode without breaking the private/beta app.
 - [ ] Generate public share cards from saved logs and reviewed videos.
 - [ ] Keep share-card options minimal and story-format first.
 - [ ] Add signup/first-log safety note and Profile safety link.
-- [ ] Add focused Vitest coverage for public-mode pure helpers.
-- [ ] Run `npm run check` before shipping implementation commits.
+- [x] Add focused Vitest coverage for public-mode pure helpers.
+- [x] Run `npm run check` before shipping implementation commits.
 - [ ] Mobile-test the public happy path at phone width.
 - [ ] Verify advanced users retain access to existing private/beta tools.
-- [ ] Update this checklist as items are completed during implementation.
+- [x] Update this checklist as items are completed during implementation.
 
 ## Open questions
 
