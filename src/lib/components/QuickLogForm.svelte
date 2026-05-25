@@ -52,6 +52,7 @@
 		defaultVisibility?: SessionVisibility;
 		showMenstrualCycleTracking?: boolean;
 		saving?: boolean;
+		publicMode?: boolean;
 		/**
 		 * Optional seed values used to pre-fill the form — e.g. after a
 		 * dynamic dive video is saved, the recorder writes a
@@ -179,7 +180,7 @@
 		selectedTags?: string[];
 	}
 
-	let { routine, onSubmit, onCancel, defaultVisibility = 'private', showMenstrualCycleTracking = false, saving = false, initialValues = undefined }: Props = $props();
+	let { routine, onSubmit, onCancel, defaultVisibility = 'private', showMenstrualCycleTracking = false, saving = false, publicMode = false, initialValues = undefined }: Props = $props();
 
 	// Form state - use effect to sync initial value from routine prop
 	let disciplineUsed = $state<Discipline>(initialValues?.discipline ?? routine.disciplines[0]);
@@ -671,9 +672,13 @@
 
 	$effect(() => {
 		if (advancedDisclosureRoutineId !== routine.id) {
-			showAdvancedFields = quickLogModel.defaultAdvancedOpen;
+			showAdvancedFields = publicMode ? false : quickLogModel.defaultAdvancedOpen;
 			advancedDisclosureRoutineId = routine.id;
 		}
+	});
+
+	$effect(() => {
+		if (publicMode) showAdvancedFields = false;
 	});
 
 	$effect(() => {
@@ -1342,7 +1347,7 @@
 		</div>
 	{/if}
 
-	{#if quickLogModel.advancedControls.length > 0}
+	{#if quickLogModel.advancedControls.length > 0 && !publicMode}
 		<div class="advanced-disclosure geek-mode-disclosure">
 			<button
 				type="button"

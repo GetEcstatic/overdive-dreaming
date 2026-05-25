@@ -808,6 +808,7 @@
 					onCancel={handleCancel}
 					defaultVisibility={defaultSessionVisibility}
 					{showMenstrualCycleTracking}
+					publicMode={isPublicMode}
 					{saving}
 					initialValues={seedInitialValues}
 				/>
