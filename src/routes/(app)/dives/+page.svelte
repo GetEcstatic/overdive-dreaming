@@ -6,6 +6,7 @@
 	import {
 		getRoutinesForUser,
 		getRoutine,
+		createRoutine,
 		createRoutineLog,
 		updateRoutineLog,
 		getUserSettings,
@@ -24,7 +25,11 @@
 	import { getTimeOfDay } from '$lib/utils/sessions';
 	import { clearDashboardCache } from '$lib/utils/dashboardCache';
 	import { derivePublicModeCapabilities, readLocalAdvancedOverride } from '$lib/publicMode/capabilities';
-	import { publicRoutinePresets, type PublicRoutinePreset } from '$lib/publicMode/presets';
+	import {
+		buildPublicPresetRoutineCreateData,
+		publicRoutinePresets,
+		type PublicRoutinePreset
+	} from '$lib/publicMode/presets';
 	import {
 		buildInitialRoutineLogResultRows,
 		buildRoutineLogPlanRows,
@@ -53,6 +58,7 @@
 	let defaultSessionVisibility = $state<SessionVisibility>('private');
 	let showMenstrualCycleTracking = $state<boolean>(false);
 	let isPublicMode = $state(true);
+	let creatingPublicPresetId = $state<string | null>(null);
 	let selectedDiveBuddies = $state<PublicUserProfile[]>([]);
 	let activeGroupInvite = $state<GroupRoutineInvite | null>(null);
 	let publicPresetRows = $derived(publicRoutinePresets.map((preset) => ({
@@ -237,9 +243,27 @@
 		success = null;
 	}
 
-	function handlePublicPresetSelect(routine: RoutineTemplate | undefined) {
-		if (!routine) return;
-		handleRoutineSelect(routine);
+	async function handlePublicPresetSelect(preset: PublicRoutinePreset, routine: RoutineTemplate | undefined) {
+		if (routine) {
+			handleRoutineSelect(routine);
+			return;
+		}
+		if (!$user || creatingPublicPresetId) return;
+
+		try {
+			creatingPublicPresetId = preset.id;
+			error = null;
+			const routineId = await createRoutine($user.uid, buildPublicPresetRoutineCreateData(preset));
+			const createdRoutine = await getRoutine(routineId);
+			if (!createdRoutine) throw new Error('Preset routine was created but could not be loaded.');
+			routines = [...routines, createdRoutine];
+			handleRoutineSelect(createdRoutine);
+		} catch (err) {
+			console.error('Failed to create public preset routine:', err);
+			error = err instanceof Error ? err.message : 'Failed to create preset routine';
+		} finally {
+			creatingPublicPresetId = null;
+		}
 	}
 
 	function findRoutineForPublicPreset(preset: PublicRoutinePreset): RoutineTemplate | undefined {
@@ -249,6 +273,7 @@
 			const routineName = routine.name.trim().toLowerCase();
 			return routine.id === `system-${preset.id}`
 				|| routine.id === preset.id
+				|| routine.publicPresetId === preset.id
 				|| routineName === presetName
 				|| routineName === exampleName
 				|| preset.example.defaultTags.every((tag) => routine.tags.includes(tag));
@@ -732,14 +757,14 @@
 								<button
 									type="button"
 									class="public-preset-button"
-									disabled={!row.routine}
-									onclick={() => handlePublicPresetSelect(row.routine)}
+									disabled={creatingPublicPresetId !== null}
+									onclick={() => handlePublicPresetSelect(row.preset, row.routine)}
 								>
 									<span>
 										<strong>{row.preset.name}</strong>
 										<small>{row.preset.description}</small>
 									</span>
-									<em>{row.routine ? row.preset.shareEmphasis : 'Unavailable'}</em>
+									<em>{creatingPublicPresetId === row.preset.id ? 'Creating' : row.routine ? row.preset.shareEmphasis : 'Create'}</em>
 								</button>
 							{/each}
 						</div>
