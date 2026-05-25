@@ -37,6 +37,7 @@
 		CameraFacing,
 		CameraPreference,
 		DiveTimeline,
+		LapEvent,
 		DiveVideoDiscipline,
 		DiveVideoQualityPreset,
 		DiveVideoDisplayOrientation,
@@ -67,6 +68,16 @@
 		capturePosture: DiveVideoCapturePosture;
 		displayOrientation: DiveVideoDisplayOrientation;
 		displayRotationDeg: DiveVideoRotation;
+	}
+
+	interface ImportWaypointRow {
+		index: number;
+		kind: 'split' | 'wall';
+		atMs: number;
+		distanceM: number;
+		cumulativeDistanceM: number;
+		splitMs: number;
+		speedMs: number;
 	}
 
 	type Stage = 'setup' | 'record' | 'review' | 'saving' | 'done';
@@ -288,11 +299,11 @@
 		}
 	}
 
-	function setImportedTimelineMarker(kind: 'start' | 'end' | 'halfway'): void {
+	function setImportedTimelineMarker(kind: 'start' | 'end'): void {
 		if (!capture || capture.source !== 'import' || !importPreviewVideo) return;
 		const atMs = Math.round(importPreviewVideo.currentTime * 1000);
 		const current = capture.timeline;
-		const next: DiveTimeline = {
+		let next: DiveTimeline = {
 			...current,
 			laps: [...current.laps],
 			subSplits: current.subSplits ? [...current.subSplits] : undefined
@@ -306,17 +317,100 @@
 			next.diveEndMs = Math.max(atMs, next.diveStartMs + 100);
 			next.laps = next.laps.filter((lap) => lap.atMs < next.diveEndMs);
 			next.subSplits = next.subSplits?.filter((event) => event.atMs < next.diveEndMs);
-		} else {
-			const splitMs = Math.max(0, atMs - next.diveStartMs);
-			next.subSplits = [{
-				lapNumber: 1,
-				atMs: clamp(atMs, next.diveStartMs, next.diveEndMs),
-				cumulativeDistanceM: (poolLength ?? 25) / 2,
-				splitMs
-			}];
 		}
+		next = rebuildImportedWaypoints(next, waypointTimesFromTimeline(next));
 
 		capture = { ...capture, timeline: next };
+	}
+
+	function addImportedWaypointAtCurrentTime(): void {
+		if (!capture || capture.source !== 'import' || !importPreviewVideo) return;
+		const atMs = clamp(
+			Math.round(importPreviewVideo.currentTime * 1000),
+			capture.timeline.diveStartMs,
+			capture.timeline.diveEndMs
+		);
+		const next = rebuildImportedWaypoints(capture.timeline, [
+			...waypointTimesFromTimeline(capture.timeline),
+			atMs
+		]);
+		capture = { ...capture, timeline: next };
+	}
+
+	function undoImportedWaypoint(): void {
+		if (!capture || capture.source !== 'import') return;
+		const times = waypointTimesFromTimeline(capture.timeline);
+		if (times.length === 0) return;
+		const next = rebuildImportedWaypoints(capture.timeline, times.slice(0, -1));
+		capture = { ...capture, timeline: next };
+	}
+
+	function waypointTimesFromTimeline(timeline: DiveTimeline): number[] {
+		return [...timeline.laps, ...(timeline.subSplits ?? [])]
+			.map((event) => event.atMs)
+			.filter((atMs) => atMs > timeline.diveStartMs && atMs < timeline.diveEndMs)
+			.sort((a, b) => a - b);
+	}
+
+	function rebuildImportedWaypoints(timeline: DiveTimeline, waypointTimesMs: number[]): DiveTimeline {
+		const poolLengthM = poolLength ?? 25;
+		const wpl = Math.max(1, waypointsPerLap ?? 1);
+		const spacingM = poolLengthM / wpl;
+		const sortedTimes = waypointTimesMs
+			.map((atMs) => clamp(atMs, timeline.diveStartMs, timeline.diveEndMs))
+			.filter((atMs) => atMs > timeline.diveStartMs && atMs < timeline.diveEndMs)
+			.sort((a, b) => a - b);
+		const rows = sortedTimes.map((atMs, index) => {
+				const waypointIndex = index + 1;
+				const previousAtMs = index === 0 ? timeline.diveStartMs : sortedTimes[index - 1];
+				const event: LapEvent = {
+					lapNumber: waypointIndex % wpl === 0 ? waypointIndex / wpl : waypointIndex % wpl,
+					atMs,
+					splitMs: Math.max(0, atMs - previousAtMs),
+					cumulativeDistanceM: waypointIndex * spacingM
+				};
+				return { event, kind: waypointIndex % wpl === 0 ? 'wall' : 'split' };
+			});
+
+		return {
+			...timeline,
+			laps: rows.filter((row) => row.kind === 'wall').map((row) => row.event),
+			subSplits: rows.filter((row) => row.kind === 'split').map((row) => row.event)
+		};
+	}
+
+	function importWaypointRows(timeline: DiveTimeline): ImportWaypointRow[] {
+		const poolLengthM = poolLength ?? 25;
+		const wpl = Math.max(1, waypointsPerLap ?? 1);
+		const spacingM = poolLengthM / wpl;
+		return waypointTimesFromTimeline(timeline).map((atMs, index, times) => {
+			const waypointIndex = index + 1;
+			const previousAtMs = index === 0 ? timeline.diveStartMs : times[index - 1];
+			const splitMs = Math.max(0, atMs - previousAtMs);
+			return {
+				index: waypointIndex,
+				kind: waypointIndex % wpl === 0 ? 'wall' : 'split',
+				atMs,
+				distanceM: spacingM,
+				cumulativeDistanceM: waypointIndex * spacingM,
+				splitMs,
+				speedMs: splitMs > 0 ? spacingM / (splitMs / 1000) : 0
+			};
+		});
+	}
+
+	function summaryWithWaypointSegments(summary: ReturnType<typeof summariseTimeline>, timeline: DiveTimeline): ReturnType<typeof summariseTimeline> {
+		const rows = importWaypointRows(timeline);
+		if (rows.length === 0) return summary;
+		return {
+			...summary,
+			perLap: rows.map((row) => ({
+				lapNumber: row.index,
+				splitSeconds: row.splitMs / 1000,
+				avgSpeedMs: row.speedMs,
+				cumulativeDistanceM: row.cumulativeDistanceM
+			}))
+		};
 	}
 
 	async function toggleImportPreviewPlayback(): Promise<void> {
@@ -481,9 +575,9 @@
 			// showing up on the gifter's dashboard feed.
 			const isGift = Boolean(athleteId && athleteId !== uid);
 			if (capture && !isGift) {
-				const summary = summariseTimeline(
-					capture.timeline,
-					defaultSpeedMs(selectedDiscipline)
+				const summary = summaryWithWaypointSegments(
+					summariseTimeline(capture.timeline, defaultSpeedMs(selectedDiscipline)),
+					capture.timeline
 				);
 				try {
 					sessionStorage.setItem(
@@ -843,12 +937,13 @@
 							onended={() => (importPreviewPlaying = false)}
 							onerror={handleImportPreviewPlaybackError}
 						></video>
-						<p class="import-review-hint">Play or scrub the clip, then mark the dive moments you want saved.</p>
+						<p class="import-review-hint">Play or scrub the clip, set the dive start/end, then tap each wall or waypoint you can see.</p>
 						<div class="import-marker-grid">
 							<button type="button" onclick={toggleImportPreviewPlayback}>{importPreviewPlaying ? 'Pause' : 'Play'}</button>
 							<button type="button" onclick={() => setImportedTimelineMarker('start')}>Set start</button>
-							<button type="button" onclick={() => setImportedTimelineMarker('halfway')}>Set halfway</button>
+							<button type="button" onclick={addImportedWaypointAtCurrentTime}>Add waypoint</button>
 							<button type="button" onclick={() => setImportedTimelineMarker('end')}>Set end</button>
+							<button type="button" onclick={undoImportedWaypoint} disabled={importWaypointRows(capture.timeline).length === 0}>Undo waypoint</button>
 						</div>
 						{#if importError}
 							<p class="import-review-error">{importError}</p>
@@ -857,10 +952,24 @@
 							<div><span>Start</span><strong>{secondsFromMs(capture.timeline.diveStartMs)}</strong></div>
 							<div><span>End</span><strong>{secondsFromMs(capture.timeline.diveEndMs)}</strong></div>
 							<div>
-								<span>Halfway</span>
-								<strong>{capture.timeline.subSplits?.[0] ? secondsFromMs(capture.timeline.subSplits[0].atMs) : 'Optional'}</strong>
+								<span>Next waypoint</span>
+								<strong>{formatMeters((importWaypointRows(capture.timeline).length + 1) * waypointSpacing)} m</strong>
 							</div>
 						</div>
+						{#if importWaypointRows(capture.timeline).length > 0}
+							<div class="import-waypoint-list" aria-label="Imported video waypoint splits">
+								{#each importWaypointRows(capture.timeline) as row}
+									<div class="import-waypoint-row">
+										<div>
+											<span>{row.kind === 'wall' ? 'Wall' : 'Split'} {row.index}</span>
+											<strong>{formatMeters(row.cumulativeDistanceM)} m</strong>
+										</div>
+										<div><span>Time</span><strong>{secondsFromMs(row.splitMs)}</strong></div>
+										<div><span>Speed</span><strong>{row.speedMs.toFixed(2)} m/s</strong></div>
+									</div>
+								{/each}
+							</div>
+						{/if}
 					</section>
 				{/if}
 
@@ -1204,6 +1313,10 @@
 		font-weight: 750;
 	}
 
+	.import-marker-grid button:disabled {
+		opacity: 0.45;
+	}
+
 	.import-marker-summary {
 		display: grid;
 		grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1233,9 +1346,44 @@
 		color: var(--color-text);
 	}
 
+	.import-waypoint-list {
+		display: grid;
+		gap: 0.45rem;
+		margin-top: 0.7rem;
+	}
+
+	.import-waypoint-row {
+		display: grid;
+		grid-template-columns: 1.3fr 1fr 1fr;
+		gap: 0.45rem;
+		padding: 0.55rem;
+		border: 1px solid rgba(148, 163, 184, 0.14);
+		border-radius: 8px;
+		background: rgba(2, 6, 23, 0.28);
+	}
+
+	.import-waypoint-row span {
+		display: block;
+		font-size: 0.66rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		color: var(--color-text-muted);
+	}
+
+	.import-waypoint-row strong {
+		display: block;
+		margin-top: 0.14rem;
+		font-size: 0.84rem;
+		color: var(--color-text);
+	}
+
 	@media (max-width: 520px) {
 		.import-marker-grid {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+
+		.import-waypoint-row {
+			grid-template-columns: 1fr;
 		}
 	}
 
