@@ -396,10 +396,12 @@
 
 	function importDistanceAt(timeline: DiveTimeline): number {
 		if (importFlowPhase === 'ready' || importFlowPhase === 'playing') return 0;
-		if (importFlowPhase === 'ended') {
-			return totalDistanceM(timeline, discipline ? defaultSpeedMs(discipline) : 1);
-		}
-		const atMs = clamp(importPreviewTimeMs, timeline.diveStartMs, timeline.diveEndMs);
+		if (importFlowPhase === 'ended') return importDistanceAtTime(timeline, timeline.diveEndMs);
+		return importDistanceAtTime(timeline, importPreviewTimeMs);
+	}
+
+	function importDistanceAtTime(timeline: DiveTimeline, targetMs: number): number {
+		const atMs = clamp(targetMs, timeline.diveStartMs, timeline.diveEndMs);
 		const rows = importWaypointRows(timeline);
 		const defaultSpeed = discipline ? defaultSpeedMs(discipline) : 1;
 		if (rows.length === 0) {
@@ -421,6 +423,11 @@
 		const elapsedMs = Math.max(0, atMs - last.atMs);
 		const speed = last.speedMs > 0 ? last.speedMs : defaultSpeed;
 		return last.cumulativeDistanceM + speed * (elapsedMs / 1000);
+	}
+
+	function captureDistanceM(result: CaptureResult): number {
+		if (result.source === 'import') return importDistanceAtTime(result.timeline, result.timeline.diveEndMs);
+		return totalDistanceM(result.timeline, discipline ? defaultSpeedMs(discipline) : 1);
 	}
 
 	function importSpeedAt(timeline: DiveTimeline): number {
@@ -551,8 +558,12 @@
 	function summaryWithWaypointSegments(summary: ReturnType<typeof summariseTimeline>, timeline: DiveTimeline): ReturnType<typeof summariseTimeline> {
 		const rows = importWaypointRows(timeline);
 		if (rows.length === 0) return summary;
+		const distanceM = importDistanceAtTime(timeline, timeline.diveEndMs);
+		const durationSeconds = Math.max(0, timeline.diveEndMs - timeline.diveStartMs) / 1000;
 		return {
 			...summary,
+			totalDistanceM: distanceM,
+			averageSpeedMs: durationSeconds > 0 ? distanceM / durationSeconds : 0,
 			perLap: rows.map((row) => ({
 				lapNumber: row.index,
 				splitSeconds: row.splitMs / 1000,
@@ -1201,7 +1212,7 @@
 						     estimated from the most recent measured pace).
 						  See `totalDistanceM` in src/lib/capture/timeline.ts.
 						-->
-						<strong>{formatMeters(totalDistanceM(capture.timeline, defaultSpeedMs(discipline)))} m</strong>
+						<strong>{formatMeters(captureDistanceM(capture))} m</strong>
 					</div>
 					<div><span>Size</span><strong>{formatMegabytes(capture.sizeBytes)}</strong></div>
 				</div>
