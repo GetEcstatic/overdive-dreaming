@@ -22,6 +22,7 @@
 	let minimumSplashElapsed = $state(false);
 	let showStartupSplash = $state(true);
 	let capabilities = $state<PublicModeCapabilities>(derivePublicModeCapabilities());
+	let capabilitiesReady = $state(false);
 	let isRecording = $derived($diveRecording > 0);
 	const showAuthSplash = $derived(showStartupSplash && ($loading || !minimumSplashElapsed));
 	const showUploadBanner = $derived(!isRecording && ($uploadQueueStatus.active || $uploadQueueStatus.pendingCount > 0));
@@ -38,14 +39,25 @@
 			: pathname.startsWith(href);
 	}
 
+	function isAdvancedOnlyPath(pathname: string): boolean {
+		return pathname.startsWith('/routines')
+			|| pathname.startsWith('/record')
+			|| pathname.startsWith('/dive/record')
+			|| pathname.startsWith('/dive/webcodecs-spike')
+			|| pathname.startsWith('/import')
+			|| pathname.startsWith('/gift');
+	}
+
 	$effect(() => {
 		const currentUser = $user;
 		if (!currentUser) {
 			capabilities = derivePublicModeCapabilities();
+			capabilitiesReady = false;
 			return;
 		}
 
 		let cancelled = false;
+		capabilitiesReady = false;
 		const localAdvancedOverride = typeof window !== 'undefined'
 			? readLocalAdvancedOverride(window.localStorage)
 			: false;
@@ -64,14 +76,25 @@
 					settings,
 					localAdvancedOverride
 				});
+				capabilitiesReady = true;
 			})
 			.catch((err) => {
-				if (!cancelled) console.warn('[app-layout] failed to load public mode settings', err);
+				if (cancelled) return;
+				console.warn('[app-layout] failed to load public mode settings', err);
+				capabilitiesReady = true;
 			});
 
 		return () => {
 			cancelled = true;
 		};
+	});
+
+	$effect(() => {
+		if (!$user || !capabilitiesReady || !capabilities.isPublicMode) return;
+		if (!isAdvancedOnlyPath($page.url.pathname)) return;
+
+		mobileMenuOpen = false;
+		goto('/dives');
 	});
 
 	onMount(() => {
