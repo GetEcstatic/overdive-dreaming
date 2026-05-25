@@ -39,7 +39,7 @@
 	let loading = $state(true);
 	let seasons = $state<Season[]>([]);
 	let isPublicMode = $state(true);
-	let publicDisciplineFilter = $state<'ALL' | Discipline>('ALL');
+	let publicSelectedDisciplines = $state<Discipline[]>(['DYN', 'DNF', 'DYNB', 'STA']);
 	let selectedProgressDisciplines = $state<Discipline[]>(['DYN', 'DNF', 'DYNB']);
 	let progressMetric = $state<'distance' | 'time'>('distance');
 
@@ -85,11 +85,39 @@
 		return filterLogsByTimeframe(allLogs, activeTimeframe);
 	});
 	const publicFilteredLogs = $derived(
-		publicDisciplineFilter === 'ALL'
+		publicSelectedDisciplines.length === disciplines.length
 			? allLogs
-			: allLogs.filter((log) => log.disciplineUsed === publicDisciplineFilter)
+			: allLogs.filter((log) => publicSelectedDisciplines.includes(log.disciplineUsed))
 	);
 	const publicProgress = $derived(buildPublicProgressReadModel(publicFilteredLogs));
+	const publicProgressChartData = $derived.by(() => {
+		const chronologicalLogs = [...publicFilteredLogs]
+			.filter((log) => publicChartValue(log) > 0)
+			.sort((a, b) => logDate(a).getTime() - logDate(b).getTime());
+		const dateKeys = [...new Set(chronologicalLogs.map((log) => format(logDate(log), 'yyyy-MM-dd')))]
+			.slice(-16);
+		const labels = dateKeys.map((dateKey) => format(new Date(`${dateKey}T00:00:00`), 'MMM d'));
+
+		return {
+			labels,
+			datasets: publicSelectedDisciplines.map((discipline) => ({
+				label: discipline === 'STA' ? `${discipline} time` : `${discipline} distance`,
+				data: dateKeys.map((dateKey) => {
+					const values = chronologicalLogs
+						.filter((log) => log.disciplineUsed === discipline && format(logDate(log), 'yyyy-MM-dd') === dateKey)
+						.map(publicChartValue);
+					return values.length > 0 ? Math.max(...values) : null;
+				}),
+				borderColor: disciplineColorMap[discipline].border,
+				backgroundColor: disciplineColorMap[discipline].fill,
+				tension: 0.3,
+				fill: false,
+				spanGaps: true,
+				pointRadius: 3,
+				pointHoverRadius: 5
+			}))
+		};
+	});
 	// Only show max attempt routines in progress chart
 	const MAX_ATTEMPT_ROUTINE_IDS = ['system-dynamic-max', 'system-static-max'];
 	const progressLogs = $derived.by(() => {
@@ -448,6 +476,26 @@
 		return distance ? `${distance}m` : 'Session logged';
 	}
 
+	function togglePublicDiscipline(discipline: Discipline): void {
+		if (publicSelectedDisciplines.includes(discipline)) {
+			publicSelectedDisciplines = publicSelectedDisciplines.filter((entry) => entry !== discipline);
+			if (publicSelectedDisciplines.length === 0) publicSelectedDisciplines = [discipline];
+		} else {
+			publicSelectedDisciplines = [...publicSelectedDisciplines, discipline];
+		}
+	}
+
+	function publicChartValue(log: RoutineLog): number {
+		if (log.disciplineUsed === 'STA') {
+			return log.totalTime ?? log.diveDuration ?? log.longestHold ?? log.cumulativeHoldTime ?? 0;
+		}
+		return log.totalDistance ?? log.diveDistance ?? log.cumulativeDistance ?? 0;
+	}
+
+	function logDate(log: RoutineLog): Date {
+		return log.date.toDate();
+	}
+
 	onMount(() => {
 		// Check for query params to pre-select filters
 		const disciplineParam = $page.url.searchParams.get('discipline');
@@ -510,21 +558,38 @@
 			<div class="public-filter-row" aria-label="Filter progress by discipline">
 				<button
 					type="button"
-					class:active={publicDisciplineFilter === 'ALL'}
-					onclick={() => publicDisciplineFilter = 'ALL'}
+					class:active={publicSelectedDisciplines.length === disciplines.length}
+					onclick={() => publicSelectedDisciplines = [...disciplines]}
 				>
 					All
 				</button>
 				{#each disciplines as discipline}
 					<button
 						type="button"
-						class:active={publicDisciplineFilter === discipline}
-						onclick={() => publicDisciplineFilter = discipline}
+						class:active={publicSelectedDisciplines.includes(discipline)}
+						onclick={() => togglePublicDiscipline(discipline)}
 					>
 						{discipline}
 					</button>
 				{/each}
 			</div>
+
+			<section class="stat-card public-chart-card">
+				<div class="public-chart-head">
+					<h2>Progress Over Time</h2>
+					<span>Distance for dynamic · time for static</span>
+				</div>
+				{#if publicProgressChartData.labels.length > 0}
+					<LineChart
+						data={publicProgressChartData}
+						height={320}
+						yTickFormatter={(value) => `${value}`}
+						tooltipValueFormatter={(value) => `${value}`}
+					/>
+				{:else}
+					<div class="public-chart-empty">Log a result in the selected discipline to see a trend.</div>
+				{/if}
+			</section>
 
 			<section class="public-progress-grid">
 				<div class="stat-card public-progress-card">
@@ -1138,6 +1203,54 @@
 
 	.public-progress-card {
 		border-radius: 8px;
+	}
+
+	.public-chart-card {
+		border-radius: 8px;
+		padding: 1rem 0.85rem 0.7rem;
+	}
+
+	.public-chart-head {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 0.75rem;
+		margin-bottom: 0.75rem;
+		padding: 0 0.25rem;
+	}
+
+	.public-chart-head h2 {
+		margin: 0;
+	}
+
+	.public-chart-head span {
+		font-size: 0.75rem;
+		color: var(--color-text-muted);
+		text-align: right;
+	}
+
+	.public-chart-empty {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 18rem;
+		padding: 1rem;
+		border: 1px dashed rgba(148, 163, 184, 0.22);
+		border-radius: 8px;
+		color: var(--color-text-muted);
+		text-align: center;
+		font-size: 0.9rem;
+	}
+
+	@media (max-width: 520px) {
+		.public-chart-head {
+			align-items: flex-start;
+			flex-direction: column;
+		}
+
+		.public-chart-head span {
+			text-align: left;
+		}
 	}
 
 	.public-best-list,
