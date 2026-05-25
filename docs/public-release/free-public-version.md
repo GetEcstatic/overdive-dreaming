@@ -317,8 +317,8 @@ Goal: ship public mode without breaking the private/beta app.
 - [x] Hide routine builder, layer editor, layer read models, metric profile tooling, group invites, gifted dives, biometric CSV import, and deep analytics from public users.
 - [x] Define the curated public preset data set.
 - [x] Include dynamic max, static max, two-breath static CO2, dynamic Sweet 16 CO2, increasing static intervals, and increasing dynamic intervals.
-- [ ] Project public presets into existing routine/log data shapes without exposing layer terminology.
-- [ ] Build the simplified public Log entry screen.
+- [x] Project public presets into existing routine/log data shapes without exposing layer terminology.
+- [x] Build the simplified public Log entry screen.
 - [ ] Trim public quick-log fields to the short core set.
 - [ ] Preserve row result storage for preset routines.
 - [ ] Ensure rep duration only displays when completed reps have a uniform duration.
