@@ -162,26 +162,184 @@ Cons:
 
 Start with Option A for a prototype, but structure it like Option B: define a public user journey, then hide everything that does not serve that journey.
 
-## First implementation pass
+## Implementation principles
 
-1. Define public-mode eligibility:
-   - Normal users see public mode by default.
-   - Admin/private beta users can access advanced mode.
-2. Reduce navigation to Feed, Log, Progress, Profile for public mode.
-3. Make Log the primary experience:
-   - Free log
-   - Curated routine preset
-   - Max attempt
-4. Hide advanced routine builder/editor surfaces from public users.
-5. Keep dynamic recording available as a simple guided flow.
-6. Add prerecorded video upload/review as a standard public feature.
-7. Polish share-card generation from a completed log or reviewed video.
-8. Simplify the dashboard feed around recent sessions and share actions.
-9. Add a public onboarding sentence or two only where it reduces confusion.
+This plan should follow the same engineering principles as the rest of Overdive:
+
+- Data-oriented design: represent public mode, presets, logging choices, and video review state as plain data first.
+- Pure transformations before UI: derive public navigation, visible controls, default presets, PB summaries, share-card inputs, and video-review outputs with pure helpers that can be tested outside Svelte.
+- Side effects at the edges: Firebase reads/writes, media capture, upload, playback, and sharing should stay in route components, services, or storage/media adapters.
+- Derive instead of duplicate: public-mode UI should be derived from user capability, route context, and routine metadata rather than copied into a separate parallel app where possible.
+- Keep the mobile workflow primary: the main path should be comfortable on a phone at the pool, with large targets, short forms, bottom navigation, and no required desktop-only interactions.
+- Hide complexity before rebuilding it: prefer gating advanced routes and controls over deleting proven private/beta functionality.
+- Test pure logic close to the code: public-mode route maps, preset selection, log summaries, progress summaries, and video-review reducers should have focused Vitest coverage.
+
+## Full implementation plan
+
+### Phase 0: Public mode boundary
+
+Goal: introduce a clear capability boundary without disrupting the current private/power-user app.
+
+- Add a user capability model that can answer: public user, advanced beta user, admin/dev user.
+- Default normal signed-in users to public mode.
+- Keep advanced access available for existing power users through an invite/admin flag or a temporary local/dev override.
+- Centralize the capability decision in one helper or store so route layouts, navigation, and components do not each invent their own checks.
+- Define public route access rules:
+   - Feed/dashboard: public.
+   - Log: public.
+   - Progress: public.
+   - Profile/settings: public.
+   - Routine builder/layer editor: advanced only.
+   - Group invites/gift flows/biometric import/deep analytics: advanced only.
+- Add simple route guards for advanced-only pages that send public users back to Log or Feed with a non-alarming message.
+
+### Phase 1: Public app shell and navigation
+
+Goal: make the app feel immediately understandable after sign-in.
+
+- Reduce public bottom navigation to Feed, Log, Progress, Profile.
+- Move routine selection into Log as presets, not a top-level concept.
+- Keep the current advanced navigation for advanced users.
+- Remove public references to layer editors, read models, metric profiles, routine contracts, group routines, and beta-only tooling.
+- Make the authenticated loading splash first-open only, so the public app feels branded without slowing repeated navigation.
+- Keep copy sparse: use labels and empty states that orient the user, not explanatory walls.
+
+### Phase 2: Curated public presets
+
+Goal: give public users a strong starting set without requiring custom routine creation.
+
+Start with these presets:
+
+- Dynamic max attempt.
+- Static max attempt.
+- Two-breath static CO2 table.
+- Dynamic Sweet 16 CO2 table.
+- Increasing static intervals.
+- Increasing dynamic intervals.
+
+Implementation notes:
+
+- Represent the preset list as data, with stable IDs, plain-language names, disciplines, short coaching cues, expected result fields, and share-card emphasis.
+- Reuse the existing routine/layer model internally where it helps, but never expose layer terminology in public UI.
+- Seed or project presets through the existing routine template path so logs remain compatible with analytics, PBs, and share cards.
+- Public users should not create arbitrary custom routines in v1.
+- Advanced users can still create and edit routines through the existing builder.
+
+### Phase 3: Simple logging flow
+
+Goal: let a new user log a useful session in under one minute.
+
+- Make Log open directly to three choices: Quick log, Max attempt, Preset routine.
+- Keep the form field set short:
+   - Date/time.
+   - Discipline.
+   - Result: time, distance, reps, or preset-specific rows.
+   - RPE and joy.
+   - Notes.
+   - Optional photo.
+- Keep advanced metrics hidden for public users unless a preset truly needs them.
+- Make rep duration mean only "all completed reps had the same duration"; otherwise show average time per rep from row results.
+- Ensure the save path stores planned rows/result rows for preset routines while keeping Firestore payloads free of `undefined` values.
+- Keep existing PB recalculation, dashboard cache clearing, visibility, and share-card hooks working.
+
+### Phase 4: Public progress view
+
+Goal: replace dense analytics with progress that feels rewarding and understandable.
+
+- Build a public progress read model from existing routine logs and PB helpers.
+- Show:
+   - Current PBs by discipline.
+   - Recent sessions.
+   - Last 30/90/365 day totals.
+   - Milestones achieved.
+   - Simple discipline filter.
+- Hide advanced routine analytics, metric catalogs, dense comparison charts, and per-rep analytics from public users.
+- Prefer one or two focused cards over dashboard sprawl.
+
+### Phase 5: Simple dynamic video recording
+
+Goal: keep Overdive's strongest differentiator while reducing public UX complexity.
+
+- Keep in-app dynamic dive recording available from Log.
+- Guide the user through the smallest reliable flow:
+   - Choose discipline and pool length.
+   - Record or select video.
+   - Mark dive start/end.
+   - Mark key distance point(s) only when needed.
+   - Review distance/time overlay.
+   - Save as a routine log.
+- For prerecorded imports, start with: upload video, choose discipline/pool length, tap dive start/end, optionally tap halfway point.
+- Do not require every waypoint in v1 unless the user opts into a more detailed review.
+- Keep coach gifting, group workflows, advanced export controls, and heavy worker controls out of public mode.
+- Keep media side effects in existing storage/media services; keep review state in pure reducers or helpers where practical.
+
+### Phase 6: Share output
+
+Goal: make the completion moment satisfying and naturally social.
+
+- Make share-card generation available after every saved public log.
+- Support story-format cards for:
+   - Static max.
+   - Dynamic max.
+   - Preset routine completion.
+   - PB or milestone.
+   - Video-reviewed dynamic dive.
+- Use existing share-card utilities where possible, but simplify public options.
+- Include Overdive wordmark, athlete name, date, discipline, result, PB/milestone badge, optional photo, and video overlay result when available.
+- Avoid requiring in-app social features before public launch.
+
+### Phase 7: Safety, profile, and onboarding
+
+Goal: be responsible without making the first session feel bureaucratic.
+
+- Include a concise safety note during signup or first Log use.
+- Keep a persistent safety/info link in Profile.
+- Keep public profile settings simple: name, photo, default visibility, units/pool length defaults, advanced access request.
+- Do not add disruptive warnings to every max attempt form unless the user enters a high-risk context that genuinely needs friction.
+
+### Phase 8: QA, migration, and rollout
+
+Goal: ship public mode without breaking the private/beta app.
+
+- Add focused tests for capability derivation, public navigation, preset projection, public progress summaries, and log payload cleaning.
+- Run `npm run check` and targeted Vitest suites before each implementation PR/commit.
+- Test mobile layouts at roughly 375px width for Feed, Log, Progress, Profile, video review, and share-card output.
+- Test advanced users can still access routine builder, layer editor, imports, group flows, and detailed analytics.
+- Test public users cannot accidentally land on advanced-only routes through old links.
+- Roll out behind a public-mode flag first, then flip normal users to public mode once the core path feels coherent.
+
+## Implementation checklist
+
+- [ ] Add a public/advanced/admin capability helper or store.
+- [ ] Add route guards for advanced-only pages.
+- [ ] Add public-mode navigation with Feed, Log, Progress, Profile.
+- [ ] Keep advanced navigation available for advanced users.
+- [ ] Hide routine builder, layer editor, layer read models, metric profile tooling, group invites, gifted dives, biometric CSV import, and deep analytics from public users.
+- [ ] Define the curated public preset data set.
+- [ ] Include dynamic max, static max, two-breath static CO2, dynamic Sweet 16 CO2, increasing static intervals, and increasing dynamic intervals.
+- [ ] Project public presets into existing routine/log data shapes without exposing layer terminology.
+- [ ] Build the simplified public Log entry screen.
+- [ ] Trim public quick-log fields to the short core set.
+- [ ] Preserve row result storage for preset routines.
+- [ ] Ensure rep duration only displays when completed reps have a uniform duration.
+- [ ] Build a public progress read model.
+- [ ] Add public progress UI for PBs, recent sessions, 30/90/365 day totals, milestones, and discipline filtering.
+- [ ] Keep in-app dynamic recording available from public Log.
+- [ ] Add the simplified prerecorded video import/review flow.
+- [ ] Support start/end and optional halfway-point markup before detailed waypoint markup.
+- [ ] Save reviewed video results into compatible routine log records.
+- [ ] Generate public share cards from saved logs and reviewed videos.
+- [ ] Keep share-card options minimal and story-format first.
+- [ ] Add signup/first-log safety note and Profile safety link.
+- [ ] Add focused Vitest coverage for public-mode pure helpers.
+- [ ] Run `npm run check` before shipping implementation commits.
+- [ ] Mobile-test the public happy path at phone width.
+- [ ] Verify advanced users retain access to existing private/beta tools.
+- [ ] Update this checklist as items are completed during implementation.
 
 ## Open questions
 
-- Should public users be allowed to create any custom routines, or only use presets? Current leaning: start with presets only.
+- Should public users be allowed to create any custom routines, or only use presets? Current leaning: start with presets only. Start with dynamic max, static max, two-breath static CO2, dynamic Sweet 16 CO2, increasing static intervals, and increasing dynamic intervals.
 - How simple can dynamic recording be while still feeling reliable enough for public users? Current leaning: the current recording UX is close. The main complexity is tapping waypoints. Automatic image recognition could simplify this later, but is not realistic for v1.
 - What is the minimum viable prerecorded-video upload flow? Current leaning: import a video, choose discipline/pool length, tap dive start/end, then optionally tap only the halfway point instead of every waypoint. This keeps the public version much easier while still producing useful overlay metrics.
 - Should advanced mode be admin-only, invite-only, or a visible toggle? Current leaning: invite-only, with a way to request access.
