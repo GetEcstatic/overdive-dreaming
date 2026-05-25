@@ -108,6 +108,7 @@
 	let saveError = $state<string | null>(null);
 	let importError = $state<string | null>(null);
 	let importingVideo = $state(false);
+	let importPreviewPlaying = $state(false);
 	let importPreviewUrl = $state<string | null>(null);
 	let importPreviewVideo = $state<HTMLVideoElement | null>(null);
 	let storageHealthy = $state<boolean | null>(null);
@@ -316,6 +317,30 @@
 		}
 
 		capture = { ...capture, timeline: next };
+	}
+
+	async function toggleImportPreviewPlayback(): Promise<void> {
+		if (!importPreviewVideo) return;
+		try {
+			importError = null;
+			if (importPreviewVideo.paused) {
+				await importPreviewVideo.play();
+				importPreviewPlaying = true;
+			} else {
+				importPreviewVideo.pause();
+				importPreviewPlaying = false;
+			}
+		} catch (error) {
+			importPreviewPlaying = false;
+			importError = error instanceof Error
+				? `Could not play this video: ${error.message}`
+				: 'Could not play this video in this browser.';
+		}
+	}
+
+	function handleImportPreviewPlaybackError(): void {
+		importPreviewPlaying = false;
+		importError = 'This browser could not play the selected video. Try an MP4/H.264 clip if this came from another camera app.';
 	}
 
 	function clamp(value: number, min: number, max: number): number {
@@ -810,15 +835,25 @@
 							class="import-preview"
 							src={importPreviewUrl}
 							controls
+							preload="metadata"
 							playsinline
+							onplay={() => (importPreviewPlaying = true)}
+							onpause={() => (importPreviewPlaying = false)}
+							onended={() => (importPreviewPlaying = false)}
+							onerror={handleImportPreviewPlaybackError}
 						>
 							<track kind="captions" />
 						</video>
+						<p class="import-review-hint">Play or scrub the clip, then mark the dive moments you want saved.</p>
 						<div class="import-marker-grid">
+							<button type="button" onclick={toggleImportPreviewPlayback}>{importPreviewPlaying ? 'Pause' : 'Play'}</button>
 							<button type="button" onclick={() => setImportedTimelineMarker('start')}>Set start</button>
 							<button type="button" onclick={() => setImportedTimelineMarker('halfway')}>Set halfway</button>
 							<button type="button" onclick={() => setImportedTimelineMarker('end')}>Set end</button>
 						</div>
+						{#if importError}
+							<p class="import-review-error">{importError}</p>
+						{/if}
 						<div class="import-marker-summary">
 							<div><span>Start</span><strong>{secondsFromMs(capture.timeline.diveStartMs)}</strong></div>
 							<div><span>End</span><strong>{secondsFromMs(capture.timeline.diveEndMs)}</strong></div>
@@ -1140,9 +1175,21 @@
 		background: #000;
 	}
 
+	.import-review-hint,
+	.import-review-error {
+		margin: 0.6rem 0 0;
+		font-size: 0.82rem;
+		line-height: 1.35;
+		color: var(--color-text-muted);
+	}
+
+	.import-review-error {
+		color: #fca5a5;
+	}
+
 	.import-marker-grid {
 		display: grid;
-		grid-template-columns: repeat(3, minmax(0, 1fr));
+		grid-template-columns: repeat(4, minmax(0, 1fr));
 		gap: 0.45rem;
 		margin-top: 0.7rem;
 	}
@@ -1185,6 +1232,12 @@
 		margin-top: 0.15rem;
 		font-size: 0.88rem;
 		color: var(--color-text);
+	}
+
+	@media (max-width: 520px) {
+		.import-marker-grid {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
 	}
 
 	.stats-card {
