@@ -3,9 +3,10 @@
   Route: /dive/record/[sessionId]
 
   Stages:
-    setup  → pick discipline, pool length (wheel), waypoints per lap (wheel)
-    record → full-screen DiveRecorder
-    review → confirm details, pin, choose athlete, save
+	setup          → pick discipline, pool length (wheel), waypoints per lap (wheel)
+	record         → full-screen DiveRecorder
+	importPlayback → full-screen imported-video review with recorder-style HUD
+	review         → confirm details, pin, choose athlete, save
 -->
 <script lang="ts">
 	import { goto } from '$app/navigation';
@@ -80,7 +81,7 @@
 		speedMs: number;
 	}
 
-	type Stage = 'setup' | 'record' | 'review' | 'saving' | 'done';
+	type Stage = 'setup' | 'record' | 'importPlayback' | 'review' | 'saving' | 'done';
 	let stage = $state<Stage>('setup');
 
 	/**
@@ -91,7 +92,7 @@
 	 * counter stays balanced even if the user navigates away mid-record.
 	 */
 	$effect(() => {
-		if (stage !== 'record') return;
+		if (stage !== 'record' && stage !== 'importPlayback') return;
 		diveRecording.begin();
 		return () => diveRecording.end();
 	});
@@ -120,6 +121,7 @@
 	let importError = $state<string | null>(null);
 	let importingVideo = $state(false);
 	let importPreviewPlaying = $state(false);
+	let importPreviewTimeMs = $state(0);
 	let importPreviewUrl = $state<string | null>(null);
 	let importPreviewVideo = $state<HTMLVideoElement | null>(null);
 	let storageHealthy = $state<boolean | null>(null);
@@ -180,6 +182,15 @@
 
 	function secondsFromMs(ms: number): string {
 		return `${(ms / 1000).toFixed(1)} s`;
+	}
+
+	function formatMs(ms: number): string {
+		const safeMs = Math.max(0, ms);
+		const totalSecs = Math.floor(safeMs / 1000);
+		const mm = Math.floor(totalSecs / 60).toString().padStart(2, '0');
+		const ss = (totalSecs % 60).toString().padStart(2, '0');
+		const tenths = Math.floor((safeMs % 1000) / 100);
+		return `${mm}:${ss}.${tenths}`;
 	}
 
 	$effect(() => {
@@ -291,7 +302,8 @@
 				displayOrientation: metadata.heightPx > metadata.widthPx ? 'portrait-left' : 'landscape',
 				displayRotationDeg: 0
 			};
-			stage = 'review';
+			importPreviewTimeMs = 0;
+			stage = 'importPlayback';
 		} catch (err) {
 			importError = err instanceof Error ? err.message : 'Could not read this video file.';
 		} finally {
@@ -397,6 +409,77 @@
 				speedMs: splitMs > 0 ? spacingM / (splitMs / 1000) : 0
 			};
 		});
+	}
+
+	function importElapsedMs(timeline: DiveTimeline): number {
+		return Math.max(0, clamp(importPreviewTimeMs, timeline.diveStartMs, timeline.diveEndMs) - timeline.diveStartMs);
+	}
+
+	function importDistanceAt(timeline: DiveTimeline): number {
+		const atMs = clamp(importPreviewTimeMs, timeline.diveStartMs, timeline.diveEndMs);
+		const rows = importWaypointRows(timeline);
+		const defaultSpeed = discipline ? defaultSpeedMs(discipline) : 1;
+		if (rows.length === 0) {
+			return ((atMs - timeline.diveStartMs) / 1000) * defaultSpeed;
+		}
+
+		const nextIndex = rows.findIndex((row) => row.atMs >= atMs);
+		const previous = nextIndex <= 0 ? null : rows[nextIndex - 1];
+		const next = nextIndex >= 0 ? rows[nextIndex] : null;
+		if (!previous && next) {
+			const elapsedMs = Math.max(0, atMs - timeline.diveStartMs);
+			return next.speedMs * (elapsedMs / 1000);
+		}
+		if (previous && next) {
+			const elapsedMs = Math.max(0, atMs - previous.atMs);
+			return previous.cumulativeDistanceM + next.speedMs * (elapsedMs / 1000);
+		}
+		const last = rows[rows.length - 1];
+		const elapsedMs = Math.max(0, atMs - last.atMs);
+		const speed = last.speedMs > 0 ? last.speedMs : defaultSpeed;
+		return last.cumulativeDistanceM + speed * (elapsedMs / 1000);
+	}
+
+	function importSpeedAt(timeline: DiveTimeline): number {
+		const atMs = clamp(importPreviewTimeMs, timeline.diveStartMs, timeline.diveEndMs);
+		const rows = importWaypointRows(timeline);
+		const defaultSpeed = discipline ? defaultSpeedMs(discipline) : 1;
+		const next = rows.find((row) => row.atMs >= atMs);
+		if (next) return next.speedMs;
+		const last = rows[rows.length - 1];
+		return last?.speedMs && last.speedMs > 0 ? last.speedMs : defaultSpeed;
+	}
+
+	function importAvgSplitSeconds(timeline: DiveTimeline): number {
+		const rows = importWaypointRows(timeline);
+		if (rows.length === 0) return 0;
+		return rows.reduce((sum, row) => sum + row.splitMs / 1000, 0) / rows.length;
+	}
+
+	function updateImportPreviewTime(): void {
+		if (!importPreviewVideo) return;
+		importPreviewTimeMs = Math.round(importPreviewVideo.currentTime * 1000);
+	}
+
+	function reviewImportedCapture(): void {
+		if (importPreviewVideo) importPreviewVideo.pause();
+		importPreviewPlaying = false;
+		stage = 'review';
+	}
+
+	function seekImportedPreview(deltaSeconds: number): void {
+		if (!importPreviewVideo || !capture) return;
+		const nextSeconds = clamp(
+			importPreviewVideo.currentTime + deltaSeconds,
+			0,
+			Math.max(0, capture.durationSeconds)
+		);
+		importPreviewVideo.currentTime = nextSeconds;
+		importPreviewTimeMs = Math.round(nextSeconds * 1000);
+	}
+
+	function shouldShowImportPlayPrimary(timeline: DiveTimeline): boolean {
+		return !importPreviewPlaying && importPreviewTimeMs <= timeline.diveStartMs;
 	}
 
 	function summaryWithWaypointSegments(summary: ReturnType<typeof summariseTimeline>, timeline: DiveTimeline): ReturnType<typeof summariseTimeline> {
@@ -904,6 +987,88 @@
 			</div>
 		</div>
 	</div>
+{:else if stage === 'importPlayback' && capture && discipline && importPreviewUrl}
+	<div class="import-recorder">
+		<div class="import-recorder-preview">
+			<!-- svelte-ignore a11y_media_has_caption -->
+			<video
+				bind:this={importPreviewVideo}
+				class="import-recorder-video"
+				src={importPreviewUrl}
+				preload="metadata"
+				playsinline
+				onloadedmetadata={updateImportPreviewTime}
+				ontimeupdate={updateImportPreviewTime}
+				onseeking={updateImportPreviewTime}
+				onseeked={updateImportPreviewTime}
+				onplay={() => (importPreviewPlaying = true)}
+				onpause={() => (importPreviewPlaying = false)}
+				onended={() => (importPreviewPlaying = false)}
+				onerror={handleImportPreviewPlaybackError}
+			></video>
+
+			<div class="import-hud hud-top">
+				<div class="hud-row">
+					<div class="hud-cell">
+						<div class="hud-label">Time</div>
+						<div class="hud-value">{formatMs(importElapsedMs(capture.timeline))}</div>
+					</div>
+					<div class="hud-cell right">
+						<div class="hud-label">Distance</div>
+						<div class="hud-value">{formatMeters(importDistanceAt(capture.timeline))} m</div>
+					</div>
+				</div>
+				<div class="hud-sub">
+					<span>
+						Waypoint {importWaypointRows(capture.timeline).length} · lap {Math.floor(importWaypointRows(capture.timeline).length / Math.max(1, waypointsPerLap ?? 1))} · next {formatMeters((importWaypointRows(capture.timeline).length + 1) * waypointSpacing)} m
+					</span>
+					<span>{importSpeedAt(capture.timeline).toFixed(2)} m/s</span>
+				</div>
+			</div>
+
+			{#if importError}
+				<div class="import-toast" role="alert">{importError}</div>
+			{/if}
+		</div>
+
+		<div class="import-recorder-controls">
+			<div class="import-secondary-actions left">
+				<button class="utility-button" type="button" onclick={() => (stage = 'setup')}>Cancel</button>
+				<button class="utility-button" type="button" onclick={undoImportedWaypoint} disabled={importWaypointRows(capture.timeline).length === 0}>Undo</button>
+			</div>
+
+			<div class="import-secondary-actions right">
+				<button class="utility-button" type="button" onclick={() => seekImportedPreview(-10)}>-10s</button>
+				<button class="utility-button" type="button" onclick={() => seekImportedPreview(10)}>+10s</button>
+				<button class="utility-button" type="button" onclick={() => setImportedTimelineMarker('start')}>Set start</button>
+				<button class="utility-button" type="button" onclick={() => setImportedTimelineMarker('end')}>Set end</button>
+			</div>
+
+			<div class="primary-wrap import-primary-wrap">
+				<button
+					class="primary-action"
+					class:action-startDive={shouldShowImportPlayPrimary(capture.timeline)}
+					class:action-waypoint={!shouldShowImportPlayPrimary(capture.timeline)}
+					type="button"
+					onclick={shouldShowImportPlayPrimary(capture.timeline) ? toggleImportPreviewPlayback : addImportedWaypointAtCurrentTime}
+				>
+					<span class="btn-main">{shouldShowImportPlayPrimary(capture.timeline) ? 'Play' : 'Waypoint'}</span>
+					<span class="btn-sub">{shouldShowImportPlayPrimary(capture.timeline) ? 'Start playback' : `Mark ${formatMeters((importWaypointRows(capture.timeline).length + 1) * waypointSpacing)} m`}</span>
+				</button>
+			</div>
+
+			<div class="import-playback-actions">
+				<button class="utility-button" type="button" onclick={toggleImportPreviewPlayback}>{importPreviewPlaying ? 'Pause' : 'Play/Pause'}</button>
+				<button class="utility-button review-button" type="button" onclick={reviewImportedCapture}>Review &amp; save</button>
+			</div>
+
+			{#if importWaypointRows(capture.timeline).length > 0}
+				<div class="summary-line">
+					Avg split {importAvgSplitSeconds(capture.timeline).toFixed(1)}s · Avg speed {importSpeedAt(capture.timeline).toFixed(2)} m/s
+				</div>
+			{/if}
+		</div>
+	</div>
 {:else if stage === 'record' && discipline}
 	<DiveRecorder
 		poolLength={poolLength ?? 25}
@@ -924,30 +1089,13 @@
 			{#if capture && discipline}
 				{#if capture.source === 'import' && importPreviewUrl}
 					<section class="import-review-card">
-						<!-- svelte-ignore a11y_media_has_caption -->
-						<video
-							bind:this={importPreviewVideo}
-							class="import-preview"
-							src={importPreviewUrl}
-							controls
-							preload="metadata"
-							playsinline
-							onplay={() => (importPreviewPlaying = true)}
-							onpause={() => (importPreviewPlaying = false)}
-							onended={() => (importPreviewPlaying = false)}
-							onerror={handleImportPreviewPlaybackError}
-						></video>
-						<p class="import-review-hint">Play or scrub the clip, set the dive start/end, then tap each wall or waypoint you can see.</p>
-						<div class="import-marker-grid">
-							<button type="button" onclick={toggleImportPreviewPlayback}>{importPreviewPlaying ? 'Pause' : 'Play'}</button>
-							<button type="button" onclick={() => setImportedTimelineMarker('start')}>Set start</button>
-							<button type="button" onclick={addImportedWaypointAtCurrentTime}>Add waypoint</button>
-							<button type="button" onclick={() => setImportedTimelineMarker('end')}>Set end</button>
-							<button type="button" onclick={undoImportedWaypoint} disabled={importWaypointRows(capture.timeline).length === 0}>Undo waypoint</button>
-						</div>
+						<p class="import-review-hint">Imported video markers are ready to save. Re-open the full-screen review if you need to adjust start, end, or waypoints.</p>
 						{#if importError}
 							<p class="import-review-error">{importError}</p>
 						{/if}
+						<div class="import-marker-grid compact">
+							<button type="button" onclick={() => (stage = 'importPlayback')}>Review markers</button>
+						</div>
 						<div class="import-marker-summary">
 							<div><span>Start</span><strong>{secondsFromMs(capture.timeline.diveStartMs)}</strong></div>
 							<div><span>End</span><strong>{secondsFromMs(capture.timeline.diveEndMs)}</strong></div>
@@ -1265,6 +1413,235 @@
 		font-size: 1.4rem;
 		font-weight: 700;
 		margin: 0 0 1rem;
+	}
+
+	.import-recorder {
+		position: fixed;
+		inset: 0;
+		z-index: 50;
+		background: #000;
+		color: var(--color-text);
+		overflow: hidden;
+	}
+
+	.import-recorder-preview {
+		position: absolute;
+		inset: 0;
+		background: #000;
+		overflow: hidden;
+	}
+
+	.import-recorder-video {
+		display: block;
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+		background: #000;
+	}
+
+	.import-hud {
+		position: absolute;
+		left: 0.75rem;
+		right: 0.75rem;
+		padding: 0.75rem 1.05rem;
+		border-radius: 14px;
+		background: rgba(15, 23, 42, 0.55);
+		backdrop-filter: blur(8px);
+		-webkit-backdrop-filter: blur(8px);
+		color: #f1f5f9;
+		pointer-events: none;
+	}
+
+	.hud-top {
+		top: max(0.75rem, env(safe-area-inset-top));
+	}
+
+	.hud-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 1.25rem;
+	}
+
+	.hud-cell.right {
+		text-align: right;
+	}
+
+	.hud-label {
+		font-size: 0.7rem;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: #cbd5e1;
+	}
+
+	.hud-value {
+		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+		font-size: 1.9rem;
+		font-variant-numeric: tabular-nums;
+		line-height: 1.1;
+	}
+
+	.hud-sub {
+		display: flex;
+		justify-content: space-between;
+		gap: 1.25rem;
+		margin-top: 0.4rem;
+		color: #cbd5e1;
+		font-size: 0.85rem;
+	}
+
+	.import-toast {
+		position: absolute;
+		left: 50%;
+		top: calc(max(0.75rem, env(safe-area-inset-top)) + 6.25rem);
+		transform: translateX(-50%);
+		max-width: min(28rem, calc(100vw - 2rem));
+		padding: 0.55rem 0.85rem;
+		border-radius: 14px;
+		background: rgba(239, 68, 68, 0.95);
+		color: #fff;
+		font-size: 0.85rem;
+		font-weight: 650;
+		text-align: center;
+	}
+
+	.import-recorder-controls {
+		position: absolute;
+		inset: 0;
+		z-index: 6;
+		pointer-events: none;
+		padding: max(0.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right)) calc(1rem + env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
+	}
+
+	.import-secondary-actions {
+		position: absolute;
+		display: flex;
+		gap: 0.5rem;
+		pointer-events: auto;
+	}
+
+	.import-secondary-actions.left {
+		left: max(0.9rem, env(safe-area-inset-left));
+		bottom: calc(1.45rem + env(safe-area-inset-bottom));
+	}
+
+	.import-secondary-actions.right {
+		right: max(0.9rem, env(safe-area-inset-right));
+		bottom: calc(7.45rem + env(safe-area-inset-bottom));
+		flex-direction: column;
+	}
+
+	.utility-button {
+		min-width: 4.75rem;
+		min-height: 2.5rem;
+		border: 1px solid rgba(226, 232, 240, 0.24);
+		border-radius: 999px;
+		padding: 0.45rem 0.8rem;
+		background: rgba(15, 23, 42, 0.68);
+		backdrop-filter: blur(8px);
+		-webkit-backdrop-filter: blur(8px);
+		color: #f8fafc;
+		font: inherit;
+		font-size: 0.86rem;
+		font-weight: 700;
+	}
+
+	.utility-button:disabled {
+		opacity: 0.45;
+	}
+
+	.primary-wrap {
+		position: absolute;
+		left: 50%;
+		bottom: calc(1rem + env(safe-area-inset-bottom));
+		transform: translateX(-50%);
+		display: flex;
+		pointer-events: auto;
+	}
+
+	.import-primary-wrap {
+		bottom: calc(4.1rem + env(safe-area-inset-bottom));
+	}
+
+	.primary-action {
+		position: relative;
+		width: clamp(11rem, 58vw, 16rem);
+		min-height: 5.2rem;
+		border: 2px solid rgba(255, 255, 255, 0.22);
+		border-radius: 18px;
+		padding: 0.9rem 1.15rem;
+		box-shadow: 0 18px 52px rgba(0, 0, 0, 0.46), inset 0 0 0 6px rgba(255, 255, 255, 0.08);
+		color: #fff;
+		font: inherit;
+		font-weight: 800;
+		display: inline-flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.2rem;
+		user-select: none;
+		-webkit-user-select: none;
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	.primary-action:active:not(:disabled) {
+		transform: scale(0.96);
+	}
+
+	.primary-action.action-startDive {
+		background: #10b981;
+		color: #052e25;
+	}
+
+	.primary-action.action-waypoint {
+		background: var(--color-primary);
+		color: #042f2e;
+	}
+
+	.btn-main {
+		font-size: clamp(1.25rem, 5.2vw, 1.7rem);
+		line-height: 1.1;
+	}
+
+	.btn-sub {
+		max-width: 12rem;
+		font-size: clamp(0.82rem, 3.4vw, 1rem);
+		font-weight: 500;
+		opacity: 0.8;
+		text-align: center;
+	}
+
+	.import-playback-actions {
+		position: absolute;
+		left: 50%;
+		bottom: calc(1rem + env(safe-area-inset-bottom));
+		transform: translateX(-50%);
+		display: flex;
+		gap: 0.5rem;
+		pointer-events: auto;
+	}
+
+	.review-button {
+		border-color: rgba(20, 184, 166, 0.5);
+		background: rgba(20, 184, 166, 0.18);
+		color: #ccfbf1;
+	}
+
+	.summary-line {
+		position: absolute;
+		left: 50%;
+		bottom: calc(10rem + env(safe-area-inset-bottom));
+		transform: translateX(-50%);
+		padding: 0.3rem 0.55rem;
+		border-radius: 999px;
+		background: rgba(15, 23, 42, 0.58);
+		backdrop-filter: blur(8px);
+		-webkit-backdrop-filter: blur(8px);
+		color: #cbd5e1;
+		font-size: 0.8rem;
+		text-align: center;
+		white-space: nowrap;
+		pointer-events: none;
 	}
 
 	.import-review-card {
