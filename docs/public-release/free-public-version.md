@@ -310,13 +310,13 @@ Goal: ship public mode without breaking the private/beta app.
 
 ## Implementation checklist
 
-- [ ] Add a public/advanced/admin capability helper or store.
-- [ ] Add route guards for advanced-only pages.
-- [ ] Add public-mode navigation with Feed, Log, Progress, Profile.
-- [ ] Keep advanced navigation available for advanced users.
-- [ ] Hide routine builder, layer editor, layer read models, metric profile tooling, group invites, gifted dives, biometric CSV import, and deep analytics from public users.
-- [ ] Define the curated public preset data set.
-- [ ] Include dynamic max, static max, two-breath static CO2, dynamic Sweet 16 CO2, increasing static intervals, and increasing dynamic intervals.
+- [x] Add a public/advanced/admin capability helper or store.
+- [x] Add route guards for advanced-only pages.
+- [x] Add public-mode navigation with Feed, Log, Progress, Profile.
+- [x] Keep advanced navigation available for advanced users.
+- [x] Hide routine builder, layer editor, layer read models, metric profile tooling, group invites, gifted dives, biometric CSV import, and deep analytics from public users.
+- [x] Define the curated public preset data set.
+- [x] Include dynamic max, static max, two-breath static CO2, dynamic Sweet 16 CO2, increasing static intervals, and increasing dynamic intervals.
 - [ ] Project public presets into existing routine/log data shapes without exposing layer terminology.
 - [ ] Build the simplified public Log entry screen.
 - [ ] Trim public quick-log fields to the short core set.
