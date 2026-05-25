@@ -49,6 +49,7 @@
 
 	interface CaptureResult {
 		blob: Blob;
+		source?: 'camera' | 'import';
 		mimeType: string;
 		sizeBytes: number;
 		widthPx: number;
@@ -107,6 +108,8 @@
 	let saveError = $state<string | null>(null);
 	let importError = $state<string | null>(null);
 	let importingVideo = $state(false);
+	let importPreviewUrl = $state<string | null>(null);
+	let importPreviewVideo = $state<HTMLVideoElement | null>(null);
 	let storageHealthy = $state<boolean | null>(null);
 
 	const canStartRecording = $derived(Boolean(discipline && poolLength && waypointsPerLap));
@@ -161,6 +164,10 @@
 
 	function diveDurationSeconds(result: CaptureResult): number {
 		return Math.max(0, result.timeline.diveEndMs - result.timeline.diveStartMs) / 1000;
+	}
+
+	function secondsFromMs(ms: number): string {
+		return `${(ms / 1000).toFixed(1)} s`;
 	}
 
 	$effect(() => {
@@ -245,10 +252,13 @@
 		importError = null;
 		try {
 			const metadata = await readVideoMetadata(file);
+			if (importPreviewUrl) URL.revokeObjectURL(importPreviewUrl);
+			importPreviewUrl = URL.createObjectURL(file);
 			const durationSeconds = Math.max(0, metadata.durationSeconds);
 			const durationMs = Math.round(durationSeconds * 1000);
 			capture = {
 				blob: file,
+				source: 'import',
 				mimeType: file.type || 'video/mp4',
 				sizeBytes: file.size,
 				widthPx: metadata.widthPx,
@@ -275,6 +285,41 @@
 		} finally {
 			importingVideo = false;
 		}
+	}
+
+	function setImportedTimelineMarker(kind: 'start' | 'end' | 'halfway'): void {
+		if (!capture || capture.source !== 'import' || !importPreviewVideo) return;
+		const atMs = Math.round(importPreviewVideo.currentTime * 1000);
+		const current = capture.timeline;
+		const next: DiveTimeline = {
+			...current,
+			laps: [...current.laps],
+			subSplits: current.subSplits ? [...current.subSplits] : undefined
+		};
+
+		if (kind === 'start') {
+			next.diveStartMs = Math.min(atMs, Math.max(0, next.diveEndMs - 100));
+			next.laps = next.laps.filter((lap) => lap.atMs > next.diveStartMs);
+			next.subSplits = next.subSplits?.filter((event) => event.atMs > next.diveStartMs);
+		} else if (kind === 'end') {
+			next.diveEndMs = Math.max(atMs, next.diveStartMs + 100);
+			next.laps = next.laps.filter((lap) => lap.atMs < next.diveEndMs);
+			next.subSplits = next.subSplits?.filter((event) => event.atMs < next.diveEndMs);
+		} else {
+			const splitMs = Math.max(0, atMs - next.diveStartMs);
+			next.subSplits = [{
+				lapNumber: 1,
+				atMs: clamp(atMs, next.diveStartMs, next.diveEndMs),
+				cumulativeDistanceM: (poolLength ?? 25) / 2,
+				splitMs
+			}];
+		}
+
+		capture = { ...capture, timeline: next };
+	}
+
+	function clamp(value: number, min: number, max: number): number {
+		return Math.max(min, Math.min(max, value));
 	}
 
 	function readVideoMetadata(file: File): Promise<{ durationSeconds: number; widthPx: number; heightPx: number }> {
@@ -518,6 +563,7 @@
 		return () => {
 			document.removeEventListener('gesturestart', prevent);
 			document.removeEventListener('gesturechange', prevent);
+			if (importPreviewUrl) URL.revokeObjectURL(importPreviewUrl);
 		};
 	});
 </script>
@@ -757,6 +803,33 @@
 			<h1 class="review-title">Review &amp; save</h1>
 
 			{#if capture && discipline}
+				{#if capture.source === 'import' && importPreviewUrl}
+					<section class="import-review-card">
+						<video
+							bind:this={importPreviewVideo}
+							class="import-preview"
+							src={importPreviewUrl}
+							controls
+							playsinline
+						>
+							<track kind="captions" />
+						</video>
+						<div class="import-marker-grid">
+							<button type="button" onclick={() => setImportedTimelineMarker('start')}>Set start</button>
+							<button type="button" onclick={() => setImportedTimelineMarker('halfway')}>Set halfway</button>
+							<button type="button" onclick={() => setImportedTimelineMarker('end')}>Set end</button>
+						</div>
+						<div class="import-marker-summary">
+							<div><span>Start</span><strong>{secondsFromMs(capture.timeline.diveStartMs)}</strong></div>
+							<div><span>End</span><strong>{secondsFromMs(capture.timeline.diveEndMs)}</strong></div>
+							<div>
+								<span>Halfway</span>
+								<strong>{capture.timeline.subSplits?.[0] ? secondsFromMs(capture.timeline.subSplits[0].atMs) : 'Optional'}</strong>
+							</div>
+						</div>
+					</section>
+				{/if}
+
 				<div class="stats-card">
 					<div><span>Dive time</span><strong>{diveDurationSeconds(capture).toFixed(1)} s</strong></div>
 					<div><span>Waypoints tapped</span><strong>{capture.timeline.laps.length}</strong></div>
@@ -1049,6 +1122,69 @@
 		font-size: 1.4rem;
 		font-weight: 700;
 		margin: 0 0 1rem;
+	}
+
+	.import-review-card {
+		background: rgba(15, 23, 42, 0.72);
+		border: 1px solid rgba(148, 163, 184, 0.16);
+		border-radius: 12px;
+		padding: 0.8rem;
+		margin-bottom: 1rem;
+	}
+
+	.import-preview {
+		display: block;
+		width: 100%;
+		max-height: 60vh;
+		border-radius: 8px;
+		background: #000;
+	}
+
+	.import-marker-grid {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0.45rem;
+		margin-top: 0.7rem;
+	}
+
+	.import-marker-grid button {
+		min-height: 2.6rem;
+		border: 1px solid rgba(20, 184, 166, 0.34);
+		border-radius: 8px;
+		background: rgba(20, 184, 166, 0.1);
+		color: var(--color-text);
+		font: inherit;
+		font-size: 0.82rem;
+		font-weight: 750;
+	}
+
+	.import-marker-summary {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0.45rem;
+		margin-top: 0.6rem;
+	}
+
+	.import-marker-summary div {
+		padding: 0.55rem;
+		border-radius: 8px;
+		background: rgba(2, 6, 23, 0.35);
+		text-align: center;
+	}
+
+	.import-marker-summary span {
+		display: block;
+		font-size: 0.68rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		color: var(--color-text-muted);
+	}
+
+	.import-marker-summary strong {
+		display: block;
+		margin-top: 0.15rem;
+		font-size: 0.88rem;
+		color: var(--color-text);
 	}
 
 	.stats-card {
