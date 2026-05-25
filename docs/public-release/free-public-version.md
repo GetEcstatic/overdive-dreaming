@@ -327,7 +327,7 @@ Goal: ship public mode without breaking the private/beta app.
 - [x] Keep in-app dynamic recording available from public Log.
 - [x] Add the simplified prerecorded video import/review flow.
 - [x] Support start/end and optional halfway-point markup before detailed waypoint markup.
-- [ ] Save reviewed video results into compatible routine log records.
+- [x] Save reviewed video results into compatible routine log records.
 - [ ] Generate public share cards from saved logs and reviewed videos.
 - [ ] Keep share-card options minimal and story-format first.
 - [ ] Add signup/first-log safety note and Profile safety link.
