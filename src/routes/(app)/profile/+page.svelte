@@ -47,6 +47,7 @@
 	let showMenstrualCycleTracking = $state<boolean>(false);
 	let gender = $state<Gender | undefined>(undefined);
 	let publicModeAccess = $state<PublicModeAccess>('public');
+	let fullAccessGranted = $state(false);
 	let defaultVideoResolution = $state<'720p' | '1080p'>('720p');
 	let settingsSaving = $state(false);
 	let settingsError = $state<string | null>(null);
@@ -214,6 +215,11 @@
 		if (settings?.publicModeAccess) {
 			publicModeAccess = settings.publicModeAccess;
 		}
+		if (settings?.fullAccessGranted !== undefined) {
+			fullAccessGranted = settings.fullAccessGranted;
+		} else if (settings?.publicModeAccess === 'advanced' || settings?.publicModeAccess === 'admin') {
+			fullAccessGranted = true;
+		}
 		if (settings?.defaultVideoResolution) {
 			defaultVideoResolution = settings.defaultVideoResolution;
 		}
@@ -225,6 +231,7 @@
 			defaultTimeframe: defaultTimeframeFallback,
 			defaultSessionVisibility,
 			publicModeAccess,
+			fullAccessGranted,
 			showMenstrualCycleTracking,
 			gender,
 			defaultVideoResolution
@@ -237,6 +244,7 @@
 			settingsSaving = true;
 			settingsError = null;
 			publicModeAccess = enabled ? 'advanced' : 'public';
+			fullAccessGranted = true;
 			const nextSettings = buildNextSettings();
 			await updateUserSettings($user.uid, nextSettings);
 			updateProfileCache($user.uid, { settings: nextSettings });
@@ -313,6 +321,7 @@
 				defaultTimeframe: defaultTimeframeFallback,
 				defaultSessionVisibility,
 				publicModeAccess,
+				fullAccessGranted,
 				showMenstrualCycleTracking,
 				gender,
 				defaultVideoResolution
@@ -337,6 +346,7 @@
 				defaultTimeframe: defaultTimeframeFallback,
 				defaultSessionVisibility,
 				publicModeAccess,
+				fullAccessGranted,
 				showMenstrualCycleTracking,
 				gender,
 				defaultVideoResolution
@@ -361,6 +371,7 @@
 				defaultTimeframe: defaultTimeframeFallback,
 				defaultSessionVisibility,
 				publicModeAccess,
+				fullAccessGranted,
 				showMenstrualCycleTracking,
 				gender,
 				defaultVideoResolution
@@ -385,6 +396,7 @@
 				defaultTimeframe: defaultTimeframeFallback,
 				defaultSessionVisibility,
 				publicModeAccess,
+				fullAccessGranted,
 				showMenstrualCycleTracking,
 				gender,
 				defaultVideoResolution
@@ -646,11 +658,11 @@
 					<div class="form-label">App mode</div>
 					{#if publicModeAccess === 'admin'}
 						<p class="form-hint">Admin access is enabled for this account.</p>
-					{:else if publicModeAccess === 'advanced'}
+					{:else if fullAccessGranted || publicModeAccess === 'advanced'}
 						<label class="form-label toggle-label">
 							<input
 								type="checkbox"
-								checked={true}
+								checked={publicModeAccess !== 'public'}
 								onchange={(event) => handlePublicModeAccessChange(event.currentTarget.checked)}
 								disabled={settingsSaving}
 							/>

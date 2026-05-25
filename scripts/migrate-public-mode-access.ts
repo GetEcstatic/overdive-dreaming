@@ -2,8 +2,9 @@
  * Migration Script: Preserve full beta access for existing users.
  *
  * Existing users had access to the full app before public mode existed. This
- * migration stamps user documents that do not yet have settings.publicModeAccess
- * with "advanced" so new public-mode defaults only apply to new users.
+ * migration stamps user documents with fullAccessGranted=true, and gives users
+ * without an explicit settings.publicModeAccess value "advanced" mode so new
+ * public-mode defaults only apply to new users.
  *
  * Usage:
  *   npm run migrate:public-mode-access:dry
@@ -43,19 +44,30 @@ async function migrate(): Promise<MigrationStats> {
 
 	for (const userDoc of snapshot.docs) {
 		stats.scanned += 1;
-		const settings = userDoc.data().settings as { publicModeAccess?: string } | undefined;
-		if (settings?.publicModeAccess) {
+		const settings = userDoc.data().settings as {
+			publicModeAccess?: string;
+			fullAccessGranted?: boolean;
+		} | undefined;
+		const updates: Record<string, unknown> = {};
+		if (!settings?.publicModeAccess) {
+			updates['settings.publicModeAccess'] = 'advanced';
+		}
+		if (settings?.fullAccessGranted !== true) {
+			updates['settings.fullAccessGranted'] = true;
+		}
+
+		if (Object.keys(updates).length === 0) {
 			stats.skipped += 1;
 			continue;
 		}
 
 		stats.wouldUpdate += 1;
-		console.log(`${isDryRun ? 'Would grant' : 'Granting'} advanced access: ${userDoc.id}`);
+		console.log(`${isDryRun ? 'Would grant' : 'Granting'} full access: ${userDoc.id}`);
 		if (!isDryRun) {
-			batch.set(userDoc.ref, {
-				settings: { publicModeAccess: 'advanced' },
+			batch.update(userDoc.ref, {
+				...updates,
 				updatedAt: FieldValue.serverTimestamp()
-			}, { merge: true });
+			});
 			pendingWrites += 1;
 		}
 	}

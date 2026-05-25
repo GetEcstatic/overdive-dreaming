@@ -142,6 +142,7 @@ export interface UserSettings {
 	defaultAnalyticsFilter?: string;
 	defaultSessionVisibility?: SessionVisibility;
 	publicModeAccess?: 'public' | 'advanced' | 'admin';
+	fullAccessGranted?: boolean;
 	showMenstrualCycleTracking?: boolean; // Opt-in to show menstrual cycle day tracking
 	gender?: Gender; // User's gender for analytics/filtering
 	/**

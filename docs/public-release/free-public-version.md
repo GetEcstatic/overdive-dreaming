@@ -341,8 +341,8 @@ Goal: ship public mode without breaking the private/beta app.
 
 - [x] Keep new users on public mode by default when no `settings.publicModeAccess` exists.
 - [x] Add a dry-run-capable migration for existing users: `npm run migrate:public-mode-access:dry`, then `npm run migrate:public-mode-access`.
-- [x] Stamp existing user documents as `settings.publicModeAccess = "advanced"` through the migration so they keep full private-beta access.
-- [x] Add a Profile app-mode control for advanced users to switch between the full private beta app and public preview.
+- [x] Stamp existing user documents with `settings.fullAccessGranted = true` and default missing access mode to `settings.publicModeAccess = "advanced"`.
+- [x] Add a Profile app-mode control for full-access users to switch between the full private beta app and public preview without losing their entitlement.
 - [x] Preserve admin access so admin accounts do not accidentally downgrade themselves from the Profile toggle.
 - [x] Show public users a Profile mail link to request full access at `getecstatic.comp@gmail.com`.
 - [x] Validate with focused capability tests and `npm run check`.
