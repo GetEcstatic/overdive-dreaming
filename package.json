@@ -23,6 +23,8 @@
     "migrate:activity-types:dry": "tsx scripts/migrate-activity-types.ts --dry-run",
     "migrate:packing-volume": "tsx scripts/migrate-add-packing-volume.ts",
     "migrate:packing-volume:dry": "tsx scripts/migrate-add-packing-volume.ts --dry-run",
+    "migrate:public-mode-access": "tsx scripts/migrate-public-mode-access.ts",
+    "migrate:public-mode-access:dry": "tsx scripts/migrate-public-mode-access.ts --dry-run",
     "audit:routine-metric-attachment": "tsx scripts/audit-routine-metric-attachment.ts",
     "audit:routine-metric-attachment:legacy": "tsx scripts/audit-routine-metric-attachment.ts --legacy-report",
     "backfill:routine-metric-attachment": "tsx scripts/audit-routine-metric-attachment.ts --write"

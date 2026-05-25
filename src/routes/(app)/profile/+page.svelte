@@ -25,6 +25,7 @@
 		listUploadDiagnostics,
 		type UploadDiagnosticEntry
 	} from '$lib/capture/uploadDiagnostics';
+	import type { PublicModeAccess } from '$lib/publicMode/capabilities';
 
 	type DefaultTimeframe = '1month' | '6months' | '1year';
 
@@ -45,6 +46,7 @@
 	let defaultSessionVisibility = $state<SessionVisibility>('private');
 	let showMenstrualCycleTracking = $state<boolean>(false);
 	let gender = $state<Gender | undefined>(undefined);
+	let publicModeAccess = $state<PublicModeAccess>('public');
 	let defaultVideoResolution = $state<'720p' | '1080p'>('720p');
 	let settingsSaving = $state(false);
 	let settingsError = $state<string | null>(null);
@@ -209,6 +211,9 @@
 		if (settings?.gender) {
 			gender = settings.gender;
 		}
+		if (settings?.publicModeAccess) {
+			publicModeAccess = settings.publicModeAccess;
+		}
 		if (settings?.defaultVideoResolution) {
 			defaultVideoResolution = settings.defaultVideoResolution;
 		}
@@ -219,10 +224,28 @@
 			defaultAnalyticsFilter: defaultFilterKey,
 			defaultTimeframe: defaultTimeframeFallback,
 			defaultSessionVisibility,
+			publicModeAccess,
 			showMenstrualCycleTracking,
 			gender,
 			defaultVideoResolution
 		};
+	}
+
+	async function handlePublicModeAccessChange(enabled: boolean) {
+		if (!$user || publicModeAccess === 'admin') return;
+		try {
+			settingsSaving = true;
+			settingsError = null;
+			publicModeAccess = enabled ? 'advanced' : 'public';
+			const nextSettings = buildNextSettings();
+			await updateUserSettings($user.uid, nextSettings);
+			updateProfileCache($user.uid, { settings: nextSettings });
+		} catch (error) {
+			console.error('Failed to update access mode:', error);
+			settingsError = 'Failed to save access mode.';
+		} finally {
+			settingsSaving = false;
+		}
 	}
 
 	async function handleDefaultVideoResolutionChange() {
@@ -289,6 +312,7 @@
 				defaultAnalyticsFilter: defaultFilterKey,
 				defaultTimeframe: defaultTimeframeFallback,
 				defaultSessionVisibility,
+				publicModeAccess,
 				showMenstrualCycleTracking,
 				gender,
 				defaultVideoResolution
@@ -312,6 +336,7 @@
 				defaultAnalyticsFilter: defaultFilterKey,
 				defaultTimeframe: defaultTimeframeFallback,
 				defaultSessionVisibility,
+				publicModeAccess,
 				showMenstrualCycleTracking,
 				gender,
 				defaultVideoResolution
@@ -335,6 +360,7 @@
 				defaultAnalyticsFilter: defaultFilterKey,
 				defaultTimeframe: defaultTimeframeFallback,
 				defaultSessionVisibility,
+				publicModeAccess,
 				showMenstrualCycleTracking,
 				gender,
 				defaultVideoResolution
@@ -358,6 +384,7 @@
 				defaultAnalyticsFilter: defaultFilterKey,
 				defaultTimeframe: defaultTimeframeFallback,
 				defaultSessionVisibility,
+				publicModeAccess,
 				showMenstrualCycleTracking,
 				gender,
 				defaultVideoResolution
@@ -614,6 +641,31 @@
 						<option value="public">Public</option>
 					</select>
 					<p class="form-hint">New logs default to this setting unless you override per session.</p>
+				</div>
+				<div class="form-group access-mode-group">
+					<div class="form-label">App mode</div>
+					{#if publicModeAccess === 'admin'}
+						<p class="form-hint">Admin access is enabled for this account.</p>
+					{:else if publicModeAccess === 'advanced'}
+						<label class="form-label toggle-label">
+							<input
+								type="checkbox"
+								checked={true}
+								onchange={(event) => handlePublicModeAccessChange(event.currentTarget.checked)}
+								disabled={settingsSaving}
+							/>
+							<span>Use full private beta app</span>
+						</label>
+						<p class="form-hint">Turn this off to preview the simpler public app.</p>
+					{:else}
+						<p class="form-hint">Your account is on the simpler public app.</p>
+						<a
+							class="access-request-link"
+							href="mailto:getecstatic.comp@gmail.com?subject=Overdive%20full%20access%20request"
+						>
+							Request full private beta access
+						</a>
+					{/if}
 				</div>
 				<div class="form-group">
 					<label class="form-label toggle-label">
@@ -1179,6 +1231,23 @@
 		font-size: 0.85rem;
 		color: var(--color-text-muted);
 		margin-top: 0.35rem;
+	}
+
+	.access-mode-group {
+		padding: 0.85rem;
+		border: 1px solid rgba(20, 184, 166, 0.2);
+		border-radius: 8px;
+		background: rgba(20, 184, 166, 0.06);
+	}
+
+	.access-request-link {
+		display: inline-flex;
+		align-items: center;
+		min-height: 2.4rem;
+		color: var(--color-primary);
+		font-size: 0.9rem;
+		font-weight: 700;
+		text-decoration: none;
 	}
 
 	.toggle-label {
