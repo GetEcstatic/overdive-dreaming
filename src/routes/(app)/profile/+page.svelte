@@ -660,6 +660,19 @@
 			</section>
 		</div>
 
+		<section id="safety" class="profile-card safety-card">
+			<div class="card-header">
+				<h2 class="card-title">Freediving Safety</h2>
+				<span class="card-subtitle">A quick reminder before training or recording</span>
+			</div>
+			<p class="safety-copy">
+				Never freedive alone. Train with a capable buddy, agree on safety signals before the session, and end the dive or session early if conditions change.
+			</p>
+			<a class="safety-link" href="https://www.aidainternational.org/" target="_blank" rel="noopener noreferrer">
+				AIDA International safety resources
+			</a>
+		</section>
+
 		<section class="profile-card">
 			<div class="card-header">
 				<h2 class="card-title">Pending video uploads</h2>
@@ -1030,6 +1043,28 @@
 	.card-subtitle {
 		font-size: 0.85rem;
 		color: var(--color-text-muted);
+	}
+
+	.safety-card {
+		border-color: rgba(251, 191, 36, 0.24);
+		background: linear-gradient(135deg, rgba(251, 191, 36, 0.07), rgba(15, 23, 42, 0.5));
+	}
+
+	.safety-copy {
+		margin: 0 0 0.85rem;
+		color: var(--color-text-muted);
+		font-size: 0.9rem;
+		line-height: 1.5;
+	}
+
+	.safety-link {
+		display: inline-flex;
+		align-items: center;
+		min-height: 2.4rem;
+		color: var(--color-primary);
+		font-size: 0.9rem;
+		font-weight: 700;
+		text-decoration: none;
 	}
 
 	.account-identity {
