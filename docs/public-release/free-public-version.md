@@ -334,7 +334,7 @@ Goal: ship public mode without breaking the private/beta app.
 - [x] Add focused Vitest coverage for public-mode pure helpers.
 - [x] Run `npm run check` before shipping implementation commits.
 - [ ] Mobile-test the public happy path at phone width.
-- [ ] Verify advanced users retain access to existing private/beta tools.
+- [x] Verify advanced users retain access to existing private/beta tools.
 - [x] Update this checklist as items are completed during implementation.
 
 ## Open questions
