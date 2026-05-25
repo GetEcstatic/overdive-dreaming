@@ -141,10 +141,8 @@ describe('timeline — totals', () => {
 describe('timeline — speedAt / distanceAt', () => {
 	const t = buildFourLap50s();
 
-	it('speedAt falls back to 1 m/s before the first lap during the dive', () => {
-		// Mirrors liveSpeedMs in recorderSelectors.ts — the HUD shows 1 m/s
-		// until the first waypoint is tapped, so replay stays consistent.
-		expect(speedAt(t, 5_000, 50)).toBe(1);
+	it('speedAt uses the first known waypoint segment before the first tap during replay', () => {
+		expect(speedAt(t, 5_000, 50)).toBeCloseTo(50 / 30, 5);
 	});
 
 	it('speedAt returns 0 before dive start', () => {
@@ -158,10 +156,8 @@ describe('timeline — speedAt / distanceAt', () => {
 		expect(speedAt(t, 45_000, 50)).toBeCloseTo(50 / 30, 5);
 	});
 
-	it('distanceAt shows a running 1 m/s estimate before the first lap', () => {
-		// At 5s into a dive with no waypoints yet, the HUD should read 5m,
-		// matching the live recorder HUD and the finalized totalDistanceM.
-		expect(distanceAt(t, 5_000, 50)).toBeCloseTo(5, 5);
+	it('distanceAt interpolates toward the first known waypoint during replay', () => {
+		expect(distanceAt(t, 5_000, 50)).toBeCloseTo((50 / 30) * 5, 5);
 	});
 
 	it('distanceAt is 0 before dive start', () => {
@@ -189,12 +185,27 @@ describe('timeline — speedAt / distanceAt', () => {
 		expect(distanceAt(t, 45_000, 50)).toBeCloseTo(75, 5);
 	});
 
-	it('distanceAt never overshoots the next wall (capped at lap progress = 1)', () => {
-		// Pretend 10s after a 5s lap — progress should cap at 1.
+	it('distanceAt projects past the last waypoint at the latest measured segment speed', () => {
 		let long = createEmptyTimeline(0);
 		long = appendLap(long, 5_000, 50);
-		// No next lap yet; interpolation would want 2× lap distance but is clamped.
-		expect(distanceAt(long, 15_000, 50)).toBeCloseTo(100, 5); // 50 + 50*1
+		long = finalizeTimeline(long, 15_000);
+		expect(distanceAt(long, 15_000, 50)).toBeCloseTo(150, 5);
+	});
+
+	it('distanceAt and speedAt use sub-split waypoints between wall taps', () => {
+		const splitTimeline: DiveTimeline = {
+			diveStartMs: 0,
+			diveEndMs: 30_000,
+			laps: [
+				{ lapNumber: 1, atMs: 20_000, splitMs: 10_000, cumulativeDistanceM: 25 }
+			],
+			subSplits: [
+				{ lapNumber: 1, atMs: 10_000, splitMs: 10_000, cumulativeDistanceM: 12.5 }
+			]
+		};
+
+		expect(speedAt(splitTimeline, 15_000, 25)).toBeCloseTo(1.25, 5);
+		expect(distanceAt(splitTimeline, 15_000, 25)).toBeCloseTo(18.75, 5);
 	});
 });
 

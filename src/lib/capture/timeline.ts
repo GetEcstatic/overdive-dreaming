@@ -204,8 +204,6 @@ export function totalDistanceM(
 	timeline: DiveTimeline,
 	defaultSpeedMs: number = 1
 ): number {
-	const diveDurationMs = Math.max(0, timeline.diveEndMs - timeline.diveStartMs);
-
 	// v2: prefer the dense sample stream when present. It reflects the
 	// uncapped HUD distance the diver actually covered, including any
 	// drift past missed walls that were later snapped back by a real tap.
@@ -216,26 +214,7 @@ export function totalDistanceM(
 		return last.distanceM + (tailMs / 1000) * last.speedMs;
 	}
 
-	if (timeline.laps.length === 0) {
-		// No waypoints tapped — fall back to the discipline default pace.
-		return (diveDurationMs / 1000) * defaultSpeedMs;
-	}
-
-	const lastLap = timeline.laps[timeline.laps.length - 1];
-	const base = lastLap.cumulativeDistanceM;
-	const tailMs = Math.max(0, timeline.diveEndMs - lastLap.atMs);
-	if (tailMs <= 0) return base;
-
-	// Estimate speed from the last lap: (lap distance) / (lap split).
-	// Falls back to the discipline default if the split is zero.
-	const prevCumulative =
-		timeline.laps.length === 1
-			? 0
-			: timeline.laps[timeline.laps.length - 2].cumulativeDistanceM;
-	const lapDistance = base - prevCumulative;
-	const speedMs =
-		lastLap.splitMs > 0 ? lapDistance / (lastLap.splitMs / 1000) : defaultSpeedMs;
-	return base + speedMs * (tailMs / 1000);
+	return distanceFromWaypointsAt(timeline, timeline.diveEndMs, defaultSpeedMs);
 }
 
 /**
@@ -266,6 +245,71 @@ function bisectSamples(
 		else hi = mid;
 	}
 	return lo - 1;
+}
+
+function sortedWaypointEvents(timeline: DiveTimeline): LapEvent[] {
+	return [...timeline.laps, ...(timeline.subSplits ?? [])]
+		.filter((event) => event.atMs >= timeline.diveStartMs && event.atMs <= timeline.diveEndMs)
+		.sort((a, b) => a.atMs - b.atMs || a.cumulativeDistanceM - b.cumulativeDistanceM);
+}
+
+function segmentSpeedMs(
+	previous: LapEvent | null,
+	next: LapEvent,
+	timeline: DiveTimeline,
+	defaultSpeedMs: number
+): number {
+	const previousAtMs = previous?.atMs ?? timeline.diveStartMs;
+	const previousDistanceM = previous?.cumulativeDistanceM ?? 0;
+	const segmentMs = Math.max(0, next.atMs - previousAtMs);
+	const segmentDistanceM = Math.max(0, next.cumulativeDistanceM - previousDistanceM);
+	return segmentMs > 0 ? segmentDistanceM / (segmentMs / 1000) : defaultSpeedMs;
+}
+
+function speedFromWaypointsAt(
+	timeline: DiveTimeline,
+	atMs: number,
+	defaultSpeedMs: number
+): number {
+	if (atMs <= timeline.diveStartMs || atMs > timeline.diveEndMs) return 0;
+	const waypoints = sortedWaypointEvents(timeline);
+	if (waypoints.length === 0) return defaultSpeedMs;
+
+	const effectiveAtMs = Math.min(atMs, timeline.diveEndMs);
+	const nextIndex = waypoints.findIndex((event) => event.atMs >= effectiveAtMs);
+	if (nextIndex >= 0) {
+		return segmentSpeedMs(waypoints[nextIndex - 1] ?? null, waypoints[nextIndex], timeline, defaultSpeedMs);
+	}
+
+	const last = waypoints[waypoints.length - 1];
+	return segmentSpeedMs(waypoints[waypoints.length - 2] ?? null, last, timeline, defaultSpeedMs);
+}
+
+function distanceFromWaypointsAt(
+	timeline: DiveTimeline,
+	atMs: number,
+	defaultSpeedMs: number
+): number {
+	if (atMs <= timeline.diveStartMs) return 0;
+	const effectiveAtMs = Math.min(atMs, timeline.diveEndMs);
+	const waypoints = sortedWaypointEvents(timeline);
+	if (waypoints.length === 0) {
+		return ((effectiveAtMs - timeline.diveStartMs) / 1000) * defaultSpeedMs;
+	}
+
+	const nextIndex = waypoints.findIndex((event) => event.atMs >= effectiveAtMs);
+	if (nextIndex >= 0) {
+		const previous = waypoints[nextIndex - 1] ?? null;
+		const next = waypoints[nextIndex];
+		const previousAtMs = previous?.atMs ?? timeline.diveStartMs;
+		const previousDistanceM = previous?.cumulativeDistanceM ?? 0;
+		const speed = segmentSpeedMs(previous, next, timeline, defaultSpeedMs);
+		return previousDistanceM + speed * ((effectiveAtMs - previousAtMs) / 1000);
+	}
+
+	const last = waypoints[waypoints.length - 1];
+	const speed = segmentSpeedMs(waypoints[waypoints.length - 2] ?? null, last, timeline, defaultSpeedMs);
+	return last.cumulativeDistanceM + speed * ((effectiveAtMs - last.atMs) / 1000);
 }
 
 /**
@@ -304,18 +348,8 @@ export function speedAt(
 		return a.speedMs + (b.speedMs - a.speedMs) * t;
 	}
 
-	// Legacy (pre-v2) lap-based estimate.
-	const completedLaps = timeline.laps.filter((l) => l.atMs <= atMs);
-	if (completedLaps.length === 0) {
-		// Before any waypoint: discipline default while the dive is in progress.
-		if (atMs > timeline.diveStartMs && atMs <= timeline.diveEndMs)
-			return defaultSpeedMs;
-		return 0;
-	}
-
-	const lastLap = completedLaps[completedLaps.length - 1];
-	if (lastLap.splitMs <= 0) return 0;
-	return poolLengthM / (lastLap.splitMs / 1000);
+	void poolLengthM;
+	return speedFromWaypointsAt(timeline, atMs, defaultSpeedMs);
 }
 
 /**
@@ -361,23 +395,8 @@ export function distanceAt(
 		return a.distanceM + (b.distanceM - a.distanceM) * t;
 	}
 
-	// Legacy (pre-v2) stepwise lap-based model.
-	const completedLaps = timeline.laps.filter((l) => l.atMs <= atMs);
-
-	if (completedLaps.length === 0) {
-		if (atMs <= timeline.diveStartMs) return 0;
-		const effectiveAtMs = Math.min(atMs, timeline.diveEndMs);
-		const elapsedSinceDiveStartMs = Math.max(0, effectiveAtMs - timeline.diveStartMs);
-		return (elapsedSinceDiveStartMs / 1000) * defaultSpeedMs;
-	}
-
-	const lastLap = completedLaps[completedLaps.length - 1];
-	const baseDistance = lastLap.cumulativeDistanceM;
-	if (lastLap.splitMs <= 0) return baseDistance;
-
-	const timeSinceLastWallMs = atMs - lastLap.atMs;
-	const lapProgress = Math.min(1, timeSinceLastWallMs / lastLap.splitMs);
-	return baseDistance + lapProgress * poolLengthM;
+	void poolLengthM;
+	return distanceFromWaypointsAt(timeline, atMs, defaultSpeedMs);
 }
 
 /**
