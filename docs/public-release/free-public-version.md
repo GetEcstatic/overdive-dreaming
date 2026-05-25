@@ -337,6 +337,18 @@ Goal: ship public mode without breaking the private/beta app.
 - [x] Verify advanced users retain access to existing private/beta tools.
 - [x] Update this checklist as items are completed during implementation.
 
+## Access rollout checklist
+
+- [x] Keep new users on public mode by default when no `settings.publicModeAccess` exists.
+- [x] Add a dry-run-capable migration for existing users: `npm run migrate:public-mode-access:dry`, then `npm run migrate:public-mode-access`.
+- [x] Stamp existing user documents as `settings.publicModeAccess = "advanced"` through the migration so they keep full private-beta access.
+- [x] Add a Profile app-mode control for advanced users to switch between the full private beta app and public preview.
+- [x] Preserve admin access so admin accounts do not accidentally downgrade themselves from the Profile toggle.
+- [x] Show public users a Profile mail link to request full access at `getecstatic.comp@gmail.com`.
+- [x] Validate with focused capability tests and `npm run check`.
+- [ ] Run the public-mode access migration dry-run before live data changes.
+- [ ] Run the live public-mode access migration after confirming the dry-run output.
+
 ## Open questions
 
 - Should public users be allowed to create any custom routines, or only use presets? Current leaning: start with presets only. Start with dynamic max, static max, two-breath static CO2, dynamic Sweet 16 CO2, increasing static intervals, and increasing dynamic intervals.
