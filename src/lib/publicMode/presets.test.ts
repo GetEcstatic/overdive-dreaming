@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	buildPublicPresetRoutineCreateData,
 	getPublicRoutinePreset,
 	increasingDynamicIntervalsExample,
 	increasingStaticIntervalsExample,
@@ -36,5 +37,17 @@ describe('publicRoutinePresets', () => {
 	it('defines increasing dynamic intervals as progressively longer distances', () => {
 		const distances = increasingDynamicIntervalsExample.layers.map((layer) => layer.dive.distance?.mode === 'fixed' ? layer.dive.distance.meters : 0);
 		expect(distances).toEqual([25, 50, 75, 100]);
+	});
+
+	it('projects presets into routine create data', () => {
+		const data = buildPublicPresetRoutineCreateData(publicRoutinePresets[4]);
+
+		expect(data.name).toBe('Increasing Static Intervals');
+		expect(data.description).toBe('A simple static ladder with holds that get longer each round.');
+		expect(data.disciplines).toEqual(['STA']);
+		expect(data.layers).toHaveLength(5);
+		expect(data.trackingConfig.trackRepsCompleted).toBe(true);
+		expect(data.displayConfig.heroMetric).toBe('cumulativeHoldTime');
+		expect(data).toMatchObject({ publicPresetId: 'increasing-static-intervals' });
 	});
 });

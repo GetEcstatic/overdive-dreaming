@@ -438,6 +438,7 @@ export interface RoutineTemplate {
 
 	// Media
 	instructionalVideoUrl?: string; // YouTube/Vimeo URL
+	publicPresetId?: string;
 
 	// Metadata
 	createdBy: 'system' | string; // 'system' for defaults, userId for custom

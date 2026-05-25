@@ -1,5 +1,6 @@
 import type { Discipline } from '$lib/types';
 import type { RoutineLayerExample } from '$lib/routineLayers/defaults';
+import { buildLayerRoutineCreateData, type LayerRoutineCreateData } from '$lib/routineLayers/create';
 import {
 	dynamicMaxExample,
 	dynamicSweet16Example,
@@ -150,4 +151,15 @@ export const publicRoutinePresets: PublicRoutinePreset[] = [
 
 export function getPublicRoutinePreset(id: string): PublicRoutinePreset | undefined {
 	return publicRoutinePresets.find((preset) => preset.id === id);
+}
+
+export function buildPublicPresetRoutineCreateData(preset: PublicRoutinePreset): LayerRoutineCreateData {
+	return {
+		...buildLayerRoutineCreateData({
+			name: preset.name,
+			description: preset.description,
+			layers: preset.example.layers
+		}),
+		publicPresetId: preset.id
+	};
 }
