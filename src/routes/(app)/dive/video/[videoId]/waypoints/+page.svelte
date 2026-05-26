@@ -165,240 +165,399 @@
 {#if loading}
 	<section class="waypoint-page centered">Loading video...</section>
 {:else if error || !video || !videoUrl || !canEdit}
-	<section class="waypoint-page centered">
+	<section class="stored-waypoint-loading">
 		<p class="error-text">{error ?? 'Waypoint editing is unavailable for this video.'}</p>
-		<button type="button" class="secondary" onclick={() => history.back()}>Back</button>
+		<button type="button" class="utility-button" onclick={() => history.back()}>Back</button>
 	</section>
 {:else}
-	<section class="waypoint-page">
-		<div class="topbar">
-			<button type="button" class="secondary" onclick={() => history.back()} disabled={saving}>Cancel</button>
-			<div class="topbar-copy">
-				<p class="eyebrow">Edit waypoints</p>
-				<h1>{video.discipline} video</h1>
-			</div>
-			<button type="button" class="secondary" onclick={() => (marker = restartMarking(marker))} disabled={saving}>Restart</button>
-		</div>
-
-		<div class="video-shell">
+	<section class="import-recorder scrub-recorder stored-waypoint-editor">
+		<div class="import-recorder-preview">
+			<!-- svelte-ignore a11y_media_has_caption -->
 			<video
 				bind:this={videoEl}
+				class="import-recorder-video"
 				src={videoUrl}
+				preload="metadata"
 				playsinline
-				controls={false}
 				onloadedmetadata={onLoadedMetadata}
 				ontimeupdate={syncVideoTime}
 				onseeked={syncVideoTime}
 			></video>
-			<div class="hud">
-				<div>
-					<span>Time</span>
-					<strong>{formatTime(currentMs)}</strong>
+
+			<div class="import-hud hud-top">
+				<div class="hud-row">
+					<div class="hud-cell">
+						<div class="hud-label">Video</div>
+						<div class="hud-value">{formatTime(currentMs)}</div>
+					</div>
+					<div class="hud-cell right">
+						<div class="hud-label">Marked</div>
+						<div class="hud-value">{newSummary.totalDistanceM.toFixed(1)} m</div>
+					</div>
 				</div>
-				<div class="right">
-					<span>Status</span>
-					<strong>{progressLabel}</strong>
+				<div class="hud-sub">
+					<span>{newSummary.waypointCount} marks · {marker.phase === 'ended' ? 'review' : primaryLabel}</span>
+					<span>{newSummary.averageSpeedMs.toFixed(2)} m/s</span>
 				</div>
 			</div>
+
+			{#if error}
+				<div class="import-toast" role="alert">{error}</div>
+			{/if}
 		</div>
 
-		<div class="controls">
-			<input
-				class="scrubber"
-				type="range"
-				min="0"
-				max={Math.max(1, durationMs)}
-				step="100"
-				value={currentMs}
-				oninput={(event) => seekTo(Number(event.currentTarget.value))}
-			/>
-
-			<div class="nudge-row">
-				<button type="button" onclick={() => nudge(-500)}>-0.5s</button>
-				<button type="button" onclick={() => nudge(-100)}>-0.1s</button>
-				<button type="button" onclick={() => videoEl?.paused ? videoEl.play() : videoEl?.pause()}>Play/Pause</button>
-				<button type="button" onclick={() => nudge(100)}>+0.1s</button>
-				<button type="button" onclick={() => nudge(500)}>+0.5s</button>
+		<div class="import-recorder-controls scrub-controls">
+			<div class="import-secondary-actions left">
+				<button class="utility-button" type="button" onclick={() => history.back()} disabled={saving}>Cancel</button>
+				<button class="utility-button" type="button" disabled={saving || marker.phase === 'start'} onclick={() => (marker = undoLastMark(marker))}>Undo</button>
+				{#if marker.phase === 'ended'}
+					<button class="utility-button save-button" type="button" onclick={saveCorrections} disabled={saving}>{saving ? 'Saving' : 'Save'}</button>
+				{/if}
 			</div>
 
-			<button
-				type="button"
-				class="primary"
-				onpointerdown={startEndHold}
-				onpointerup={finishEndHold}
-				onpointercancel={finishEndHold}
-				disabled={saving || marker.phase === 'ended'}
-			>
-				{primaryLabel}
-			</button>
+			<div class="import-secondary-actions right">
+				<button class="utility-button scrub-nudge" type="button" aria-label="Move scrubber back 0.2 seconds" onclick={() => nudge(-200)}>←</button>
+				<button class="utility-button scrub-nudge" type="button" aria-label="Move scrubber forward 0.2 seconds" onclick={() => nudge(200)}>→</button>
+			</div>
 
-			<div class="action-row">
-				<button type="button" class="secondary" onclick={() => (marker = undoLastMark(marker))} disabled={saving}>Undo last</button>
-				<button type="button" class="save" onclick={saveCorrections} disabled={saving || marker.phase !== 'ended'}>
-					{saving ? 'Saving...' : 'Save corrections'}
+			<div class="scrub-rail-wrap">
+				<div class="scrub-meta">
+					<span>{formatTime(currentMs)}</span>
+					<span>{progressLabel}</span>
+				</div>
+				<input
+					class="scrub-range"
+					type="range"
+					min="0"
+					max={Math.max(1, durationMs)}
+					step="100"
+					value={currentMs}
+					oninput={(event) => seekTo(Number(event.currentTarget.value))}
+				/>
+				<div class="scrub-meta dim">
+					<span>00:00.0</span>
+					<span>{formatTime(durationMs)}</span>
+				</div>
+			</div>
+
+			<div class="primary-wrap import-primary-wrap scrub-primary-wrap">
+				<button
+					class="primary-action"
+					class:action-startDive={marker.phase === 'start'}
+					class:action-waypoint={marker.phase === 'waypoints'}
+					class:action-disabled={marker.phase === 'ended'}
+					type="button"
+					disabled={saving}
+					onpointerdown={startEndHold}
+					onpointerup={finishEndHold}
+					onpointercancel={finishEndHold}
+					onpointerleave={finishEndHold}
+					oncontextmenu={(event) => event.preventDefault()}
+					onclick={handlePrimaryTap}
+				>
+					<span class="btn-main">{primaryLabel}</span>
+					<span class="btn-sub">{progressLabel}</span>
 				</button>
 			</div>
 
-			<div class="summary-grid">
-				<div>
-					<span>Old</span>
-					<strong>{oldSummary ? `${oldSummary.totalDistanceM.toFixed(1)} m` : '-'}</strong>
-					<small>{oldSummary ? formatTime(oldSummary.totalTimeSeconds * 1000) : '-'}</small>
+			{#if marker.phase === 'ended'}
+				<div class="summary-line scrub-summary-line">
+					{newSummary.totalDistanceM.toFixed(1)} m · {newSummary.totalTimeSeconds.toFixed(1)}s · old {oldSummary ? oldSummary.totalDistanceM.toFixed(1) : '-'} m
 				</div>
-				<div>
-					<span>New</span>
-					<strong>{newSummary.totalDistanceM.toFixed(1)} m</strong>
-					<small>{formatTime(newSummary.totalTimeSeconds * 1000)}</small>
+			{:else if newSummary.waypointCount > 0}
+				<div class="summary-line scrub-summary-line">
+					Marked {newSummary.waypointCount} · Last {newSummary.totalDistanceM.toFixed(1)} m
 				</div>
-			</div>
+			{/if}
 
-			{#if newSummary.warnings.length > 0}
-				<p class="warning">Check: {newSummary.warnings.join(', ')}</p>
-			{/if}
-			{#if error}
-				<p class="error-text">{error}</p>
-			{/if}
+			<button class="scrub-reset" type="button" disabled={saving || marker.phase === 'start'} onclick={() => (marker = restartMarking(marker))}>Restart marks</button>
 		</div>
 	</section>
 {/if}
 
 <style>
-	.waypoint-page {
+	.stored-waypoint-loading {
 		min-height: 100svh;
 		padding: max(0.75rem, env(safe-area-inset-top)) 0.75rem max(1rem, env(safe-area-inset-bottom));
 		background: #030712;
 		color: #f8fafc;
-	}
-	.centered {
 		display: grid;
 		place-content: center;
 		gap: 1rem;
 		text-align: center;
 	}
-	.topbar,
-	.action-row,
-	.nudge-row,
-	.summary-grid {
+
+	.import-recorder {
+		position: fixed;
+		inset: 0;
+		z-index: 40;
+		background: #020617;
+		color: #f8fafc;
+		overflow: hidden;
+	}
+
+	.import-recorder-preview {
+		position: absolute;
+		inset: 0;
+		background: #000;
+	}
+
+	.import-recorder-video {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+		background: #000;
+	}
+
+	.import-hud {
+		position: absolute;
+		left: 0.75rem;
+		right: 0.75rem;
+		top: max(0.75rem, env(safe-area-inset-top));
+		z-index: 5;
+		padding: 0.75rem 1.05rem;
+		border-radius: 14px;
+		background: rgba(15, 23, 42, 0.55);
+		backdrop-filter: blur(8px);
+		-webkit-backdrop-filter: blur(8px);
+		color: #f1f5f9;
+	}
+
+	.hud-row,
+	.hud-sub,
+	.scrub-meta {
 		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-	}
-	.topbar {
 		justify-content: space-between;
-		margin-bottom: 0.75rem;
+		gap: 1.25rem;
 	}
-	.topbar-copy {
-		text-align: center;
+
+	.hud-cell.right {
+		text-align: right;
 	}
-	h1,
-	p {
-		margin: 0;
-	}
-	h1 {
-		font-size: 1rem;
-	}
-	.eyebrow,
-	.hud span,
-	.summary-grid span {
-		font-size: 0.68rem;
+
+	.hud-label {
+		font-size: 0.7rem;
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
 		color: #cbd5e1;
 	}
-	.video-shell {
-		position: relative;
-		border-radius: 8px;
-		overflow: hidden;
-		background: #000;
-		max-height: 58svh;
-	}
-	video {
-		display: block;
-		width: 100%;
-		max-height: 58svh;
-		object-fit: contain;
-	}
-	.hud {
-		position: absolute;
-		left: 0.75rem;
-		right: 0.75rem;
-		top: 0.75rem;
-		display: flex;
-		justify-content: space-between;
-		gap: 1rem;
-		padding: 0.75rem 1.05rem;
-		border-radius: 8px;
-		background: rgba(15, 23, 42, 0.62);
-		backdrop-filter: blur(8px);
-	}
-	.hud strong {
-		display: block;
+
+	.hud-value {
 		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-		font-size: 1.1rem;
+		font-size: 1.9rem;
+		font-variant-numeric: tabular-nums;
+		line-height: 1.1;
 	}
-	.right {
-		text-align: right;
+
+	.hud-sub {
+		margin-top: 0.4rem;
+		color: #cbd5e1;
+		font-size: 0.85rem;
 	}
-	.controls {
-		display: grid;
-		gap: 0.75rem;
-		padding-top: 0.9rem;
+
+	.import-toast {
+		position: absolute;
+		left: 50%;
+		top: calc(max(0.75rem, env(safe-area-inset-top)) + 6.25rem);
+		transform: translateX(-50%);
+		max-width: min(28rem, calc(100vw - 2rem));
+		padding: 0.55rem 0.85rem;
+		border-radius: 14px;
+		background: rgba(239, 68, 68, 0.95);
+		color: #fff;
+		font-size: 0.85rem;
+		font-weight: 650;
+		text-align: center;
 	}
-	.scrubber {
-		width: 100%;
-		min-height: 36px;
+
+	.import-recorder-controls {
+		position: absolute;
+		inset: 0;
+		z-index: 6;
+		pointer-events: none;
+		padding: max(0.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right)) calc(1rem + env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
 	}
-	.nudge-row,
-	.action-row {
-		justify-content: center;
-		flex-wrap: wrap;
+
+	.import-secondary-actions {
+		position: absolute;
+		display: flex;
+		gap: 0.5rem;
+		pointer-events: auto;
 	}
-	button {
-		border: 1px solid rgba(148, 163, 184, 0.28);
-		border-radius: 8px;
-		background: rgba(15, 23, 42, 0.92);
+
+	.import-secondary-actions.left {
+		left: max(0.9rem, env(safe-area-inset-left));
+		bottom: calc(1.45rem + env(safe-area-inset-bottom));
+	}
+
+	.import-secondary-actions.right {
+		right: max(0.9rem, env(safe-area-inset-right));
+		bottom: calc(7.45rem + env(safe-area-inset-bottom));
+		flex-direction: column;
+	}
+
+	.utility-button {
+		min-width: 4.75rem;
+		min-height: 2.5rem;
+		border: 1px solid rgba(226, 232, 240, 0.24);
+		border-radius: 999px;
+		padding: 0.45rem 0.8rem;
+		background: rgba(15, 23, 42, 0.68);
+		backdrop-filter: blur(8px);
+		-webkit-backdrop-filter: blur(8px);
 		color: #f8fafc;
 		font: inherit;
-		padding: 0.65rem 0.8rem;
-	}
-	button:disabled {
-		opacity: 0.45;
-	}
-	.primary,
-	.save {
-		border-color: rgba(20, 184, 166, 0.72);
-		background: #0f766e;
+		font-size: 0.86rem;
 		font-weight: 700;
 	}
-	.primary {
-		width: min(100%, 28rem);
-		justify-self: center;
-		min-height: 4rem;
-		font-size: 1.1rem;
+
+	.utility-button:disabled {
+		opacity: 0.45;
 	}
-	.secondary {
-		background: rgba(15, 23, 42, 0.72);
+
+	.save-button {
+		border-color: rgba(20, 184, 166, 0.58);
+		background: rgba(15, 118, 110, 0.82);
 	}
-	.summary-grid {
-		justify-content: stretch;
+
+	.primary-wrap {
+		position: absolute;
+		left: 50%;
+		bottom: calc(1rem + env(safe-area-inset-bottom));
+		transform: translateX(-50%);
+		display: flex;
+		pointer-events: auto;
 	}
-	.summary-grid > div {
-		flex: 1;
-		padding: 0.75rem;
-		border: 1px solid rgba(148, 163, 184, 0.18);
-		border-radius: 8px;
-		background: rgba(15, 23, 42, 0.52);
+
+	.scrub-primary-wrap {
+		bottom: calc(8.6rem + env(safe-area-inset-bottom));
 	}
-	.summary-grid strong,
-	.summary-grid small {
-		display: block;
+
+	.primary-action {
+		position: relative;
+		width: clamp(11rem, 58vw, 16rem);
+		min-height: 5.2rem;
+		border: 2px solid rgba(255, 255, 255, 0.22);
+		border-radius: 18px;
+		padding: 0.9rem 1.15rem;
+		box-shadow: 0 18px 52px rgba(0, 0, 0, 0.46), inset 0 0 0 6px rgba(255, 255, 255, 0.08);
+		color: #fff;
+		font: inherit;
+		font-weight: 800;
+		display: inline-flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.2rem;
+		user-select: none;
+		-webkit-user-select: none;
+		-webkit-tap-highlight-color: transparent;
 	}
-	.warning,
+
+	.primary-action:active:not(:disabled) {
+		transform: scale(0.96);
+	}
+
+	.primary-action.action-startDive {
+		background: #10b981;
+		color: #052e25;
+	}
+
+	.primary-action.action-waypoint {
+		background: var(--color-primary);
+		color: #042f2e;
+	}
+
+	.primary-action.action-disabled {
+		background: rgba(30, 41, 59, 0.9);
+	}
+
+	.btn-main {
+		font-size: clamp(1.25rem, 5.2vw, 1.7rem);
+		line-height: 1.1;
+	}
+
+	.btn-sub {
+		max-width: 12rem;
+		font-size: clamp(0.82rem, 3.4vw, 1rem);
+		font-weight: 500;
+		opacity: 0.8;
+		text-align: center;
+	}
+
+	.summary-line {
+		position: absolute;
+		left: 50%;
+		bottom: calc(8.9rem + env(safe-area-inset-bottom));
+		transform: translateX(-50%);
+		padding: 0.3rem 0.55rem;
+		border-radius: 999px;
+		background: rgba(15, 23, 42, 0.58);
+		backdrop-filter: blur(8px);
+		-webkit-backdrop-filter: blur(8px);
+		color: #cbd5e1;
+		font-size: 0.8rem;
+		text-align: center;
+		white-space: nowrap;
+		pointer-events: none;
+	}
+
+	.scrub-nudge {
+		min-width: 2.75rem;
+		font-size: 1.15rem;
+		line-height: 1;
+	}
+
+	.scrub-rail-wrap {
+		position: absolute;
+		left: max(0.9rem, env(safe-area-inset-left));
+		right: max(0.9rem, env(safe-area-inset-right));
+		bottom: calc(1.1rem + env(safe-area-inset-bottom));
+		padding: 0.7rem 0.8rem 0.6rem;
+		border: 1px solid rgba(226, 232, 240, 0.18);
+		border-radius: 14px;
+		background: rgba(15, 23, 42, 0.74);
+		backdrop-filter: blur(10px);
+		-webkit-backdrop-filter: blur(10px);
+		pointer-events: auto;
+	}
+
+	.scrub-meta {
+		color: #e2e8f0;
+		font-size: 0.78rem;
+		font-weight: 800;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.scrub-meta.dim {
+		color: #94a3b8;
+		font-weight: 650;
+	}
+
+	.scrub-range {
+		width: 100%;
+		margin: 0.55rem 0 0.35rem;
+		accent-color: var(--color-primary);
+	}
+
+	.scrub-reset {
+		position: absolute;
+		left: 50%;
+		bottom: calc(5.45rem + env(safe-area-inset-bottom));
+		transform: translateX(-50%);
+		border: 1px solid rgba(226, 232, 240, 0.18);
+		border-radius: 999px;
+		padding: 0.35rem 0.65rem;
+		background: rgba(15, 23, 42, 0.58);
+		color: #cbd5e1;
+		font: inherit;
+		font-size: 0.78rem;
+		font-weight: 750;
+		pointer-events: auto;
+	}
+
 	.error-text {
 		text-align: center;
-		color: #fbbf24;
-	}
-	.error-text {
 		color: #fecaca;
 	}
 </style>
