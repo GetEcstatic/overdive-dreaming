@@ -5,7 +5,9 @@
   Stages:
 	setup          → pick discipline, pool length (wheel), waypoints per lap (wheel)
 	record         → full-screen DiveRecorder
+	importModeChoice → choose live playback marking or precision scrub-to-mark
 	importPlayback → full-screen imported-video review with recorder-style HUD
+	importScrubMark → fullscreen imported-video precision scrub-to-mark flow
 	review         → confirm details, pin, choose athlete, save
 -->
 <script lang="ts">
@@ -26,6 +28,18 @@
 	import { drainUploadQueue } from '$lib/capture/uploadProcessor';
 	import { logUploadDiagnostic } from '$lib/capture/uploadDiagnostics';
 	import { summariseTimeline, totalDistanceM } from '$lib/capture/timeline';
+	import {
+		createPrecisionMarkingState,
+		endDive as endPrecisionDive,
+		markDiveStart as markPrecisionDiveStart,
+		markNextWaypoint as markPrecisionNextWaypoint,
+		precisionPrimaryLabel,
+		projectPrecisionStateToTimeline,
+		restartMarking as restartPrecisionMarking,
+		summarisePrecisionState,
+		undoLastMark as undoPrecisionLastMark,
+		type PrecisionMarkingState
+	} from '$lib/capture/precisionWaypointMarker';
 	import { defaultSpeedMs } from '$lib/capture/disciplineSpeeds';
 	import {
 		bitrateForResolution,
@@ -81,7 +95,7 @@
 		speedMs: number;
 	}
 
-	type Stage = 'setup' | 'record' | 'importPlayback' | 'review' | 'saving' | 'done';
+	type Stage = 'setup' | 'record' | 'importModeChoice' | 'importPlayback' | 'importScrubMark' | 'review' | 'saving' | 'done';
 	type ImportFlowPhase = 'ready' | 'playing' | 'diving' | 'ended';
 	let stage = $state<Stage>('setup');
 
@@ -93,7 +107,7 @@
 	 * counter stays balanced even if the user navigates away mid-record.
 	 */
 	$effect(() => {
-		if (stage !== 'record' && stage !== 'importPlayback') return;
+		if (stage !== 'record' && stage !== 'importPlayback' && stage !== 'importScrubMark') return;
 		diveRecording.begin();
 		return () => diveRecording.end();
 	});
@@ -127,6 +141,11 @@
 	let importEndDiveHeld = $state(false);
 	let importPrimaryClickSuppressed = false;
 	let importEndDiveHoldHandle: ReturnType<typeof setTimeout> | null = null;
+	let precisionState = $state<PrecisionMarkingState | null>(null);
+	let precisionEndDiveHeld = $state(false);
+	let precisionPrimaryClickSuppressed = false;
+	let precisionEndDiveHoldHandle: ReturnType<typeof setTimeout> | null = null;
+	let importScrubSeeking = $state(false);
 	let importPreviewUrl = $state<string | null>(null);
 	let importPreviewVideo = $state<HTMLVideoElement | null>(null);
 	let storageHealthy = $state<boolean | null>(null);
@@ -312,12 +331,48 @@
 			importFlowPhase = 'ready';
 			importEndDiveHeld = false;
 			importPrimaryClickSuppressed = false;
-			stage = 'importPlayback';
+			precisionState = null;
+			precisionEndDiveHeld = false;
+			precisionPrimaryClickSuppressed = false;
+			stage = 'importModeChoice';
 		} catch (err) {
 			importError = err instanceof Error ? err.message : 'Could not read this video file.';
 		} finally {
 			importingVideo = false;
 		}
+	}
+
+	function precisionMarkerConfig() {
+		return {
+			poolLengthM: poolLength ?? 25,
+			waypointsPerLap: Math.max(1, waypointsPerLap ?? 1),
+			defaultSpeedMs: discipline ? defaultSpeedMs(discipline) : 1
+		};
+	}
+
+	function startLiveImportMarking(): void {
+		if (!capture || capture.source !== 'import') return;
+		importPreviewTimeMs = 0;
+		importFlowPhase = 'ready';
+		importEndDiveHeld = false;
+		importPrimaryClickSuppressed = false;
+		stage = 'importPlayback';
+	}
+
+	function startScrubImportMarking(): void {
+		if (!capture || capture.source !== 'import') return;
+		precisionState = createPrecisionMarkingState(precisionMarkerConfig());
+		precisionEndDiveHeld = false;
+		precisionPrimaryClickSuppressed = false;
+		importScrubSeeking = false;
+		importPreviewTimeMs = 0;
+		stage = 'importScrubMark';
+	}
+
+	function syncPrecisionCapture(nextState: PrecisionMarkingState): void {
+		precisionState = nextState;
+		if (!capture || capture.source !== 'import') return;
+		capture = { ...capture, timeline: projectPrecisionStateToTimeline(nextState) };
 	}
 
 	function addImportedWaypointAtCurrentTime(): void {
@@ -450,6 +505,89 @@
 	function updateImportPreviewTime(): void {
 		if (!importPreviewVideo) return;
 		importPreviewTimeMs = Math.round(importPreviewVideo.currentTime * 1000);
+	}
+
+	function currentImportVideoMs(): number {
+		return importPreviewVideo
+			? Math.round(importPreviewVideo.currentTime * 1000)
+			: importPreviewTimeMs;
+	}
+
+	function seekImportScrubTo(ms: number): void {
+		if (!capture) return;
+		const nextMs = clamp(Math.round(ms), 0, Math.round(capture.durationSeconds * 1000));
+		if (importPreviewVideo) {
+			importPreviewVideo.pause();
+			importScrubSeeking = true;
+			importPreviewVideo.currentTime = nextMs / 1000;
+		}
+		importPreviewTimeMs = nextMs;
+	}
+
+	function nudgeImportScrub(deltaMs: number): void {
+		seekImportScrubTo(currentImportVideoMs() + deltaMs);
+	}
+
+	function onImportScrubRangeInput(event: Event): void {
+		const input = event.currentTarget as HTMLInputElement;
+		seekImportScrubTo(Number(input.value));
+	}
+
+	function handlePrecisionPrimaryAction(): void {
+		if (!precisionState) return;
+		if (precisionPrimaryClickSuppressed) {
+			precisionPrimaryClickSuppressed = false;
+			return;
+		}
+		if (importScrubSeeking) return;
+		const currentMs = currentImportVideoMs();
+		if (precisionState.phase === 'start') {
+			syncPrecisionCapture(markPrecisionDiveStart(precisionState, currentMs));
+			return;
+		}
+		if (precisionState.phase === 'waypoints') {
+			syncPrecisionCapture(markPrecisionNextWaypoint(precisionState, currentMs));
+			return;
+		}
+		reviewImportedCapture();
+	}
+
+	function onPrecisionPrimaryHoldStart(): void {
+		if (!precisionState || precisionState.phase !== 'waypoints') return;
+		precisionEndDiveHeld = true;
+		if (precisionEndDiveHoldHandle) clearTimeout(precisionEndDiveHoldHandle);
+		precisionEndDiveHoldHandle = setTimeout(() => {
+			precisionEndDiveHoldHandle = null;
+			precisionEndDiveHeld = false;
+			precisionPrimaryClickSuppressed = true;
+			syncPrecisionCapture(endPrecisionDive(precisionState!, currentImportVideoMs()));
+		}, IMPORT_END_DIVE_HOLD_MS);
+	}
+
+	function onPrecisionPrimaryHoldEnd(): void {
+		precisionEndDiveHeld = false;
+		if (!precisionEndDiveHoldHandle) return;
+		clearTimeout(precisionEndDiveHoldHandle);
+		precisionEndDiveHoldHandle = null;
+	}
+
+	function undoPrecisionMark(): void {
+		if (!precisionState) return;
+		syncPrecisionCapture(undoPrecisionLastMark(precisionState));
+	}
+
+	function restartPrecisionMarks(): void {
+		if (!precisionState) return;
+		syncPrecisionCapture(restartPrecisionMarking(precisionState));
+	}
+
+	function precisionPrimarySubLabel(): string {
+		if (!precisionState) return '';
+		if (precisionEndDiveHeld) return 'end dive';
+		if (importScrubSeeking) return 'Waiting for video';
+		if (precisionState.phase === 'start') return 'Scrub to the start frame';
+		if (precisionState.phase === 'ended') return 'Save with markers';
+		return `Scrub to ${precisionPrimaryLabel(precisionState)} · hold to end`;
 	}
 
 	function reviewImportedCapture(): void {
@@ -1064,6 +1202,33 @@
 			</div>
 		</div>
 	</div>
+{:else if stage === 'importModeChoice' && capture && discipline && importPreviewUrl}
+	<div class="setup-screen">
+		<div class="setup-inner">
+			<header class="setup-head">
+				<h1>Mark imported video</h1>
+				<p>{discipline} · {formatMeters(poolLength ?? 25)} m pool · tap every {formatMeters(waypointSpacing)} m</p>
+			</header>
+
+			<section class="card import-mode-card">
+				<button type="button" class="import-mode-option recommended" onclick={startScrubImportMarking}>
+					<span class="mode-kicker">Recommended</span>
+					<strong>Scrub and mark</strong>
+					<span>Pause the video, scrub to each exact frame, then press the big button to commit start, waypoints, and end.</span>
+				</button>
+
+				<button type="button" class="import-mode-option" onclick={startLiveImportMarking}>
+					<span class="mode-kicker">Original flow</span>
+					<strong>Mark while playing</strong>
+					<span>Play the video and tap waypoints in real time, using the existing recorder-style flow.</span>
+				</button>
+			</section>
+
+			<div class="actions">
+				<button class="btn btn-secondary" type="button" onclick={() => (stage = 'setup')}>Back</button>
+			</div>
+		</div>
+	</div>
 {:else if stage === 'importPlayback' && capture && discipline && importPreviewUrl}
 	<div class="import-recorder">
 		<div class="import-recorder-preview">
@@ -1147,6 +1312,124 @@
 			{/if}
 		</div>
 	</div>
+{:else if stage === 'importScrubMark' && capture && discipline && importPreviewUrl && precisionState}
+	{@const precisionSummary = summarisePrecisionState(precisionState)}
+	<div class="import-recorder scrub-recorder">
+		<div class="import-recorder-preview">
+			<!-- svelte-ignore a11y_media_has_caption -->
+			<video
+				bind:this={importPreviewVideo}
+				class="import-recorder-video"
+				src={importPreviewUrl}
+				preload="metadata"
+				playsinline
+				onloadedmetadata={updateImportPreviewTime}
+				ontimeupdate={updateImportPreviewTime}
+				onseeking={() => {
+					importScrubSeeking = true;
+					updateImportPreviewTime();
+				}}
+				onseeked={() => {
+					importScrubSeeking = false;
+					updateImportPreviewTime();
+				}}
+				onplay={() => (importPreviewPlaying = true)}
+				onpause={() => (importPreviewPlaying = false)}
+				onended={() => (importPreviewPlaying = false)}
+				onerror={handleImportPreviewPlaybackError}
+			></video>
+
+			<div class="import-hud hud-top">
+				<div class="hud-row">
+					<div class="hud-cell">
+						<div class="hud-label">Video</div>
+						<div class="hud-value">{formatMs(importPreviewTimeMs)}</div>
+					</div>
+					<div class="hud-cell right">
+						<div class="hud-label">Marked</div>
+						<div class="hud-value">{formatMeters(precisionSummary.totalDistanceM)} m</div>
+					</div>
+				</div>
+				<div class="hud-sub">
+					<span>{precisionSummary.waypointCount} marks · next {precisionState.phase === 'ended' ? 'review' : precisionPrimaryLabel(precisionState)}</span>
+					<span>{precisionSummary.averageSpeedMs.toFixed(2)} m/s</span>
+				</div>
+			</div>
+
+			{#if importError}
+				<div class="import-toast" role="alert">{importError}</div>
+			{/if}
+		</div>
+
+		<div class="import-recorder-controls scrub-controls">
+			<div class="import-secondary-actions left">
+				<button class="utility-button" type="button" onclick={() => (stage = 'importModeChoice')}>Modes</button>
+				<button class="utility-button" type="button" disabled={precisionState.phase === 'start'} onclick={undoPrecisionMark}>Undo</button>
+			</div>
+
+			<div class="import-secondary-actions right">
+				<button class="utility-button" type="button" onclick={() => nudgeImportScrub(-500)}>-0.5s</button>
+				<button class="utility-button" type="button" onclick={() => nudgeImportScrub(-100)}>-0.1s</button>
+				<button class="utility-button" type="button" onclick={() => nudgeImportScrub(100)}>+0.1s</button>
+				<button class="utility-button" type="button" onclick={() => nudgeImportScrub(500)}>+0.5s</button>
+			</div>
+
+			<div class="scrub-rail-wrap">
+				<div class="scrub-meta">
+					<span>{formatMs(importPreviewTimeMs)}</span>
+					<span>{importScrubSeeking ? 'Seeking…' : precisionPrimarySubLabel()}</span>
+				</div>
+				<input
+					class="scrub-range"
+					type="range"
+					min="0"
+					max={Math.max(0, Math.round(capture.durationSeconds * 1000))}
+					step="100"
+					value={importPreviewTimeMs}
+					oninput={onImportScrubRangeInput}
+				/>
+				<div class="scrub-meta dim">
+					<span>00:00.0</span>
+					<span>{formatMs(Math.round(capture.durationSeconds * 1000))}</span>
+				</div>
+			</div>
+
+			<div class="primary-wrap import-primary-wrap scrub-primary-wrap">
+				<button
+					class="primary-action"
+					class:action-startDive={precisionState.phase === 'start'}
+					class:action-waypoint={precisionState.phase === 'waypoints'}
+					class:action-disabled={precisionState.phase === 'ended'}
+					type="button"
+					disabled={importScrubSeeking}
+					onpointerdown={onPrecisionPrimaryHoldStart}
+					onpointerup={onPrecisionPrimaryHoldEnd}
+					onpointercancel={onPrecisionPrimaryHoldEnd}
+					onpointerleave={onPrecisionPrimaryHoldEnd}
+					oncontextmenu={(e) => e.preventDefault()}
+					onclick={handlePrecisionPrimaryAction}
+				>
+					<span class="btn-main">{precisionEndDiveHeld ? 'Hold' : precisionPrimaryLabel(precisionState)}</span>
+					<span class="btn-sub">{precisionPrimarySubLabel()}</span>
+					{#if precisionEndDiveHeld}
+						<span class="hold-progress" aria-hidden="true"></span>
+					{/if}
+				</button>
+			</div>
+
+			{#if precisionState.phase === 'ended'}
+				<div class="summary-line scrub-summary-line">
+					{formatMeters(precisionSummary.totalDistanceM)} m · {precisionSummary.totalTimeSeconds.toFixed(1)}s · {precisionSummary.warnings.length} warning{precisionSummary.warnings.length === 1 ? '' : 's'}
+				</div>
+			{:else if precisionSummary.waypointCount > 0}
+				<div class="summary-line scrub-summary-line">
+					Marked {precisionSummary.waypointCount} · Last {formatMeters(precisionSummary.totalDistanceM)} m
+				</div>
+			{/if}
+
+			<button class="scrub-reset" type="button" disabled={precisionState.phase === 'start'} onclick={restartPrecisionMarks}>Restart marks</button>
+		</div>
+	</div>
 {:else if stage === 'record' && discipline}
 	<DiveRecorder
 		poolLength={poolLength ?? 25}
@@ -1167,12 +1450,12 @@
 			{#if capture && discipline}
 				{#if capture.source === 'import' && importPreviewUrl}
 					<section class="import-review-card">
-						<p class="import-review-hint">Imported video markers are ready to save. Re-open the full-screen review if you need to adjust start, end, or waypoints.</p>
+						<p class="import-review-hint">Imported video markers are ready to save. Re-open the marker flow if you need to adjust start, end, or waypoints.</p>
 						{#if importError}
 							<p class="import-review-error">{importError}</p>
 						{/if}
 						<div class="import-marker-grid compact">
-							<button type="button" onclick={() => (stage = 'importPlayback')}>Review markers</button>
+							<button type="button" onclick={() => (stage = 'importModeChoice')}>Mark again</button>
 						</div>
 						<div class="import-marker-summary">
 							<div><span>Start</span><strong>{secondsFromMs(capture.timeline.diveStartMs)}</strong></div>
@@ -1201,7 +1484,10 @@
 
 				<div class="stats-card">
 					<div><span>Dive time</span><strong>{diveDurationSeconds(capture).toFixed(1)} s</strong></div>
-					<div><span>Waypoints tapped</span><strong>{capture.timeline.laps.length}</strong></div>
+					<div>
+						<span>Waypoints tapped</span>
+						<strong>{capture.source === 'import' ? importWaypointRows(capture.timeline).length : capture.timeline.laps.length}</strong>
+					</div>
 					<div>
 						<span>Distance</span>
 						<!--
@@ -1477,6 +1763,49 @@
 		opacity: 0.5;
 		cursor: not-allowed;
 	}
+
+	.import-mode-card {
+		gap: 0.75rem;
+	}
+
+	.import-mode-option {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.28rem;
+		width: 100%;
+		border: 1px solid rgba(148, 163, 184, 0.18);
+		border-radius: 10px;
+		padding: 0.95rem;
+		background: rgba(15, 23, 42, 0.55);
+		color: var(--color-text);
+		font: inherit;
+		text-align: left;
+	}
+
+	.import-mode-option.recommended {
+		border-color: rgba(20, 184, 166, 0.45);
+		background: rgba(20, 184, 166, 0.1);
+	}
+
+	.import-mode-option strong {
+		font-size: 1.02rem;
+		font-weight: 800;
+	}
+
+	.import-mode-option span:last-child {
+		color: var(--color-text-muted);
+		font-size: 0.84rem;
+		line-height: 1.35;
+	}
+
+	.mode-kicker {
+		color: var(--color-primary);
+		font-size: 0.7rem;
+		font-weight: 800;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
 	@media (max-width: 520px) {
 		.actions {
 			flex-wrap: wrap;
@@ -1726,6 +2055,74 @@
 		text-align: center;
 		white-space: nowrap;
 		pointer-events: none;
+	}
+
+	.scrub-controls {
+		padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+	}
+
+	.scrub-primary-wrap {
+		bottom: calc(7.35rem + env(safe-area-inset-bottom));
+	}
+
+	.scrub-rail-wrap {
+		position: absolute;
+		left: max(0.9rem, env(safe-area-inset-left));
+		right: max(0.9rem, env(safe-area-inset-right));
+		bottom: calc(1.1rem + env(safe-area-inset-bottom));
+		padding: 0.7rem 0.8rem 0.6rem;
+		border: 1px solid rgba(226, 232, 240, 0.18);
+		border-radius: 14px;
+		background: rgba(15, 23, 42, 0.74);
+		backdrop-filter: blur(10px);
+		-webkit-backdrop-filter: blur(10px);
+		pointer-events: auto;
+	}
+
+	.scrub-meta {
+		display: flex;
+		justify-content: space-between;
+		gap: 0.75rem;
+		color: #e2e8f0;
+		font-size: 0.78rem;
+		font-weight: 800;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.scrub-meta.dim {
+		color: #94a3b8;
+		font-weight: 650;
+	}
+
+	.scrub-range {
+		width: 100%;
+		height: 2.4rem;
+		margin: 0.1rem 0;
+		accent-color: var(--color-primary);
+	}
+
+	.scrub-summary-line {
+		bottom: calc(13.2rem + env(safe-area-inset-bottom));
+	}
+
+	.scrub-reset {
+		position: absolute;
+		right: max(0.9rem, env(safe-area-inset-right));
+		bottom: calc(11.5rem + env(safe-area-inset-bottom));
+		min-height: 2.35rem;
+		border: 1px solid rgba(248, 113, 113, 0.28);
+		border-radius: 999px;
+		padding: 0.4rem 0.75rem;
+		background: rgba(127, 29, 29, 0.42);
+		color: #fecaca;
+		font: inherit;
+		font-size: 0.8rem;
+		font-weight: 800;
+		pointer-events: auto;
+	}
+
+	.scrub-reset:disabled {
+		display: none;
 	}
 
 	.import-review-card {
