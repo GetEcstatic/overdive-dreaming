@@ -22,7 +22,7 @@ const require = createRequire(import.meta.url);
 const ffmpegPath = require('ffmpeg-static') as string | null;
 const ffprobeStatic = require('ffprobe-static') as { path?: string };
 const execFileAsync = promisify(execFile);
-const OVERLAY_STYLE_VERSION = 'overdive-overlay-v3';
+const OVERLAY_STYLE_VERSION = 'overdive-overlay-v4';
 
 const HUD_REFERENCE_SHORT_EDGE_PX = 390;
 const CSS_PX_PER_REM = 16;
@@ -299,34 +299,67 @@ function diveElapsedAt(timeline: DiveTimeline, atMs: number): number {
 	return Math.max(0, Math.min(atMs, end) - timeline.diveStartMs);
 }
 
+function sortedWaypointEvents(timeline: DiveTimeline) {
+	return [...timeline.laps, ...(timeline.subSplits ?? [])]
+		.filter((event) => event.atMs >= timeline.diveStartMs && event.atMs <= timeline.diveEndMs)
+		.sort((a, b) => a.atMs - b.atMs || a.cumulativeDistanceM - b.cumulativeDistanceM);
+}
+
+function segmentSpeedMs(previous: { atMs: number; cumulativeDistanceM: number } | null, next: { atMs: number; cumulativeDistanceM: number }, timeline: DiveTimeline): number {
+	const previousAtMs = previous?.atMs ?? timeline.diveStartMs;
+	const previousDistanceM = previous?.cumulativeDistanceM ?? 0;
+	const segmentMs = Math.max(0, next.atMs - previousAtMs);
+	const segmentDistanceM = Math.max(0, next.cumulativeDistanceM - previousDistanceM);
+	return segmentMs > 0 ? segmentDistanceM / (segmentMs / 1000) : 1;
+}
+
 function distanceAt(timeline: DiveTimeline, atMs: number, poolLength: number): number {
+	void poolLength;
 	const samples = timeline.samples;
 	if (samples && samples.length > 0) {
 		const before = [...samples].reverse().find((sample) => sample.atMs <= atMs);
 		const after = samples.find((sample) => sample.atMs >= atMs);
-		if (!before) return 0;
+		if (!before) {
+			if (atMs <= timeline.diveStartMs) return 0;
+			const first = samples[0];
+			const effectiveAtMs = Math.min(atMs, first.atMs);
+			return ((effectiveAtMs - timeline.diveStartMs) / 1000) * first.speedMs;
+		}
 		if (!after || after.atMs === before.atMs) return before.distanceM;
 		const progress = (atMs - before.atMs) / (after.atMs - before.atMs);
 		return before.distanceM + (after.distanceM - before.distanceM) * progress;
 	}
 
-	const previousLap = [...timeline.laps].reverse().find((lap) => lap.atMs <= atMs);
-	if (!previousLap) return 0;
-	const nextLap = timeline.laps.find((lap) => lap.atMs > atMs);
-	if (!nextLap) return previousLap.cumulativeDistanceM;
-	const progress = (atMs - previousLap.atMs) / (nextLap.atMs - previousLap.atMs);
-	return previousLap.cumulativeDistanceM + poolLength * progress;
+	if (atMs <= timeline.diveStartMs) return 0;
+	const effectiveAtMs = Math.min(atMs, timeline.diveEndMs);
+	const waypoints = sortedWaypointEvents(timeline);
+	if (waypoints.length === 0) return (effectiveAtMs - timeline.diveStartMs) / 1000;
+	const nextIndex = waypoints.findIndex((event) => event.atMs >= effectiveAtMs);
+	if (nextIndex >= 0) {
+		const previous = waypoints[nextIndex - 1] ?? null;
+		const next = waypoints[nextIndex];
+		const previousAtMs = previous?.atMs ?? timeline.diveStartMs;
+		const previousDistanceM = previous?.cumulativeDistanceM ?? 0;
+		return previousDistanceM + segmentSpeedMs(previous, next, timeline) * ((effectiveAtMs - previousAtMs) / 1000);
+	}
+	const last = waypoints[waypoints.length - 1];
+	return last.cumulativeDistanceM + segmentSpeedMs(waypoints[waypoints.length - 2] ?? null, last, timeline) * ((effectiveAtMs - last.atMs) / 1000);
 }
 
 function speedAt(timeline: DiveTimeline, atMs: number, poolLength: number): number {
+	void poolLength;
 	const samples = timeline.samples;
 	if (samples && samples.length > 0) {
 		const closest = [...samples].reverse().find((sample) => sample.atMs <= atMs) ?? samples[0];
 		return closest.speedMs;
 	}
-	const currentLap = [...timeline.laps].reverse().find((lap) => lap.atMs <= atMs);
-	if (!currentLap || currentLap.splitMs <= 0) return 0;
-	return poolLength / (currentLap.splitMs / 1000);
+	if (atMs <= timeline.diveStartMs || atMs > timeline.diveEndMs) return 0;
+	const waypoints = sortedWaypointEvents(timeline);
+	if (waypoints.length === 0) return 1;
+	const nextIndex = waypoints.findIndex((event) => event.atMs >= Math.min(atMs, timeline.diveEndMs));
+	if (nextIndex >= 0) return segmentSpeedMs(waypoints[nextIndex - 1] ?? null, waypoints[nextIndex], timeline);
+	const last = waypoints[waypoints.length - 1];
+	return segmentSpeedMs(waypoints[waypoints.length - 2] ?? null, last, timeline);
 }
 
 function roundedRectAssPath(width: number, height: number, radius: number): string {
@@ -417,11 +450,11 @@ PlayResY: ${args.height}
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: HUDBG,Arial,1,&H732A170F,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
-Style: HUDLabel,Arial,${labelSize},&H00E1D5CB,&H000000FF,&H00000000,&H00000000,1,0,0,0,100,100,${labelSpacing},0,1,0,0,7,0,0,0,1
-Style: HUDValue,Menlo,${valueSize},&H00FCFAF8,&H000000FF,&H00000000,&H00000000,1,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
-Style: HUDSub,Arial,${subSize},&H00E1D5CB,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
-Style: HUDSubMono,Menlo,${subSize},&H00E1D5CB,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
-Style: Watermark,Arial,${watermarkSize},&H66FCFAF8,&H000000FF,&H00000000,&H00000000,1,0,0,0,100,100,0,0,1,0,0,3,0,0,0,1
+Style: HUDLabel,DejaVu Sans,${labelSize},&H00E1D5CB,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,${labelSpacing},0,1,0,0,7,0,0,0,1
+Style: HUDValue,DejaVu Sans Mono,${valueSize},&H00FCFAF8,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
+Style: HUDSub,DejaVu Sans,${subSize},&H00E1D5CB,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
+Style: HUDSubMono,DejaVu Sans Mono,${subSize},&H00E1D5CB,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
+Style: Watermark,DejaVu Sans,${watermarkSize},&H66FCFAF8,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,3,0,0,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
