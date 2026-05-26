@@ -17,6 +17,12 @@ The lap-stacked editor is the better long-term UX than one crowded horizontal ti
 
 A lap-stacked editor keeps time and distance legible by organizing markers by pool length instead of forcing every event onto one line. Each lap gets its own row or vertical column, and waypoints are shown as ordered markers inside that lap. The user can correct the exact segment that looks wrong without searching across the full dive.
 
+## Visual Mockup
+
+- [230 m dynamic dive mockup](imported-video-waypoint-editor-230m-mockup.svg) — mobile-first lap-ruler concept for a 50 m pool with 5 m waypoint spacing.
+
+The mockup represents 230 m as four complete 50 m laps plus a final 30 m partial lap. It shows a full-screen imported-video editor with a video preview, summary stats, a compact global position bar, dense lap ruler rows, one warning marker, and a selected marker bottom sheet.
+
 ## UX Principles
 
 - Keep the full-screen tracking pass simple: one main button, cancel, and optional +/-10 s seek controls.

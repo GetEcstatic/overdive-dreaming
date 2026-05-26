@@ -1,0 +1,174 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="430" height="1540" viewBox="0 0 430 1540" role="img" aria-labelledby="title desc">
+  <title id="title">Imported video waypoint editor mockup for a 230 m dynamic dive</title>
+  <desc id="desc">Mobile UI mockup showing video review, summary stats, global timeline, lap rulers, dense waypoint markers, and selected marker controls for a 230 meter dynamic dive.</desc>
+  <defs>
+    <linearGradient id="video" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0a3947"/>
+      <stop offset="0.52" stop-color="#0d6b74"/>
+      <stop offset="1" stop-color="#07151f"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#14b8a6"/>
+      <stop offset="1" stop-color="#84cc16"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#000" flood-opacity="0.28"/>
+    </filter>
+    <style>
+      .screen { fill: #08111c; }
+      .panel { fill: #111c2b; stroke: #223249; stroke-width: 1; }
+      .panel-soft { fill: #0e1826; stroke: #1f3048; stroke-width: 1; }
+      .text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #edf6fb; }
+      .muted { fill: #8ea2b8; }
+      .subtle { fill: #60758a; }
+      .accent { fill: #14b8a6; }
+      .green { fill: #84cc16; }
+      .warning { fill: #f59e0b; }
+      .danger { fill: #fb7185; }
+      .line { stroke: #31445d; stroke-width: 2; stroke-linecap: round; }
+      .track { stroke: #1f3048; stroke-width: 8; stroke-linecap: round; }
+      .track-fill { stroke: url(#accent); stroke-width: 8; stroke-linecap: round; }
+      .tick { stroke: #4b6178; stroke-width: 1; }
+      .dot { fill: #14b8a6; stroke: #08111c; stroke-width: 2; }
+      .wall { fill: #84cc16; stroke: #08111c; stroke-width: 2; }
+      .selected { fill: #f8fafc; stroke: #14b8a6; stroke-width: 4; }
+      .small { font-size: 11px; }
+      .body { font-size: 13px; }
+      .label { font-size: 14px; font-weight: 650; }
+      .title { font-size: 18px; font-weight: 750; }
+      .hero { font-size: 30px; font-weight: 780; letter-spacing: 0; }
+      .mono { font-family: "SFMono-Regular", "SF Mono", Menlo, monospace; }
+    </style>
+  </defs>
+
+  <rect class="screen" x="0" y="0" width="430" height="1540" rx="0"/>
+
+  <g transform="translate(18 18)">
+    <text class="text title" x="0" y="22">Edit waypoints</text>
+    <text class="text muted body" x="0" y="44">Imported video · DYN · 50 m pool · 5 m waypoints</text>
+    <rect x="306" y="0" width="88" height="34" rx="17" fill="#122438" stroke="#28415f"/>
+    <text class="text label" x="350" y="22" text-anchor="middle">Done</text>
+  </g>
+
+  <g transform="translate(18 78)" filter="url(#softShadow)">
+    <rect x="0" y="0" width="394" height="222" rx="8" fill="url(#video)"/>
+    <rect x="0" y="0" width="394" height="222" rx="8" fill="#000" opacity="0.08"/>
+    <path d="M0 148 C60 120 94 172 150 144 C212 112 278 102 394 132 L394 222 L0 222 Z" fill="#041923" opacity="0.55"/>
+    <path d="M54 112 C102 92 148 106 206 86 C253 70 310 70 356 52" fill="none" stroke="#d8fbff" stroke-width="5" stroke-linecap="round" opacity="0.9"/>
+    <circle cx="91" cy="99" r="8" fill="#f8fafc" opacity="0.9"/>
+    <path d="M100 101 L132 108 L158 101" fill="none" stroke="#f8fafc" stroke-width="5" stroke-linecap="round" opacity="0.88"/>
+    <rect x="12" y="12" width="106" height="42" rx="8" fill="#03111c" opacity="0.72"/>
+    <text class="text small mono" x="24" y="29">03:01.6</text>
+    <text class="text muted small" x="24" y="45">225 m selected</text>
+    <rect x="270" y="12" width="112" height="42" rx="8" fill="#03111c" opacity="0.72"/>
+    <text class="text small" x="326" y="29" text-anchor="middle">Current speed</text>
+    <text class="text label mono" x="326" y="47" text-anchor="middle">1.22 m/s</text>
+    <circle cx="197" cy="111" r="25" fill="#03111c" opacity="0.72"/>
+    <polygon points="190,97 190,125 215,111" fill="#f8fafc"/>
+  </g>
+
+  <g transform="translate(18 322)">
+    <rect class="panel" x="0" y="0" width="394" height="96" rx="8"/>
+    <text class="text hero mono" x="18" y="43">230 m</text>
+    <text class="text muted body" x="18" y="68">3:07.2 total · 46 waypoints · avg 1.23 m/s</text>
+    <rect x="270" y="18" width="106" height="28" rx="14" fill="#16311f" stroke="#2f623d"/>
+    <text class="text small" x="323" y="36" text-anchor="middle">Looks clean</text>
+    <rect x="270" y="54" width="106" height="28" rx="14" fill="#142235" stroke="#28415f"/>
+    <text class="text small" x="323" y="72" text-anchor="middle">1 warning</text>
+  </g>
+
+  <g transform="translate(18 442)">
+    <text class="text label" x="0" y="0">Video position</text>
+    <line class="track" x1="0" y1="26" x2="394" y2="26"/>
+    <line class="track-fill" x1="0" y1="26" x2="366" y2="26"/>
+    <circle class="selected" cx="366" cy="26" r="8"/>
+    <g class="text small muted">
+      <text x="0" y="52">Start</text>
+      <text x="84" y="52">50</text>
+      <text x="170" y="52">100</text>
+      <text x="256" y="52">150</text>
+      <text x="342" y="52">200</text>
+      <text x="394" y="52" text-anchor="end">230 m</text>
+    </g>
+  </g>
+
+  <g transform="translate(18 528)">
+    <text class="text title" x="0" y="0">Lap rulers</text>
+    <text class="text muted body" x="0" y="24">Markers are spaced by distance; timing edits happen in the sheet.</text>
+  </g>
+
+  <g transform="translate(18 584)">
+    <rect class="panel-soft" x="0" y="0" width="394" height="154" rx="8"/>
+    <text class="text label" x="16" y="27">Lap 1</text>
+    <text class="text muted body" x="74" y="27">0-50 m · 40.4 s · 1.24 m/s</text>
+    <line class="line" x1="32" y1="54" x2="32" y2="132"/>
+    <g class="text small muted">
+      <text x="52" y="60">5</text><text x="82" y="60">10</text><text x="116" y="60">15</text><text x="150" y="60">20</text><text x="184" y="60">25</text><text x="218" y="60">30</text><text x="252" y="60">35</text><text x="286" y="60">40</text><text x="320" y="60">45</text><text x="354" y="60">50</text>
+    </g>
+    <g transform="translate(57 104)">
+      <circle class="dot" cx="0" cy="0" r="6"/><circle class="dot" cx="34" cy="0" r="6"/><circle class="dot" cx="68" cy="0" r="6"/><circle class="dot" cx="102" cy="0" r="6"/><circle class="dot" cx="136" cy="0" r="6"/><circle class="dot" cx="170" cy="0" r="6"/><circle class="dot" cx="204" cy="0" r="6"/><circle class="dot" cx="238" cy="0" r="6"/><circle class="dot" cx="272" cy="0" r="6"/><circle class="wall" cx="306" cy="0" r="7"/>
+    </g>
+    <text class="text subtle small" x="52" y="132">First 50 m wall marker is stronger than split markers</text>
+  </g>
+
+  <g transform="translate(18 756)">
+    <rect class="panel-soft" x="0" y="0" width="394" height="154" rx="8"/>
+    <text class="text label" x="16" y="27">Lap 2</text>
+    <text class="text muted body" x="74" y="27">50-100 m · 41.0 s · 1.22 m/s</text>
+    <line class="line" x1="32" y1="54" x2="32" y2="132"/>
+    <g class="text small muted"><text x="52" y="60">55</text><text x="82" y="60">60</text><text x="116" y="60">65</text><text x="150" y="60">70</text><text x="184" y="60">75</text><text x="218" y="60">80</text><text x="252" y="60">85</text><text x="286" y="60">90</text><text x="320" y="60">95</text><text x="354" y="60">100</text></g>
+    <g transform="translate(57 104)">
+      <circle class="dot" cx="0" cy="0" r="6"/><circle class="dot" cx="34" cy="0" r="6"/><circle class="dot" cx="68" cy="0" r="6"/><circle class="dot" cx="102" cy="0" r="6"/><circle class="dot" cx="136" cy="0" r="6"/><circle class="dot" cx="170" cy="0" r="6"/><circle class="dot" cx="204" cy="0" r="6"/><circle class="dot" cx="238" cy="0" r="6"/><circle class="dot" cx="272" cy="0" r="6"/><circle class="wall" cx="306" cy="0" r="7"/>
+    </g>
+    <text class="text subtle small" x="52" y="132">Dense labels can collapse to selected and flagged markers</text>
+  </g>
+
+  <g transform="translate(18 928)">
+    <rect class="panel-soft" x="0" y="0" width="394" height="154" rx="8"/>
+    <text class="text label" x="16" y="27">Lap 3</text>
+    <text class="text muted body" x="74" y="27">100-150 m · 40.7 s · 1.23 m/s</text>
+    <line class="line" x1="32" y1="54" x2="32" y2="132"/>
+    <g class="text small muted"><text x="52" y="60">105</text><text x="82" y="60">110</text><text x="116" y="60">115</text><text x="150" y="60">120</text><text x="184" y="60">125</text><text x="218" y="60">130</text><text x="252" y="60">135</text><text x="286" y="60">140</text><text x="320" y="60">145</text><text x="354" y="60">150</text></g>
+    <g transform="translate(57 104)">
+      <circle class="dot" cx="0" cy="0" r="6"/><circle class="dot" cx="34" cy="0" r="6"/><circle class="dot" cx="68" cy="0" r="6"/><circle class="dot" cx="102" cy="0" r="6"/><circle class="dot" cx="136" cy="0" r="6"/><circle class="dot" cx="170" cy="0" r="6"/><circle class="dot" cx="204" cy="0" r="6"/><circle class="dot" cx="238" cy="0" r="6"/><circle class="dot" cx="272" cy="0" r="6"/><circle class="wall" cx="306" cy="0" r="7"/>
+    </g>
+    <text class="text subtle small" x="52" y="132">Tap any marker to seek video and open exact controls</text>
+  </g>
+
+  <g transform="translate(18 1100)">
+    <rect class="panel-soft" x="0" y="0" width="394" height="154" rx="8"/>
+    <text class="text label" x="16" y="27">Lap 4</text>
+    <text class="text muted body" x="74" y="27">150-200 m · 41.8 s · 1.20 m/s</text>
+    <line class="line" x1="32" y1="54" x2="32" y2="132"/>
+    <g class="text small muted"><text x="52" y="60">155</text><text x="82" y="60">160</text><text x="116" y="60">165</text><text x="150" y="60">170</text><text x="184" y="60">175</text><text x="218" y="60">180</text><text x="252" y="60">185</text><text x="286" y="60">190</text><text x="320" y="60">195</text><text x="354" y="60">200</text></g>
+    <g transform="translate(57 104)">
+      <circle class="dot" cx="0" cy="0" r="6"/><circle class="dot" cx="34" cy="0" r="6"/><circle class="dot" cx="68" cy="0" r="6"/><circle class="dot" cx="102" cy="0" r="6"/><circle class="dot" cx="136" cy="0" r="6"/><circle class="dot" cx="170" cy="0" r="6"/><circle class="dot" cx="204" cy="0" r="6"/><circle class="dot" cx="238" cy="0" r="6"/><circle class="warning" cx="272" cy="0" r="7"/><circle class="wall" cx="306" cy="0" r="7"/>
+    </g>
+    <text class="text warning small" x="52" y="132">195 m split slightly fast compared with surrounding segments</text>
+  </g>
+
+  <g transform="translate(18 1272)">
+    <rect class="panel-soft" x="0" y="0" width="394" height="126" rx="8"/>
+    <text class="text label" x="16" y="27">Lap 5</text>
+    <text class="text muted body" x="74" y="27">200-230 m · partial lap · 24.3 s</text>
+    <line class="line" x1="32" y1="54" x2="32" y2="104"/>
+    <g class="text small muted"><text x="52" y="60">205</text><text x="104" y="60">210</text><text x="156" y="60">215</text><text x="208" y="60">220</text><text x="260" y="60">225</text><text x="312" y="60">230</text></g>
+    <g transform="translate(61 92)">
+      <circle class="dot" cx="0" cy="0" r="6"/><circle class="dot" cx="52" cy="0" r="6"/><circle class="dot" cx="104" cy="0" r="6"/><circle class="dot" cx="156" cy="0" r="6"/><circle class="selected" cx="208" cy="0" r="8"/><circle class="wall" cx="260" cy="0" r="7"/>
+    </g>
+  </g>
+
+  <g transform="translate(0 1412)">
+    <rect x="0" y="0" width="430" height="128" fill="#101b2a" stroke="#26384f"/>
+    <rect x="18" y="18" width="394" height="92" rx="8" fill="#142235" stroke="#2d425c"/>
+    <text class="text label" x="34" y="43">Lap 5 · 225 m</text>
+    <text class="text muted small" x="34" y="62">03:01.6 · split 4.1 s · 1.22 m/s</text>
+    <g transform="translate(34 78)">
+      <rect x="0" y="0" width="52" height="26" rx="13" fill="#0d1724" stroke="#31445d"/><text class="text small" x="26" y="17" text-anchor="middle">-0.5s</text>
+      <rect x="60" y="0" width="52" height="26" rx="13" fill="#0d1724" stroke="#31445d"/><text class="text small" x="86" y="17" text-anchor="middle">-0.1s</text>
+      <rect x="120" y="0" width="52" height="26" rx="13" fill="#0d1724" stroke="#31445d"/><text class="text small" x="146" y="17" text-anchor="middle">+0.1s</text>
+      <rect x="180" y="0" width="52" height="26" rx="13" fill="#0d1724" stroke="#31445d"/><text class="text small" x="206" y="17" text-anchor="middle">+0.5s</text>
+      <rect x="248" y="0" width="110" height="26" rx="13" fill="#10352f" stroke="#1d7165"/><text class="text small" x="303" y="17" text-anchor="middle">Move here</text>
+    </g>
+  </g>
+</svg>
