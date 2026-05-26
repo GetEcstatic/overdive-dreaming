@@ -26,6 +26,7 @@ Foundational docs anyone touching the codebase should skim once.
 Things designed but not yet shipped, or shipped partially.
 
 ### Video
+- [Imported video waypoint editor](video/imported-video-waypoint-editor.md) — plan for correcting dense imported-video waypoint data with quick fixes and lap-stacked marker editing
 - [Fullscreen distance scrubber](video/fullscreen-distance-scrubber.md) — dashboard fullscreen video timeline with distance markers and scrub preview
 - [WebCodecs evaluation](video/webcodecs-evaluation.md) — research only; do **not** replace MediaRecorder yet
 - [Portrait recording (copilot)](video/portrait-recording.md) — server-side transcode v2; supersedes the original portrait-recording plan. Upcoming, but needs more thought before implementation.
