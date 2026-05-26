@@ -1368,10 +1368,8 @@
 			</div>
 
 			<div class="import-secondary-actions right">
-				<button class="utility-button" type="button" onclick={() => nudgeImportScrub(-500)}>-0.5s</button>
-				<button class="utility-button" type="button" onclick={() => nudgeImportScrub(-100)}>-0.1s</button>
-				<button class="utility-button" type="button" onclick={() => nudgeImportScrub(100)}>+0.1s</button>
-				<button class="utility-button" type="button" onclick={() => nudgeImportScrub(500)}>+0.5s</button>
+				<button class="utility-button scrub-nudge" type="button" aria-label="Move scrubber back 0.2 seconds" onclick={() => nudgeImportScrub(-200)}>←</button>
+				<button class="utility-button scrub-nudge" type="button" aria-label="Move scrubber forward 0.2 seconds" onclick={() => nudgeImportScrub(200)}>→</button>
 			</div>
 
 			<div class="scrub-rail-wrap">
@@ -2062,7 +2060,13 @@
 	}
 
 	.scrub-primary-wrap {
-		bottom: calc(7.35rem + env(safe-area-inset-bottom));
+		bottom: calc(8.6rem + env(safe-area-inset-bottom));
+	}
+
+	.scrub-nudge {
+		min-width: 2.75rem;
+		font-size: 1.15rem;
+		line-height: 1;
 	}
 
 	.scrub-rail-wrap {
