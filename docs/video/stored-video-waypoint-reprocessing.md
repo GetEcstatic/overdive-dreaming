@@ -37,7 +37,7 @@ Do not expose editing on gifted/read-only playback unless the current user owns 
 
 ### Editor Flow
 
-1. User taps `Edit waypoints` from a stored video.
+1. User taps `Edit waypoints` from the stored video player. The first implementation exposes this from the dashboard/session video controls, including the session detail page, because that is where the user is already reviewing the saved footage.
 2. App opens a fullscreen scrub-to-mark route using the saved video URL and existing `DiveVideo` metadata.
 3. Existing waypoints are loaded as context, but the editing pass should default to re-marking from the start rather than dragging old points.
 4. User scrubs to dive start and taps `Start dive`.
@@ -106,10 +106,10 @@ Saving a corrected timeline invalidates any existing burned overlay download bec
 
 On save:
 
-- Set `processingState.overlayDownload` to `queued` for owner videos that can be processed.
-- Add `generate-overlay-download` to `processingState.pendingJobs`.
-- Create a `mediaProcessingJobs` document for `generate-overlay-download`.
-- Clear or supersede stale `overlay-download` artifacts by style/timeline version so downloads cannot silently reuse an old bake.
+- Set `processingState.overlayDownload` to `not-requested` so the next overlay download request generates a fresh burned file.
+- Remove `generate-overlay-download` from `processingState.pendingJobs` if a stale job was present.
+- Do not create a new `mediaProcessingJobs` document during correction save; wait until the user next asks to download with overlay.
+- Clear stale `overlay-download` artifacts and burned-object pointers so downloads cannot silently reuse an old bake.
 - Keep clean video, thumbnail, and playback proxy artifacts unchanged.
 
 The app should then show the existing `Overlay processing...` state until the media worker finishes.
@@ -126,13 +126,13 @@ The function should:
 4. Validate the incoming `DiveTimeline` shape and basic ordering.
 5. Project the timeline with `projectTimelineToRoutineLog` if `routineLogId` exists.
 6. In a transaction, update the video and linked routine log together.
-7. Queue overlay regeneration after the transaction succeeds.
+7. Invalidate any burned overlay artifact without immediately queueing a new overlay job.
 
 Reason for server-side save:
 
 - The video and routine log must stay in sync.
 - Owner checks are centralised.
-- Overlay invalidation and job creation are not trusted to client-only code.
+- Overlay invalidation is not trusted to client-only code.
 - The same path can support future bulk corrections or gifted-video ownership rules.
 
 ## Frontend Shape
@@ -178,7 +178,7 @@ After saving:
 
 - Return to the previous video surface.
 - Show a short success state: `Waypoints updated`.
-- If overlay regeneration was queued, show the existing processing state in the player.
+- If the user later requests an overlay download, show the existing processing state in the player.
 - Do not block the user on burned overlay generation.
 
 ## Implementation Steps
@@ -194,7 +194,7 @@ After saving:
 - Add `saveDiveVideoTimelineCorrection` under `functions/src/`.
 - Reuse or share the existing `timelineToRoutineLog` projection.
 - Update `diveVideos/{videoId}.timeline` and linked `routineLogs/{routineLogId}` in one transaction.
-- Queue a fresh overlay download job after save.
+- Mark overlay download as `not-requested` after save so regeneration waits for the next user download request.
 - Export the function from `functions/src/index.ts`.
 - Add focused tests for validation/projection helpers where practical.
 
@@ -218,10 +218,10 @@ After saving:
 
 ## Open Decisions
 
-- Whether to retain one previous timeline for rollback or keep only correction metadata.
-- Whether gifted athletes can correct a coach-owned video after accepting it.
-- Whether overlay regeneration should run automatically on every correction or wait until the user next asks to download with overlay.
-- Whether correction history belongs on the video document or in a subcollection if multiple edits become common.
+- Retain only latest correction metadata on the video document for now. The user can cancel before save to keep the previous timeline unchanged; after save, the corrected timeline becomes canonical.
+- Accepted gifted athletes can correct a coach-owned video.
+- Overlay regeneration waits until the user next asks to download with overlay.
+- Correction history stays on the video document as latest metadata only. A subcollection can be introduced later if multi-edit history becomes a real product need.
 
 ## Acceptance Criteria
 
