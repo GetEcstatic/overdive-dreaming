@@ -12,6 +12,7 @@
 	import {
 		createPrecisionMarkingState,
 		endDive,
+		inferPrecisionMarkerConfig,
 		markDiveStart,
 		markNextWaypoint,
 		precisionPrimaryLabel,
@@ -77,9 +78,10 @@
 				throw new Error('You cannot edit waypoints for this video');
 			}
 			videoUrl = await getPreferredDiveVideoPlaybackUrl(loaded);
+			const inferredConfig = inferPrecisionMarkerConfig(loaded.timeline, loaded.poolLength ?? 25);
 			marker = createPrecisionMarkingState({
-				poolLengthM: loaded.poolLength ?? 25,
-				waypointsPerLap: inferWaypointsPerLap(loaded.timeline),
+				poolLengthM: inferredConfig.poolLengthM,
+				waypointsPerLap: inferredConfig.waypointsPerLap,
 				defaultSpeedMs: defaultSpeedMs(loaded.discipline)
 			});
 		} catch (err) {
@@ -88,15 +90,6 @@
 			loading = false;
 		}
 	});
-
-	function inferWaypointsPerLap(timeline: DiveTimeline): number {
-		const firstWall = timeline.laps[0];
-		if (!firstWall) return 1;
-		const subSplitsBeforeFirstWall = (timeline.subSplits ?? []).filter(
-			(split) => split.atMs < firstWall.atMs && split.cumulativeDistanceM < firstWall.cumulativeDistanceM
-		).length;
-		return Math.max(1, subSplitsBeforeFirstWall + 1);
-	}
 
 	function videoMs(): number {
 		return Math.max(0, Math.round(videoEl?.currentTime ? videoEl.currentTime * 1000 : currentMs));

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	createPrecisionMarkingState,
 	endDive,
+	inferPrecisionMarkerConfig,
 	markDiveStart,
 	markNextWaypoint,
 	precisionPrimaryLabel,
@@ -89,5 +90,38 @@ describe('precisionWaypointMarker', () => {
 		expect(summary.averageSpeedMs).toBeCloseTo(1.25, 5);
 		expect(summary.warnings).toContain('duplicate-time');
 		expect(summary.warnings).toContain('fast-segment');
+	});
+
+	it('infers a one-waypoint 25m pool from timeline walls over a stale fallback', () => {
+		const inferred = inferPrecisionMarkerConfig(
+			{
+				diveStartMs: 0,
+				diveEndMs: 60_000,
+				laps: [
+					{ lapNumber: 1, atMs: 30_000, splitMs: 30_000, cumulativeDistanceM: 25 },
+					{ lapNumber: 2, atMs: 60_000, splitMs: 30_000, cumulativeDistanceM: 50 }
+				]
+			},
+			50
+		);
+
+		expect(inferred).toEqual({ poolLengthM: 25, waypointsPerLap: 1 });
+	});
+
+	it('infers multiple waypoints per lap from sub-splits before the first wall', () => {
+		const inferred = inferPrecisionMarkerConfig({
+			diveStartMs: 0,
+			diveEndMs: 30_000,
+			laps: [
+				{ lapNumber: 1, atMs: 30_000, splitMs: 10_000, cumulativeDistanceM: 25 }
+			],
+			subSplits: [
+				{ lapNumber: 1, atMs: 10_000, splitMs: 10_000, cumulativeDistanceM: 8.333 },
+				{ lapNumber: 2, atMs: 20_000, splitMs: 10_000, cumulativeDistanceM: 16.667 }
+			]
+		});
+
+		expect(inferred.poolLengthM).toBe(25);
+		expect(inferred.waypointsPerLap).toBe(3);
 	});
 });

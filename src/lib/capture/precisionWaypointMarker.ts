@@ -14,6 +14,11 @@ export interface PrecisionMarkerConfig {
 	closeToEndThresholdMs?: number;
 }
 
+export interface InferredPrecisionMarkerConfig {
+	poolLengthM: number;
+	waypointsPerLap: number;
+}
+
 export interface PrecisionWaypoint {
 	id: string;
 	index: number;
@@ -68,6 +73,41 @@ function safeConfig(config: PrecisionMarkerConfig): Required<PrecisionMarkerConf
 		duplicateThresholdMs: Math.max(0, safeNumber(config.duplicateThresholdMs, DEFAULT_DUPLICATE_THRESHOLD_MS)),
 		closeToEndThresholdMs: Math.max(0, safeNumber(config.closeToEndThresholdMs, DEFAULT_CLOSE_TO_END_THRESHOLD_MS))
 	};
+}
+
+function positiveNumber(value: number | undefined): value is number {
+	return Number.isFinite(value) && value !== undefined && value > 0;
+}
+
+function sortedEvents(events: readonly LapEvent[] | undefined): LapEvent[] {
+	return [...(events ?? [])]
+		.filter((event) => positiveNumber(event.cumulativeDistanceM))
+		.sort((a, b) => a.atMs - b.atMs || a.cumulativeDistanceM - b.cumulativeDistanceM);
+}
+
+export function inferPrecisionMarkerConfig(
+	timeline: DiveTimeline,
+	fallbackPoolLengthM: number = 25
+): InferredPrecisionMarkerConfig {
+	const safeFallbackPoolLengthM = Math.max(1, safeNumber(fallbackPoolLengthM, 25));
+	const walls = sortedEvents(timeline.laps);
+	const firstWall = walls[0];
+
+	if (!firstWall) {
+		return { poolLengthM: safeFallbackPoolLengthM, waypointsPerLap: 1 };
+	}
+
+	const poolLengthM = firstWall.cumulativeDistanceM;
+	const firstLapEvents = sortedEvents([...(timeline.subSplits ?? []), firstWall])
+		.filter((event) => event.atMs <= firstWall.atMs && event.cumulativeDistanceM <= poolLengthM);
+	const distances = firstLapEvents.map((event) => event.cumulativeDistanceM);
+	const segmentDistances = distances
+		.map((distance, index) => distance - (distances[index - 1] ?? 0))
+		.filter((distance) => Number.isFinite(distance) && distance > 0);
+	const spacingM = segmentDistances.length > 0 ? Math.min(...segmentDistances) : poolLengthM;
+	const waypointsPerLap = spacingM > 0 ? Math.max(1, Math.round(poolLengthM / spacingM)) : 1;
+
+	return { poolLengthM, waypointsPerLap };
 }
 
 function kindForIndex(index: number, waypointsPerLap: number): PrecisionWaypointKind {
