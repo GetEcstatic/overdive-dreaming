@@ -8,6 +8,7 @@
 	import LapTable from '$lib/components/LapTable.svelte';
 	import { getFormattedMetric, getMetricValue } from '$lib/utils/metrics';
 	import { formatTime } from '$lib/utils/time';
+	import { deriveDynamicSplitLaps } from '$lib/utils/sessionSplitLaps';
 	import { buildRoutineLogResultReadModel } from '$lib/routineLayers/logPlan';
 	import { getYouTubeEmbedUrl, deleteSessionPhotoMedia, deleteBiometricCsv } from '$lib/storage';
 	import { format } from 'date-fns';
@@ -26,28 +27,9 @@
 	let { log, routine, showMenstrualCycleTracking } = $derived(data);
 	const attemptBadge = $derived(formatAttemptBadge(log));
 	const rowReadModel = $derived(buildRoutineLogResultReadModel(log, routine));
-	const dynamicSplitLaps = $derived.by((): LapData[] => {
-		if (rowReadModel.rows.length === 0) return log.laps ?? [];
-
-		return rowReadModel.rows
-			.filter((row) => row.isDynamic)
-			.map((row) => {
-				const timeSeconds = row.result?.actualDurationSeconds ?? row.lap?.timeSeconds;
-				const distanceMeters = row.result?.actualDistanceMeters ?? row.lap?.distanceMeters;
-
-				return {
-					...(row.lap ?? {}),
-					lapNumber: row.plan.globalRowIndex,
-					timeSeconds,
-					distanceMeters,
-					restAfterSeconds: row.result?.actualRestSeconds ?? row.lap?.restAfterSeconds,
-					speedMs: distanceMeters && timeSeconds ? distanceMeters / timeSeconds : row.lap?.speedMs,
-					completed: row.result?.completed ?? row.lap?.completed ?? true,
-					notes: row.result?.notes ?? row.lap?.notes
-				};
-			})
-			.filter((lap) => typeof lap.timeSeconds === 'number');
-	});
+	const dynamicSplitLaps = $derived(
+		deriveDynamicSplitLaps(log.laps, rowReadModel.rows, log.poolLength)
+	);
 	const totalDistanceValue = $derived(getMetricValue('totalDistance', log, routine));
 	const totalTimeValue = $derived(getMetricValue('totalTime', log, routine));
 	const avgSpeedValue = $derived(getMetricValue('avgSpeedMs', log, routine));
