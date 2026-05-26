@@ -26,6 +26,13 @@
 	import { drainUploadQueue } from '$lib/capture/uploadProcessor';
 	import { logUploadDiagnostic } from '$lib/capture/uploadDiagnostics';
 	import { summariseTimeline, totalDistanceM } from '$lib/capture/timeline';
+	import {
+		buildWaypointEditorModel,
+		projectWaypointTimesToTimeline,
+		removeLastWaypoint,
+		setDiveEnd,
+		waypointTimesFromTimeline as editorWaypointTimesFromTimeline
+	} from '$lib/capture/waypointEditor';
 	import { defaultSpeedMs } from '$lib/capture/disciplineSpeeds';
 	import {
 		bitrateForResolution,
@@ -38,7 +45,6 @@
 		CameraFacing,
 		CameraPreference,
 		DiveTimeline,
-		LapEvent,
 		DiveVideoDiscipline,
 		DiveVideoQualityPreset,
 		DiveVideoDisplayOrientation,
@@ -335,37 +341,19 @@
 	}
 
 	function waypointTimesFromTimeline(timeline: DiveTimeline): number[] {
-		return [...timeline.laps, ...(timeline.subSplits ?? [])]
-			.map((event) => event.atMs)
-			.filter((atMs) => atMs > timeline.diveStartMs && atMs < timeline.diveEndMs)
-			.sort((a, b) => a - b);
+		return editorWaypointTimesFromTimeline(timeline);
+	}
+
+	function waypointEditorConfig() {
+		return {
+			poolLengthM: poolLength ?? 25,
+			waypointsPerLap: Math.max(1, waypointsPerLap ?? 1),
+			defaultSpeedMs: discipline ? defaultSpeedMs(discipline) : 1
+		};
 	}
 
 	function rebuildImportedWaypoints(timeline: DiveTimeline, waypointTimesMs: number[]): DiveTimeline {
-		const poolLengthM = poolLength ?? 25;
-		const wpl = Math.max(1, waypointsPerLap ?? 1);
-		const spacingM = poolLengthM / wpl;
-		const sortedTimes = waypointTimesMs
-			.map((atMs) => clamp(atMs, timeline.diveStartMs, timeline.diveEndMs))
-			.filter((atMs) => atMs > timeline.diveStartMs && atMs < timeline.diveEndMs)
-			.sort((a, b) => a - b);
-		const rows = sortedTimes.map((atMs, index) => {
-				const waypointIndex = index + 1;
-				const previousAtMs = index === 0 ? timeline.diveStartMs : sortedTimes[index - 1];
-				const event: LapEvent = {
-					lapNumber: waypointIndex % wpl === 0 ? waypointIndex / wpl : waypointIndex % wpl,
-					atMs,
-					splitMs: Math.max(0, atMs - previousAtMs),
-					cumulativeDistanceM: waypointIndex * spacingM
-				};
-				return { event, kind: waypointIndex % wpl === 0 ? 'wall' : 'split' };
-			});
-
-		return {
-			...timeline,
-			laps: rows.filter((row) => row.kind === 'wall').map((row) => row.event),
-			subSplits: rows.filter((row) => row.kind === 'split').map((row) => row.event)
-		};
+		return projectWaypointTimesToTimeline(timeline, waypointTimesMs, waypointEditorConfig());
 	}
 
 	function importWaypointRows(timeline: DiveTimeline): ImportWaypointRow[] {
@@ -445,6 +433,35 @@
 		const rows = importWaypointRows(timeline);
 		if (rows.length === 0) return 0;
 		return rows.reduce((sum, row) => sum + row.splitMs / 1000, 0) / rows.length;
+	}
+
+	function importWarningCount(timeline: DiveTimeline): number {
+		return buildWaypointEditorModel(timeline, waypointEditorConfig()).warnings.length;
+	}
+
+	function removeLastImportedWaypoint(): void {
+		if (!capture || capture.source !== 'import') return;
+		const next = removeLastWaypoint(capture.timeline, waypointEditorConfig()).timeline;
+		capture = { ...capture, timeline: next };
+	}
+
+	function useLastImportedWaypointAsEnd(): void {
+		if (!capture || capture.source !== 'import') return;
+		const lastAtMs = waypointTimesFromTimeline(capture.timeline).at(-1);
+		if (lastAtMs === undefined) return;
+		const next = setDiveEnd(capture.timeline, waypointEditorConfig(), lastAtMs).timeline;
+		capture = { ...capture, timeline: next };
+		importPreviewTimeMs = next.diveEndMs;
+	}
+
+	function setImportedEndToCurrentTime(): void {
+		if (!capture || capture.source !== 'import') return;
+		const currentMs = importPreviewVideo
+			? Math.round(importPreviewVideo.currentTime * 1000)
+			: importPreviewTimeMs;
+		const next = setDiveEnd(capture.timeline, waypointEditorConfig(), currentMs).timeline;
+		capture = { ...capture, timeline: next };
+		importPreviewTimeMs = next.diveEndMs;
 	}
 
 	function updateImportPreviewTime(): void {
@@ -1167,20 +1184,41 @@
 			{#if capture && discipline}
 				{#if capture.source === 'import' && importPreviewUrl}
 					<section class="import-review-card">
-						<p class="import-review-hint">Imported video markers are ready to save. Re-open the full-screen review if you need to adjust start, end, or waypoints.</p>
+						<p class="import-review-hint">Imported video markers are ready to save. Use quick fixes for common tap mistakes, or re-open the full-screen pass if you need to track again.</p>
 						{#if importError}
 							<p class="import-review-error">{importError}</p>
 						{/if}
 						<div class="import-marker-grid compact">
-							<button type="button" onclick={() => (stage = 'importPlayback')}>Review markers</button>
+							<button type="button" onclick={() => (stage = 'importPlayback')}>Review video</button>
+							<button
+								type="button"
+								disabled={importWaypointRows(capture.timeline).length === 0}
+								onclick={removeLastImportedWaypoint}
+							>
+								Remove last
+							</button>
 						</div>
 						<div class="import-marker-summary">
 							<div><span>Start</span><strong>{secondsFromMs(capture.timeline.diveStartMs)}</strong></div>
 							<div><span>End</span><strong>{secondsFromMs(capture.timeline.diveEndMs)}</strong></div>
 							<div>
+								<span>Warnings</span>
+								<strong>{importWarningCount(capture.timeline)}</strong>
+							</div>
+							<div>
 								<span>Next waypoint</span>
 								<strong>{formatMeters((importWaypointRows(capture.timeline).length + 1) * waypointSpacing)} m</strong>
 							</div>
+						</div>
+						<div class="import-quick-fixes">
+							<button type="button" onclick={setImportedEndToCurrentTime}>End at video time</button>
+							<button
+								type="button"
+								disabled={importWaypointRows(capture.timeline).length === 0}
+								onclick={useLastImportedWaypointAsEnd}
+							>
+								Use last marker as end
+							</button>
 						</div>
 						{#if importWaypointRows(capture.timeline).length > 0}
 							<div class="import-waypoint-list" aria-label="Imported video waypoint splits">
@@ -1201,7 +1239,10 @@
 
 				<div class="stats-card">
 					<div><span>Dive time</span><strong>{diveDurationSeconds(capture).toFixed(1)} s</strong></div>
-					<div><span>Waypoints tapped</span><strong>{capture.timeline.laps.length}</strong></div>
+					<div>
+						<span>Waypoints tapped</span>
+						<strong>{capture.source === 'import' ? importWaypointRows(capture.timeline).length : capture.timeline.laps.length}</strong>
+					</div>
 					<div>
 						<span>Distance</span>
 						<!--
@@ -1772,9 +1813,31 @@
 
 	.import-marker-summary {
 		display: grid;
-		grid-template-columns: repeat(3, minmax(0, 1fr));
+		grid-template-columns: repeat(4, minmax(0, 1fr));
 		gap: 0.45rem;
 		margin-top: 0.6rem;
+	}
+
+	.import-quick-fixes {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.45rem;
+		margin-top: 0.65rem;
+	}
+
+	.import-quick-fixes button {
+		min-height: 2.45rem;
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		border-radius: 8px;
+		background: rgba(15, 23, 42, 0.5);
+		color: var(--color-text);
+		font: inherit;
+		font-size: 0.8rem;
+		font-weight: 700;
+	}
+
+	.import-quick-fixes button:disabled {
+		opacity: 0.45;
 	}
 
 	.import-marker-summary div {
@@ -1832,6 +1895,11 @@
 
 	@media (max-width: 520px) {
 		.import-marker-grid {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+
+		.import-marker-summary,
+		.import-quick-fixes {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
 		}
 
