@@ -1,10 +1,19 @@
 import type {
+	DiveVideo,
 	DiveVideoArtifactRef,
 	DiveVideoProcessingState,
 	MediaObjectRef
 } from '$lib/types';
 
 export const SERVER_OVERLAY_STYLE_VERSION = 'overdive-overlay-v4';
+
+export function serverOverlayArtifact(video: Pick<DiveVideo, 'artifacts'>): DiveVideoArtifactRef | undefined {
+	return video.artifacts?.find((artifact) => artifact.kind === 'overlay-download');
+}
+
+export function hasCurrentServerOverlayArtifact(video: Pick<DiveVideo, 'artifacts'>): boolean {
+	return serverOverlayArtifact(video)?.styleVersion === SERVER_OVERLAY_STYLE_VERSION;
+}
 
 export function initialDiveVideoProcessingState(): DiveVideoProcessingState {
 	return {

@@ -79,6 +79,7 @@
 		getDiveVideoDirectDownloadUrl,
 		requestDiveVideoOverlayDownload
 	} from '$lib/services/diveVideos';
+	import { hasCurrentServerOverlayArtifact } from '$lib/media/processing';
 
 	const MAX_BROWSER_OVERLAY_EXPORT_BYTES = 200 * 1024 * 1024;
 
@@ -485,6 +486,10 @@
 	let requestingServerOverlay = $state(false);
 	let exportProgress = $state(0); // 0..1 while baking
 	const overlayDownloadStatus = $derived(liveVideo.processingState?.overlayDownload ?? 'not-requested');
+	const hasCurrentServerOverlay = $derived(hasCurrentServerOverlayArtifact(liveVideo));
+	const effectiveOverlayDownloadStatus = $derived(
+		overlayDownloadStatus === 'ready' && !hasCurrentServerOverlay ? 'retryable' : overlayDownloadStatus
+	);
 
 	function fileExtensionFromMime(mime: string): string {
 		if (mime.includes('mp4')) return 'mp4';
@@ -1240,14 +1245,14 @@
 			return;
 		}
 
-		if (overlayDownloadStatus === 'queued') {
+		if (effectiveOverlayDownloadStatus === 'queued') {
 			exportDiagnostic = 'Overlay video is processing in the background.';
 			return;
 		}
 		if (
-			overlayDownloadStatus === 'retryable' ||
-			overlayDownloadStatus === 'not-requested' ||
-			overlayDownloadStatus === 'processing'
+			effectiveOverlayDownloadStatus === 'retryable' ||
+			effectiveOverlayDownloadStatus === 'not-requested' ||
+			effectiveOverlayDownloadStatus === 'processing'
 		) {
 			await requestServerOverlay();
 			return;
@@ -1452,7 +1457,7 @@
 					type="button"
 					class="pill pill-primary"
 					onclick={downloadCurrentVideo}
-					disabled={downloading || requestingServerOverlay || (showOverlay && overlayDownloadStatus === 'queued')}
+					disabled={downloading || requestingServerOverlay || (showOverlay && effectiveOverlayDownloadStatus === 'queued')}
 				>
 					{#if downloading}
 						<span class="pill-spinner" aria-hidden="true"></span>
@@ -1460,10 +1465,10 @@
 					{:else if showOverlay && requestingServerOverlay}
 						<span class="pill-spinner" aria-hidden="true"></span>
 						<span>Queueing...</span>
-					{:else if showOverlay && overlayDownloadStatus === 'queued'}
+					{:else if showOverlay && effectiveOverlayDownloadStatus === 'queued'}
 						<span class="pill-spinner" aria-hidden="true"></span>
 						<span>Overlay processing...</span>
-					{:else if showOverlay && (overlayDownloadStatus === 'not-requested' || overlayDownloadStatus === 'retryable' || overlayDownloadStatus === 'processing')}
+					{:else if showOverlay && (effectiveOverlayDownloadStatus === 'not-requested' || effectiveOverlayDownloadStatus === 'retryable' || effectiveOverlayDownloadStatus === 'processing')}
 						<span aria-hidden="true">⬇︎</span>
 						<span>Download</span>
 					{:else}
@@ -1503,7 +1508,7 @@
 				type="button"
 				class="pill pill-primary"
 				onclick={downloadCurrentVideo}
-				disabled={downloading || requestingServerOverlay || (showOverlay && overlayDownloadStatus === 'queued')}
+				disabled={downloading || requestingServerOverlay || (showOverlay && effectiveOverlayDownloadStatus === 'queued')}
 			>
 				{#if downloading}
 					<span class="pill-spinner" aria-hidden="true"></span>
@@ -1511,10 +1516,10 @@
 				{:else if showOverlay && requestingServerOverlay}
 					<span class="pill-spinner" aria-hidden="true"></span>
 					<span>Queueing...</span>
-				{:else if showOverlay && overlayDownloadStatus === 'queued'}
+				{:else if showOverlay && effectiveOverlayDownloadStatus === 'queued'}
 					<span class="pill-spinner" aria-hidden="true"></span>
 					<span>Overlay processing...</span>
-				{:else if showOverlay && (overlayDownloadStatus === 'not-requested' || overlayDownloadStatus === 'retryable' || overlayDownloadStatus === 'processing')}
+				{:else if showOverlay && (effectiveOverlayDownloadStatus === 'not-requested' || effectiveOverlayDownloadStatus === 'retryable' || effectiveOverlayDownloadStatus === 'processing')}
 					<span aria-hidden="true">⬇︎</span>
 					<span>Download</span>
 				{:else}

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+	hasCurrentServerOverlayArtifact,
 	initialDiveVideoProcessingState,
 	masterDiveVideoArtifact,
+	SERVER_OVERLAY_STYLE_VERSION,
 	uploadedDiveVideoProcessingState
 } from './processing';
 
@@ -23,9 +25,42 @@ describe('media processing helpers', () => {
 			thumbnail: 'queued',
 			playbackProxy: 'queued',
 			overlayPreview: 'not-requested',
-			overlayDownload: 'not-requested',
-			pendingJobs: ['probe-master', 'generate-thumbnail', 'generate-playback-proxy']
+			overlayDownload: 'queued',
+			pendingJobs: [
+				'probe-master',
+				'generate-thumbnail',
+				'generate-playback-proxy',
+				'generate-overlay-download'
+			]
 		});
+	});
+
+	it('detects stale server overlay artifacts', () => {
+		expect(hasCurrentServerOverlayArtifact({ artifacts: [] })).toBe(false);
+		expect(
+			hasCurrentServerOverlayArtifact({
+				artifacts: [
+					{
+						kind: 'overlay-download',
+						profile: 'overlay-mp4-720p',
+						object: { provider: 'wasabi', key: 'users/u1/videos/v1/overlay/download.mp4' },
+						styleVersion: 'overdive-overlay-v3'
+					}
+				]
+			})
+		).toBe(false);
+		expect(
+			hasCurrentServerOverlayArtifact({
+				artifacts: [
+					{
+						kind: 'overlay-download',
+						profile: 'overlay-mp4-720p',
+						object: { provider: 'wasabi', key: 'users/u1/videos/v1/overlay/download.mp4' },
+						styleVersion: SERVER_OVERLAY_STYLE_VERSION
+					}
+				]
+			})
+		).toBe(true);
 	});
 
 	it('describes the uploaded master as a non-disposable canonical artifact', () => {

@@ -875,6 +875,7 @@ async function runMediaJob(args: { jobId: string; uid?: string }): Promise<{
 				storagePathBurned: overlay.object.key,
 				burnedObject: overlay.object,
 				artifacts: withArtifact(video.artifacts, overlay),
+				overlayStyleVersion: OVERLAY_STYLE_VERSION,
 				'processingState.overlayDownload': 'ready',
 				'processingState.pendingJobs': FieldValue.arrayRemove(job.type),
 				updatedAt: FieldValue.serverTimestamp()
