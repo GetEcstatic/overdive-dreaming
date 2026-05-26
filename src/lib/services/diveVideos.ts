@@ -39,6 +39,7 @@ import {
 	deleteWasabiObject,
 	getWasabiReadUrl,
 	requestWasabiOverlayDownload,
+	saveWasabiDiveVideoTimelineCorrection,
 	uploadWithSignedUrl
 } from '$lib/media/client';
 import {
@@ -49,6 +50,7 @@ import type {
 	DiveVideo,
 	DiveVideoFormData,
 	DiveVideoGiftStatus,
+	DiveTimeline,
 	DiveVideoUploadStatus
 } from '$lib/types';
 
@@ -281,6 +283,13 @@ export async function getPreferredDiveVideoPlaybackUrl(video: DiveVideo): Promis
 
 export async function requestDiveVideoOverlayDownload(videoId: string): Promise<void> {
 	await requestWasabiOverlayDownload(videoId);
+}
+
+export async function saveDiveVideoTimelineCorrection(args: {
+	videoId: string;
+	timeline: DiveTimeline;
+}): Promise<void> {
+	await saveWasabiDiveVideoTimelineCorrection(args);
 }
 
 export async function updateDiveVideoUploadStatus(

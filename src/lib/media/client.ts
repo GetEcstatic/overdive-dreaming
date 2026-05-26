@@ -1,6 +1,6 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '$lib/firebase';
-import type { MediaObjectRef } from '$lib/types';
+import type { DiveTimeline, MediaObjectRef } from '$lib/types';
 import type { MediaKind, SignedRead, SignedUpload } from './keys';
 
 interface CreateUploadArgs {
@@ -72,6 +72,10 @@ const requestOverlayDownloadFn = httpsCallable<
 	{ videoId: string },
 	{ jobId: string; queued: boolean }
 >(functions, 'requestOverlayDownload');
+const saveDiveVideoTimelineCorrectionFn = httpsCallable<
+	{ videoId: string; timeline: DiveTimeline },
+	{ saved: boolean; overlayDownload: 'not-requested' }
+>(functions, 'saveDiveVideoTimelineCorrection');
 
 export async function createWasabiUpload(args: CreateUploadArgs): Promise<SignedUpload> {
 	return (await createMediaUploadFn(args)).data;
@@ -188,4 +192,11 @@ export async function requestWasabiOverlayDownload(videoId: string): Promise<{
 	queued: boolean;
 }> {
 	return (await requestOverlayDownloadFn({ videoId })).data;
+}
+
+export async function saveWasabiDiveVideoTimelineCorrection(args: {
+	videoId: string;
+	timeline: DiveTimeline;
+}): Promise<void> {
+	await saveDiveVideoTimelineCorrectionFn(args);
 }

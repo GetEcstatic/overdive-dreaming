@@ -14,6 +14,7 @@ import { initializeApp } from 'firebase-admin/app';
 initializeApp();
 
 export { onDiveVideoCreated } from './retentionReaper.js';
+export { saveDiveVideoTimelineCorrection } from './saveDiveVideoTimelineCorrection.js';
 export {
 	abortDiveVideoMultipartUpload,
 	completeDiveVideoMultipartUpload,

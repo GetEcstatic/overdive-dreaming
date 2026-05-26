@@ -1211,6 +1211,11 @@ export interface DiveVideo {
 	processingState?: DiveVideoProcessingState;
 	artifacts?: DiveVideoArtifactRef[];
 	overlayStyleVersion?: string;
+	waypointCorrection?: {
+		correctedAt: Timestamp;
+		correctedBy: string;
+		source: 'stored-video-scrub';
+	};
 
 	// Timeline — the key analytics artifact
 	timeline: DiveTimeline;
