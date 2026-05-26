@@ -53,6 +53,7 @@
 
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { doc, onSnapshot } from 'firebase/firestore';
 	import { db } from '$lib/firebase';
 	import { user } from '$lib/stores/auth';
@@ -288,6 +289,9 @@
 	const portraitFullscreenAllowed = $derived(fullscreenOnPlay || tapToFullscreen);
 	const canDownloadVideo = $derived(
 		$user?.uid === liveVideo.ownerId || $user?.uid === liveVideo.userId
+	);
+	const canEditWaypoints = $derived(
+		$user?.uid === liveVideo.ownerId || $user?.uid === liveVideo.userId || $user?.uid === liveVideo.athleteId
 	);
 
 	// Orientation-aware display transform. For legacy clips without the
@@ -1526,6 +1530,28 @@
 					<span aria-hidden="true">⬇︎</span>
 					<span>Download</span>
 				{/if}
+			</button>
+		{/if}
+
+		{#if canEditWaypoints}
+			<button
+				type="button"
+				class="pill"
+				onclick={() => goto(`/dive/video/${liveVideo.id}/waypoints`)}
+				disabled={downloading || requestingServerOverlay}
+			>
+				<span>Edit waypoints</span>
+			</button>
+		{/if}
+
+		{#if canEditWaypoints}
+			<button
+				type="button"
+				class="pill"
+				onclick={() => goto(`/dive/video/${liveVideo.id}/waypoints`)}
+				disabled={downloading || requestingServerOverlay}
+			>
+				<span>Edit waypoints</span>
 			</button>
 		{/if}
 
