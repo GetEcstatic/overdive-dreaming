@@ -6,7 +6,6 @@
 	setup          → pick discipline, pool length (wheel), waypoints per lap (wheel)
 	record         → full-screen DiveRecorder
 	importPlayback → full-screen imported-video review with recorder-style HUD
-	importWaypointEdit → structured lap-ruler correction for imported-video markers
 	review         → confirm details, pin, choose athlete, save
 -->
 <script lang="ts">
@@ -27,18 +26,6 @@
 	import { drainUploadQueue } from '$lib/capture/uploadProcessor';
 	import { logUploadDiagnostic } from '$lib/capture/uploadDiagnostics';
 	import { summariseTimeline, totalDistanceM } from '$lib/capture/timeline';
-	import {
-		buildWaypointEditorModel,
-		deleteWaypoint,
-		moveWaypoint,
-		projectWaypointTimesToTimeline,
-		removeLastWaypoint,
-		setDiveEnd,
-		waypointTimesFromTimeline as editorWaypointTimesFromTimeline,
-		type EditableWaypoint,
-		type WaypointEditorModel,
-		type WaypointWarning
-	} from '$lib/capture/waypointEditor';
 	import { defaultSpeedMs } from '$lib/capture/disciplineSpeeds';
 	import {
 		bitrateForResolution,
@@ -51,6 +38,7 @@
 		CameraFacing,
 		CameraPreference,
 		DiveTimeline,
+		LapEvent,
 		DiveVideoDiscipline,
 		DiveVideoQualityPreset,
 		DiveVideoDisplayOrientation,
@@ -93,7 +81,7 @@
 		speedMs: number;
 	}
 
-	type Stage = 'setup' | 'record' | 'importPlayback' | 'importWaypointEdit' | 'review' | 'saving' | 'done';
+	type Stage = 'setup' | 'record' | 'importPlayback' | 'review' | 'saving' | 'done';
 	type ImportFlowPhase = 'ready' | 'playing' | 'diving' | 'ended';
 	let stage = $state<Stage>('setup');
 
@@ -105,7 +93,7 @@
 	 * counter stays balanced even if the user navigates away mid-record.
 	 */
 	$effect(() => {
-		if (stage !== 'record' && stage !== 'importPlayback' && stage !== 'importWaypointEdit') return;
+		if (stage !== 'record' && stage !== 'importPlayback') return;
 		diveRecording.begin();
 		return () => diveRecording.end();
 	});
@@ -139,7 +127,6 @@
 	let importEndDiveHeld = $state(false);
 	let importPrimaryClickSuppressed = false;
 	let importEndDiveHoldHandle: ReturnType<typeof setTimeout> | null = null;
-	let selectedImportWaypointId = $state<string | null>(null);
 	let importPreviewUrl = $state<string | null>(null);
 	let importPreviewVideo = $state<HTMLVideoElement | null>(null);
 	let storageHealthy = $state<boolean | null>(null);
@@ -348,19 +335,37 @@
 	}
 
 	function waypointTimesFromTimeline(timeline: DiveTimeline): number[] {
-		return editorWaypointTimesFromTimeline(timeline);
-	}
-
-	function waypointEditorConfig() {
-		return {
-			poolLengthM: poolLength ?? 25,
-			waypointsPerLap: Math.max(1, waypointsPerLap ?? 1),
-			defaultSpeedMs: discipline ? defaultSpeedMs(discipline) : 1
-		};
+		return [...timeline.laps, ...(timeline.subSplits ?? [])]
+			.map((event) => event.atMs)
+			.filter((atMs) => atMs > timeline.diveStartMs && atMs < timeline.diveEndMs)
+			.sort((a, b) => a - b);
 	}
 
 	function rebuildImportedWaypoints(timeline: DiveTimeline, waypointTimesMs: number[]): DiveTimeline {
-		return projectWaypointTimesToTimeline(timeline, waypointTimesMs, waypointEditorConfig());
+		const poolLengthM = poolLength ?? 25;
+		const wpl = Math.max(1, waypointsPerLap ?? 1);
+		const spacingM = poolLengthM / wpl;
+		const sortedTimes = waypointTimesMs
+			.map((atMs) => clamp(atMs, timeline.diveStartMs, timeline.diveEndMs))
+			.filter((atMs) => atMs > timeline.diveStartMs && atMs < timeline.diveEndMs)
+			.sort((a, b) => a - b);
+		const rows = sortedTimes.map((atMs, index) => {
+				const waypointIndex = index + 1;
+				const previousAtMs = index === 0 ? timeline.diveStartMs : sortedTimes[index - 1];
+				const event: LapEvent = {
+					lapNumber: waypointIndex % wpl === 0 ? waypointIndex / wpl : waypointIndex % wpl,
+					atMs,
+					splitMs: Math.max(0, atMs - previousAtMs),
+					cumulativeDistanceM: waypointIndex * spacingM
+				};
+				return { event, kind: waypointIndex % wpl === 0 ? 'wall' : 'split' };
+			});
+
+		return {
+			...timeline,
+			laps: rows.filter((row) => row.kind === 'wall').map((row) => row.event),
+			subSplits: rows.filter((row) => row.kind === 'split').map((row) => row.event)
+		};
 	}
 
 	function importWaypointRows(timeline: DiveTimeline): ImportWaypointRow[] {
@@ -440,109 +445,6 @@
 		const rows = importWaypointRows(timeline);
 		if (rows.length === 0) return 0;
 		return rows.reduce((sum, row) => sum + row.splitMs / 1000, 0) / rows.length;
-	}
-
-	function importWarningCount(timeline: DiveTimeline): number {
-		return buildWaypointEditorModel(timeline, waypointEditorConfig()).warnings.length;
-	}
-
-	function removeLastImportedWaypoint(): void {
-		if (!capture || capture.source !== 'import') return;
-		const next = removeLastWaypoint(capture.timeline, waypointEditorConfig()).timeline;
-		capture = { ...capture, timeline: next };
-	}
-
-	function useLastImportedWaypointAsEnd(): void {
-		if (!capture || capture.source !== 'import') return;
-		const lastAtMs = waypointTimesFromTimeline(capture.timeline).at(-1);
-		if (lastAtMs === undefined) return;
-		const next = setDiveEnd(capture.timeline, waypointEditorConfig(), lastAtMs).timeline;
-		capture = { ...capture, timeline: next };
-		importPreviewTimeMs = next.diveEndMs;
-	}
-
-	function setImportedEndToCurrentTime(): void {
-		if (!capture || capture.source !== 'import') return;
-		const currentMs = importPreviewVideo
-			? Math.round(importPreviewVideo.currentTime * 1000)
-			: importPreviewTimeMs;
-		const next = setDiveEnd(capture.timeline, waypointEditorConfig(), currentMs).timeline;
-		capture = { ...capture, timeline: next };
-		importPreviewTimeMs = next.diveEndMs;
-	}
-
-	function importEditorModel(timeline: DiveTimeline): WaypointEditorModel {
-		return buildWaypointEditorModel(timeline, waypointEditorConfig());
-	}
-
-	function selectedImportedWaypoint(model: WaypointEditorModel): EditableWaypoint | undefined {
-		return model.waypoints.find((waypoint) => waypoint.id === selectedImportWaypointId);
-	}
-
-	function openImportedWaypointEditor(): void {
-		if (!capture || capture.source !== 'import') return;
-		if (importPreviewVideo) importPreviewVideo.pause();
-		const model = importEditorModel(capture.timeline);
-		selectedImportWaypointId = model.waypoints.find((waypoint) => waypoint.warnings.length > 0)?.id
-			?? model.waypoints.at(-1)?.id
-			?? null;
-		stage = 'importWaypointEdit';
-	}
-
-	function closeImportedWaypointEditor(): void {
-		selectedImportWaypointId = null;
-		stage = 'review';
-	}
-
-	function selectImportedWaypoint(waypoint: EditableWaypoint): void {
-		selectedImportWaypointId = waypoint.id;
-		importPreviewTimeMs = waypoint.atMs;
-		if (importPreviewVideo) {
-			importPreviewVideo.currentTime = waypoint.atMs / 1000;
-			importPreviewVideo.pause();
-		}
-	}
-
-	function moveSelectedImportedWaypointTo(atMs: number): void {
-		if (!capture || capture.source !== 'import' || !selectedImportWaypointId) return;
-		const next = moveWaypoint(capture.timeline, waypointEditorConfig(), selectedImportWaypointId, atMs).timeline;
-		capture = { ...capture, timeline: next };
-		const selected = selectedImportedWaypoint(importEditorModel(next));
-		if (selected) selectImportedWaypoint(selected);
-	}
-
-	function nudgeSelectedImportedWaypoint(deltaMs: number): void {
-		if (!capture || capture.source !== 'import') return;
-		const selected = selectedImportedWaypoint(importEditorModel(capture.timeline));
-		if (!selected) return;
-		moveSelectedImportedWaypointTo(selected.atMs + deltaMs);
-	}
-
-	function moveSelectedImportedWaypointToVideoTime(): void {
-		const atMs = importPreviewVideo
-			? Math.round(importPreviewVideo.currentTime * 1000)
-			: importPreviewTimeMs;
-		moveSelectedImportedWaypointTo(atMs);
-	}
-
-	function deleteSelectedImportedWaypoint(): void {
-		if (!capture || capture.source !== 'import' || !selectedImportWaypointId) return;
-		const next = deleteWaypoint(capture.timeline, waypointEditorConfig(), selectedImportWaypointId).timeline;
-		capture = { ...capture, timeline: next };
-		const model = importEditorModel(next);
-		selectedImportWaypointId = model.waypoints.at(-1)?.id ?? null;
-	}
-
-	function warningText(warning: WaypointWarning): string {
-		const labels: Record<WaypointWarning, string> = {
-			'fast-segment': 'fast',
-			'slow-segment': 'slow',
-			'close-to-end': 'near end',
-			'out-of-order': 'order',
-			'duplicate-time': 'duplicate',
-			'after-end': 'after end'
-		};
-		return labels[warning];
 	}
 
 	function updateImportPreviewTime(): void {
@@ -1245,121 +1147,6 @@
 			{/if}
 		</div>
 	</div>
-{:else if stage === 'importWaypointEdit' && capture && discipline && importPreviewUrl}
-	{@const editorModel = importEditorModel(capture.timeline)}
-	{@const selectedWaypoint = selectedImportedWaypoint(editorModel)}
-	<div class="waypoint-editor-screen">
-		<header class="waypoint-editor-head">
-			<div>
-				<h1>Edit waypoints</h1>
-				<p>{discipline} · {formatMeters(poolLength ?? 25)} m pool · {formatMeters(editorModel.spacingM)} m waypoints</p>
-			</div>
-			<button type="button" class="waypoint-done" onclick={closeImportedWaypointEditor}>Done</button>
-		</header>
-
-		<section class="waypoint-video-panel" aria-label="Imported video preview">
-			<!-- svelte-ignore a11y_media_has_caption -->
-			<video
-				bind:this={importPreviewVideo}
-				class="waypoint-editor-video"
-				src={importPreviewUrl}
-				preload="metadata"
-				playsinline
-				controls
-				onloadedmetadata={updateImportPreviewTime}
-				ontimeupdate={updateImportPreviewTime}
-				onseeking={updateImportPreviewTime}
-				onseeked={updateImportPreviewTime}
-				onerror={handleImportPreviewPlaybackError}
-			></video>
-			<div class="waypoint-video-hud">
-				<div><span>Time</span><strong>{formatMs(importPreviewTimeMs)}</strong></div>
-				<div><span>Selected</span><strong>{selectedWaypoint ? `${formatMeters(selectedWaypoint.cumulativeDistanceM)} m` : 'None'}</strong></div>
-			</div>
-		</section>
-
-		<section class="waypoint-editor-summary" aria-label="Waypoint summary">
-			<div><span>Distance</span><strong>{formatMeters(captureDistanceM(capture))} m</strong></div>
-			<div><span>Duration</span><strong>{formatMs(capture.timeline.diveEndMs - capture.timeline.diveStartMs)}</strong></div>
-			<div><span>Waypoints</span><strong>{editorModel.waypoints.length}</strong></div>
-			<div class:has-warning={editorModel.warnings.length > 0}><span>Warnings</span><strong>{editorModel.warnings.length}</strong></div>
-		</section>
-
-		<section class="lap-ruler-list" aria-label="Lap waypoint rulers">
-			{#each editorModel.laps as lap (lap.id)}
-				<article class="lap-ruler-card" class:has-warning={lap.warnings.length > 0}>
-					<div class="lap-ruler-head">
-						<div>
-							<strong>Lap {lap.lapIndex}</strong>
-							<span>{formatMeters(lap.startDistanceM)}-{formatMeters(lap.endDistanceM)} m</span>
-						</div>
-						<div>
-							<strong>{lap.durationMs === undefined ? 'Open' : formatMs(lap.durationMs)}</strong>
-							<span>{lap.averageSpeedMs === undefined ? 'partial' : `${lap.averageSpeedMs.toFixed(2)} m/s`}</span>
-						</div>
-					</div>
-
-					<div class="lap-ruler-track" aria-label={`Lap ${lap.lapIndex} waypoints`}>
-						<div class="lap-ruler-line" aria-hidden="true"></div>
-						{#each lap.waypoints as waypoint (waypoint.id)}
-							<button
-								type="button"
-								class="lap-marker"
-								class:wall={waypoint.kind === 'wall'}
-								class:selected={waypoint.id === selectedImportWaypointId}
-								class:warn={waypoint.warnings.length > 0}
-								style={`left: ${Math.min(100, Math.max(0, (waypoint.distanceFromLapStartM / (poolLength ?? 25)) * 100))}%`}
-								onclick={() => selectImportedWaypoint(waypoint)}
-								aria-label={`${formatMeters(waypoint.cumulativeDistanceM)} meter waypoint at ${formatMs(waypoint.atMs)}`}
-							>
-								<span class="marker-dot"></span>
-								<span class="marker-label">{formatMeters(waypoint.cumulativeDistanceM)} m</span>
-							</button>
-						{/each}
-					</div>
-
-					{#if lap.warnings.length > 0}
-						<div class="lap-warning-row">
-							{#each lap.warnings as warning}
-								<span>{warningText(warning)}</span>
-							{/each}
-						</div>
-					{/if}
-				</article>
-			{/each}
-		</section>
-
-		{#if selectedWaypoint}
-			<section class="waypoint-edit-sheet" aria-label="Selected waypoint editor">
-				<div class="sheet-head">
-					<div>
-						<strong>Lap {selectedWaypoint.lapIndex} · {formatMeters(selectedWaypoint.cumulativeDistanceM)} m</strong>
-						<span>{formatMs(selectedWaypoint.atMs)} · split {secondsFromMs(selectedWaypoint.splitMs)} · {selectedWaypoint.speedMs.toFixed(2)} m/s</span>
-					</div>
-					<button type="button" class="sheet-delete" onclick={deleteSelectedImportedWaypoint}>Delete</button>
-				</div>
-
-				{#if selectedWaypoint.warnings.length > 0}
-					<div class="sheet-warning-row">
-						{#each selectedWaypoint.warnings as warning}
-							<span>{warningText(warning)}</span>
-						{/each}
-					</div>
-				{/if}
-
-				<div class="nudge-grid" aria-label="Timestamp nudges">
-					<button type="button" onclick={() => nudgeSelectedImportedWaypoint(-1000)}>-1.0s</button>
-					<button type="button" onclick={() => nudgeSelectedImportedWaypoint(-500)}>-0.5s</button>
-					<button type="button" onclick={() => nudgeSelectedImportedWaypoint(-100)}>-0.1s</button>
-					<button type="button" onclick={() => nudgeSelectedImportedWaypoint(100)}>+0.1s</button>
-					<button type="button" onclick={() => nudgeSelectedImportedWaypoint(500)}>+0.5s</button>
-					<button type="button" onclick={() => nudgeSelectedImportedWaypoint(1000)}>+1.0s</button>
-				</div>
-
-				<button type="button" class="move-current" onclick={moveSelectedImportedWaypointToVideoTime}>Move marker to video time</button>
-			</section>
-		{/if}
-	</div>
 {:else if stage === 'record' && discipline}
 	<DiveRecorder
 		poolLength={poolLength ?? 25}
@@ -1380,42 +1167,20 @@
 			{#if capture && discipline}
 				{#if capture.source === 'import' && importPreviewUrl}
 					<section class="import-review-card">
-						<p class="import-review-hint">Imported video markers are ready to save. Use quick fixes for common tap mistakes, or re-open the full-screen pass if you need to track again.</p>
+						<p class="import-review-hint">Imported video markers are ready to save. Re-open the full-screen review if you need to adjust start, end, or waypoints.</p>
 						{#if importError}
 							<p class="import-review-error">{importError}</p>
 						{/if}
 						<div class="import-marker-grid compact">
-							<button type="button" onclick={() => (stage = 'importPlayback')}>Review video</button>
-							<button type="button" onclick={openImportedWaypointEditor}>Edit waypoints</button>
-							<button
-								type="button"
-								disabled={importWaypointRows(capture.timeline).length === 0}
-								onclick={removeLastImportedWaypoint}
-							>
-								Remove last
-							</button>
+							<button type="button" onclick={() => (stage = 'importPlayback')}>Review markers</button>
 						</div>
 						<div class="import-marker-summary">
 							<div><span>Start</span><strong>{secondsFromMs(capture.timeline.diveStartMs)}</strong></div>
 							<div><span>End</span><strong>{secondsFromMs(capture.timeline.diveEndMs)}</strong></div>
 							<div>
-								<span>Warnings</span>
-								<strong>{importWarningCount(capture.timeline)}</strong>
-							</div>
-							<div>
 								<span>Next waypoint</span>
 								<strong>{formatMeters((importWaypointRows(capture.timeline).length + 1) * waypointSpacing)} m</strong>
 							</div>
-						</div>
-						<div class="import-quick-fixes">
-							<button type="button" onclick={setImportedEndToCurrentTime}>End at video time</button>
-							<button
-								type="button"
-								disabled={importWaypointRows(capture.timeline).length === 0}
-								onclick={useLastImportedWaypointAsEnd}
-							>
-								Use last marker as end
-							</button>
 						</div>
 						{#if importWaypointRows(capture.timeline).length > 0}
 							<div class="import-waypoint-list" aria-label="Imported video waypoint splits">
@@ -1436,10 +1201,7 @@
 
 				<div class="stats-card">
 					<div><span>Dive time</span><strong>{diveDurationSeconds(capture).toFixed(1)} s</strong></div>
-					<div>
-						<span>Waypoints tapped</span>
-						<strong>{capture.source === 'import' ? importWaypointRows(capture.timeline).length : capture.timeline.laps.length}</strong>
-					</div>
+					<div><span>Waypoints tapped</span><strong>{capture.timeline.laps.length}</strong></div>
 					<div>
 						<span>Distance</span>
 						<!--
@@ -1966,365 +1728,6 @@
 		pointer-events: none;
 	}
 
-	.waypoint-editor-screen {
-		min-height: 100vh;
-		background: #08111c;
-		color: var(--color-text);
-		padding: max(1rem, env(safe-area-inset-top)) 1rem calc(11rem + env(safe-area-inset-bottom));
-	}
-
-	.waypoint-editor-head {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 1rem;
-		max-width: 42rem;
-		margin: 0 auto 1rem;
-	}
-
-	.waypoint-editor-head h1 {
-		margin: 0;
-		font-size: 1.45rem;
-		font-weight: 800;
-	}
-
-	.waypoint-editor-head p {
-		margin: 0.25rem 0 0;
-		color: var(--color-text-muted);
-		font-size: 0.88rem;
-		line-height: 1.35;
-	}
-
-	.waypoint-done {
-		flex: 0 0 auto;
-		min-height: 2.5rem;
-		border: 1px solid rgba(20, 184, 166, 0.38);
-		border-radius: 999px;
-		padding: 0.45rem 1rem;
-		background: rgba(20, 184, 166, 0.13);
-		color: var(--color-text);
-		font: inherit;
-		font-weight: 800;
-	}
-
-	.waypoint-video-panel,
-	.waypoint-editor-summary,
-	.lap-ruler-list {
-		max-width: 42rem;
-		margin-left: auto;
-		margin-right: auto;
-	}
-
-	.waypoint-video-panel {
-		position: relative;
-		border: 1px solid rgba(148, 163, 184, 0.16);
-		border-radius: 8px;
-		overflow: hidden;
-		background: #020617;
-	}
-
-	.waypoint-editor-video {
-		display: block;
-		width: 100%;
-		aspect-ratio: 16 / 9;
-		max-height: 38vh;
-		object-fit: contain;
-		background: #000;
-	}
-
-	.waypoint-video-hud {
-		position: absolute;
-		left: 0.7rem;
-		right: 0.7rem;
-		top: 0.7rem;
-		display: flex;
-		justify-content: space-between;
-		gap: 0.75rem;
-		pointer-events: none;
-	}
-
-	.waypoint-video-hud div {
-		min-width: 7rem;
-		border-radius: 8px;
-		padding: 0.5rem 0.65rem;
-		background: rgba(2, 6, 23, 0.68);
-		backdrop-filter: blur(8px);
-		-webkit-backdrop-filter: blur(8px);
-	}
-
-	.waypoint-video-hud div:last-child {
-		text-align: right;
-	}
-
-	.waypoint-video-hud span,
-	.waypoint-editor-summary span {
-		display: block;
-		color: var(--color-text-muted);
-		font-size: 0.68rem;
-		font-weight: 800;
-		letter-spacing: 0.05em;
-		text-transform: uppercase;
-	}
-
-	.waypoint-video-hud strong {
-		display: block;
-		margin-top: 0.1rem;
-		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-		font-size: 1rem;
-		font-variant-numeric: tabular-nums;
-	}
-
-	.waypoint-editor-summary {
-		display: grid;
-		grid-template-columns: repeat(4, minmax(0, 1fr));
-		gap: 0.5rem;
-		margin-top: 0.8rem;
-	}
-
-	.waypoint-editor-summary div {
-		min-width: 0;
-		border: 1px solid rgba(148, 163, 184, 0.16);
-		border-radius: 8px;
-		padding: 0.65rem;
-		background: rgba(15, 23, 42, 0.72);
-	}
-
-	.waypoint-editor-summary div.has-warning {
-		border-color: rgba(245, 158, 11, 0.44);
-		background: rgba(245, 158, 11, 0.1);
-	}
-
-	.waypoint-editor-summary strong {
-		display: block;
-		margin-top: 0.15rem;
-		font-size: 1rem;
-		font-weight: 800;
-		word-break: break-word;
-	}
-
-	.lap-ruler-list {
-		display: grid;
-		gap: 0.75rem;
-		margin-top: 1rem;
-	}
-
-	.lap-ruler-card {
-		border: 1px solid rgba(148, 163, 184, 0.16);
-		border-radius: 8px;
-		padding: 0.75rem;
-		background: rgba(15, 23, 42, 0.76);
-	}
-
-	.lap-ruler-card.has-warning {
-		border-color: rgba(245, 158, 11, 0.38);
-	}
-
-	.lap-ruler-head {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 0.75rem;
-		margin-bottom: 0.7rem;
-	}
-
-	.lap-ruler-head div:last-child {
-		text-align: right;
-	}
-
-	.lap-ruler-head strong,
-	.sheet-head strong {
-		display: block;
-		font-size: 0.95rem;
-		font-weight: 800;
-	}
-
-	.lap-ruler-head span,
-	.sheet-head span {
-		display: block;
-		margin-top: 0.1rem;
-		color: var(--color-text-muted);
-		font-size: 0.76rem;
-	}
-
-	.lap-ruler-track {
-		position: relative;
-		height: 4.6rem;
-		margin: 0 1.1rem;
-	}
-
-	.lap-ruler-line {
-		position: absolute;
-		left: 0;
-		right: 0;
-		top: 1.65rem;
-		height: 0.2rem;
-		border-radius: 999px;
-		background: linear-gradient(90deg, rgba(20, 184, 166, 0.35), rgba(132, 204, 22, 0.35));
-	}
-
-	.lap-marker {
-		position: absolute;
-		top: 0.35rem;
-		transform: translateX(-50%);
-		width: 2.75rem;
-		height: 3.55rem;
-		border: 0;
-		background: transparent;
-		color: var(--color-text-muted);
-		font: inherit;
-		font-size: 0.62rem;
-		font-weight: 800;
-		padding: 0;
-		-webkit-tap-highlight-color: transparent;
-	}
-
-	.marker-dot {
-		display: block;
-		width: 0.72rem;
-		height: 0.72rem;
-		margin: 0.95rem auto 0.35rem;
-		border: 2px solid #08111c;
-		border-radius: 999px;
-		background: var(--color-primary);
-	}
-
-	.lap-marker.wall .marker-dot {
-		width: 0.9rem;
-		height: 0.9rem;
-		margin-top: 0.86rem;
-		background: var(--color-secondary);
-	}
-
-	.lap-marker.warn .marker-dot {
-		background: #f59e0b;
-	}
-
-	.lap-marker.selected .marker-dot {
-		box-shadow: 0 0 0 0.35rem rgba(20, 184, 166, 0.22);
-		background: #f8fafc;
-	}
-
-	.marker-label {
-		display: none;
-		white-space: nowrap;
-	}
-
-	.lap-marker.selected .marker-label,
-	.lap-marker.warn .marker-label,
-	.lap-ruler-card:not(.has-warning) .lap-marker.wall .marker-label {
-		display: block;
-	}
-
-	.lap-warning-row,
-	.sheet-warning-row {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.35rem;
-		margin-top: 0.45rem;
-	}
-
-	.lap-warning-row span,
-	.sheet-warning-row span {
-		border-radius: 999px;
-		padding: 0.15rem 0.45rem;
-		background: rgba(245, 158, 11, 0.16);
-		border: 1px solid rgba(245, 158, 11, 0.35);
-		color: #fbbf24;
-		font-size: 0.68rem;
-		font-weight: 800;
-	}
-
-	.waypoint-edit-sheet {
-		position: fixed;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		z-index: 60;
-		border-top: 1px solid rgba(148, 163, 184, 0.2);
-		background: rgba(15, 23, 42, 0.97);
-		padding: 0.85rem 1rem calc(0.85rem + env(safe-area-inset-bottom));
-		box-shadow: 0 -18px 42px rgba(0, 0, 0, 0.42);
-	}
-
-	.sheet-head {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 0.75rem;
-		max-width: 42rem;
-		margin: 0 auto;
-	}
-
-	.sheet-delete {
-		flex: 0 0 auto;
-		border: 1px solid rgba(251, 113, 133, 0.35);
-		border-radius: 999px;
-		padding: 0.35rem 0.7rem;
-		background: rgba(251, 113, 133, 0.12);
-		color: #fecdd3;
-		font: inherit;
-		font-size: 0.78rem;
-		font-weight: 800;
-	}
-
-	.sheet-warning-row,
-	.nudge-grid,
-	.move-current {
-		max-width: 42rem;
-		margin-left: auto;
-		margin-right: auto;
-	}
-
-	.nudge-grid {
-		display: grid;
-		grid-template-columns: repeat(6, minmax(0, 1fr));
-		gap: 0.35rem;
-		margin-top: 0.75rem;
-	}
-
-	.nudge-grid button,
-	.move-current {
-		min-height: 2.35rem;
-		border: 1px solid rgba(148, 163, 184, 0.22);
-		border-radius: 8px;
-		background: rgba(2, 6, 23, 0.38);
-		color: var(--color-text);
-		font: inherit;
-		font-size: 0.75rem;
-		font-weight: 800;
-	}
-
-	.move-current {
-		display: block;
-		width: 100%;
-		margin-top: 0.5rem;
-		background: rgba(20, 184, 166, 0.14);
-		border-color: rgba(20, 184, 166, 0.35);
-	}
-
-	@media (max-width: 520px) {
-		.waypoint-editor-screen {
-			padding-left: 0.85rem;
-			padding-right: 0.85rem;
-		}
-
-		.waypoint-editor-summary {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
-		}
-
-		.waypoint-video-hud {
-			align-items: flex-start;
-		}
-
-		.waypoint-video-hud div {
-			min-width: 6rem;
-		}
-
-		.nudge-grid {
-			grid-template-columns: repeat(3, minmax(0, 1fr));
-		}
-	}
-
 	.import-review-card {
 		background: rgba(15, 23, 42, 0.72);
 		border: 1px solid rgba(148, 163, 184, 0.16);
@@ -2369,31 +1772,9 @@
 
 	.import-marker-summary {
 		display: grid;
-		grid-template-columns: repeat(4, minmax(0, 1fr));
+		grid-template-columns: repeat(3, minmax(0, 1fr));
 		gap: 0.45rem;
 		margin-top: 0.6rem;
-	}
-
-	.import-quick-fixes {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 0.45rem;
-		margin-top: 0.65rem;
-	}
-
-	.import-quick-fixes button {
-		min-height: 2.45rem;
-		border: 1px solid rgba(148, 163, 184, 0.2);
-		border-radius: 8px;
-		background: rgba(15, 23, 42, 0.5);
-		color: var(--color-text);
-		font: inherit;
-		font-size: 0.8rem;
-		font-weight: 700;
-	}
-
-	.import-quick-fixes button:disabled {
-		opacity: 0.45;
 	}
 
 	.import-marker-summary div {
@@ -2451,11 +1832,6 @@
 
 	@media (max-width: 520px) {
 		.import-marker-grid {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
-		}
-
-		.import-marker-summary,
-		.import-quick-fixes {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
 		}
 
