@@ -5,6 +5,7 @@
 	import { doc, getDoc } from 'firebase/firestore';
 	import { db } from '$lib/firebase';
 	import { user } from '$lib/stores/auth';
+	import { diveRecording } from '$lib/stores/videoPlayback';
 	import type { DiveTimeline, DiveVideo } from '$lib/types';
 	import { defaultSpeedMs } from '$lib/capture/disciplineSpeeds';
 	import { summariseTimeline } from '$lib/capture/timeline';
@@ -49,6 +50,7 @@
 			: null
 	);
 	const projectedTimeline = $derived(projectPrecisionStateToTimeline(marker));
+	const editorActive = $derived(!loading && !!video && !!videoUrl && canEdit);
 	const progressLabel = $derived(
 		marker.phase === 'start'
 			? 'Choose dive start'
@@ -56,6 +58,12 @@
 				? `${newSummary.waypointCount} marks ready`
 				: `Marked ${newSummary.waypointCount} - next ${marker.nextDistanceM.toFixed(marker.nextDistanceM % 1 === 0 ? 0 : 1)} m`
 	);
+
+	$effect(() => {
+		if (!editorActive) return;
+		diveRecording.begin();
+		return () => diveRecording.end();
+	});
 
 	onMount(async () => {
 		try {
@@ -139,6 +147,14 @@
 		handlePrimaryTap();
 	}
 
+	async function cancelEdit(): Promise<void> {
+		if (video?.sessionId) {
+			await goto(`/session/${video.sessionId}`);
+			return;
+		}
+		history.back();
+	}
+
 	async function saveCorrections(): Promise<void> {
 		if (!video || marker.phase !== 'ended' || saving) return;
 		saving = true;
@@ -207,8 +223,10 @@
 		</div>
 
 		<div class="import-recorder-controls scrub-controls">
+			<button class="editor-close" type="button" aria-label="Cancel waypoint edit" onclick={cancelEdit} disabled={saving}>×</button>
+
 			<div class="import-secondary-actions left">
-				<button class="utility-button" type="button" onclick={() => history.back()} disabled={saving}>Cancel</button>
+				<button class="utility-button" type="button" onclick={cancelEdit} disabled={saving}>Cancel</button>
 				<button class="utility-button" type="button" disabled={saving || marker.phase === 'start'} onclick={() => (marker = undoLastMark(marker))}>Undo</button>
 				{#if marker.phase === 'ended'}
 					<button class="utility-button save-button" type="button" onclick={saveCorrections} disabled={saving}>{saving ? 'Saving' : 'Save'}</button>
@@ -290,9 +308,9 @@
 	.import-recorder {
 		position: fixed;
 		inset: 0;
-		z-index: 40;
-		background: #020617;
-		color: #f8fafc;
+		z-index: 1000;
+		background: #000;
+		color: var(--color-text);
 		overflow: hidden;
 	}
 
@@ -303,6 +321,7 @@
 	}
 
 	.import-recorder-video {
+		display: block;
 		width: 100%;
 		height: 100%;
 		object-fit: contain;
@@ -321,6 +340,7 @@
 		backdrop-filter: blur(8px);
 		-webkit-backdrop-filter: blur(8px);
 		color: #f1f5f9;
+		pointer-events: none;
 	}
 
 	.hud-row,
@@ -376,6 +396,30 @@
 		z-index: 6;
 		pointer-events: none;
 		padding: max(0.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right)) calc(1rem + env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
+	}
+
+	.editor-close {
+		position: absolute;
+		top: max(0.75rem, env(safe-area-inset-top));
+		right: max(0.75rem, env(safe-area-inset-right));
+		z-index: 8;
+		width: 2.55rem;
+		height: 2.55rem;
+		border: 1px solid rgba(226, 232, 240, 0.28);
+		border-radius: 999px;
+		background: rgba(15, 23, 42, 0.72);
+		backdrop-filter: blur(8px);
+		-webkit-backdrop-filter: blur(8px);
+		color: #f8fafc;
+		font: inherit;
+		font-size: 1.45rem;
+		font-weight: 650;
+		line-height: 1;
+		pointer-events: auto;
+	}
+
+	.editor-close:disabled {
+		opacity: 0.45;
 	}
 
 	.import-secondary-actions {
@@ -536,24 +580,33 @@
 
 	.scrub-range {
 		width: 100%;
-		margin: 0.55rem 0 0.35rem;
+		height: 2.4rem;
+		margin: 0.1rem 0;
 		accent-color: var(--color-primary);
+	}
+
+	.scrub-summary-line {
+		bottom: calc(13.2rem + env(safe-area-inset-bottom));
 	}
 
 	.scrub-reset {
 		position: absolute;
-		left: 50%;
-		bottom: calc(5.45rem + env(safe-area-inset-bottom));
-		transform: translateX(-50%);
-		border: 1px solid rgba(226, 232, 240, 0.18);
+		right: max(0.9rem, env(safe-area-inset-right));
+		bottom: calc(11.5rem + env(safe-area-inset-bottom));
+		min-height: 2.35rem;
+		border: 1px solid rgba(248, 113, 113, 0.28);
 		border-radius: 999px;
-		padding: 0.35rem 0.65rem;
-		background: rgba(15, 23, 42, 0.58);
-		color: #cbd5e1;
+		padding: 0.4rem 0.75rem;
+		background: rgba(127, 29, 29, 0.42);
+		color: #fecaca;
 		font: inherit;
-		font-size: 0.78rem;
-		font-weight: 750;
+		font-size: 0.8rem;
+		font-weight: 800;
 		pointer-events: auto;
+	}
+
+	.scrub-reset:disabled {
+		display: none;
 	}
 
 	.error-text {
