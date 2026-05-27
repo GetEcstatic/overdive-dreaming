@@ -126,6 +126,7 @@
 		const atMs = videoMs();
 		if (marker.phase === 'start') marker = markDiveStart(marker, atMs);
 		else if (marker.phase === 'waypoints') marker = markNextWaypoint(marker, atMs);
+		else if (marker.phase === 'ended') void saveCorrections();
 	}
 
 	function startEndHold(): void {
