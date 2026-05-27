@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { doc, getDoc } from 'firebase/firestore';
 	import { db } from '$lib/firebase';
 	import { user } from '$lib/stores/auth';
@@ -150,7 +150,11 @@
 
 	async function cancelEdit(): Promise<void> {
 		if (video?.sessionId) {
-			await goto(`/session/${video.sessionId}`);
+			if (window.history.length > 1) {
+				history.back();
+				return;
+			}
+			await goto(`/session/${video.sessionId}`, { replaceState: true });
 			return;
 		}
 		history.back();
@@ -162,7 +166,12 @@
 		error = null;
 		try {
 			await saveDiveVideoTimelineCorrection({ videoId: video.id, timeline: projectedTimeline });
-			await goto(`/session/${video.sessionId}`);
+			await invalidateAll();
+			if (window.history.length > 1) {
+				history.back();
+				return;
+			}
+			await goto(`/session/${video.sessionId}`, { replaceState: true });
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		} finally {
