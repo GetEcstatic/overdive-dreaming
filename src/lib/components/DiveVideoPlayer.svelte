@@ -1536,18 +1536,7 @@
 		{#if canEditWaypoints}
 			<button
 				type="button"
-				class="pill"
-				onclick={() => goto(`/dive/video/${liveVideo.id}/waypoints`)}
-				disabled={downloading || requestingServerOverlay}
-			>
-				<span>Edit waypoints</span>
-			</button>
-		{/if}
-
-		{#if canEditWaypoints}
-			<button
-				type="button"
-				class="pill"
+				class="pill pill-secondary"
 				onclick={() => goto(`/dive/video/${liveVideo.id}/waypoints`)}
 				disabled={downloading || requestingServerOverlay}
 			>
@@ -1964,6 +1953,14 @@
 		color: var(--color-text);
 	}
 	.pill-toggle:hover:not(:disabled) {
+		background: rgba(51, 65, 85, 0.9);
+	}
+	.pill-secondary {
+		background: rgba(30, 41, 59, 0.85);
+		border-color: rgba(148, 163, 184, 0.2);
+		color: var(--color-text);
+	}
+	.pill-secondary:hover:not(:disabled) {
 		background: rgba(51, 65, 85, 0.9);
 	}
 	.pill-toggle.pill-active {
