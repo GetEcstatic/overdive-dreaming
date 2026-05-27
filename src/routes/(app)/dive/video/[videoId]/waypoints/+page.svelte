@@ -39,6 +39,7 @@
 	let marker = $state<PrecisionMarkingState>(createPrecisionMarkingState({ poolLengthM: 25, waypointsPerLap: 1 }));
 	let holdTimer: ReturnType<typeof setTimeout> | null = null;
 	let longPressHandled = false;
+	let primaryClickSuppressed = false;
 
 	const videoId = $derived($page.params.videoId);
 	const canEdit = $derived(
@@ -117,6 +118,10 @@
 	}
 
 	function handlePrimaryTap(): void {
+		if (primaryClickSuppressed) {
+			primaryClickSuppressed = false;
+			return;
+		}
 		if (saving) return;
 		const atMs = videoMs();
 		if (marker.phase === 'start') marker = markDiveStart(marker, atMs);
@@ -129,6 +134,7 @@
 		holdTimer = setTimeout(() => {
 			marker = endDive(marker, videoMs());
 			longPressHandled = true;
+			primaryClickSuppressed = true;
 		}, 650);
 	}
 
@@ -139,7 +145,6 @@
 			longPressHandled = false;
 			return;
 		}
-		handlePrimaryTap();
 	}
 
 	async function cancelEdit(): Promise<void> {
