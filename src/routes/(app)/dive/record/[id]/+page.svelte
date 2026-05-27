@@ -33,6 +33,7 @@
 		endDive as endPrecisionDive,
 		markDiveStart as markPrecisionDiveStart,
 		markNextWaypoint as markPrecisionNextWaypoint,
+		precisionElapsedMs,
 		precisionPrimaryLabel,
 		projectPrecisionStateToTimeline,
 		restartMarking as restartPrecisionMarking,
@@ -110,6 +111,41 @@
 		if (stage !== 'record' && stage !== 'importPlayback' && stage !== 'importScrubMark') return;
 		diveRecording.begin();
 		return () => diveRecording.end();
+	});
+
+	$effect(() => {
+		if (typeof document === 'undefined' || (stage !== 'importPlayback' && stage !== 'importScrubMark')) return;
+		const html = document.documentElement;
+		const body = document.body;
+		const previousHtmlOverflow = html.style.overflow;
+		const previousHtmlOverscroll = html.style.overscrollBehavior;
+		const previousHtmlTouchAction = html.style.touchAction;
+		const previousBodyOverflow = body.style.overflow;
+		const previousBodyOverscroll = body.style.overscrollBehavior;
+		const previousBodyTouchAction = body.style.touchAction;
+		const preventGesture = (event: Event) => event.preventDefault();
+
+		html.style.overflow = 'hidden';
+		html.style.overscrollBehavior = 'none';
+		html.style.touchAction = 'none';
+		body.style.overflow = 'hidden';
+		body.style.overscrollBehavior = 'none';
+		body.style.touchAction = 'none';
+		document.addEventListener('gesturestart', preventGesture, { passive: false });
+		document.addEventListener('gesturechange', preventGesture, { passive: false });
+		document.addEventListener('gestureend', preventGesture, { passive: false });
+
+		return () => {
+			html.style.overflow = previousHtmlOverflow;
+			html.style.overscrollBehavior = previousHtmlOverscroll;
+			html.style.touchAction = previousHtmlTouchAction;
+			body.style.overflow = previousBodyOverflow;
+			body.style.overscrollBehavior = previousBodyOverscroll;
+			body.style.touchAction = previousBodyTouchAction;
+			document.removeEventListener('gesturestart', preventGesture);
+			document.removeEventListener('gesturechange', preventGesture);
+			document.removeEventListener('gestureend', preventGesture);
+		};
 	});
 
 	let poolLength = $state<number | undefined>(25);
@@ -588,6 +624,15 @@
 		if (precisionState.phase === 'start') return 'Scrub to the start frame';
 		if (precisionState.phase === 'ended') return 'Save with markers';
 		return `Scrub to ${precisionPrimaryLabel(precisionState)} · hold to end`;
+	}
+
+	function precisionProgressLabel(): string {
+		if (!precisionState) return '';
+		const summary = summarisePrecisionState(precisionState);
+		if (precisionState.phase === 'start') return 'Choose dive start';
+		if (precisionState.phase === 'ended') return `${summary.waypointCount} marks ready`;
+		const nextDistance = precisionState.nextDistanceM;
+		return `Marked ${summary.waypointCount} - next ${nextDistance.toFixed(nextDistance % 1 === 0 ? 0 : 1)} m`;
 	}
 
 	function reviewImportedCapture(): void {
@@ -1312,9 +1357,9 @@
 			{/if}
 		</div>
 	</div>
-{:else if stage === 'importScrubMark' && capture && discipline && importPreviewUrl && precisionState}
+	{:else if stage === 'importScrubMark' && capture && discipline && importPreviewUrl && precisionState}
 	{@const precisionSummary = summarisePrecisionState(precisionState)}
-	<div class="import-recorder scrub-recorder">
+	<div class="import-recorder scrub-recorder stored-waypoint-editor">
 		<div class="import-recorder-preview">
 			<!-- svelte-ignore a11y_media_has_caption -->
 			<video
@@ -1342,8 +1387,8 @@
 			<div class="import-hud hud-top">
 				<div class="hud-row">
 					<div class="hud-cell">
-						<div class="hud-label">Video</div>
-						<div class="hud-value">{formatMs(importPreviewTimeMs)}</div>
+						<div class="hud-label">Time</div>
+						<div class="hud-value">{formatMs(precisionElapsedMs(precisionState, importPreviewTimeMs))}</div>
 					</div>
 					<div class="hud-cell right">
 						<div class="hud-label">Marked</div>
@@ -1362,12 +1407,15 @@
 		</div>
 
 		<div class="import-recorder-controls scrub-controls">
+			<button class="editor-close" type="button" aria-label="Cancel waypoint edit" onclick={() => (stage = 'importModeChoice')}>×</button>
+
 			<div class="import-secondary-actions left">
-				<button class="utility-button" type="button" onclick={() => (stage = 'importModeChoice')}>Modes</button>
+				<button class="utility-button" type="button" onclick={() => (stage = 'importModeChoice')}>Cancel</button>
 				<button class="utility-button" type="button" disabled={precisionState.phase === 'start'} onclick={undoPrecisionMark}>Undo</button>
 			</div>
 
 			<div class="import-secondary-actions right">
+				<button class="utility-button scrub-nudge scrub-reset" type="button" aria-label="Restart marks" title="Restart marks" disabled={precisionState.phase === 'start'} onclick={restartPrecisionMarks}>↺</button>
 				<button class="utility-button scrub-nudge" type="button" aria-label="Move scrubber back 0.2 seconds" onclick={() => nudgeImportScrub(-200)}>←</button>
 				<button class="utility-button scrub-nudge" type="button" aria-label="Move scrubber forward 0.2 seconds" onclick={() => nudgeImportScrub(200)}>→</button>
 			</div>
@@ -1375,7 +1423,7 @@
 			<div class="scrub-rail-wrap">
 				<div class="scrub-meta">
 					<span>{formatMs(importPreviewTimeMs)}</span>
-					<span>{importScrubSeeking ? 'Seeking…' : precisionPrimarySubLabel()}</span>
+					<span>{importScrubSeeking ? 'Seeking…' : precisionProgressLabel()}</span>
 				</div>
 				<input
 					class="scrub-range"
@@ -1408,7 +1456,7 @@
 					onclick={handlePrecisionPrimaryAction}
 				>
 					<span class="btn-main">{precisionEndDiveHeld ? 'Hold' : precisionPrimaryLabel(precisionState)}</span>
-					<span class="btn-sub">{precisionPrimarySubLabel()}</span>
+					<span class="btn-sub">{precisionProgressLabel()}</span>
 					{#if precisionEndDiveHeld}
 						<span class="hold-progress" aria-hidden="true"></span>
 					{/if}
@@ -1424,8 +1472,6 @@
 					Marked {precisionSummary.waypointCount} · Last {formatMeters(precisionSummary.totalDistanceM)} m
 				</div>
 			{/if}
-
-			<button class="scrub-reset" type="button" disabled={precisionState.phase === 'start'} onclick={restartPrecisionMarks}>Restart marks</button>
 		</div>
 	</div>
 {:else if stage === 'record' && discipline}
@@ -1823,10 +1869,14 @@
 	.import-recorder {
 		position: fixed;
 		inset: 0;
-		z-index: 50;
+		z-index: 1000;
 		background: #000;
 		color: var(--color-text);
 		overflow: hidden;
+		overscroll-behavior: none;
+		touch-action: none;
+		user-select: none;
+		-webkit-user-select: none;
 	}
 
 	.import-recorder-preview {
@@ -1844,6 +1894,10 @@
 		background: #000;
 	}
 
+	.stored-waypoint-editor .import-recorder-video {
+		object-fit: cover;
+	}
+
 	.import-hud {
 		position: absolute;
 		left: 0.75rem;
@@ -1859,6 +1913,10 @@
 
 	.hud-top {
 		top: max(0.75rem, env(safe-area-inset-top));
+	}
+
+	.stored-waypoint-editor .hud-top {
+		top: calc(max(0.75rem, env(safe-area-inset-top)) + 3.15rem);
 	}
 
 	.hud-row {
@@ -1918,6 +1976,27 @@
 		padding: max(0.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right)) calc(1rem + env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
 	}
 
+	.editor-close {
+		position: absolute;
+		top: max(0.75rem, env(safe-area-inset-top));
+		right: max(0.75rem, env(safe-area-inset-right));
+		z-index: 8;
+		width: 2.55rem;
+		height: 2.55rem;
+		border: 1px solid rgba(226, 232, 240, 0.28);
+		border-radius: 999px;
+		background: rgba(15, 23, 42, 0.72);
+		backdrop-filter: blur(8px);
+		-webkit-backdrop-filter: blur(8px);
+		color: #f8fafc;
+		font: inherit;
+		font-size: 1.45rem;
+		font-weight: 650;
+		line-height: 1;
+		pointer-events: auto;
+		touch-action: manipulation;
+	}
+
 	.import-secondary-actions {
 		position: absolute;
 		display: flex;
@@ -1932,7 +2011,7 @@
 
 	.import-secondary-actions.right {
 		right: max(0.9rem, env(safe-area-inset-right));
-		bottom: calc(7.45rem + env(safe-area-inset-bottom));
+		bottom: calc(8.35rem + env(safe-area-inset-bottom));
 		flex-direction: column;
 	}
 
@@ -1949,6 +2028,7 @@
 		font: inherit;
 		font-size: 0.86rem;
 		font-weight: 700;
+		touch-action: manipulation;
 	}
 
 	.utility-button:disabled {
@@ -1987,6 +2067,7 @@
 		user-select: none;
 		-webkit-user-select: none;
 		-webkit-tap-highlight-color: transparent;
+		touch-action: manipulation;
 	}
 
 	.primary-action:active:not(:disabled) {
@@ -2081,6 +2162,7 @@
 		backdrop-filter: blur(10px);
 		-webkit-backdrop-filter: blur(10px);
 		pointer-events: auto;
+		touch-action: none;
 	}
 
 	.scrub-meta {
@@ -2103,26 +2185,24 @@
 		height: 2.4rem;
 		margin: 0.1rem 0;
 		accent-color: var(--color-primary);
+		touch-action: pan-x;
 	}
 
 	.scrub-summary-line {
-		bottom: calc(13.2rem + env(safe-area-inset-bottom));
+		bottom: calc(14.8rem + env(safe-area-inset-bottom));
 	}
 
 	.scrub-reset {
-		position: absolute;
-		right: max(0.9rem, env(safe-area-inset-right));
-		bottom: calc(11.5rem + env(safe-area-inset-bottom));
+		min-width: 2.75rem;
 		min-height: 2.35rem;
 		border: 1px solid rgba(248, 113, 113, 0.28);
 		border-radius: 999px;
-		padding: 0.4rem 0.75rem;
+		padding: 0.35rem;
 		background: rgba(127, 29, 29, 0.42);
 		color: #fecaca;
 		font: inherit;
-		font-size: 0.8rem;
+		font-size: 1.15rem;
 		font-weight: 800;
-		pointer-events: auto;
 	}
 
 	.scrub-reset:disabled {
