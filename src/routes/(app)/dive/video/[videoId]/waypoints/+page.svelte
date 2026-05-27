@@ -329,6 +329,10 @@
 		background: #000;
 	}
 
+	.stored-waypoint-editor .import-recorder-video {
+		object-fit: cover;
+	}
+
 	.import-hud {
 		position: absolute;
 		left: 0.75rem;
@@ -441,7 +445,7 @@
 
 	.import-secondary-actions.right {
 		right: max(0.9rem, env(safe-area-inset-right));
-		bottom: calc(7.45rem + env(safe-area-inset-bottom));
+		bottom: calc(8.35rem + env(safe-area-inset-bottom));
 		flex-direction: column;
 	}
 
