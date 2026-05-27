@@ -95,6 +95,7 @@
 		createSpeedPlotFrame,
 		projectSpeedPlot,
 		scaleSpeedPlotHudDesign,
+		speedPlotCanvasFonts,
 		speedPlotCssVariables
 	} from '$lib/media/speedPlotHud';
 
@@ -596,8 +597,8 @@
 	// Downloads: original videos stream directly from storage; overlay exports
 	// still use `navigator.share({ files })` with an `<a download>` fallback.
 	// See docs/Dynamic video feature.md §7 and QA checklist.
-	// When `showOverlay` is true, the clip is re-rendered through a canvas
-	// so the HUD is burned into every exported frame.
+	// Speed-graph exports are re-rendered through a canvas so the growing graph
+	// is burned into every frame. Classic-only overlays can use the server path.
 	// -----------------------------------------------------------------------
 	let downloadError = $state<string | null>(null);
 	let exportDiagnostic = $state<string | null>(null);
@@ -973,7 +974,7 @@
 			canvas.height = h;
 			const ctx = canvas.getContext('2d');
 			if (!ctx) throw new Error('Canvas 2D context unavailable');
-			await loadHudCanvasFonts(w, h > w ? 'portrait' : 'landscape');
+			await loadOverlayCanvasFonts(w, h > w ? 'portrait' : 'landscape');
 
 			// Pick a supported mime. Prefer mp4 (iOS/Safari native); fall back to webm.
 			const candidates = [
@@ -1015,7 +1016,8 @@
 
 			const drawFrame = (atMs: number): void => {
 				ctx.drawImage(off, 0, 0, w, h);
-				drawHud(ctx, w, h, atMs);
+				if (showOverlay) drawHud(ctx, w, h, atMs);
+				if (showSpeedPlot) drawSpeedPlotHud(ctx, w, h, atMs);
 				capture.requestFrame?.();
 				if (durationMs > 0) {
 					exportProgress = Math.min(1, atMs / durationMs);
@@ -1186,9 +1188,127 @@
 		ctx.restore();
 	}
 
-	async function loadHudCanvasFonts(widthPx: number, mode: HudRenderMode): Promise<void> {
+	function drawSpeedPlotHud(
+		ctx: CanvasRenderingContext2D,
+		w: number,
+		h: number,
+		atMs: number
+	): void {
+		const frame = createSpeedPlotFrame({
+			timeline,
+			poolLengthM: poolLength,
+			currentVideoMs: atMs,
+			pbDistanceM
+		});
+		const model = projectSpeedPlot(frame, w, h);
+		const design = scaleSpeedPlotHudDesign(w);
+
+		ctx.save();
+		const gradient = ctx.createLinearGradient(0, model.bandRect.y, 0, model.bandRect.y + model.bandRect.height);
+		gradient.addColorStop(0, colorWithOpacity(design.background.top, design.background.opacity));
+		gradient.addColorStop(1, colorWithOpacity(design.background.bottom, design.background.opacity));
+		ctx.fillStyle = gradient;
+		roundRect(ctx, model.bandRect.x, model.bandRect.y, model.bandRect.width, model.bandRect.height, design.radiusPx);
+		ctx.fill();
+
+		ctx.strokeStyle = design.grid.color;
+		ctx.lineWidth = design.grid.widthPx;
+		ctx.setLineDash([]);
+		for (const line of model.gridLines) {
+			ctx.beginPath();
+			ctx.moveTo(line.x1, line.y1);
+			ctx.lineTo(line.x2, line.y2);
+			ctx.stroke();
+		}
+
+		if (model.pbMarker) {
+			ctx.save();
+			ctx.strokeStyle = design.pbMarker.color;
+			ctx.lineWidth = design.pbMarker.widthPx;
+			ctx.setLineDash([design.pbMarker.symbolSizePx * 0.45, design.pbMarker.symbolSizePx * 0.45]);
+			ctx.beginPath();
+			ctx.moveTo(model.pbMarker.x, model.pbMarker.y1);
+			ctx.lineTo(model.pbMarker.x, model.pbMarker.y2);
+			ctx.stroke();
+			ctx.setLineDash([]);
+			ctx.fillStyle = design.pbMarker.color;
+			const size = design.pbMarker.symbolSizePx;
+			const y = model.pbMarker.y2 + size * 0.68;
+			ctx.beginPath();
+			ctx.moveTo(model.pbMarker.x, y - size / 2);
+			ctx.lineTo(model.pbMarker.x + size / 2, y);
+			ctx.lineTo(model.pbMarker.x, y + size / 2);
+			ctx.lineTo(model.pbMarker.x - size / 2, y);
+			ctx.closePath();
+			ctx.fill();
+			ctx.restore();
+		}
+
+		if (model.speedLine.length > 0) {
+			const lineGradient = ctx.createLinearGradient(model.plotRect.x, 0, model.plotRect.x + model.plotRect.width, 0);
+			lineGradient.addColorStop(0, design.line.from);
+			lineGradient.addColorStop(1, design.line.to);
+			ctx.strokeStyle = lineGradient;
+			ctx.lineWidth = design.line.widthPx;
+			ctx.lineCap = 'round';
+			ctx.lineJoin = 'round';
+			drawSmoothCanvasPath(ctx, model.speedLine);
+			ctx.stroke();
+		}
+
+		if (model.currentPoint) {
+			ctx.fillStyle = design.currentPoint.color;
+			ctx.beginPath();
+			ctx.arc(model.currentPoint.x, model.currentPoint.y, design.currentPoint.radiusPx, 0, Math.PI * 2);
+			ctx.fill();
+		}
+
+		ctx.fillStyle = design.axisText.color;
+		ctx.font = `${design.axisText.weight} ${design.axisText.sizePx}px ${design.axisText.family}`;
+		ctx.textBaseline = 'middle';
+		for (const label of model.xLabels) {
+			ctx.textAlign = label.align;
+			ctx.fillText(label.text, label.x, label.y);
+		}
+		for (const label of model.yLabels) {
+			ctx.textAlign = label.align;
+			ctx.fillText(label.text, label.x, label.y);
+		}
+		ctx.save();
+		ctx.translate(model.yAxisLabel.x, model.yAxisLabel.y);
+		ctx.rotate(-Math.PI / 2);
+		ctx.textAlign = 'center';
+		ctx.fillText(model.yAxisLabel.text, 0, 0);
+		ctx.restore();
+		ctx.restore();
+	}
+
+	function drawSmoothCanvasPath(ctx: CanvasRenderingContext2D, points: readonly { x: number; y: number }[]): void {
+		ctx.beginPath();
+		if (points.length === 0) return;
+		ctx.moveTo(points[0].x, points[0].y);
+		if (points.length === 1) return;
+		for (let i = 0; i < points.length - 1; i += 1) {
+			const previous = points[Math.max(0, i - 1)];
+			const current = points[i];
+			const next = points[i + 1];
+			const after = points[Math.min(points.length - 1, i + 2)];
+			const cp1x = current.x + (next.x - previous.x) / 6;
+			const cp1y = current.y + (next.y - previous.y) / 6;
+			const cp2x = next.x - (after.x - current.x) / 6;
+			const cp2y = next.y - (after.y - current.y) / 6;
+			ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, next.x, next.y);
+		}
+	}
+
+	async function loadOverlayCanvasFonts(widthPx: number, mode: HudRenderMode): Promise<void> {
 		if (typeof document === 'undefined' || !document.fonts) return;
-		await Promise.all(hudFontLoadDescriptors(widthPx, mode).map((font) => document.fonts.load(font)));
+		await Promise.all(
+			[
+				...(showOverlay ? hudFontLoadDescriptors(widthPx, mode) : []),
+				...(showSpeedPlot ? speedPlotCanvasFonts(widthPx) : [])
+			].map((font) => document.fonts.load(font))
+		);
 		await document.fonts.ready;
 	}
 
@@ -1227,7 +1347,7 @@
 
 	async function downloadToPhotos(): Promise<void> {
 		if (downloading) return;
-		if (!showOverlay) {
+		if (!showAnyOverlay) {
 			await downloadOriginalVideo();
 			return;
 		}
@@ -1289,7 +1409,7 @@
 				blob = new Blob([blob], { type: mime });
 			}
 
-			const fileName = suggestedFileName(mime, showOverlay);
+			const fileName = suggestedFileName(mime, showAnyOverlay);
 			const file = new File([blob], fileName, { type: mime });
 
 			// If we're on iOS and the container isn't mp4, iOS Photos can't
@@ -1415,6 +1535,10 @@
 	}
 
 	async function downloadCurrentVideo(): Promise<void> {
+		if (requiresBrowserOverlayExport) {
+			await downloadToPhotos();
+			return;
+		}
 		if (showOverlay) {
 			await downloadServerOverlay();
 			return;
