@@ -110,6 +110,13 @@ export function inferPrecisionMarkerConfig(
 	return { poolLengthM, waypointsPerLap };
 }
 
+export function precisionElapsedMs(state: PrecisionMarkingState, currentVideoMs: number): number {
+	if (state.diveStartMs === undefined) return 0;
+	const currentMs = Math.max(0, Math.round(currentVideoMs));
+	const endMs = state.diveEndMs ?? currentMs;
+	return Math.max(0, Math.min(currentMs, endMs) - state.diveStartMs);
+}
+
 function kindForIndex(index: number, waypointsPerLap: number): PrecisionWaypointKind {
 	return index % waypointsPerLap === 0 ? 'wall' : 'split';
 }

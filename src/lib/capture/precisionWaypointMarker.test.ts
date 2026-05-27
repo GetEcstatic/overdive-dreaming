@@ -5,6 +5,7 @@ import {
 	inferPrecisionMarkerConfig,
 	markDiveStart,
 	markNextWaypoint,
+	precisionElapsedMs,
 	precisionPrimaryLabel,
 	projectPrecisionStateToTimeline,
 	restartMarking,
@@ -123,5 +124,16 @@ describe('precisionWaypointMarker', () => {
 
 		expect(inferred.poolLengthM).toBe(25);
 		expect(inferred.waypointsPerLap).toBe(3);
+	});
+
+	it('keeps elapsed time at zero until dive start is marked', () => {
+		let state = createPrecisionMarkingState(CONFIG);
+		expect(precisionElapsedMs(state, 12_000)).toBe(0);
+
+		state = markDiveStart(state, 10_000);
+		expect(precisionElapsedMs(state, 12_000)).toBe(2_000);
+
+		state = endDive(state, 15_000);
+		expect(precisionElapsedMs(state, 20_000)).toBe(5_000);
 	});
 });

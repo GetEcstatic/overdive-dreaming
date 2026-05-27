@@ -15,6 +15,7 @@
 		inferPrecisionMarkerConfig,
 		markDiveStart,
 		markNextWaypoint,
+		precisionElapsedMs,
 		precisionPrimaryLabel,
 		projectPrecisionStateToTimeline,
 		restartMarking,
@@ -44,6 +45,7 @@
 		!!video && ($user?.uid === video.ownerId || $user?.uid === video.userId || $user?.uid === video.athleteId)
 	);
 	const primaryLabel = $derived(precisionPrimaryLabel(marker));
+	const elapsedMs = $derived(precisionElapsedMs(marker, currentMs));
 	const newSummary = $derived(summarisePrecisionState(marker));
 	const oldSummary = $derived(
 		video
@@ -196,8 +198,8 @@
 			<div class="import-hud hud-top">
 				<div class="hud-row">
 					<div class="hud-cell">
-						<div class="hud-label">Video</div>
-						<div class="hud-value">{formatTime(currentMs)}</div>
+						<div class="hud-label">Time</div>
+						<div class="hud-value">{formatTime(elapsedMs)}</div>
 					</div>
 					<div class="hud-cell right">
 						<div class="hud-label">Marked</div>
@@ -227,6 +229,7 @@
 			</div>
 
 			<div class="import-secondary-actions right">
+				<button class="utility-button scrub-nudge scrub-reset" type="button" aria-label="Restart marks" title="Restart marks" disabled={saving || marker.phase === 'start'} onclick={() => (marker = restartMarking(marker))}>↺</button>
 				<button class="utility-button scrub-nudge" type="button" aria-label="Move scrubber back 0.2 seconds" onclick={() => nudge(-200)}>←</button>
 				<button class="utility-button scrub-nudge" type="button" aria-label="Move scrubber forward 0.2 seconds" onclick={() => nudge(200)}>→</button>
 			</div>
@@ -281,7 +284,6 @@
 				</div>
 			{/if}
 
-			<button class="scrub-reset" type="button" disabled={saving || marker.phase === 'start'} onclick={() => (marker = restartMarking(marker))}>Restart marks</button>
 		</div>
 	</section>
 {/if}
@@ -334,6 +336,10 @@
 		-webkit-backdrop-filter: blur(8px);
 		color: #f1f5f9;
 		pointer-events: none;
+	}
+
+	.stored-waypoint-editor .hud-top {
+		top: calc(max(0.75rem, env(safe-area-inset-top)) + 3.15rem);
 	}
 
 	.hud-row,
@@ -579,23 +585,19 @@
 	}
 
 	.scrub-summary-line {
-		bottom: calc(13.2rem + env(safe-area-inset-bottom));
+		bottom: calc(14.8rem + env(safe-area-inset-bottom));
 	}
 
 	.scrub-reset {
-		position: absolute;
-		right: max(0.9rem, env(safe-area-inset-right));
-		bottom: calc(11.5rem + env(safe-area-inset-bottom));
+		min-width: 2.75rem;
 		min-height: 2.35rem;
 		border: 1px solid rgba(248, 113, 113, 0.28);
 		border-radius: 999px;
-		padding: 0.4rem 0.75rem;
+		padding: 0.35rem;
 		background: rgba(127, 29, 29, 0.42);
 		color: #fecaca;
-		font: inherit;
-		font-size: 0.8rem;
+		font-size: 1.15rem;
 		font-weight: 800;
-		pointer-events: auto;
 	}
 
 	.scrub-reset:disabled {
