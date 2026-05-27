@@ -81,6 +81,14 @@
 		requestDiveVideoOverlayDownload
 	} from '$lib/services/diveVideos';
 	import { hasCurrentServerOverlayArtifact } from '$lib/media/processing';
+	import {
+		canvasFont,
+		hudCssVariables,
+		hudFontLoadDescriptors,
+		scaleHudModeDesign,
+		type HudRenderMode,
+		type HudTextStyle
+	} from '$lib/media/hudDesign';
 
 	const MAX_BROWSER_OVERLAY_EXPORT_BYTES = 200 * 1024 * 1024;
 
@@ -304,6 +312,12 @@
 			assetOrientation: liveVideo.assetOrientation
 		})
 	);
+	const hudMode = $derived<HudRenderMode>(
+		fullscreenMode === 'landscape' || (!isFullscreen && displayTransform.hudMode === 'landscape')
+			? 'landscape'
+			: 'portrait'
+	);
+	const hudStyle = $derived(hudCssVariables(hudMode));
 
 	function formatMs(ms: number): string {
 		const secs = Math.floor(ms / 1000);
@@ -855,6 +869,7 @@
 			canvas.height = h;
 			const ctx = canvas.getContext('2d');
 			if (!ctx) throw new Error('Canvas 2D context unavailable');
+			await loadHudCanvasFonts(w, h > w ? 'portrait' : 'landscape');
 
 			// Pick a supported mime. Prefer mp4 (iOS/Safari native); fall back to webm.
 			const candidates = [
@@ -1009,34 +1024,27 @@
 		const dist = distanceAt(timeline, atMs, poolLength);
 		const spd = speedAt(timeline, atMs, poolLength);
 		const laps = timeline.laps.filter((l) => l.atMs <= atMs).length;
-
-		const scale = Math.max(0.5, Math.min(2.25, h / 720));
-		const isPortrait = h > w;
-		const boxX = Math.round((isPortrait ? 12 : 8) * scale);
-		const boxY = Math.round(12 * scale);
-		// In portrait mode (h > w), stretch the overlay to fill the full canvas
-		// width — matching the DOM .dive-hud-portrait CSS (left/right: 0.75rem,
-		// width: auto). In landscape, keep the compact 62 % cap.
-		const boxW = isPortrait
+		const mode: HudRenderMode = h > w ? 'portrait' : 'landscape';
+		const hud = scaleHudModeDesign(w, mode);
+		const boxX = Math.round(hud.offsetXPx);
+		const boxY = Math.round(hud.offsetYPx);
+		const boxW = mode === 'portrait'
 			? w - 2 * boxX
-			: Math.min(Math.round(w * 0.62), w - boxX * 2);
-		const padX = Math.round((isPortrait ? 17 : 14) * scale);
-		const padY = Math.round((isPortrait ? 12 : 9) * scale);
-		const labelSize = Math.round((isPortrait ? 11 : 10) * scale);
-		const valueSize = Math.round((isPortrait ? 30 : 22) * scale);
-		const subSize = Math.round((isPortrait ? 14 : 12) * scale);
-		const valueGap = Math.round(5 * scale);
-		const subGap = Math.round(9 * scale);
-		const boxH = padY * 2 + labelSize + valueGap + valueSize + subGap + subSize;
-		const radius = Math.round(14 * scale);
+			: Math.min(Math.round(w * (hud.maxWidthRatio ?? 1)), w - boxX * 2);
+		const padX = Math.round(hud.paddingXPx);
+		const padY = Math.round(hud.paddingYPx);
+		const labelLine = hud.label.sizePx * hud.label.lineHeight;
+		const valueLine = hud.value.sizePx * hud.value.lineHeight;
+		const subLine = hud.sub.sizePx * hud.sub.lineHeight;
+		const boxH = Math.round(padY * 2 + labelLine + hud.valueGapPx + valueLine + hud.subMarginTopPx + subLine);
+		const radius = Math.round(hud.radiusPx);
 
 		ctx.save();
-		ctx.fillStyle = 'rgba(15, 23, 42, 0.55)';
+		ctx.fillStyle = hud.background;
 		roundRect(ctx, boxX, boxY, boxW, boxH, radius);
 		ctx.fill();
 
-		ctx.fillStyle = '#cbd5e1';
-		ctx.font = `600 ${labelSize}px ui-sans-serif, system-ui, -apple-system, sans-serif`;
+		applyCanvasText(ctx, hud.label);
 		ctx.textBaseline = 'top';
 
 		const innerX = boxX + padX;
@@ -1048,23 +1056,23 @@
 		ctx.textAlign = 'right';
 		ctx.fillText('DISTANCE', rightX, innerY);
 
-		ctx.fillStyle = '#f8fafc';
-		ctx.font = `700 ${valueSize}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+		applyCanvasText(ctx, hud.value);
 		ctx.textAlign = 'left';
 		const diveTimeMs = diveElapsedAt(timeline, atMs);
-		ctx.fillText(formatMs(diveTimeMs), innerX, innerY + labelSize + valueGap);
+		const valueY = innerY + labelLine + hud.valueGapPx;
+		ctx.fillText(formatMs(diveTimeMs), innerX, valueY);
 		ctx.textAlign = 'right';
 		ctx.fillText(
 			`${dist.toFixed(1)} m`,
 			rightX,
-			innerY + labelSize + valueGap
+			valueY
 		);
 
-		ctx.fillStyle = '#cbd5e1';
-		ctx.font = `500 ${subSize}px ui-sans-serif, system-ui, -apple-system, sans-serif`;
-		const subY = innerY + labelSize + valueGap + valueSize + subGap;
+		applyCanvasText(ctx, hud.sub);
+		const subY = valueY + valueLine + hud.subMarginTopPx;
 		ctx.textAlign = 'left';
 		ctx.fillText(`Lap ${laps}/${timeline.laps.length}`, innerX, subY);
+		applyCanvasText(ctx, hud.mono);
 		ctx.textAlign = 'right';
 		ctx.fillText(
 			`${spd.toFixed(2)} m/s`,
@@ -1072,6 +1080,27 @@
 			subY
 		);
 		ctx.restore();
+	}
+
+	async function loadHudCanvasFonts(widthPx: number, mode: HudRenderMode): Promise<void> {
+		if (typeof document === 'undefined' || !document.fonts) return;
+		await Promise.all(hudFontLoadDescriptors(widthPx, mode).map((font) => document.fonts.load(font)));
+		await document.fonts.ready;
+	}
+
+	function applyCanvasText(ctx: CanvasRenderingContext2D, style: HudTextStyle): void {
+		ctx.fillStyle = style.opacity === 1 ? style.color : colorWithOpacity(style.color, style.opacity);
+		ctx.font = canvasFont(style);
+	}
+
+	function colorWithOpacity(color: string, opacity: number): string {
+		if (color.startsWith('#') && color.length === 7) {
+			const red = parseInt(color.slice(1, 3), 16);
+			const green = parseInt(color.slice(3, 5), 16);
+			const blue = parseInt(color.slice(5, 7), 16);
+			return `rgba(${red}, ${green}, ${blue}, ${opacity})`;
+		}
+		return color;
 	}
 
 	function roundRect(
@@ -1342,8 +1371,8 @@
 		-->
 		<div
 			class="dive-hud"
-			class:dive-hud-landscape={fullscreenMode === 'landscape' ||
-				(!isFullscreen && displayTransform.hudMode === 'landscape')}
+			class:dive-hud-landscape={hudMode === 'landscape'}
+			style={hudStyle}
 		>
 			<div class="dive-hud-row">
 				<div class="dive-hud-cell">
@@ -1557,67 +1586,70 @@
 	/* Match the recording HUD in DiveRecorder.svelte. */
 	.dive-hud {
 		position: absolute;
-		left: 0.75rem;
-		right: 0.75rem;
-		top: max(0.75rem, env(safe-area-inset-top));
+		left: var(--hud-offset-x);
+		right: var(--hud-offset-x);
+		top: max(var(--hud-offset-y), env(safe-area-inset-top));
 		width: auto;
 		z-index: 10;
 		pointer-events: none;
-		padding: 0.75rem 1.05rem;
-		border-radius: 14px;
-		background: rgba(15, 23, 42, 0.55);
+		padding: var(--hud-padding-y) var(--hud-padding-x);
+		border-radius: var(--hud-radius);
+		background: var(--hud-bg);
 		backdrop-filter: blur(8px);
 		-webkit-backdrop-filter: blur(8px);
-		color: #f1f5f9;
+		color: var(--hud-fg);
 	}
 	.dive-hud-landscape {
-		left: max(0.5rem, env(safe-area-inset-left));
+		left: max(var(--hud-offset-x), env(safe-area-inset-left));
 		right: auto;
-		top: max(0.75rem, env(safe-area-inset-top));
+		top: max(var(--hud-offset-y), env(safe-area-inset-top));
 		width: auto;
-		max-width: 62%;
-		padding: 0.55rem 0.85rem;
+		max-width: var(--hud-max-width);
 	}
 	.dive-hud-row {
 		display: flex;
 		justify-content: space-between;
 		align-items: baseline;
-		gap: 1.25rem;
+		gap: var(--hud-row-gap);
 	}
 	.dive-hud-cell.right {
 		text-align: right;
 	}
 	.dive-hud-label {
-		font-size: 0.7rem;
+		font-family: var(--hud-label-family);
+		font-size: var(--hud-label-size);
+		font-weight: var(--hud-label-weight);
+		line-height: var(--hud-label-line-height);
 		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: #cbd5e1;
+		letter-spacing: var(--hud-label-letter-spacing);
+		color: var(--hud-label-color);
+		opacity: var(--hud-label-opacity);
 	}
 	.dive-hud-value {
-		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-		font-size: 1.9rem;
+		font-family: var(--hud-value-family);
+		font-size: var(--hud-value-size);
+		font-weight: var(--hud-value-weight);
+		letter-spacing: var(--hud-value-letter-spacing);
 		font-variant-numeric: tabular-nums;
-		line-height: 1.1;
+		line-height: var(--hud-value-line-height);
+		color: var(--hud-value-color);
+		opacity: var(--hud-value-opacity);
 	}
 	.dive-hud-sub {
 		display: flex;
 		justify-content: space-between;
-		gap: 1.25rem;
-		color: #cbd5e1;
-		font-size: 0.85rem;
-		margin-top: 0.4rem;
-	}
-	.dive-hud-landscape .dive-hud-label {
-		font-size: 0.64rem;
-	}
-	.dive-hud-landscape .dive-hud-value {
-		font-size: 1.35rem;
-	}
-	.dive-hud-landscape .dive-hud-sub {
-		font-size: 0.76rem;
+		gap: var(--hud-sub-gap);
+		font-family: var(--hud-sub-family);
+		font-size: var(--hud-sub-size);
+		font-weight: var(--hud-sub-weight);
+		line-height: var(--hud-sub-line-height);
+		letter-spacing: var(--hud-sub-letter-spacing);
+		color: var(--hud-sub-color);
+		opacity: var(--hud-sub-opacity);
+		margin-top: var(--hud-sub-margin-top);
 	}
 	.dive-hud-mono {
-		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+		font-family: var(--hud-mono-family);
 		font-variant-numeric: tabular-nums;
 	}
 	.inline-play-button {
