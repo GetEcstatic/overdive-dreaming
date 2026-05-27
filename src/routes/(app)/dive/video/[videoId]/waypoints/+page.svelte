@@ -69,6 +69,41 @@
 		return () => diveRecording.end();
 	});
 
+	$effect(() => {
+		if (typeof document === 'undefined' || !editorActive) return;
+		const html = document.documentElement;
+		const body = document.body;
+		const previousHtmlOverflow = html.style.overflow;
+		const previousHtmlOverscroll = html.style.overscrollBehavior;
+		const previousHtmlTouchAction = html.style.touchAction;
+		const previousBodyOverflow = body.style.overflow;
+		const previousBodyOverscroll = body.style.overscrollBehavior;
+		const previousBodyTouchAction = body.style.touchAction;
+		const preventGesture = (event: Event) => event.preventDefault();
+
+		html.style.overflow = 'hidden';
+		html.style.overscrollBehavior = 'none';
+		html.style.touchAction = 'none';
+		body.style.overflow = 'hidden';
+		body.style.overscrollBehavior = 'none';
+		body.style.touchAction = 'none';
+		document.addEventListener('gesturestart', preventGesture, { passive: false });
+		document.addEventListener('gesturechange', preventGesture, { passive: false });
+		document.addEventListener('gestureend', preventGesture, { passive: false });
+
+		return () => {
+			html.style.overflow = previousHtmlOverflow;
+			html.style.overscrollBehavior = previousHtmlOverscroll;
+			html.style.touchAction = previousHtmlTouchAction;
+			body.style.overflow = previousBodyOverflow;
+			body.style.overscrollBehavior = previousBodyOverscroll;
+			body.style.touchAction = previousBodyTouchAction;
+			document.removeEventListener('gesturestart', preventGesture);
+			document.removeEventListener('gesturechange', preventGesture);
+			document.removeEventListener('gestureend', preventGesture);
+		};
+	});
+
 	onMount(async () => {
 		try {
 			const id = videoId;
@@ -322,6 +357,10 @@
 		background: #000;
 		color: var(--color-text);
 		overflow: hidden;
+		overscroll-behavior: none;
+		touch-action: none;
+		user-select: none;
+		-webkit-user-select: none;
 	}
 
 	.import-recorder-preview {
@@ -471,6 +510,7 @@
 		font: inherit;
 		font-size: 0.86rem;
 		font-weight: 700;
+		touch-action: manipulation;
 	}
 
 	.utility-button:disabled {
@@ -514,6 +554,7 @@
 		user-select: none;
 		-webkit-user-select: none;
 		-webkit-tap-highlight-color: transparent;
+		touch-action: manipulation;
 	}
 
 	.primary-action:active:not(:disabled) {
@@ -582,6 +623,7 @@
 		backdrop-filter: blur(10px);
 		-webkit-backdrop-filter: blur(10px);
 		pointer-events: auto;
+		touch-action: none;
 	}
 
 	.scrub-meta {
@@ -601,6 +643,7 @@
 		height: 2.4rem;
 		margin: 0.1rem 0;
 		accent-color: var(--color-primary);
+		touch-action: pan-x;
 	}
 
 	.scrub-summary-line {
