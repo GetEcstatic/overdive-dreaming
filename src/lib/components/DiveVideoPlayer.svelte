@@ -57,6 +57,7 @@
 	import { doc, onSnapshot } from 'firebase/firestore';
 	import { db } from '$lib/firebase';
 	import { user } from '$lib/stores/auth';
+	import SpeedPlotHudSvg from '$lib/components/SpeedPlotHudSvg.svelte';
 	import type { DiveTimeline, DiveVideo } from '$lib/types';
 	import {
 		distanceAt,
@@ -80,6 +81,7 @@
 		getDiveVideoDirectDownloadUrl,
 		requestDiveVideoOverlayDownload
 	} from '$lib/services/diveVideos';
+	import { getUserPBRecords, getUserPBs } from '$lib/utils/personalBests';
 	import { hasCurrentServerOverlayArtifact } from '$lib/media/processing';
 	import {
 		canvasFont,
@@ -89,6 +91,12 @@
 		type HudRenderMode,
 		type HudTextStyle
 	} from '$lib/media/hudDesign';
+	import {
+		createSpeedPlotFrame,
+		projectSpeedPlot,
+		scaleSpeedPlotHudDesign,
+		speedPlotCssVariables
+	} from '$lib/media/speedPlotHud';
 
 	const MAX_BROWSER_OVERLAY_EXPORT_BYTES = 200 * 1024 * 1024;
 
@@ -145,7 +153,11 @@
 	let inlineMuted = $state(false);
 	let rvfcHandle: number | null = null;
 
+	type HudPreset = 'clean' | 'classic' | 'speed-graph' | 'graph-only';
+
 	let showOverlay = $state(true);
+	let showSpeedPlot = $state(false);
+	let pbDistanceM = $state<number | null>(null);
 
 	onMount(() => {
 		const unsubscribe = onSnapshot(doc(db, 'diveVideos', video.id), (snapshot) => {
@@ -154,6 +166,45 @@
 		});
 		return unsubscribe;
 	});
+
+	$effect(() => {
+		const athleteId = liveVideo.athleteId ?? liveVideo.userId ?? liveVideo.ownerId;
+		const discipline = liveVideo.discipline;
+		let cancelled = false;
+		pbDistanceM = null;
+		void resolveDisciplinePbDistance(athleteId, discipline).then((pb) => {
+			if (!cancelled) pbDistanceM = pb;
+		});
+		return () => {
+			cancelled = true;
+		};
+	});
+
+	async function resolveDisciplinePbDistance(
+		userId: string | undefined,
+		discipline: DiveVideo['discipline']
+	): Promise<number | null> {
+		if (!userId) return null;
+		try {
+			const records = await getUserPBRecords(userId);
+			const standardRecord = Object.values(records ?? {})
+				.filter(
+					(record) =>
+						record.discipline === discipline &&
+						record.metric === 'distance' &&
+						record.isStandard &&
+						Number.isFinite(record.value)
+				)
+				.sort((a, b) => b.value - a.value)[0];
+			if (standardRecord?.value) return standardRecord.value;
+
+			const legacy = await getUserPBs(userId);
+			const value = legacy?.[discipline];
+			return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
+		} catch {
+			return null;
+		}
+	}
 
 	/**
 	 * Pseudo-fullscreen state, driven by the `diveVideoBehavior` action via
@@ -318,6 +369,59 @@
 			: 'portrait'
 	);
 	const hudStyle = $derived(hudCssVariables(hudMode));
+	const showAnyOverlay = $derived(showOverlay || showSpeedPlot);
+	const requiresBrowserOverlayExport = $derived(showSpeedPlot);
+	const speedPlotFrame = $derived(
+		createSpeedPlotFrame({
+			timeline,
+			poolLengthM: poolLength,
+			currentVideoMs: Math.max(0, currentMs),
+			pbDistanceM
+		})
+	);
+	const speedPlotDomDesign = $derived(scaleSpeedPlotHudDesign(390));
+	const speedPlotModel = $derived(
+		projectSpeedPlot(speedPlotFrame, 390, speedPlotDomDesign.bandHeightPx)
+	);
+	const speedPlotStyle = $derived(speedPlotCssVariables());
+
+	function currentHudPreset(): HudPreset {
+		if (showOverlay && showSpeedPlot) return 'speed-graph';
+		if (showOverlay) return 'classic';
+		if (showSpeedPlot) return 'graph-only';
+		return 'clean';
+	}
+
+	function hudPresetLabel(): string {
+		switch (currentHudPreset()) {
+			case 'clean':
+				return 'Clean';
+			case 'classic':
+				return 'Classic';
+			case 'speed-graph':
+				return 'Speed graph';
+			case 'graph-only':
+				return 'Graph only';
+		}
+	}
+
+	function applyHudPreset(preset: HudPreset): void {
+		showOverlay = preset === 'classic' || preset === 'speed-graph';
+		showSpeedPlot = preset === 'speed-graph' || preset === 'graph-only';
+	}
+
+	function cycleHudPreset(): void {
+		const preset = currentHudPreset();
+		applyHudPreset(
+			preset === 'clean'
+				? 'classic'
+				: preset === 'classic'
+					? 'speed-graph'
+					: preset === 'speed-graph'
+						? 'graph-only'
+						: 'clean'
+		);
+	}
 
 	function formatMs(ms: number): string {
 		const secs = Math.floor(ms / 1000);
@@ -1391,6 +1495,10 @@
 		</div>
 	{/if}
 
+	{#if showSpeedPlot}
+		<SpeedPlotHudSvg model={speedPlotModel} style={speedPlotStyle} />
+	{/if}
+
 	{#if isFullscreen}
 		<!--
 		  Custom landscape control bar. Replaces the native <video> controls
@@ -1451,11 +1559,11 @@
 				<button
 					type="button"
 					class="fs-btn"
-					aria-label={showOverlay ? 'Hide overlay' : 'Show overlay'}
-					aria-pressed={showOverlay}
-					onclick={() => (showOverlay = !showOverlay)}
+					aria-label="Change HUD overlay"
+					aria-pressed={showAnyOverlay}
+					onclick={cycleHudPreset}
 				>
-					HUD
+					{hudPresetLabel()}
 				</button>
 				{#if fullscreenMode !== 'portrait'}
 					<button
@@ -1476,13 +1584,13 @@
 			<button
 				type="button"
 				class="pill pill-toggle"
-				class:pill-active={showOverlay}
-				onclick={() => (showOverlay = !showOverlay)}
+				class:pill-active={showAnyOverlay}
+				onclick={cycleHudPreset}
 				disabled={downloading}
-				aria-pressed={showOverlay}
+				aria-pressed={showAnyOverlay}
 			>
-				<span class="pill-dot" class:pill-dot-active={showOverlay}></span>
-				<span>{showOverlay ? 'Hide overlay' : 'Show overlay'}</span>
+				<span class="pill-dot" class:pill-dot-active={showAnyOverlay}></span>
+				<span>{hudPresetLabel()}</span>
 			</button>
 
 			{#if canDownloadVideo}
@@ -1490,18 +1598,18 @@
 					type="button"
 					class="pill pill-primary"
 					onclick={downloadCurrentVideo}
-					disabled={downloading || requestingServerOverlay || (showOverlay && effectiveOverlayDownloadStatus === 'queued')}
+					disabled={downloading || requestingServerOverlay || (showOverlay && !requiresBrowserOverlayExport && effectiveOverlayDownloadStatus === 'queued')}
 				>
 					{#if downloading}
 						<span class="pill-spinner" aria-hidden="true"></span>
 						<span>Preparing…</span>
-					{:else if showOverlay && requestingServerOverlay}
+					{:else if showOverlay && !requiresBrowserOverlayExport && requestingServerOverlay}
 						<span class="pill-spinner" aria-hidden="true"></span>
 						<span>Queueing...</span>
-					{:else if showOverlay && effectiveOverlayDownloadStatus === 'queued'}
+					{:else if showOverlay && !requiresBrowserOverlayExport && effectiveOverlayDownloadStatus === 'queued'}
 						<span class="pill-spinner" aria-hidden="true"></span>
 						<span>Overlay processing...</span>
-					{:else if showOverlay && (effectiveOverlayDownloadStatus === 'not-requested' || effectiveOverlayDownloadStatus === 'retryable' || effectiveOverlayDownloadStatus === 'processing')}
+					{:else if showOverlay && !requiresBrowserOverlayExport && (effectiveOverlayDownloadStatus === 'not-requested' || effectiveOverlayDownloadStatus === 'retryable' || effectiveOverlayDownloadStatus === 'processing')}
 						<span aria-hidden="true">⬇︎</span>
 						<span>Download</span>
 					{:else}
@@ -1527,13 +1635,13 @@
 		<button
 			type="button"
 			class="pill pill-toggle"
-			class:pill-active={showOverlay}
-			onclick={() => (showOverlay = !showOverlay)}
+			class:pill-active={showAnyOverlay}
+			onclick={cycleHudPreset}
 			disabled={downloading}
-			aria-pressed={showOverlay}
+			aria-pressed={showAnyOverlay}
 		>
-			<span class="pill-dot" class:pill-dot-active={showOverlay}></span>
-			<span>{showOverlay ? 'Hide overlay' : 'Show overlay'}</span>
+			<span class="pill-dot" class:pill-dot-active={showAnyOverlay}></span>
+			<span>{hudPresetLabel()}</span>
 		</button>
 
 		{#if canDownloadVideo}
@@ -1541,18 +1649,18 @@
 				type="button"
 				class="pill pill-primary"
 				onclick={downloadCurrentVideo}
-				disabled={downloading || requestingServerOverlay || (showOverlay && effectiveOverlayDownloadStatus === 'queued')}
+				disabled={downloading || requestingServerOverlay || (showOverlay && !requiresBrowserOverlayExport && effectiveOverlayDownloadStatus === 'queued')}
 			>
 				{#if downloading}
 					<span class="pill-spinner" aria-hidden="true"></span>
 					<span>Preparing…</span>
-				{:else if showOverlay && requestingServerOverlay}
+				{:else if showOverlay && !requiresBrowserOverlayExport && requestingServerOverlay}
 					<span class="pill-spinner" aria-hidden="true"></span>
 					<span>Queueing...</span>
-				{:else if showOverlay && effectiveOverlayDownloadStatus === 'queued'}
+				{:else if showOverlay && !requiresBrowserOverlayExport && effectiveOverlayDownloadStatus === 'queued'}
 					<span class="pill-spinner" aria-hidden="true"></span>
 					<span>Overlay processing...</span>
-				{:else if showOverlay && (effectiveOverlayDownloadStatus === 'not-requested' || effectiveOverlayDownloadStatus === 'retryable' || effectiveOverlayDownloadStatus === 'processing')}
+				{:else if showOverlay && !requiresBrowserOverlayExport && (effectiveOverlayDownloadStatus === 'not-requested' || effectiveOverlayDownloadStatus === 'retryable' || effectiveOverlayDownloadStatus === 'processing')}
 					<span aria-hidden="true">⬇︎</span>
 					<span>Download</span>
 				{:else}
