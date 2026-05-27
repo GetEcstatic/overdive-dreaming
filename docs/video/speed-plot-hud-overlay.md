@@ -1,6 +1,6 @@
 # Speed Plot HUD Overlay Plan
 
-Status: planning only.
+Status: phase 1 implemented for playback and browser canvas exports. Server overlay exports remain Classic-only until the worker moves beyond ASS overlays.
 
 ## Goal
 
@@ -53,18 +53,19 @@ Recommended PB resolution order:
 
 1. Use a standard distance PB record matching the video discipline and category.
 2. Fall back to legacy `personalBests[discipline]` if the standard record is unavailable.
-3. Fall back to `max(totalDistanceM(video.timeline), 100)` if the user has no PB yet.
+3. Fall back to a discipline default of `200m` if the user has no PB yet.
 
 For burned exports, pass `pbDistanceM` into the export request/job and snapshot it in the render inputs. That prevents an export from changing if the user's PB changes while a queued server job is waiting.
 
 ## Scaling Rules
 
-- X-axis domain: `0..(pbDistanceM * 1.25)`.
+- X-axis domain: `0..max(pbDistanceM, realisedDiveDistanceM, 200m when no PB) * 1.2`.
 - PB marker: vertical line at `pbDistanceM`, plus a small symbol at the x-axis. Use a small diamond or triangular flag rather than text-heavy labeling.
 - Y-axis domain: `0..2 m/s`.
 - Values above `2 m/s`: clamp visually to the top edge but mark the clipped segment with a subtle cap/flat top, not a blown-out chart.
 - Values below `0`: clamp to 0.
-- Current reveal: only include samples where sample time `<= currentVideoMs`, plus an interpolated current sample so the line grows smoothly during video playback.
+- Current reveal: only include samples where sample time `<= currentVideoMs`, plus an interpolated current sample so the line grows smoothly during video playback. Do not render a ghosted future line.
+- Line shape: render a smoothed curve. Speed changes are usually gradual accelerations/decelerations, not hard steps.
 
 ## Pure Model
 
@@ -278,12 +279,19 @@ This avoids forcing a choice every time, but keeps control close to the video.
 7. Persist user defaults after the UI feels right.
 8. Revisit server export after browser parity is proven.
 
+Phase 1 shipped:
+
+- Pure model/design in `src/lib/media/speedPlotHud.ts`, with tests in `src/lib/media/speedPlotHud.test.ts`.
+- SVG playback renderer in `src/lib/components/SpeedPlotHudSvg.svelte`.
+- Browser canvas export renderer in `src/lib/components/DiveVideoPlayer.svelte`.
+- HUD preset cycling in the video player: `Clean`, `Classic`, `Speed graph`, `Graph only`.
+
 ## Test Plan
 
 Pure tests:
 
-- Domain is PB × 1.25.
-- No PB falls back to current/fallback distance.
+- Domain is max of PB distance + 20%, realised dive distance + 20%, or 200m + 20% when no PB exists.
+- No PB falls back to the 200m discipline default.
 - Speed samples are derived correctly from split distances and times.
 - Current frame clips samples after `currentVideoMs` and interpolates the current point.
 - Projection maps x/y correctly for 720p, 1080p, and 4K widths.
@@ -296,9 +304,12 @@ Visual checks:
 - Videos with no PB, short dives, and speeds over 2 m/s.
 - Export with top metrics only, speed graph only, and both.
 
-## Open Questions
+## Resolved Decisions
 
-- Should PB be discipline-wide, pool-length-specific, or routine-category-specific? Recommendation: discipline-wide for v1, because it is easiest to understand.
-- Should the y-axis show `m/s` or pace (`s/50m`) for swimmers who think in split pace? Recommendation: keep `m/s` for parity with the current HUD speed metric.
-- Should the graph line be stepped, like the mockup, or interpolated? Recommendation: stepped for event-to-event split speed; optionally smooth later if we add dense speed samples.
-- Should the graph show the whole line ghosted and reveal the active portion? Recommendation: v1 reveal only the active line to keep the overlay calm.
+- PB scale is discipline-wide for v1.
+- If the diver has no PB data for the discipline, use `200m` as the default PB distance.
+- The y-axis label is `speed [m/s]`.
+- The graph uses a smoothed curve, not stepped segments.
+- The overlay reveals only the active line up to the current playback position.
+- The x-axis uses the larger of PB distance + 20% and realised dive distance + 20%; if there is no PB, the default `200m` participates in the same rule.
+
