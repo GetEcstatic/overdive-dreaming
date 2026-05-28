@@ -8,20 +8,19 @@
 
 	let { model, style = '' }: Props = $props();
 
-	function steppedPath(points: readonly { x: number; y: number }[]): string {
+	function steppedPolyline(points: readonly { x: number; y: number }[]): string {
 		if (points.length === 0) return '';
-		if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
-		let path = `M ${points[0].x} ${points[0].y}`;
+		const steppedPoints = [`${points[0].x},${points[0].y}`];
 		for (let i = 0; i < points.length - 1; i += 1) {
 			const current = points[i];
 			const next = points[i + 1];
-			path += ` H ${next.x} V ${next.y}`;
+			steppedPoints.push(`${next.x},${current.y}`, `${next.x},${next.y}`);
 		}
-		return path;
+		return steppedPoints.join(' ');
 	}
 
 	const design = $derived(scaleSpeedPlotHudDesign(model.width));
-	const speedPath = $derived(steppedPath(model.speedLine));
+	const speedPolyline = $derived(steppedPolyline(model.speedLine));
 </script>
 
 <div class="speed-plot-hud" {style} aria-hidden="true">
@@ -77,9 +76,9 @@
 			/>
 		{/if}
 
-		{#if speedPath}
-			<path
-				d={speedPath}
+		{#if speedPolyline}
+			<polyline
+				points={speedPolyline}
 				fill="none"
 				stroke="url(#speedPlotLine)"
 				stroke-width={design.line.widthPx}
