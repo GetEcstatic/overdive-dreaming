@@ -66,6 +66,7 @@ For burned exports, pass `pbDistanceM` into the export request/job and snapshot 
 - Values below `0`: clamp to 0.
 - Current reveal: only include samples where sample time `<= currentVideoMs`, plus an interpolated current sample so the line advances continuously during video playback. Do not render a ghosted future line.
 - Line shape: render stepped segments. The stronger horizontal/vertical edges remain more legible over video, especially on mobile.
+- First segment: before the first waypoint, draw the tail from `0 m/s` at `0m`, up to the known segment speed by `3m`, then extend that visible tail to the moving current point.
 - DOM playback projects the chart from the measured video-player width, rather than stretching a fixed mobile SVG. Keep text, line weights, and plot geometry scaled from that same width.
 - In pseudo-fullscreen or inline-action playback, lift the bottom chart above video controls instead of moving the controls outside the player.
 

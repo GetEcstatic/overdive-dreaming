@@ -103,6 +103,7 @@ export interface SpeedPlotHudDesign {
 }
 
 const SANS_FAMILY = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+const FIRST_SEGMENT_ACCELERATION_DISTANCE_M = 3;
 
 export const SPEED_PLOT_HUD_DESIGN: SpeedPlotHudDesign = {
 	referenceWidthPx: 1080,
@@ -374,6 +375,20 @@ export function projectSpeedPlot(frame: SpeedPlotFrame, widthPx: number, heightP
 
 function visibleSpeedLineSamples(frame: SpeedPlotFrame): readonly SpeedPlotSample[] {
 	if (frame.currentDistanceM <= 0) return frame.samples;
+	const hasRevealedPositiveWaypoint = frame.samples.some(
+		(sample) => sample.distanceM > 0.001 && sample.distanceM < frame.currentDistanceM - 0.001
+	);
+	if (!hasRevealedPositiveWaypoint) {
+		const accelerationDistanceM = Math.min(FIRST_SEGMENT_ACCELERATION_DISTANCE_M, frame.currentDistanceM);
+		const firstSegment: SpeedPlotSample[] = [
+			{ atMs: 0, distanceM: 0, speedMs: 0 },
+			{ atMs: 0, distanceM: accelerationDistanceM, speedMs: frame.currentSpeedMs }
+		];
+		if (frame.currentDistanceM > accelerationDistanceM + 0.001) {
+			firstSegment.push({ atMs: 0, distanceM: frame.currentDistanceM, speedMs: frame.currentSpeedMs });
+		}
+		return firstSegment;
+	}
 	const samples = [...frame.samples];
 	const first = samples[0];
 	const last = samples[samples.length - 1];

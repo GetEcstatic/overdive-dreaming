@@ -63,8 +63,9 @@ describe('speedPlotHud', () => {
 		const model = projectSpeedPlot(frame, 390, 103);
 
 		expect(frame.currentDistanceM).toBeCloseTo(6.25);
-		expect(model.speedLine.length).toBeGreaterThanOrEqual(2);
+		expect(model.speedLine.length).toBeGreaterThanOrEqual(3);
 		expect(model.speedLine[0].x).toBeLessThan(model.currentPoint?.x ?? 0);
+		expect(model.speedLine[1].y).toBeLessThan(model.speedLine[0].y);
 	});
 
 	it('prefers dense recorded samples for a stepped trace', () => {
@@ -108,9 +109,10 @@ describe('speedPlotHud', () => {
 			103
 		);
 
-		expect(model.speedLine).toHaveLength(2);
+		expect(model.speedLine).toHaveLength(3);
 		expect(model.speedLine[0].x).toBeLessThan(model.speedLine[1].x);
-		expect(model.speedLine[0].y).toBeCloseTo(model.speedLine[1].y);
+		expect(model.speedLine[1].x).toBeLessThan(model.speedLine[2].x);
+		expect(model.speedLine[1].y).toBeCloseTo(model.speedLine[2].y);
 	});
 
 	it('prepends the 0m anchor when the first revealed sample is already in motion', () => {
@@ -126,9 +128,10 @@ describe('speedPlotHud', () => {
 			103
 		);
 
-		expect(model.speedLine).toHaveLength(2);
+		expect(model.speedLine).toHaveLength(3);
 		expect(model.speedLine[0].x).toBeLessThan(model.speedLine[1].x);
-		expect(model.speedLine[0].y).toBeCloseTo(model.speedLine[1].y);
+		expect(model.speedLine[1].x).toBeLessThan(model.speedLine[2].x);
+		expect(model.speedLine[1].y).toBeCloseTo(model.speedLine[2].y);
 	});
 
 	it('computes realised distance from sub-splits and dense samples', () => {
