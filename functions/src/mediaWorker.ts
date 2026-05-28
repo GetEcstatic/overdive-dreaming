@@ -22,10 +22,15 @@ const require = createRequire(import.meta.url);
 const ffmpegPath = require('ffmpeg-static') as string | null;
 const ffprobeStatic = require('ffprobe-static') as { path?: string };
 const execFileAsync = promisify(execFile);
-const OVERLAY_STYLE_VERSION = 'overdive-overlay-v5';
+const OVERLAY_STYLE_VERSION = 'overdive-overlay-v6';
 
 const HUD_REFERENCE_SHORT_EDGE_PX = 390;
 const CSS_PX_PER_REM = 16;
+const SPEED_PLOT_REFERENCE_WIDTH_PX = 1080;
+const SPEED_PLOT_DEFAULT_DOMAIN_M = 200;
+const SPEED_PLOT_DOMAIN_PADDING_RATIO = 1.2;
+const SPEED_PLOT_MAX_SPEED_MS = 2;
+const SPEED_PLOT_FIRST_ACCELERATION_M = 3;
 
 function rem(value: number): number {
 	return value * CSS_PX_PER_REM;
@@ -377,6 +382,166 @@ function roundedRectAssPath(width: number, height: number, radius: number): stri
 	].join(' ');
 }
 
+function rectAssPath(x: number, y: number, width: number, height: number): string {
+	const x2 = x + width;
+	const y2 = y + height;
+	return `m ${x} ${y} l ${x2} ${y} l ${x2} ${y2} l ${x} ${y2}`;
+}
+
+function totalRealizedDistanceM(timeline: DiveTimeline, poolLength: number): number {
+	return Math.max(
+		0,
+		distanceAt(timeline, timeline.diveEndMs, poolLength),
+		...(timeline.samples?.map((sample) => sample.distanceM).filter(Number.isFinite) ?? []),
+		...timeline.laps.map((lap) => lap.cumulativeDistanceM),
+		...(timeline.subSplits?.map((split) => split.cumulativeDistanceM) ?? [])
+	);
+}
+
+function speedPlotDomainM(timeline: DiveTimeline, poolLength: number): number {
+	return Math.max(SPEED_PLOT_DEFAULT_DOMAIN_M, totalRealizedDistanceM(timeline, poolLength), 1) * SPEED_PLOT_DOMAIN_PADDING_RATIO;
+}
+
+function speedSamplesFromTimeline(timeline: DiveTimeline): { distanceM: number; speedMs: number; atMs: number }[] {
+	if (timeline.samples && timeline.samples.length > 0) {
+		const first = timeline.samples[0];
+		const start = timeline.diveStartMs < first.atMs
+			? [{ atMs: timeline.diveStartMs, distanceM: 0, speedMs: first.speedMs }]
+			: [];
+		return [...start, ...timeline.samples]
+			.filter((sample) => Number.isFinite(sample.atMs) && Number.isFinite(sample.distanceM) && Number.isFinite(sample.speedMs))
+			.sort((a, b) => a.atMs - b.atMs);
+	}
+
+	const waypoints = sortedWaypointEvents(timeline);
+	const samples: { distanceM: number; speedMs: number; atMs: number }[] = [];
+	let previousAtMs = timeline.diveStartMs;
+	let previousDistanceM = 0;
+	for (const waypoint of waypoints) {
+		const segmentMs = Math.max(1, waypoint.atMs - previousAtMs);
+		const segmentDistanceM = Math.max(0, waypoint.cumulativeDistanceM - previousDistanceM);
+		const segmentSpeedMs = segmentDistanceM / (segmentMs / 1000);
+		if (samples.length === 0) {
+			samples.push({ atMs: previousAtMs, distanceM: previousDistanceM, speedMs: segmentSpeedMs });
+		}
+		samples.push({ atMs: waypoint.atMs, distanceM: waypoint.cumulativeDistanceM, speedMs: segmentSpeedMs });
+		previousAtMs = waypoint.atMs;
+		previousDistanceM = waypoint.cumulativeDistanceM;
+	}
+	return samples;
+}
+
+function speedLineSamplesAt(args: {
+	timeline: DiveTimeline;
+	poolLength: number;
+	atMs: number;
+}): { distanceM: number; speedMs: number }[] {
+	const currentDistanceM = distanceAt(args.timeline, args.atMs, args.poolLength);
+	const currentSpeedMs = speedAt(args.timeline, args.atMs, args.poolLength);
+	if (currentDistanceM <= 0) return [];
+	const revealed = speedSamplesFromTimeline(args.timeline)
+		.filter((sample) => sample.atMs <= args.atMs)
+		.map((sample) => ({ distanceM: sample.distanceM, speedMs: sample.speedMs }));
+	const hasRevealedPositiveWaypoint = revealed.some(
+		(sample) => sample.distanceM > 0.001 && sample.distanceM < currentDistanceM - 0.001
+	);
+	if (!hasRevealedPositiveWaypoint) {
+		const accelerationDistanceM = Math.min(SPEED_PLOT_FIRST_ACCELERATION_M, currentDistanceM);
+		const firstSegment = [
+			{ distanceM: 0, speedMs: 0 },
+			{ distanceM: accelerationDistanceM, speedMs: currentSpeedMs }
+		];
+		if (currentDistanceM > accelerationDistanceM + 0.001) {
+			firstSegment.push({ distanceM: currentDistanceM, speedMs: currentSpeedMs });
+		}
+		return firstSegment;
+	}
+	const last = revealed[revealed.length - 1];
+	if (!revealed.length || revealed[0].distanceM > 0.001) {
+		revealed.unshift({ distanceM: 0, speedMs: revealed[0]?.speedMs ?? currentSpeedMs });
+	}
+	if (!last || currentDistanceM > last.distanceM + 0.001) {
+		revealed.push({ distanceM: currentDistanceM, speedMs: currentSpeedMs });
+	}
+	return revealed;
+}
+
+function speedPlotAssEvents(args: {
+	timeline: DiveTimeline;
+	poolLength: number;
+	durationSeconds: number;
+	width: number;
+	height: number;
+}): string[] {
+	const durationSeconds = Math.max(args.durationSeconds, args.timeline.diveEndMs / 1000, 1);
+	const scale = Math.max(0.35, Math.min(1.25, args.width / SPEED_PLOT_REFERENCE_WIDTH_PX));
+	const bandHeight = Math.min(Math.round(285 * scale), Math.round(args.height * 0.28));
+	const safeX = Math.round(36 * scale);
+	const bottomInset = Math.round(32 * scale);
+	const bandX = safeX;
+	const bandY = Math.max(0, args.height - bandHeight - bottomInset);
+	const bandW = Math.max(1, args.width - safeX * 2);
+	const padLeft = Math.round(96 * scale);
+	const padRight = Math.round(42 * scale);
+	const padTop = Math.round(32 * scale);
+	const padBottom = Math.round(44 * scale);
+	const plotX = bandX + padLeft;
+	const plotY = bandY + padTop;
+	const plotW = Math.max(1, bandW - padLeft - padRight);
+	const plotH = Math.max(1, bandHeight - padTop - padBottom);
+	const domainDistanceM = speedPlotDomainM(args.timeline, args.poolLength);
+	const axisSize = Math.max(8, Math.round(30 * scale));
+	const lineWidth = Math.max(2, Math.round(5 * scale));
+	const gridWidth = Math.max(1, Math.round(1.35 * scale));
+	const radius = Math.round(18 * scale);
+	const events: string[] = [];
+	const fullStart = formatAssTime(0);
+	const fullEnd = formatAssTime(durationSeconds);
+	const toX = (distanceM: number) => plotX + (Math.max(0, Math.min(domainDistanceM, distanceM)) / domainDistanceM) * plotW;
+	const toY = (speedMs: number) => plotY + (1 - Math.max(0, Math.min(SPEED_PLOT_MAX_SPEED_MS, speedMs)) / SPEED_PLOT_MAX_SPEED_MS) * plotH;
+	const xTicks = [0, 50, 100, 150, 200].filter((tick) => tick <= domainDistanceM);
+	const yTicks = [0, 0.5, 1, 1.5, 2];
+
+	events.push(`Dialogue: 0,${fullStart},${fullEnd},SpeedPlotBG,,0,0,0,,{\\an7\\pos(${bandX},${bandY})\\p1}${roundedRectAssPath(bandW, bandHeight, radius)}`);
+	for (const tick of xTicks) {
+		const x = Math.round(toX(tick));
+		events.push(`Dialogue: 1,${fullStart},${fullEnd},SpeedPlotGrid,,0,0,0,,{\\an7\\pos(0,0)\\p1}${rectAssPath(x, plotY, gridWidth, plotH)}`);
+		events.push(`Dialogue: 3,${fullStart},${fullEnd},SpeedPlotAxis,,0,0,0,,{\\an5\\pos(${x},${Math.round(plotY + plotH + axisSize * 1.35)})}${tick}m`);
+	}
+	for (const tick of yTicks) {
+		const y = Math.round(toY(tick));
+		events.push(`Dialogue: 1,${fullStart},${fullEnd},SpeedPlotGrid,,0,0,0,,{\\an7\\pos(0,0)\\p1}${rectAssPath(plotX, y, plotW, gridWidth)}`);
+		events.push(`Dialogue: 3,${fullStart},${fullEnd},SpeedPlotAxis,,0,0,0,,{\\an6\\pos(${Math.round(plotX - axisSize * 0.55)},${Math.round(y + axisSize * 0.15)})}${tick % 1 === 0 ? tick.toFixed(0) : tick.toFixed(1)}`);
+	}
+	events.push(`Dialogue: 3,${fullStart},${fullEnd},SpeedPlotAxis,,0,0,0,,{\\an5\\pos(${Math.round(bandX + axisSize * 0.8)},${Math.round(plotY + plotH / 2)})\\frz270}speed [m/s]`);
+
+	for (let tick = 0; tick < Math.ceil(durationSeconds * 10); tick += 1) {
+		const startSeconds = tick / 10;
+		const atMs = startSeconds * 1000;
+		const endSeconds = Math.min(durationSeconds, (tick + 1) / 10);
+		const lineSamples = speedLineSamplesAt({ timeline: args.timeline, poolLength: args.poolLength, atMs });
+		if (lineSamples.length < 2) continue;
+		const projected = lineSamples.map((sample) => ({ x: toX(sample.distanceM), y: toY(sample.speedMs) }));
+		const stepped = [projected[0]];
+		for (let i = 0; i < projected.length - 1; i += 1) {
+			const current = projected[i];
+			const next = projected[i + 1];
+			stepped.push({ x: next.x, y: current.y }, next);
+		}
+		const linePath = stepped.slice(0, -1).map((point, index) => {
+			const next = stepped[index + 1];
+			const x = Math.min(point.x, next.x) - lineWidth / 2;
+			const y = Math.min(point.y, next.y) - lineWidth / 2;
+			const width = Math.max(lineWidth, Math.abs(next.x - point.x) + lineWidth);
+			const height = Math.max(lineWidth, Math.abs(next.y - point.y) + lineWidth);
+			return rectAssPath(Math.round(x), Math.round(y), Math.round(width), Math.round(height));
+		}).join(' ');
+		events.push(`Dialogue: 2,${formatAssTime(startSeconds)},${formatAssTime(endSeconds)},SpeedPlotLine,,0,0,0,,{\\an7\\pos(0,0)\\p1}${linePath}`);
+	}
+
+	return events;
+}
+
 function overlayAss(args: {
 	timeline: DiveTimeline;
 	poolLength: number;
@@ -438,6 +603,14 @@ function overlayAss(args: {
 		);
 	}
 
+	events.push(...speedPlotAssEvents({
+		timeline: args.timeline,
+		poolLength: args.poolLength,
+		durationSeconds,
+		width: args.width,
+		height: args.height
+	}));
+
 	events.push(
 		`Dialogue: 2,${formatAssTime(0)},${formatAssTime(durationSeconds)},Watermark,,0,0,0,,{\an3\pos(${args.width - watermarkMargin},${args.height - watermarkMargin})}${escapeAssText('overdive.app')}`
 	);
@@ -454,6 +627,10 @@ Style: HUDLabel,DejaVu Sans,${labelSize},&H00E1D5CB,&H000000FF,&H00000000,&H0000
 Style: HUDValue,DejaVu Sans Mono,${valueSize},&H00FCFAF8,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 Style: HUDSub,DejaVu Sans,${subSize},&H00E1D5CB,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 Style: HUDSubMono,DejaVu Sans Mono,${subSize},&H00E1D5CB,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
+Style: SpeedPlotBG,Arial,1,&H73000000,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
+Style: SpeedPlotGrid,Arial,1,&HCCFFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
+Style: SpeedPlotLine,Arial,1,&H00BFD42D,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
+Style: SpeedPlotAxis,DejaVu Sans,${Math.max(8, Math.round(30 * Math.max(0.35, Math.min(1.25, args.width / SPEED_PLOT_REFERENCE_WIDTH_PX))))},&H2EE1D5CB,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 Style: Watermark,DejaVu Sans,${watermarkSize},&H66FCFAF8,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,3,0,0,0,1
 
 [Events]
