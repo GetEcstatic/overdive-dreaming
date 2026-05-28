@@ -93,7 +93,8 @@ describe('speedPlotHud', () => {
 		expect(model720.pbMarker?.x).toBeGreaterThan(model720.plotRect.x);
 		expect(model720.pbMarker?.x).toBeLessThan(model720.plotRect.x + model720.plotRect.width);
 		expect(model1080.bandRect.height / model720.bandRect.height).toBeCloseTo(1080 / 720);
-		expect(model4k.speedLine.length).toBe(frame.samples.length);
+		expect(model4k.speedLine.length).toBeGreaterThanOrEqual(frame.samples.length);
+		expect(model4k.speedLine.at(-1)?.x).toBeGreaterThan(model4k.speedLine[0].x);
 	});
 
 	it('draws a visible first segment when only the current point is available', () => {
@@ -111,6 +112,21 @@ describe('speedPlotHud', () => {
 
 		expect(model.speedLine).toHaveLength(3);
 		expect(model.speedLine[0].x).toBeLessThan(model.speedLine[1].x);
+		expect(model.speedLine[1].x).toBeLessThan(model.speedLine[2].x);
+		expect(model.speedLine[1].y).toBeCloseTo(model.speedLine[2].y);
+	});
+
+	it('preserves the first acceleration segment after the first waypoint is reached', () => {
+		const frame = createSpeedPlotFrame({
+			timeline,
+			poolLengthM: 25,
+			currentVideoMs: 31_000,
+			pbDistanceM: 100
+		});
+		const model = projectSpeedPlot(frame, 390, 103);
+
+		expect(model.speedLine).toHaveLength(4);
+		expect(model.speedLine[0].y).toBeGreaterThan(model.speedLine[1].y);
 		expect(model.speedLine[1].x).toBeLessThan(model.speedLine[2].x);
 		expect(model.speedLine[1].y).toBeCloseTo(model.speedLine[2].y);
 	});

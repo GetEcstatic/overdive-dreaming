@@ -22,7 +22,7 @@ const require = createRequire(import.meta.url);
 const ffmpegPath = require('ffmpeg-static') as string | null;
 const ffprobeStatic = require('ffprobe-static') as { path?: string };
 const execFileAsync = promisify(execFile);
-const OVERLAY_STYLE_VERSION = 'overdive-overlay-v6';
+const OVERLAY_STYLE_VERSION = 'overdive-overlay-v7';
 
 const HUD_REFERENCE_SHORT_EDGE_PX = 390;
 const CSS_PX_PER_REM = 16;
@@ -457,13 +457,29 @@ function speedLineSamplesAt(args: {
 		return firstSegment;
 	}
 	const last = revealed[revealed.length - 1];
-	if (!revealed.length || revealed[0].distanceM > 0.001) {
-		revealed.unshift({ distanceM: 0, speedMs: revealed[0]?.speedMs ?? currentSpeedMs });
-	}
 	if (!last || currentDistanceM > last.distanceM + 0.001) {
 		revealed.push({ distanceM: currentDistanceM, speedMs: currentSpeedMs });
 	}
-	return revealed;
+	return withFirstSpeedSegmentAcceleration(revealed, currentDistanceM, currentSpeedMs);
+}
+
+function withFirstSpeedSegmentAcceleration(
+	samples: { distanceM: number; speedMs: number }[],
+	currentDistanceM: number,
+	currentSpeedMs: number
+): { distanceM: number; speedMs: number }[] {
+	const firstPositive = samples.find((sample) => sample.distanceM > 0.001);
+	const anchorSpeedMs = firstPositive?.speedMs ?? currentSpeedMs;
+	const accelerationDistanceM = Math.min(
+		SPEED_PLOT_FIRST_ACCELERATION_M,
+		currentDistanceM,
+		firstPositive?.distanceM ?? currentDistanceM
+	);
+	return [
+		{ distanceM: 0, speedMs: 0 },
+		{ distanceM: accelerationDistanceM, speedMs: anchorSpeedMs },
+		...samples.filter((sample) => sample.distanceM > accelerationDistanceM + 0.001)
+	];
 }
 
 function speedPlotAssEvents(args: {

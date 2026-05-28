@@ -390,25 +390,46 @@ function visibleSpeedLineSamples(frame: SpeedPlotFrame): readonly SpeedPlotSampl
 		return firstSegment;
 	}
 	const samples = [...frame.samples];
-	const first = samples[0];
 	const last = samples[samples.length - 1];
-	if (!first) {
+	if (!samples[0]) {
 		return [
 			{ atMs: 0, distanceM: 0, speedMs: frame.currentSpeedMs },
 			{ atMs: 0, distanceM: frame.currentDistanceM, speedMs: frame.currentSpeedMs }
 		];
 	}
-	if (first.distanceM > 0.001) {
-		samples.unshift({ ...first, distanceM: 0 });
-	}
 	if (!last || frame.currentDistanceM > last.distanceM + 0.001) {
 		samples.push({
-			atMs: last?.atMs ?? first.atMs,
+			atMs: last?.atMs ?? samples[0].atMs,
 			distanceM: frame.currentDistanceM,
 			speedMs: frame.currentSpeedMs
 		});
 	}
-	return samples;
+	return withFirstSegmentAcceleration(samples, frame.currentDistanceM, frame.currentSpeedMs);
+}
+
+function withFirstSegmentAcceleration(
+	samples: readonly SpeedPlotSample[],
+	currentDistanceM: number,
+	currentSpeedMs: number
+): readonly SpeedPlotSample[] {
+	const firstPositive = samples.find((sample) => sample.distanceM > 0.001);
+	const anchorSpeedMs = firstPositive?.speedMs ?? currentSpeedMs;
+	const accelerationDistanceM = Math.min(
+		FIRST_SEGMENT_ACCELERATION_DISTANCE_M,
+		currentDistanceM,
+		firstPositive?.distanceM ?? currentDistanceM
+	);
+	const anchored: SpeedPlotSample[] = [
+		{ atMs: samples[0]?.atMs ?? 0, distanceM: 0, speedMs: 0 },
+		{ atMs: firstPositive?.atMs ?? samples[0]?.atMs ?? 0, distanceM: accelerationDistanceM, speedMs: anchorSpeedMs }
+	];
+
+	for (const sample of samples) {
+		if (sample.distanceM > accelerationDistanceM + 0.001) {
+			anchored.push(sample);
+		}
+	}
+	return anchored;
 }
 
 function sortedWaypointEvents(timeline: DiveTimeline): LapEvent[] {
