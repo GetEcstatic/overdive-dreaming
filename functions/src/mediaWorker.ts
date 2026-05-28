@@ -22,7 +22,7 @@ const require = createRequire(import.meta.url);
 const ffmpegPath = require('ffmpeg-static') as string | null;
 const ffprobeStatic = require('ffprobe-static') as { path?: string };
 const execFileAsync = promisify(execFile);
-const OVERLAY_STYLE_VERSION = 'overdive-overlay-v7';
+const OVERLAY_STYLE_VERSION = 'overdive-overlay-v8';
 
 const HUD_REFERENCE_SHORT_EDGE_PX = 390;
 const CSS_PX_PER_REM = 16;
@@ -597,6 +597,8 @@ function overlayAss(args: {
 	const rightX = boxX + boxW - padX;
 	const valueY = innerY + labelLineHeight;
 	const subY = valueY + valueLineHeight + subMarginTop;
+	const watermarkX = watermarkMargin;
+	const watermarkY = args.height - watermarkMargin;
 
 	for (let tick = 0; tick < Math.ceil(durationSeconds * 10); tick += 1) {
 		const startSeconds = tick / 10;
@@ -628,7 +630,7 @@ function overlayAss(args: {
 	}));
 
 	events.push(
-		`Dialogue: 2,${formatAssTime(0)},${formatAssTime(durationSeconds)},Watermark,,0,0,0,,{\an3\pos(${args.width - watermarkMargin},${args.height - watermarkMargin})}${escapeAssText('overdive.app')}`
+		`Dialogue: 2,${formatAssTime(0)},${formatAssTime(durationSeconds)},Watermark,,0,0,0,,{\\an1\\pos(${watermarkX},${watermarkY})}${escapeAssText('Overdive.app')}`
 	);
 
 	return `[Script Info]
@@ -640,14 +642,14 @@ PlayResY: ${args.height}
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: HUDBG,Arial,1,&H732A170F,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 Style: HUDLabel,DejaVu Sans,${labelSize},&H00E1D5CB,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,${labelSpacing},0,1,0,0,7,0,0,0,1
-Style: HUDValue,DejaVu Sans Mono,${valueSize},&H00FCFAF8,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
+Style: HUDValue,DejaVu Sans Mono,${valueSize},&H00F9F5F1,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 Style: HUDSub,DejaVu Sans,${subSize},&H00E1D5CB,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 Style: HUDSubMono,DejaVu Sans Mono,${subSize},&H00E1D5CB,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 Style: SpeedPlotBG,Arial,1,&H73000000,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 Style: SpeedPlotGrid,Arial,1,&HCCFFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 Style: SpeedPlotLine,Arial,1,&H00BFD42D,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 Style: SpeedPlotAxis,DejaVu Sans,${Math.max(8, Math.round(30 * Math.max(0.35, Math.min(1.25, args.width / SPEED_PLOT_REFERENCE_WIDTH_PX))))},&H2EE1D5CB,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
-Style: Watermark,DejaVu Sans,${watermarkSize},&H66FCFAF8,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,3,0,0,0,1
+Style: Watermark,DejaVu Sans,${watermarkSize},&H66F9F5F1,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,1,0,0,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

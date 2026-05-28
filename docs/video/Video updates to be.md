@@ -32,5 +32,19 @@ Resolve video thumbnails independently from playback URLs and allow the media bl
 - [x] Run Svelte/type checks.
 - [x] Commit the completed thumbnail fix.
 
-1.  I'm still noticing a significant difference between the HUD designs that play in the app video player (And which are styled nicely) and what is appearing in the burnt-in HUD on downloaded videos. I'm confused because we went through a process of ensuring they were the same yesterday, and even rendered side-by-side comparisons which showed they were the same. But this hasn't shown up in the burnt-in videos. Likewise I requested a small 'Overdive.app' to be burn in to the bottom left corner as a water mark, but this hasn't been done.
-2. 
+## Align Burned-In HUD Styling
+
+### Problem
+Burned-in downloads are not matching the in-app HUD closely enough, and the requested `Overdive.app` watermark is not visible. The server ASS renderer already has the same layout math as the in-app HUD, but some literal style values differ and the watermark override tags are not escaped like the other ASS events.
+
+### Implementation Plan
+Bring the server ASS style colors/text closer to the app HUD constants, fix the watermark ASS override so it renders, place it at the bottom-left as requested, and bump the server overlay style version so old artifacts are regenerated.
+
+### Checklist
+- [x] Fix the ASS watermark override and use `Overdive.app` at bottom-left.
+- [x] Align server HUD value color with the app HUD foreground.
+- [x] Bump overlay style version for regeneration.
+- [x] Run focused media tests and Cloud Functions build.
+- [x] Commit the completed HUD parity fix.
+
+1. 

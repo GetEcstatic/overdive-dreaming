@@ -5,7 +5,7 @@ import type {
 	MediaObjectRef
 } from '$lib/types';
 
-export const SERVER_OVERLAY_STYLE_VERSION = 'overdive-overlay-v7';
+export const SERVER_OVERLAY_STYLE_VERSION = 'overdive-overlay-v8';
 
 export function serverOverlayArtifact(video: Pick<DiveVideo, 'artifacts'>): DiveVideoArtifactRef | undefined {
 	return video.artifacts?.find((artifact) => artifact.kind === 'overlay-download');
