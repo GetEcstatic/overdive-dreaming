@@ -246,10 +246,12 @@ export function frameAtTime(args: {
 	readonly currentVideoMs: number;
 	readonly pbDistanceM?: number | null;
 	readonly fallbackDistanceM: number;
+	readonly currentSample?: SpeedPlotSample;
 }): SpeedPlotFrame {
 	const sortedSamples = args.samples.filter(isFiniteSample).slice().sort((a, b) => a.atMs - b.atMs);
 	const domainDistanceM = speedPlotDomain(args.pbDistanceM, args.fallbackDistanceM);
-	if (sortedSamples.length === 0) {
+	const currentSample = args.currentSample && isFiniteSample(args.currentSample) ? args.currentSample : undefined;
+	if (sortedSamples.length === 0 && !currentSample) {
 		return {
 			domainDistanceM,
 			pbDistanceM: validPositive(args.pbDistanceM) ? args.pbDistanceM : null,
@@ -259,7 +261,7 @@ export function frameAtTime(args: {
 		};
 	}
 
-	const current = interpolateSampleAt(sortedSamples, args.currentVideoMs);
+	const current = currentSample ?? interpolateSampleAt(sortedSamples, args.currentVideoMs);
 	const revealed = sortedSamples.filter((sample) => sample.atMs <= args.currentVideoMs);
 	const line = dedupeSamples([...revealed, current]);
 
@@ -279,11 +281,17 @@ export function createSpeedPlotFrame(args: {
 	readonly pbDistanceM?: number | null;
 }): SpeedPlotFrame {
 	const fallbackDistanceM = realizedDistanceM(args.timeline, args.poolLengthM);
+	const currentVideoMs = Math.max(0, args.currentVideoMs);
 	return frameAtTime({
 		samples: samplesFromTimeline(args.timeline, args.poolLengthM),
-		currentVideoMs: args.currentVideoMs,
+		currentVideoMs,
 		pbDistanceM: args.pbDistanceM,
-		fallbackDistanceM
+		fallbackDistanceM,
+		currentSample: {
+			atMs: currentVideoMs,
+			distanceM: distanceAt(args.timeline, currentVideoMs, args.poolLengthM),
+			speedMs: speedAt(args.timeline, currentVideoMs, args.poolLengthM)
+		}
 	});
 }
 

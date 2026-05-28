@@ -53,6 +53,20 @@ describe('speedPlotHud', () => {
 		expect(frame.samples.every((sample) => sample.atMs <= 23_500)).toBe(true);
 	});
 
+	it('extends the speed line before the first waypoint is reached', () => {
+		const frame = createSpeedPlotFrame({
+			timeline,
+			poolLengthM: 25,
+			currentVideoMs: 8_500,
+			pbDistanceM: 100
+		});
+		const model = projectSpeedPlot(frame, 390, 103);
+
+		expect(frame.currentDistanceM).toBeCloseTo(6.25);
+		expect(model.speedLine.length).toBeGreaterThanOrEqual(2);
+		expect(model.speedLine[0].x).toBeLessThan(model.currentPoint?.x ?? 0);
+	});
+
 	it('prefers dense recorded samples for a stepped trace', () => {
 		const denseTimeline: DiveTimeline = {
 			...timeline,
