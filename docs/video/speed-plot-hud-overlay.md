@@ -306,6 +306,13 @@ Phase 1 shipped:
 - Browser canvas export renderer in `src/lib/components/DiveVideoPlayer.svelte`.
 - HUD preset cycling in the video player: `Clean`, `Classic`, `Speed graph`, `Graph only`.
 
+Server consolidation shipped:
+
+- Playback HUD toggle simplified to `Clean` / `HUD`.
+- HUD-on playback shows both Classic metrics and the speed graph.
+- HUD-on burned downloads route through the server overlay worker.
+- Server overlay style version bumped to regenerate stale Classic-only exports.
+
 ## Test Plan
 
 Pure tests:
@@ -329,7 +336,7 @@ Visual checks:
 - PB scale is discipline-wide for v1.
 - If the diver has no PB data for the discipline, use `200m` as the default PB distance.
 - The y-axis label is `speed [m/s]`.
-- The graph uses a smoothed curve, not stepped segments.
+- The graph uses stepped segments, with a visible first-segment acceleration tail.
 - The overlay reveals only the active line up to the current playback position.
 - The x-axis uses the larger of PB distance + 20% and realised dive distance + 20%; if there is no PB, the default `200m` participates in the same rule.
 
