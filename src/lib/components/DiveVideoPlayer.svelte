@@ -1565,7 +1565,8 @@
 		src={srcUrl}
 		poster={posterUrl}
 		class="h-full w-full"
-		style="object-fit: {isFullscreen ? 'var(--dive-video-fit, cover)' : feedFrame ? 'cover' : 'contain'}; transform: {displayTransform.transform}; transform-origin: center;"
+		class:feed-rotated-video={feedFrame && displayTransform.transform !== ''}
+		style="object-fit: {isFullscreen ? 'var(--dive-video-fit, cover)' : feedFrame ? 'cover' : 'contain'}; --dive-video-transform: {displayTransform.transform || 'none'}; transform: var(--dive-video-transform); transform-origin: center;"
 		controls={nativeControlsVisible}
 		preload="metadata"
 		muted={inlineMuted}
@@ -1896,6 +1897,8 @@
 		font-variant-numeric: tabular-nums;
 	}
 	.feed-frame {
+		position: relative;
+		width: 100%;
 		height: 100%;
 		border-radius: 8px;
 		box-shadow: none;
@@ -1904,20 +1907,38 @@
 		height: 100%;
 		object-fit: cover;
 	}
-	:global(.dive-video-pseudo-fullscreen.dive-video-feed-player) {
-		left: 50% !important;
-		top: 50% !important;
-		right: auto !important;
-		bottom: auto !important;
-		width: min(470px, calc(100vw - 2rem), calc((100dvh - 2rem) * 0.8)) !important;
-		height: auto !important;
-		aspect-ratio: 4 / 5 !important;
-		transform: translate(-50%, -50%) !important;
-		border-radius: 8px !important;
+	.feed-frame .feed-rotated-video {
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		width: 125%;
+		height: 80%;
+		transform: translate(-50%, -50%) var(--dive-video-transform) !important;
 	}
-	:global(.dive-video-pseudo-fullscreen.dive-video-feed-player video) {
-		height: 100% !important;
-		object-fit: cover !important;
+	@media (hover: hover) and (pointer: fine) {
+		:global(.dive-video-pseudo-fullscreen.dive-video-feed-player) {
+			left: 50% !important;
+			top: 50% !important;
+			right: auto !important;
+			bottom: auto !important;
+			width: min(470px, calc(100vw - 2rem), calc((100dvh - 2rem) * 0.8)) !important;
+			height: auto !important;
+			aspect-ratio: 4 / 5 !important;
+			transform: translate(-50%, -50%) !important;
+			border-radius: 8px !important;
+		}
+		:global(.dive-video-pseudo-fullscreen.dive-video-feed-player video) {
+			height: 100% !important;
+			object-fit: cover !important;
+		}
+		:global(.dive-video-pseudo-fullscreen.dive-video-feed-player) .feed-rotated-video {
+			position: absolute;
+			left: 50%;
+			top: 50%;
+			width: 125% !important;
+			height: 80% !important;
+			transform: translate(-50%, -50%) var(--dive-video-transform) !important;
+		}
 	}
 	.fs-close-top {
 		position: absolute;

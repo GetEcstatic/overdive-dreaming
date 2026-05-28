@@ -1,6 +1,21 @@
 # Instructions 
 I'll use this section to list updates and fixes over time. When called to check for updates in this md file, I want the agent to read the first request, create a new section below the request list with a suitable name, plan an implementation in that section using our fundamentals as outlined in claude.md, create a checklist in that section, and then start to implement the plan. Continue implementing without stopping unless a major decision gate is met, commiting with a suitable message after each major step, and finally push to main once that request is complete. Once complete, remove the original request from the list and continue to the next request.
 
+## Dashboard Player Fill Correction
+
+### Problem
+The feed-frame player mode was present, but rotated dashboard videos could still render as a narrow strip inside the card because the rotated asset kept the normal 100% by 100% video box. The desktop pseudo-fullscreen sizing override also needed to stay desktop-only so mobile playback remains full-screen.
+
+### Implementation Plan
+Give rotated dashboard feed videos swapped 4:5 geometry inside the frame so the rotated image fills the same width as the HUD. Keep the feed pseudo-fullscreen size constraint behind a fine-pointer desktop media query, preserving mobile full-screen behavior and the custom scrubber path.
+
+### Checklist
+- [x] Make rotated dashboard feed videos fill the card and HUD width.
+- [x] Scope the constrained dashboard pseudo-fullscreen rule to desktop pointers.
+- [x] Keep the custom player scrubber path enabled.
+- [x] Run Svelte/type checks.
+- [x] Commit and push the completed fill correction.
+
 ## Desktop Dashboard Player Behavior
 
 ### Problem
