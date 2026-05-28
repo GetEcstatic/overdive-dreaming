@@ -155,10 +155,10 @@
 	let inlineMuted = $state(false);
 	let rvfcHandle: number | null = null;
 
-	type HudPreset = 'clean' | 'classic' | 'speed-graph' | 'graph-only';
+	type HudPreset = 'clean' | 'hud';
 
 	let showOverlay = $state(true);
-	let showSpeedPlot = $state(false);
+	const showSpeedPlot = $derived(showOverlay);
 	let pbDistanceM = $state<number | null>(null);
 
 	onMount(() => {
@@ -371,8 +371,8 @@
 			: 'portrait'
 	);
 	const hudStyle = $derived(hudCssVariables(hudMode));
-	const showAnyOverlay = $derived(showOverlay || showSpeedPlot);
-	const requiresBrowserOverlayExport = $derived(showSpeedPlot);
+	const showAnyOverlay = $derived(showOverlay);
+	const requiresBrowserOverlayExport = $derived(false);
 	const speedPlotFrame = $derived(
 		createSpeedPlotFrame({
 			timeline,
@@ -394,41 +394,20 @@
 	);
 
 	function currentHudPreset(): HudPreset {
-		if (showOverlay && showSpeedPlot) return 'speed-graph';
-		if (showOverlay) return 'classic';
-		if (showSpeedPlot) return 'graph-only';
-		return 'clean';
+		return showOverlay ? 'hud' : 'clean';
 	}
 
 	function hudPresetLabel(): string {
 		switch (currentHudPreset()) {
 			case 'clean':
 				return 'Clean';
-			case 'classic':
-				return 'Classic';
-			case 'speed-graph':
-				return 'Speed graph';
-			case 'graph-only':
-				return 'Graph only';
+			case 'hud':
+				return 'HUD';
 		}
 	}
 
-	function applyHudPreset(preset: HudPreset): void {
-		showOverlay = preset === 'classic' || preset === 'speed-graph';
-		showSpeedPlot = preset === 'speed-graph' || preset === 'graph-only';
-	}
-
 	function cycleHudPreset(): void {
-		const preset = currentHudPreset();
-		applyHudPreset(
-			preset === 'clean'
-				? 'classic'
-				: preset === 'classic'
-					? 'speed-graph'
-					: preset === 'speed-graph'
-						? 'graph-only'
-						: 'clean'
-		);
+		showOverlay = !showOverlay;
 	}
 
 	function formatMs(ms: number): string {
