@@ -638,6 +638,15 @@
 		padding-bottom: 3.5rem; /* Extra space for bottom nav */
 	}
 
+	@media (min-width: 769px) {
+		.sessions-section {
+			width: 100%;
+			max-width: 470px;
+			margin-left: auto;
+			margin-right: auto;
+		}
+	}
+
 	.load-more-sentinel {
 		height: 1px;
 	}

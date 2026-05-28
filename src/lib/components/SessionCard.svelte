@@ -1252,21 +1252,21 @@
 	/* Desktop enhancements */
 	@media (min-width: 768px) {
 		.card-header {
-			padding: 1.25rem 1.5rem;
+			padding: 1.25rem 1rem;
 			padding-bottom: 1rem;
 		}
 
 		.hero-section {
-			padding: 2.5rem 1.5rem;
+			padding: 2rem 1rem;
 		}
 
 		.hero-value {
-			font-size: 3rem;
+			font-size: 2.5rem;
 		}
 
 		.metrics-row {
-			padding: 1.25rem 1.5rem;
-			gap: 1rem;
+			padding: 1rem;
+			gap: 0.75rem;
 		}
 
 		.metric-box {
@@ -1278,7 +1278,11 @@
 		}
 
 		.card-footer {
-			padding: 1rem 1.5rem;
+			padding: 1rem;
+		}
+
+		.media-section {
+			padding: 0 0 1rem;
 		}
 
 		.profile-pic,

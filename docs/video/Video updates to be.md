@@ -1,5 +1,20 @@
 # Instructions 
-I'll use this section to list updates and fixes over time. When called to check for updates in this md file, I want the agent to read the first request, create a new section with a suitable name, plan an implementation in that section, create a checklist in that section, and then start to implement the plan. Continue implementing without stopping unless a major decision gate is met, commiting with a suitable message after each major step, and finally push to main once that request is complete. Once complete, remove the original request from the list and continue to the next request.
+I'll use this section to list updates and fixes over time. When called to check for updates in this md file, I want the agent to read the first request, create a new section below the request list with a suitable name, plan an implementation in that section, create a checklist in that section, and then start to implement the plan. Continue implementing without stopping unless a major decision gate is met, commiting with a suitable message after each major step, and finally push to main once that request is complete. Once complete, remove the original request from the list and continue to the next request.
+
+## Desktop Feed Width Alignment
+
+### Problem
+The desktop dashboard feed currently expands with the available page width, making videos and still images appear oversized. That makes lower-resolution clips look worse and gives the feed a less polished feel than a familiar fixed-width social feed.
+
+### Implementation Plan
+Constrain only the desktop dashboard sessions column to an Instagram-like 470px width. Let feed media fill that card width on desktop, while keeping the existing mobile sizing and padding unchanged.
+
+### Checklist
+- [x] Cap the desktop sessions feed column at 470px.
+- [x] Let desktop feed media fill the card width.
+- [x] Preserve current mobile sizing behavior.
+- [x] Run Svelte/type checks.
+- [x] Commit and push the completed desktop feed sizing fix.
 
 ## Preserve First Speed Segment Acceleration
 
@@ -47,4 +62,3 @@ Bring the server ASS style colors/text closer to the app HUD constants, fix the 
 - [x] Run focused media tests and Cloud Functions build.
 - [x] Commit the completed HUD parity fix.
 
-1. 
