@@ -295,7 +295,8 @@ Implementation shape:
 3. Extend the Cloud Functions ASS overlay renderer so `generate-overlay-download` burns both Classic metrics and the speed graph into `overlay/download.mp4`.
 4. Keep the same pure speed-plot projection rules in spirit on the worker: measured output dimensions, stepped trace, first-segment acceleration tail, y-axis `0..2 m/s`, and `0..max(realised distance, 200m) * 1.2` when PB data is unavailable server-side.
 5. Bump the server overlay style version so existing Classic-only burned artifacts are considered stale and regenerated with the graph.
-6. Keep browser canvas export code only as a developer fallback while the server path is the product path.
+6. Queue overlay downloads automatically after upload via `uploadedDiveVideoProcessingState()`, and also auto-queue stale/missing full-player HUD exports on open so Download is usually a signed URL/share action.
+7. Keep browser canvas export code only as a developer fallback while the server path is the product path.
 
 Decision gate not needed for v1: server-side graph exports will omit PB markers until the worker has a stable PB snapshot in the job payload. The graph still uses the existing domain fallback and realised distance, so it remains useful and deterministic.
 
@@ -312,6 +313,7 @@ Server consolidation shipped:
 - HUD-on playback shows both Classic metrics and the speed graph.
 - HUD-on burned downloads route through the server overlay worker.
 - Server overlay style version bumped to regenerate stale Classic-only exports.
+- New uploads queue the burned HUD export automatically; stale or missing HUD exports are queued when a full player opens.
 
 ## Test Plan
 
