@@ -1252,7 +1252,7 @@
 			ctx.lineWidth = design.line.widthPx;
 			ctx.lineCap = 'round';
 			ctx.lineJoin = 'round';
-			drawSmoothCanvasPath(ctx, model.speedLine);
+			drawSteppedCanvasPath(ctx, model.speedLine);
 			ctx.stroke();
 		}
 
@@ -1283,21 +1283,16 @@
 		ctx.restore();
 	}
 
-	function drawSmoothCanvasPath(ctx: CanvasRenderingContext2D, points: readonly { x: number; y: number }[]): void {
+	function drawSteppedCanvasPath(ctx: CanvasRenderingContext2D, points: readonly { x: number; y: number }[]): void {
 		ctx.beginPath();
 		if (points.length === 0) return;
 		ctx.moveTo(points[0].x, points[0].y);
 		if (points.length === 1) return;
 		for (let i = 0; i < points.length - 1; i += 1) {
-			const previous = points[Math.max(0, i - 1)];
 			const current = points[i];
 			const next = points[i + 1];
-			const after = points[Math.min(points.length - 1, i + 2)];
-			const cp1x = current.x + (next.x - previous.x) / 6;
-			const cp1y = current.y + (next.y - previous.y) / 6;
-			const cp2x = next.x - (after.x - current.x) / 6;
-			const cp2y = next.y - (after.y - current.y) / 6;
-			ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, next.x, next.y);
+			ctx.lineTo(next.x, current.y);
+			ctx.lineTo(next.x, next.y);
 		}
 	}
 

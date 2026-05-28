@@ -111,17 +111,17 @@ export const SPEED_PLOT_HUD_DESIGN: SpeedPlotHudDesign = {
 	defaultPbDistanceM: 200,
 	domainPaddingRatio: 1.2,
 	mode: {
-		bandHeightPx: 190,
+		bandHeightPx: 380,
 		safeInsetXPx: 36,
 		bottomInsetPx: 32,
 		radiusPx: 18,
-		plotPadding: { leftPx: 72, rightPx: 36, topPx: 24, bottomPx: 38 },
+		plotPadding: { leftPx: 112, rightPx: 48, topPx: 40, bottomPx: 64 },
 		background: { top: '#0d1320', bottom: '#000000', opacity: 0.86 },
-		grid: { color: 'rgba(255,255,255,0.1)', widthPx: 1 },
-		axisText: { family: SANS_FAMILY, sizePx: 20, weight: 400, color: 'rgba(255,255,255,0.72)' },
-		line: { from: '#2dd4bf', to: '#5eead4', widthPx: 3 },
-		pbMarker: { color: '#facc15', widthPx: 2, symbolSizePx: 12 },
-		currentPoint: { radiusPx: 5, color: '#f8fafc' }
+		grid: { color: 'rgba(255,255,255,0.12)', widthPx: 1.5 },
+		axisText: { family: SANS_FAMILY, sizePx: 34, weight: 500, color: 'rgba(255,255,255,0.82)' },
+		line: { from: '#2dd4bf', to: '#5eead4', widthPx: 6 },
+		pbMarker: { color: '#facc15', widthPx: 3.5, symbolSizePx: 20 },
+		currentPoint: { radiusPx: 8, color: '#f8fafc' }
 	}
 };
 

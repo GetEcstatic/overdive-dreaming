@@ -1,6 +1,6 @@
 # Speed Plot HUD Overlay Plan
 
-Status: phase 1 implemented for playback and browser canvas exports. Server overlay exports remain Classic-only until the worker moves beyond ASS overlays.
+Status: phase 1 implemented for playback and browser canvas exports. The plot now uses a taller stepped HUD for readability on mobile. Server overlay exports remain Classic-only until the worker moves beyond ASS overlays.
 
 ## Goal
 
@@ -64,8 +64,8 @@ For burned exports, pass `pbDistanceM` into the export request/job and snapshot 
 - Y-axis domain: `0..2 m/s`.
 - Values above `2 m/s`: clamp visually to the top edge but mark the clipped segment with a subtle cap/flat top, not a blown-out chart.
 - Values below `0`: clamp to 0.
-- Current reveal: only include samples where sample time `<= currentVideoMs`, plus an interpolated current sample so the line grows smoothly during video playback. Do not render a ghosted future line.
-- Line shape: render a smoothed curve. Speed changes are usually gradual accelerations/decelerations, not hard steps.
+- Current reveal: only include samples where sample time `<= currentVideoMs`, plus an interpolated current sample so the line advances continuously during video playback. Do not render a ghosted future line.
+- Line shape: render stepped segments. The stronger horizontal/vertical edges remain more legible over video, especially on mobile.
 
 ## Pure Model
 
@@ -120,20 +120,20 @@ Create something like:
 ```ts
 export const SPEED_PLOT_HUD_DESIGN = {
   referenceWidthPx: 1080,
-  bandHeightPx: 190,
+  bandHeightPx: 380,
   safeInsetXPx: 36,
   bottomInsetPx: 32,
-  plotPadding: { leftPx: 64, rightPx: 36, topPx: 24, bottomPx: 32 },
+  plotPadding: { leftPx: 112, rightPx: 48, topPx: 40, bottomPx: 64 },
   background: {
     top: '#0d1320',
     bottom: '#000000',
     opacity: 0.86
   },
-  grid: { color: 'rgba(255,255,255,0.1)', widthPx: 1 },
-  axisText: { family: ..., sizePx: 20, weight: 400, color: 'rgba(255,255,255,0.72)' },
-  line: { from: '#2dd4bf', to: '#5eead4', widthPx: 3, join: 'round' },
-  pbMarker: { color: '#facc15', widthPx: 2, symbolSizePx: 12 },
-  currentPoint: { radiusPx: 5, color: '#f8fafc' }
+  grid: { color: 'rgba(255,255,255,0.12)', widthPx: 1.5 },
+  axisText: { family: ..., sizePx: 34, weight: 500, color: 'rgba(255,255,255,0.82)' },
+  line: { from: '#2dd4bf', to: '#5eead4', widthPx: 6, join: 'round' },
+  pbMarker: { color: '#facc15', widthPx: 3.5, symbolSizePx: 20 },
+  currentPoint: { radiusPx: 8, color: '#f8fafc' }
 } as const;
 ```
 

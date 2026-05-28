@@ -53,7 +53,7 @@ describe('speedPlotHud', () => {
 		expect(frame.samples.every((sample) => sample.atMs <= 23_500)).toBe(true);
 	});
 
-	it('prefers dense recorded samples for a smooth curve', () => {
+	it('prefers dense recorded samples for a stepped trace', () => {
 		const denseTimeline: DiveTimeline = {
 			...timeline,
 			samples: [
@@ -74,6 +74,7 @@ describe('speedPlotHud', () => {
 		const model1080 = projectSpeedPlot(frame, 1080, 1920);
 		const model4k = projectSpeedPlot(frame, 3840, 2160);
 
+		expect(model720.bandRect.height).toBeCloseTo((380 * 720) / 1080);
 		expect(model720.pbMarker?.x).toBeGreaterThan(model720.plotRect.x);
 		expect(model720.pbMarker?.x).toBeLessThan(model720.plotRect.x + model720.plotRect.width);
 		expect(model1080.bandRect.height / model720.bandRect.height).toBeCloseTo(1080 / 720);

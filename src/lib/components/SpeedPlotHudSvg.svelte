@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { SpeedPlotRenderModel } from '$lib/media/speedPlotHud';
+	import { scaleSpeedPlotHudDesign, type SpeedPlotRenderModel } from '$lib/media/speedPlotHud';
 
 	interface Props {
 		model: SpeedPlotRenderModel;
@@ -8,25 +8,20 @@
 
 	let { model, style = '' }: Props = $props();
 
-	function smoothPath(points: readonly { x: number; y: number }[]): string {
+	function steppedPath(points: readonly { x: number; y: number }[]): string {
 		if (points.length === 0) return '';
 		if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
 		let path = `M ${points[0].x} ${points[0].y}`;
 		for (let i = 0; i < points.length - 1; i += 1) {
-			const previous = points[Math.max(0, i - 1)];
 			const current = points[i];
 			const next = points[i + 1];
-			const after = points[Math.min(points.length - 1, i + 2)];
-			const cp1x = current.x + (next.x - previous.x) / 6;
-			const cp1y = current.y + (next.y - previous.y) / 6;
-			const cp2x = next.x - (after.x - current.x) / 6;
-			const cp2y = next.y - (after.y - current.y) / 6;
-			path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${next.x} ${next.y}`;
+			path += ` H ${next.x} V ${next.y}`;
 		}
 		return path;
 	}
 
-	const speedPath = $derived(smoothPath(model.speedLine));
+	const design = $derived(scaleSpeedPlotHudDesign(model.width));
+	const speedPath = $derived(steppedPath(model.speedLine));
 </script>
 
 <div class="speed-plot-hud" {style} aria-hidden="true">
@@ -51,7 +46,7 @@
 			y={model.bandRect.y}
 			width={model.bandRect.width}
 			height={model.bandRect.height}
-			rx="6.5"
+			rx={design.radiusPx}
 			fill="url(#speedPlotBg)"
 		/>
 
@@ -62,7 +57,7 @@
 				x2={line.x2}
 				y2={line.y2}
 				stroke="rgba(255,255,255,0.1)"
-				stroke-width="0.36"
+				stroke-width={design.grid.widthPx}
 			/>
 		{/each}
 
@@ -73,11 +68,11 @@
 				x2={model.pbMarker.x}
 				y2={model.pbMarker.y2}
 				stroke="#facc15"
-				stroke-width="0.72"
-				stroke-dasharray="2 2"
+				stroke-width={design.pbMarker.widthPx}
+				stroke-dasharray={`${design.pbMarker.symbolSizePx * 0.45} ${design.pbMarker.symbolSizePx * 0.45}`}
 			/>
 			<path
-				d={`M ${model.pbMarker.x} ${model.pbMarker.y2 + 4.3} l 3.2 3.2 l -3.2 3.2 l -3.2 -3.2 z`}
+				d={`M ${model.pbMarker.x} ${model.pbMarker.y2 + design.pbMarker.symbolSizePx * 0.18} l ${design.pbMarker.symbolSizePx * 0.5} ${design.pbMarker.symbolSizePx * 0.5} l ${-design.pbMarker.symbolSizePx * 0.5} ${design.pbMarker.symbolSizePx * 0.5} l ${-design.pbMarker.symbolSizePx * 0.5} ${-design.pbMarker.symbolSizePx * 0.5} z`}
 				fill="#facc15"
 			/>
 		{/if}
@@ -87,14 +82,14 @@
 				d={speedPath}
 				fill="none"
 				stroke="url(#speedPlotLine)"
-				stroke-width="1.08"
+				stroke-width={design.line.widthPx}
 				stroke-linecap="round"
 				stroke-linejoin="round"
 			/>
 		{/if}
 
 		{#if model.currentPoint}
-			<circle cx={model.currentPoint.x} cy={model.currentPoint.y} r="1.8" fill="#f8fafc" />
+			<circle cx={model.currentPoint.x} cy={model.currentPoint.y} r={design.currentPoint.radiusPx} fill="#f8fafc" />
 		{/if}
 
 		{#each model.xLabels as label}
