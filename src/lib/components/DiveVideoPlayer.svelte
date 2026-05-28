@@ -387,7 +387,7 @@
 		projectSpeedPlot(speedPlotFrame, speedPlotViewportWidth, speedPlotDomDesign.bandHeightPx)
 	);
 	const speedPlotControlsClearance = $derived(
-		showInlineActions ? 82 : isFullscreen ? 118 : 0
+		showInlineActions ? 36 : isFullscreen ? 72 : 0
 	);
 	const speedPlotStyle = $derived(
 		speedPlotCssVariables(speedPlotViewportWidth, speedPlotControlsClearance)

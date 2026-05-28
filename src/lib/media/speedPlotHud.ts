@@ -365,13 +365,27 @@ export function projectSpeedPlot(frame: SpeedPlotFrame, widthPx: number, heightP
 }
 
 function visibleSpeedLineSamples(frame: SpeedPlotFrame): readonly SpeedPlotSample[] {
-	if (frame.samples.length !== 1 || frame.currentDistanceM <= 0) return frame.samples;
-	const sample = frame.samples[0];
-	if (frame.currentDistanceM > sample.distanceM + 0.001) {
-		return [sample, { atMs: sample.atMs, distanceM: frame.currentDistanceM, speedMs: frame.currentSpeedMs }];
+	if (frame.currentDistanceM <= 0) return frame.samples;
+	const samples = [...frame.samples];
+	const first = samples[0];
+	const last = samples[samples.length - 1];
+	if (!first) {
+		return [
+			{ atMs: 0, distanceM: 0, speedMs: frame.currentSpeedMs },
+			{ atMs: 0, distanceM: frame.currentDistanceM, speedMs: frame.currentSpeedMs }
+		];
 	}
-	if (sample.distanceM <= 0) return frame.samples;
-	return [{ ...sample, distanceM: 0 }, sample];
+	if (first.distanceM > 0.001) {
+		samples.unshift({ ...first, distanceM: 0 });
+	}
+	if (!last || frame.currentDistanceM > last.distanceM + 0.001) {
+		samples.push({
+			atMs: last?.atMs ?? first.atMs,
+			distanceM: frame.currentDistanceM,
+			speedMs: frame.currentSpeedMs
+		});
+	}
+	return samples;
 }
 
 function sortedWaypointEvents(timeline: DiveTimeline): LapEvent[] {

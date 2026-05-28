@@ -99,6 +99,24 @@ describe('speedPlotHud', () => {
 		expect(model.speedLine[0].y).toBeCloseTo(model.speedLine[1].y);
 	});
 
+	it('prepends the 0m anchor when the first revealed sample is already in motion', () => {
+		const model = projectSpeedPlot(
+			{
+				domainDistanceM: 240,
+				pbDistanceM: null,
+				samples: [{ atMs: 2_000, distanceM: 8, speedMs: 0.8 }],
+				currentDistanceM: 8,
+				currentSpeedMs: 0.8
+			},
+			390,
+			103
+		);
+
+		expect(model.speedLine).toHaveLength(2);
+		expect(model.speedLine[0].x).toBeLessThan(model.speedLine[1].x);
+		expect(model.speedLine[0].y).toBeCloseTo(model.speedLine[1].y);
+	});
+
 	it('computes realised distance from sub-splits and dense samples', () => {
 		const denseTimeline: DiveTimeline = {
 			...timeline,
