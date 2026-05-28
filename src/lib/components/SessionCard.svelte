@@ -503,6 +503,7 @@
 							allowAutoFullscreen={false}
 							customInlineControls
 							dashboardAutoplay
+							feedFrame
 							inlineActions
 							mutedInline
 							tapToFullscreen
@@ -1294,17 +1295,6 @@
 		.dive-video-player {
 			height: 100%;
 			object-fit: cover;
-		}
-
-		.dive-video :global([data-fullscreen-root]:not(:fullscreen):not(:-webkit-full-screen)) {
-			height: 100%;
-			aspect-ratio: auto !important;
-			border-radius: 8px;
-		}
-
-		.dive-video :global([data-fullscreen-root]:not(:fullscreen):not(:-webkit-full-screen) video) {
-			height: 100%;
-			object-fit: cover !important;
 		}
 
 		.profile-pic,

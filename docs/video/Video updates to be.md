@@ -1,5 +1,21 @@
 # Instructions 
-I'll use this section to list updates and fixes over time. When called to check for updates in this md file, I want the agent to read the first request, create a new section below the request list with a suitable name, plan an implementation in that section, create a checklist in that section, and then start to implement the plan. Continue implementing without stopping unless a major decision gate is met, commiting with a suitable message after each major step, and finally push to main once that request is complete. Once complete, remove the original request from the list and continue to the next request.
+I'll use this section to list updates and fixes over time. When called to check for updates in this md file, I want the agent to read the first request, create a new section below the request list with a suitable name, plan an implementation in that section using our fundamentals as outlined in claude.md, create a checklist in that section, and then start to implement the plan. Continue implementing without stopping unless a major decision gate is met, commiting with a suitable message after each major step, and finally push to main once that request is complete. Once complete, remove the original request from the list and continue to the next request.
+
+## Desktop Dashboard Player Behavior
+
+### Problem
+The dashboard media frame is now the right size, but the embedded player keeps its own portrait aspect ratio internally, so the video appears narrower than the card while the HUD fills the frame. Desktop clicks should keep the custom player because that preserves distance scrubbing, but the desktop pseudo-fullscreen shell needs to stay constrained instead of expanding across the whole monitor. Desktop HUD downloads can also appear inert while the browser tries the share-preparation path.
+
+### Implementation Plan
+Add an explicit dashboard feed-frame mode to `DiveVideoPlayer` so the video element, poster, and HUD all fill the same 470px-wide 4:5 frame. Preserve tap-to-custom-player behavior for scrubbing, constrain that player to an Instagram-like frame on desktop, add a small top-right close button, and make non-iOS server-overlay downloads use the direct signed URL download path.
+
+### Checklist
+- [x] Make dashboard videos fill the same desktop media frame as thumbnails and HUD.
+- [x] Preserve custom player scrubbing while constraining desktop pseudo-fullscreen size.
+- [x] Add a small top-right close button for the desktop custom player.
+- [x] Use direct signed URL downloads for non-iOS server-overlay downloads.
+- [x] Run Svelte/type checks.
+- [x] Commit and push the completed desktop player behavior fix.
 
 ## Desktop Feed Media Frame
 

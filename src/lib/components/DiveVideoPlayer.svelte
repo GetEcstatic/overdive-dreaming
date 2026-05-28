@@ -127,6 +127,8 @@
 		tapToFullscreen?: boolean;
 		/** Mute the inline video while dashboard autoplay owns playback. */
 		mutedInline?: boolean;
+		/** Fill the dashboard feed media frame instead of preserving source aspect ratio inline. */
+		feedFrame?: boolean;
 	}
 
 	let {
@@ -140,7 +142,8 @@
 		inlineActions = false,
 		dashboardAutoplay = false,
 		tapToFullscreen = false,
-		mutedInline = false
+		mutedInline = false,
+		feedFrame = false
 	}: Props = $props();
 	function initialLiveVideo(): DiveVideo {
 		return video;
@@ -824,6 +827,11 @@
 		fallbackError: string;
 		preparedKind: 'original' | 'server-overlay';
 	}): Promise<void> {
+		if (!isIOS()) {
+			clickDownloadUrl(args.url, args.fileName);
+			return;
+		}
+
 		const nav = navigator as Navigator & {
 			canShare?: (data: { files: File[] }) => boolean;
 			share?: (data: { files: File[]; title?: string; text?: string }) => Promise<void>;
@@ -1541,7 +1549,9 @@
 	bind:this={containerEl}
 	bind:clientWidth={containerWidth}
 	class="relative w-full overflow-hidden rounded-2xl bg-black shadow-lg"
-	style="position: relative; --dive-video-fit: {fitMode}; aspect-ratio: {displayTransform.aspectRatio};"
+	class:dive-video-feed-player={feedFrame}
+	class:feed-frame={feedFrame && !isFullscreen}
+	style="position: relative; --dive-video-fit: {fitMode}; aspect-ratio: {feedFrame && !isFullscreen ? '4 / 5' : displayTransform.aspectRatio};"
 	data-fullscreen-root
 	data-display-orientation={displayTransform.hudMode}
 	onpointermove={onFullscreenPointerMove}
@@ -1555,7 +1565,7 @@
 		src={srcUrl}
 		poster={posterUrl}
 		class="h-full w-full"
-		style="object-fit: {isFullscreen ? 'var(--dive-video-fit, cover)' : 'contain'}; transform: {displayTransform.transform}; transform-origin: center;"
+		style="object-fit: {isFullscreen ? 'var(--dive-video-fit, cover)' : feedFrame ? 'cover' : 'contain'}; transform: {displayTransform.transform}; transform-origin: center;"
 		controls={nativeControlsVisible}
 		preload="metadata"
 		muted={inlineMuted}
@@ -1616,6 +1626,15 @@
 	{/if}
 
 	{#if isFullscreen}
+		<button
+			type="button"
+			class="fs-close-top"
+			aria-label="Close video player"
+			onclick={exitFullscreen}
+		>
+			✕
+		</button>
+
 		<!--
 		  Custom landscape control bar. Replaces the native <video> controls
 		  (hidden above) so they don't visually fight the HUD. Positioned at
@@ -1875,6 +1894,51 @@
 	.dive-hud-mono {
 		font-family: var(--hud-mono-family);
 		font-variant-numeric: tabular-nums;
+	}
+	.feed-frame {
+		height: 100%;
+		border-radius: 8px;
+		box-shadow: none;
+	}
+	.feed-frame video {
+		height: 100%;
+		object-fit: cover;
+	}
+	:global(.dive-video-pseudo-fullscreen.dive-video-feed-player) {
+		left: 50% !important;
+		top: 50% !important;
+		right: auto !important;
+		bottom: auto !important;
+		width: min(470px, calc(100vw - 2rem), calc((100dvh - 2rem) * 0.8)) !important;
+		height: auto !important;
+		aspect-ratio: 4 / 5 !important;
+		transform: translate(-50%, -50%) !important;
+		border-radius: 8px !important;
+	}
+	:global(.dive-video-pseudo-fullscreen.dive-video-feed-player video) {
+		height: 100% !important;
+		object-fit: cover !important;
+	}
+	.fs-close-top {
+		position: absolute;
+		right: max(0.75rem, env(safe-area-inset-right));
+		top: max(0.75rem, env(safe-area-inset-top));
+		z-index: 13;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 2rem;
+		height: 2rem;
+		border: 1px solid rgba(255, 255, 255, 0.22);
+		border-radius: 9999px;
+		background: rgba(15, 23, 42, 0.72);
+		color: #f8fafc;
+		font: inherit;
+		font-size: 0.95rem;
+		line-height: 1;
+		cursor: pointer;
+		backdrop-filter: blur(6px);
+		-webkit-backdrop-filter: blur(6px);
 	}
 	.inline-play-button {
 		position: absolute;
