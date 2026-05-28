@@ -1285,6 +1285,28 @@
 			padding: 0 0 1rem;
 		}
 
+		.session-photo,
+		.dive-video {
+			aspect-ratio: 4 / 5;
+		}
+
+		.photo-image,
+		.dive-video-player {
+			height: 100%;
+			object-fit: cover;
+		}
+
+		.dive-video :global([data-fullscreen-root]:not(:fullscreen):not(:-webkit-full-screen)) {
+			height: 100%;
+			aspect-ratio: auto !important;
+			border-radius: 8px;
+		}
+
+		.dive-video :global([data-fullscreen-root]:not(:fullscreen):not(:-webkit-full-screen) video) {
+			height: 100%;
+			object-fit: cover !important;
+		}
+
 		.profile-pic,
 		.profile-pic-placeholder {
 			width: 48px;

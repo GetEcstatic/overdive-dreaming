@@ -1,6 +1,22 @@
 # Instructions 
 I'll use this section to list updates and fixes over time. When called to check for updates in this md file, I want the agent to read the first request, create a new section below the request list with a suitable name, plan an implementation in that section, create a checklist in that section, and then start to implement the plan. Continue implementing without stopping unless a major decision gate is met, commiting with a suitable message after each major step, and finally push to main once that request is complete. Once complete, remove the original request from the list and continue to the next request.
 
+## Desktop Feed Media Frame
+
+### Problem
+The desktop feed column was capped to 470px, but portrait videos can still render at their full tall aspect ratio, so they take nearly the height of the monitor. Thumbnail-only previews also need the same frame as the eventual video player so the card does not visually resize or show a narrower preview.
+
+### Implementation Plan
+Keep the desktop feed column at 470px and add a desktop-only 4:5 media frame for session photos, thumbnail-only video previews, and inline video players. Use `object-fit: cover` inside that frame on desktop so thumbnails and videos share the same visible dimensions. Leave mobile sizing unchanged.
+
+### Checklist
+- [x] Constrain desktop feed media to a 470px-wide 4:5 frame.
+- [x] Make thumbnail-only previews use the same frame as video playback.
+- [x] Keep mobile media sizing unchanged.
+- [x] Run Svelte/type checks.
+- [x] Commit and push the completed media frame fix.
+
+
 ## Desktop Feed Width Alignment
 
 ### Problem
