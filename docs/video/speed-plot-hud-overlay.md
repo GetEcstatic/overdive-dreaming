@@ -282,6 +282,23 @@ This avoids forcing a choice every time, but keeps control close to the video.
 7. Persist user defaults after the UI feels right.
 8. Revisit server export after browser parity is proven.
 
+## Server HUD Burn-In Consolidation Plan
+
+Decision: simplify HUD export to one on/off state. When HUD is on, playback and burned exports include both the Classic top metrics HUD and the bottom speed graph. When HUD is off, downloads use the clean/original video path.
+
+Why: browser canvas re-encoding is too slow for normal use, especially on mobile. The existing server worker already creates background overlay downloads with ffmpeg and ASS, so the speed graph should move into that same worker path instead of asking the device to replay and re-record the whole clip.
+
+Implementation shape:
+
+1. Replace the playback/export preset cycle with a boolean HUD toggle: `Clean` and `HUD` only.
+2. Treat HUD-on downloads as server overlay downloads. Do not route speed-graph exports through browser canvas.
+3. Extend the Cloud Functions ASS overlay renderer so `generate-overlay-download` burns both Classic metrics and the speed graph into `overlay/download.mp4`.
+4. Keep the same pure speed-plot projection rules in spirit on the worker: measured output dimensions, stepped trace, first-segment acceleration tail, y-axis `0..2 m/s`, and `0..max(realised distance, 200m) * 1.2` when PB data is unavailable server-side.
+5. Bump the server overlay style version so existing Classic-only burned artifacts are considered stale and regenerated with the graph.
+6. Keep browser canvas export code only as a developer fallback while the server path is the product path.
+
+Decision gate not needed for v1: server-side graph exports will omit PB markers until the worker has a stable PB snapshot in the job payload. The graph still uses the existing domain fallback and realised distance, so it remains useful and deterministic.
+
 Phase 1 shipped:
 
 - Pure model/design in `src/lib/media/speedPlotHud.ts`, with tests in `src/lib/media/speedPlotHud.test.ts`.
