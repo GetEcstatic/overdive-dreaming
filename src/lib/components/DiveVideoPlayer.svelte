@@ -1557,6 +1557,7 @@
 		class="h-full w-full"
 		style="object-fit: {isFullscreen ? 'var(--dive-video-fit, cover)' : 'contain'}; transform: {displayTransform.transform}; transform-origin: center;"
 		controls={nativeControlsVisible}
+		preload="metadata"
 		muted={inlineMuted}
 		playsinline
 		onclick={onInlineVideoClick}

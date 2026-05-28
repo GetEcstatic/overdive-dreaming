@@ -324,16 +324,19 @@
 				diveVideoPosterUrl = null;
 				if (pick.uploadStatus !== 'uploaded') return;
 
+				if (pick.thumbnailObject || pick.thumbnailPath) {
+					void (async () => {
+						const posterUrl = await getDiveVideoThumbnailUrl(pick).catch(() => null);
+						if (token !== loadToken) return;
+						diveVideoPosterUrl = posterUrl;
+					})();
+				}
+
 				void (async () => {
 					try {
 						const url = await getPreferredDiveVideoPlaybackUrl(pick);
-						const posterUrl =
-							pick.thumbnailObject || pick.thumbnailPath
-								? await getDiveVideoThumbnailUrl(pick).catch(() => null)
-								: null;
 						if (token !== loadToken) return;
 						diveVideoUrl = url;
-						diveVideoPosterUrl = posterUrl;
 					} catch (err) {
 						console.warn('[SessionCard] failed to load dive video preview', err);
 					}
@@ -477,7 +480,7 @@
 	</div>
 
 	<!-- Media Section -->
-	{#if sessionPhotoUrl || log.youtubeUrl || diveVideoUrl || showDiveVideoUploadStatus}
+	{#if sessionPhotoUrl || log.youtubeUrl || diveVideoUrl || diveVideoPosterUrl || showDiveVideoUploadStatus}
 		<div class="media-section">
 			{#if diveVideoUrl}
 				<!--
@@ -516,6 +519,16 @@
 							use:diveVideoBehavior={{ allowPortraitPlayFullscreen: true }}
 						></video>
 					{/if}
+				</div>
+			{:else if diveVideoPosterUrl}
+				<div class="dive-video">
+					<img
+						src={diveVideoPosterUrl}
+						alt="Dive video thumbnail"
+						class="dive-video-player"
+						loading="eager"
+						decoding="async"
+					/>
 				</div>
 			{:else if diveVideo && showDiveVideoUploadStatus}
 				<div class="dive-video">
