@@ -116,13 +116,18 @@
 		right: 0;
 		bottom: max(var(--speed-plot-bottom), env(safe-area-inset-bottom));
 		z-index: 9;
+		display: flex;
+		align-items: flex-end;
+		justify-content: center;
 		height: var(--speed-plot-band-height);
 		pointer-events: none;
 	}
 	.speed-plot-hud svg {
 		display: block;
-		width: 100%;
-		height: 100%;
+		width: min(100%, var(--speed-plot-dom-width));
+		height: auto;
+		max-height: 100%;
+		margin: 0 auto;
 		overflow: visible;
 	}
 	.speed-plot-hud text {

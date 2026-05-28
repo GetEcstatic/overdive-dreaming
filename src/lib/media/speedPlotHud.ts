@@ -111,17 +111,17 @@ export const SPEED_PLOT_HUD_DESIGN: SpeedPlotHudDesign = {
 	defaultPbDistanceM: 200,
 	domainPaddingRatio: 1.2,
 	mode: {
-		bandHeightPx: 380,
+		bandHeightPx: 285,
 		safeInsetXPx: 36,
 		bottomInsetPx: 32,
 		radiusPx: 18,
-		plotPadding: { leftPx: 112, rightPx: 48, topPx: 40, bottomPx: 64 },
+		plotPadding: { leftPx: 96, rightPx: 42, topPx: 32, bottomPx: 44 },
 		background: { top: '#0d1320', bottom: '#000000', opacity: 0.86 },
-		grid: { color: 'rgba(255,255,255,0.12)', widthPx: 1.5 },
-		axisText: { family: SANS_FAMILY, sizePx: 34, weight: 500, color: 'rgba(255,255,255,0.82)' },
-		line: { from: '#2dd4bf', to: '#5eead4', widthPx: 6 },
-		pbMarker: { color: '#facc15', widthPx: 3.5, symbolSizePx: 20 },
-		currentPoint: { radiusPx: 8, color: '#f8fafc' }
+		grid: { color: 'rgba(255,255,255,0.12)', widthPx: 1.35 },
+		axisText: { family: SANS_FAMILY, sizePx: 30, weight: 450, color: 'rgba(255,255,255,0.82)' },
+		line: { from: '#2dd4bf', to: '#5eead4', widthPx: 5 },
+		pbMarker: { color: '#facc15', widthPx: 3, symbolSizePx: 17 },
+		currentPoint: { radiusPx: 7, color: '#f8fafc' }
 	}
 };
 
@@ -159,6 +159,7 @@ export function speedPlotCssVariables(): string {
 		`--speed-plot-safe-x: ${design.safeInsetXPx}px`,
 		`--speed-plot-bottom: ${design.bottomInsetPx}px`,
 		`--speed-plot-radius: ${design.radiusPx}px`,
+		`--speed-plot-dom-width: ${SPEED_PLOT_HUD_DESIGN.domWidthPx}px`,
 		`--speed-plot-axis-family: ${design.axisText.family}`,
 		`--speed-plot-axis-size: ${design.axisText.sizePx}px`,
 		`--speed-plot-axis-weight: ${design.axisText.weight}`,
