@@ -152,14 +152,18 @@ export function scaleSpeedPlotHudDesign(widthPx: number): SpeedPlotHudModeDesign
 	};
 }
 
-export function speedPlotCssVariables(): string {
-	const design = scaleSpeedPlotHudDesign(SPEED_PLOT_HUD_DESIGN.domWidthPx);
+export function speedPlotCssVariables(
+	widthPx = SPEED_PLOT_HUD_DESIGN.domWidthPx,
+	controlsClearancePx = 0
+): string {
+	const design = scaleSpeedPlotHudDesign(widthPx);
 	return [
 		`--speed-plot-band-height: ${design.bandHeightPx}px`,
 		`--speed-plot-safe-x: ${design.safeInsetXPx}px`,
 		`--speed-plot-bottom: ${design.bottomInsetPx}px`,
+		`--speed-plot-controls-clearance: ${controlsClearancePx}px`,
 		`--speed-plot-radius: ${design.radiusPx}px`,
-		`--speed-plot-dom-width: ${SPEED_PLOT_HUD_DESIGN.domWidthPx}px`,
+		`--speed-plot-dom-width: ${widthPx}px`,
 		`--speed-plot-axis-family: ${design.axisText.family}`,
 		`--speed-plot-axis-size: ${design.axisText.sizePx}px`,
 		`--speed-plot-axis-weight: ${design.axisText.weight}`,
@@ -327,7 +331,8 @@ export function projectSpeedPlot(frame: SpeedPlotFrame, widthPx: number, heightP
 			return { x1: plotRect.x, y1: y, x2: plotRect.x + plotRect.width, y2: y };
 		})
 	];
-	const speedLine = frame.samples.map((sample) => toPoint(sample.distanceM, sample.speedMs));
+	const speedLineSamples = visibleSpeedLineSamples(frame);
+	const speedLine = speedLineSamples.map((sample) => toPoint(sample.distanceM, sample.speedMs));
 	const currentPoint = frame.samples.length > 0 ? toPoint(frame.currentDistanceM, frame.currentSpeedMs) : undefined;
 	const pbMarker = validPositive(frame.pbDistanceM)
 		? {
@@ -347,7 +352,7 @@ export function projectSpeedPlot(frame: SpeedPlotFrame, widthPx: number, heightP
 		xLabels,
 		yLabels,
 		yAxisLabel: {
-			x: bandRect.x + design.axisText.sizePx * 1.05,
+			x: bandRect.x + design.axisText.sizePx * 0.8,
 			y: plotRect.y + plotRect.height / 2,
 			value: 0,
 			text: 'speed [m/s]',
@@ -357,6 +362,16 @@ export function projectSpeedPlot(frame: SpeedPlotFrame, widthPx: number, heightP
 		speedLine,
 		currentPoint
 	};
+}
+
+function visibleSpeedLineSamples(frame: SpeedPlotFrame): readonly SpeedPlotSample[] {
+	if (frame.samples.length !== 1 || frame.currentDistanceM <= 0) return frame.samples;
+	const sample = frame.samples[0];
+	if (frame.currentDistanceM > sample.distanceM + 0.001) {
+		return [sample, { atMs: sample.atMs, distanceM: frame.currentDistanceM, speedMs: frame.currentSpeedMs }];
+	}
+	if (sample.distanceM <= 0) return frame.samples;
+	return [{ ...sample, distanceM: 0 }, sample];
 }
 
 function sortedWaypointEvents(timeline: DiveTimeline): LapEvent[] {

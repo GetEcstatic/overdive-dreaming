@@ -149,6 +149,7 @@
 
 	let videoEl: HTMLVideoElement | undefined = $state();
 	let containerEl: HTMLDivElement | undefined = $state();
+	let containerWidth = $state(390);
 	let currentMs = $state(0);
 	let isPlaying = $state(false);
 	let inlineMuted = $state(false);
@@ -380,11 +381,17 @@
 			pbDistanceM
 		})
 	);
-	const speedPlotDomDesign = $derived(scaleSpeedPlotHudDesign(390));
+	const speedPlotViewportWidth = $derived(Math.max(320, containerWidth || 390));
+	const speedPlotDomDesign = $derived(scaleSpeedPlotHudDesign(speedPlotViewportWidth));
 	const speedPlotModel = $derived(
-		projectSpeedPlot(speedPlotFrame, 390, speedPlotDomDesign.bandHeightPx)
+		projectSpeedPlot(speedPlotFrame, speedPlotViewportWidth, speedPlotDomDesign.bandHeightPx)
 	);
-	const speedPlotStyle = $derived(speedPlotCssVariables());
+	const speedPlotControlsClearance = $derived(
+		showInlineActions ? 82 : isFullscreen ? 118 : 0
+	);
+	const speedPlotStyle = $derived(
+		speedPlotCssVariables(speedPlotViewportWidth, speedPlotControlsClearance)
+	);
 
 	function currentHudPreset(): HudPreset {
 		if (showOverlay && showSpeedPlot) return 'speed-graph';
@@ -1544,6 +1551,7 @@
 
 <div
 	bind:this={containerEl}
+	bind:clientWidth={containerWidth}
 	class="relative w-full overflow-hidden rounded-2xl bg-black shadow-lg"
 	style="position: relative; --dive-video-fit: {fitMode}; aspect-ratio: {displayTransform.aspectRatio};"
 	data-fullscreen-root

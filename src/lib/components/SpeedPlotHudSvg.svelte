@@ -114,7 +114,10 @@
 		position: absolute;
 		left: 0;
 		right: 0;
-		bottom: max(var(--speed-plot-bottom), env(safe-area-inset-bottom));
+		bottom: max(
+			calc(var(--speed-plot-bottom) + var(--speed-plot-controls-clearance, 0px)),
+			env(safe-area-inset-bottom)
+		);
 		z-index: 9;
 		display: flex;
 		align-items: flex-end;

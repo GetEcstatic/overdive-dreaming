@@ -81,6 +81,24 @@ describe('speedPlotHud', () => {
 		expect(model4k.speedLine.length).toBe(frame.samples.length);
 	});
 
+	it('draws a visible first segment when only the current point is available', () => {
+		const model = projectSpeedPlot(
+			{
+				domainDistanceM: 240,
+				pbDistanceM: null,
+				samples: [{ atMs: 1_000, distanceM: 0, speedMs: 0.8 }],
+				currentDistanceM: 8,
+				currentSpeedMs: 0.8
+			},
+			390,
+			103
+		);
+
+		expect(model.speedLine).toHaveLength(2);
+		expect(model.speedLine[0].x).toBeLessThan(model.speedLine[1].x);
+		expect(model.speedLine[0].y).toBeCloseTo(model.speedLine[1].y);
+	});
+
 	it('computes realised distance from sub-splits and dense samples', () => {
 		const denseTimeline: DiveTimeline = {
 			...timeline,
