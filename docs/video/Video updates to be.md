@@ -1,6 +1,22 @@
 # Instructions 
 I'll use this section to list updates and fixes over time. When called to check for updates in this md file, I want the agent to read the first request, create a new section below the request list with a suitable name, plan an implementation in that section using our fundamentals as outlined in claude.md, create a checklist in that section, and then start to implement the plan. Continue implementing without stopping unless a major decision gate is met, commiting with a suitable message after each major step, and finally push to main once that request is complete. Once complete, remove the original request from the list and continue to the next request.
 
+## Native-Ratio Dashboard Player Width
+
+### Problem
+The dashboard player should not use a fixed 4:5 frame. The video player must fill the 470px-wide feed card, and its height should adjust from the video/player aspect ratio. Desktop pseudo-fullscreen playback should follow the same width and aspect-ratio rule.
+
+### Implementation Plan
+Remove the desktop 4:5 media-frame override for dashboard videos. Keep the player root at full card width, let `DiveVideoPlayer` use its display/native aspect ratio for height, and constrain desktop pseudo-fullscreen to a 470px width using that same aspect ratio rather than a fixed 4:5 shell.
+
+### Checklist
+- [x] Remove the fixed 4:5 dashboard media-frame override.
+- [x] Keep the dashboard player at full card width.
+- [x] Let player height follow the video/player aspect ratio.
+- [x] Apply the same aspect-ratio rule to desktop pseudo-fullscreen.
+- [x] Run Svelte/type checks.
+- [x] Commit and push the completed width/aspect correction.
+
 ## Dashboard Player Fill Correction
 
 ### Problem

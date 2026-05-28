@@ -1286,17 +1286,6 @@
 			padding: 0 0 1rem;
 		}
 
-		.session-photo,
-		.dive-video {
-			aspect-ratio: 4 / 5;
-		}
-
-		.photo-image,
-		.dive-video-player {
-			height: 100%;
-			object-fit: cover;
-		}
-
 		.profile-pic,
 		.profile-pic-placeholder {
 			width: 48px;

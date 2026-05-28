@@ -369,6 +369,9 @@
 			assetOrientation: liveVideo.assetOrientation
 		})
 	);
+	const displayAspectRatioNumber = $derived(
+		displayTransform.aspectRatio === '9 / 16' ? 9 / 16 : 16 / 9
+	);
 	const hudMode = $derived<HudRenderMode>(
 		fullscreenMode === 'landscape' || (!isFullscreen && displayTransform.hudMode === 'landscape')
 			? 'landscape'
@@ -1551,7 +1554,7 @@
 	class="relative w-full overflow-hidden rounded-2xl bg-black shadow-lg"
 	class:dive-video-feed-player={feedFrame}
 	class:feed-frame={feedFrame && !isFullscreen}
-	style="position: relative; --dive-video-fit: {fitMode}; aspect-ratio: {feedFrame && !isFullscreen ? '4 / 5' : displayTransform.aspectRatio};"
+	style="position: relative; --dive-video-fit: {fitMode}; --dive-video-display-ratio: {displayAspectRatioNumber}; --dive-video-display-aspect: {displayTransform.aspectRatio}; aspect-ratio: {displayTransform.aspectRatio};"
 	data-fullscreen-root
 	data-display-orientation={displayTransform.hudMode}
 	onpointermove={onFullscreenPointerMove}
@@ -1565,8 +1568,7 @@
 		src={srcUrl}
 		poster={posterUrl}
 		class="h-full w-full"
-		class:feed-rotated-video={feedFrame && displayTransform.transform !== ''}
-		style="object-fit: {isFullscreen ? 'var(--dive-video-fit, cover)' : feedFrame ? 'cover' : 'contain'}; --dive-video-transform: {displayTransform.transform || 'none'}; transform: var(--dive-video-transform); transform-origin: center;"
+		style="object-fit: {isFullscreen ? 'var(--dive-video-fit, cover)' : 'contain'}; transform: {displayTransform.transform}; transform-origin: center;"
 		controls={nativeControlsVisible}
 		preload="metadata"
 		muted={inlineMuted}
@@ -1899,21 +1901,13 @@
 	.feed-frame {
 		position: relative;
 		width: 100%;
-		height: 100%;
+		height: auto;
 		border-radius: 8px;
 		box-shadow: none;
 	}
 	.feed-frame video {
 		height: 100%;
-		object-fit: cover;
-	}
-	.feed-frame .feed-rotated-video {
-		position: absolute;
-		left: 50%;
-		top: 50%;
-		width: 125%;
-		height: 80%;
-		transform: translate(-50%, -50%) var(--dive-video-transform) !important;
+		object-fit: contain;
 	}
 	@media (hover: hover) and (pointer: fine) {
 		:global(.dive-video-pseudo-fullscreen.dive-video-feed-player) {
@@ -1921,23 +1915,15 @@
 			top: 50% !important;
 			right: auto !important;
 			bottom: auto !important;
-			width: min(470px, calc(100vw - 2rem), calc((100dvh - 2rem) * 0.8)) !important;
+			width: min(470px, calc(100vw - 2rem), calc((100dvh - 2rem) * var(--dive-video-display-ratio))) !important;
 			height: auto !important;
-			aspect-ratio: 4 / 5 !important;
+			aspect-ratio: var(--dive-video-display-aspect) !important;
 			transform: translate(-50%, -50%) !important;
 			border-radius: 8px !important;
 		}
 		:global(.dive-video-pseudo-fullscreen.dive-video-feed-player video) {
 			height: 100% !important;
-			object-fit: cover !important;
-		}
-		:global(.dive-video-pseudo-fullscreen.dive-video-feed-player) .feed-rotated-video {
-			position: absolute;
-			left: 50%;
-			top: 50%;
-			width: 125% !important;
-			height: 80% !important;
-			transform: translate(-50%, -50%) var(--dive-video-transform) !important;
+			object-fit: contain !important;
 		}
 	}
 	.fs-close-top {
