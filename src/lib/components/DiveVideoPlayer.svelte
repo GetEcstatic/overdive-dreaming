@@ -160,6 +160,7 @@
 	let showOverlay = $state(true);
 	const showSpeedPlot = $derived(showOverlay);
 	let pbDistanceM = $state<number | null>(null);
+	let autoRequestedOverlayVideoId = $state<string | null>(null);
 
 	onMount(() => {
 		const unsubscribe = onSnapshot(doc(db, 'diveVideos', video.id), (snapshot) => {
@@ -599,6 +600,14 @@
 	const effectiveOverlayDownloadStatus = $derived(
 		overlayDownloadStatus === 'ready' && !hasCurrentServerOverlay ? 'retryable' : overlayDownloadStatus
 	);
+
+	$effect(() => {
+		if (!showPlayerActions || !showOverlay || !canDownloadVideo) return;
+		if (autoRequestedOverlayVideoId === liveVideo.id) return;
+		if (effectiveOverlayDownloadStatus !== 'not-requested' && effectiveOverlayDownloadStatus !== 'retryable') return;
+		autoRequestedOverlayVideoId = liveVideo.id;
+		void requestServerOverlay();
+	});
 
 	function fileExtensionFromMime(mime: string): string {
 		if (mime.includes('mp4')) return 'mp4';
