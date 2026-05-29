@@ -89,7 +89,7 @@ describe('speedPlotHud', () => {
 		const model1080 = projectSpeedPlot(frame, 1080, 1920);
 		const model4k = projectSpeedPlot(frame, 3840, 2160);
 
-		expect(model720.bandRect.height).toBeCloseTo((285 * 720) / 1080);
+		expect(model720.bandRect.height).toBeCloseTo((315 * 720) / 1080);
 		expect(model720.pbMarker?.x).toBeGreaterThan(model720.plotRect.x);
 		expect(model720.pbMarker?.x).toBeLessThan(model720.plotRect.x + model720.plotRect.width);
 		expect(model1080.bandRect.height / model720.bandRect.height).toBeCloseTo(1080 / 720);
