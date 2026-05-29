@@ -98,6 +98,8 @@ Status: `src/lib/media/metricHudFrame.ts` now produces renderer-neutral top metr
 - Keep the speed graph SVG renderer fed by the existing pure speed plot model.
 - Verify portrait, landscape, dashboard inline, pseudo-fullscreen, and desktop constrained player states.
 
+Status: `MetricHudSvg.svelte` now renders the shared metric HUD frame as browser SVG, and `DiveVideoPlayer.svelte` uses that component for the visible top metric HUD while preserving the existing speed plot, playback controls, scrubber, and pseudo-fullscreen behavior.
+
 ### Phase 3 - Server SVG/PNG Burn-In
 
 - Move or package the shared HUD model so both SvelteKit and Cloud Functions can import it without path hacks.

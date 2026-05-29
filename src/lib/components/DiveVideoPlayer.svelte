@@ -57,6 +57,7 @@
 	import { doc, onSnapshot } from 'firebase/firestore';
 	import { db } from '$lib/firebase';
 	import { user } from '$lib/stores/auth';
+	import MetricHudSvg from '$lib/components/MetricHudSvg.svelte';
 	import SpeedPlotHudSvg from '$lib/components/SpeedPlotHudSvg.svelte';
 	import type { DiveTimeline, DiveVideo } from '$lib/types';
 	import {
@@ -85,12 +86,12 @@
 	import { hasCurrentServerOverlayArtifact } from '$lib/media/processing';
 	import {
 		canvasFont,
-		hudCssVariables,
 		hudFontLoadDescriptors,
 		scaleHudModeDesign,
 		type HudRenderMode,
 		type HudTextStyle
 	} from '$lib/media/hudDesign';
+	import { createMetricHudFrame } from '$lib/media/metricHudFrame';
 	import {
 		createSpeedPlotFrame,
 		projectSpeedPlot,
@@ -307,20 +308,6 @@
 	const timeline: DiveTimeline = $derived(liveVideo.timeline);
 	const poolLength: number = $derived(liveVideo.poolLength);
 
-	// Live overlay values.
-	// `currentMs` is mediaTime relative to the start of the recording. The
-	// recording may include breathe-up footage before the dive begins, so
-	// the HUD Time is offset by `timeline.diveStartMs` and clamped to 0
-	// until the diver has "left the wall".
-	const elapsedMs = $derived(diveElapsedAt(timeline, currentMs));
-	// Distance/speed helpers still key off recording-relative offsets so we
-	// pass the raw `currentMs` through.
-	const distance = $derived(distanceAt(timeline, Math.max(0, currentMs), poolLength));
-	const speed = $derived(speedAt(timeline, Math.max(0, currentMs), poolLength));
-
-	// Lap count shown = laps already completed by this point in the recording.
-	const lapsCompleted = $derived(timeline.laps.filter((l) => l.atMs <= currentMs).length);
-
 	const totalDurationMs = $derived(totalTimeMs(timeline) || liveVideo.durationSeconds * 1000);
 	const mediaDurationMs = $derived(
 		Math.max(
@@ -377,7 +364,15 @@
 			? 'landscape'
 			: 'portrait'
 	);
-	const hudStyle = $derived(hudCssVariables(hudMode));
+	const metricHudFrame = $derived(
+		createMetricHudFrame({
+			timeline,
+			poolLengthM: poolLength,
+			atMs: Math.max(0, currentMs),
+			widthPx: Math.max(320, containerWidth || 390),
+			mode: hudMode
+		})
+	);
 	const showAnyOverlay = $derived(showOverlay);
 	const requiresBrowserOverlayExport = $derived(false);
 	const speedPlotFrame = $derived(
@@ -1598,30 +1593,7 @@
 	{/if}
 
 	{#if showOverlay}
-		<!--
-		  Recording HUD match. The overlay is anchored to the container so it
-		  stays upright even when displayTransform rotates the inner video.
-		-->
-		<div
-			class="dive-hud"
-			class:dive-hud-landscape={hudMode === 'landscape'}
-			style={hudStyle}
-		>
-			<div class="dive-hud-row">
-				<div class="dive-hud-cell">
-					<div class="dive-hud-label">Time</div>
-					<div class="dive-hud-value">{formatMs(elapsedMs)}</div>
-				</div>
-				<div class="dive-hud-cell right">
-					<div class="dive-hud-label">Distance</div>
-					<div class="dive-hud-value">{distance.toFixed(1)} m</div>
-				</div>
-			</div>
-			<div class="dive-hud-sub">
-				<span>Lap {lapsCompleted}/{timeline.laps.length}</span>
-				<span class="dive-hud-mono">{speed.toFixed(2)} m/s</span>
-			</div>
-		</div>
+		<MetricHudSvg frame={metricHudFrame} />
 	{/if}
 
 	{#if showSpeedPlot}
@@ -1829,75 +1801,6 @@
 {/if}
 
 <style>
-	/* Match the recording HUD in DiveRecorder.svelte. */
-	.dive-hud {
-		position: absolute;
-		left: var(--hud-offset-x);
-		right: var(--hud-offset-x);
-		top: max(var(--hud-offset-y), env(safe-area-inset-top));
-		width: auto;
-		z-index: 10;
-		pointer-events: none;
-		padding: var(--hud-padding-y) var(--hud-padding-x);
-		border-radius: var(--hud-radius);
-		background: var(--hud-bg);
-		backdrop-filter: blur(8px);
-		-webkit-backdrop-filter: blur(8px);
-		color: var(--hud-fg);
-	}
-	.dive-hud-landscape {
-		left: max(var(--hud-offset-x), env(safe-area-inset-left));
-		right: auto;
-		top: max(var(--hud-offset-y), env(safe-area-inset-top));
-		width: auto;
-		max-width: var(--hud-max-width);
-	}
-	.dive-hud-row {
-		display: flex;
-		justify-content: space-between;
-		align-items: baseline;
-		gap: var(--hud-row-gap);
-	}
-	.dive-hud-cell.right {
-		text-align: right;
-	}
-	.dive-hud-label {
-		font-family: var(--hud-label-family);
-		font-size: var(--hud-label-size);
-		font-weight: var(--hud-label-weight);
-		line-height: var(--hud-label-line-height);
-		text-transform: uppercase;
-		letter-spacing: var(--hud-label-letter-spacing);
-		color: var(--hud-label-color);
-		opacity: var(--hud-label-opacity);
-	}
-	.dive-hud-value {
-		font-family: var(--hud-value-family);
-		font-size: var(--hud-value-size);
-		font-weight: var(--hud-value-weight);
-		letter-spacing: var(--hud-value-letter-spacing);
-		font-variant-numeric: tabular-nums;
-		line-height: var(--hud-value-line-height);
-		color: var(--hud-value-color);
-		opacity: var(--hud-value-opacity);
-	}
-	.dive-hud-sub {
-		display: flex;
-		justify-content: space-between;
-		gap: var(--hud-sub-gap);
-		font-family: var(--hud-sub-family);
-		font-size: var(--hud-sub-size);
-		font-weight: var(--hud-sub-weight);
-		line-height: var(--hud-sub-line-height);
-		letter-spacing: var(--hud-sub-letter-spacing);
-		color: var(--hud-sub-color);
-		opacity: var(--hud-sub-opacity);
-		margin-top: var(--hud-sub-margin-top);
-	}
-	.dive-hud-mono {
-		font-family: var(--hud-mono-family);
-		font-variant-numeric: tabular-nums;
-	}
 	.feed-frame {
 		position: relative;
 		width: 100%;
