@@ -4,7 +4,8 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { Resvg } from '@resvg/resvg-js';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions/v2';
@@ -215,6 +216,14 @@ function formatAssTime(seconds: number): string {
 
 function escapeAssText(value: string): string {
 	return value.replace(/[{}]/g, '').replace(/\r?\n/g, ' ');
+}
+
+function escapeXmlText(value: string): string {
+	return value
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;');
 }
 
 function formatHudTime(ms: number): string {
@@ -461,6 +470,141 @@ function speedLineSamplesAt(args: {
 		revealed.push({ distanceM: currentDistanceM, speedMs: currentSpeedMs });
 	}
 	return withFirstSpeedSegmentAcceleration(revealed, currentDistanceM, currentSpeedMs);
+}
+
+function steppedSvgPoints(points: { x: number; y: number }[]): string {
+	if (points.length === 0) return '';
+	const stepped = [`${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`];
+	for (let i = 0; i < points.length - 1; i += 1) {
+		const current = points[i];
+		const next = points[i + 1];
+		stepped.push(`${next.x.toFixed(1)},${current.y.toFixed(1)}`, `${next.x.toFixed(1)},${next.y.toFixed(1)}`);
+	}
+	return stepped.join(' ');
+}
+
+function overlaySvg(args: {
+	timeline: DiveTimeline;
+	poolLength: number;
+	durationSeconds: number;
+	width: number;
+	height: number;
+	atMs: number;
+}): string {
+	const isPortrait = args.height > args.width;
+	const scale = Math.max(
+		0.5,
+		Math.min(2.5, (isPortrait ? args.width : args.height) / HUD_REFERENCE_SHORT_EDGE_PX)
+	);
+	const boxX = scaledCssPx(isPortrait ? rem(0.75) : rem(0.5), scale);
+	const boxY = scaledCssPx(rem(0.75), scale);
+	const boxW = isPortrait
+		? args.width - 2 * boxX
+		: Math.min(Math.round(args.width * 0.62), args.width - boxX * 2);
+	const padX = scaledCssPx(isPortrait ? rem(1.05) : rem(0.85), scale);
+	const padY = scaledCssPx(isPortrait ? rem(0.75) : rem(0.55), scale);
+	const labelSize = scaledCssPx(isPortrait ? rem(0.7) : rem(0.64), scale);
+	const valueSize = scaledCssPx(isPortrait ? rem(1.9) : rem(1.35), scale);
+	const subSize = scaledCssPx(isPortrait ? rem(0.85) : rem(0.76), scale);
+	const labelLineHeight = scaledCssPx((isPortrait ? rem(0.7) : rem(0.64)) * 1.2, scale);
+	const valueLineHeight = scaledCssPx((isPortrait ? rem(1.9) : rem(1.35)) * 1.1, scale);
+	const subLineHeight = scaledCssPx((isPortrait ? rem(0.85) : rem(0.76)) * 1.2, scale);
+	const subMarginTop = scaledCssPx(rem(0.4), scale);
+	const boxH = padY * 2 + labelLineHeight + valueLineHeight + subMarginTop + subLineHeight;
+	const radius = scaledCssPx(14, scale);
+	const labelSpacing = Math.max(0, labelSize * 0.08).toFixed(2);
+	const innerX = boxX + padX;
+	const innerY = boxY + padY;
+	const rightX = boxX + boxW - padX;
+	const valueY = innerY + labelLineHeight;
+	const subY = valueY + valueLineHeight + subMarginTop;
+	const atMs = Math.max(0, Math.min(args.atMs, args.durationSeconds * 1000));
+	const distance = distanceAt(args.timeline, atMs, args.poolLength);
+	const speed = speedAt(args.timeline, atMs, args.poolLength);
+	const laps = args.timeline.laps.filter((lap) => lap.atMs <= atMs).length;
+
+	const plotScale = Math.max(0.35, Math.min(1.25, args.width / SPEED_PLOT_REFERENCE_WIDTH_PX));
+	const bandHeight = Math.min(Math.round(285 * plotScale), Math.round(args.height * 0.28));
+	const safeX = Math.round(36 * plotScale);
+	const bottomInset = Math.round(32 * plotScale);
+	const bandX = safeX;
+	const bandY = Math.max(0, args.height - bandHeight - bottomInset);
+	const bandW = Math.max(1, args.width - safeX * 2);
+	const plotPadLeft = Math.round(96 * plotScale);
+	const plotPadRight = Math.round(42 * plotScale);
+	const plotPadTop = Math.round(32 * plotScale);
+	const plotPadBottom = Math.round(44 * plotScale);
+	const plotX = bandX + plotPadLeft;
+	const plotY = bandY + plotPadTop;
+	const plotW = Math.max(1, bandW - plotPadLeft - plotPadRight);
+	const plotH = Math.max(1, bandHeight - plotPadTop - plotPadBottom);
+	const domainDistanceM = speedPlotDomainM(args.timeline, args.poolLength);
+	const axisSize = Math.max(8, Math.round(30 * plotScale));
+	const lineWidth = Math.max(2, Math.round(5 * plotScale));
+	const gridWidth = Math.max(1, Math.round(1.35 * plotScale));
+	const plotRadius = Math.round(18 * plotScale);
+	const toX = (distanceM: number) => plotX + (Math.max(0, Math.min(domainDistanceM, distanceM)) / domainDistanceM) * plotW;
+	const toY = (speedMs: number) => plotY + (1 - Math.max(0, Math.min(SPEED_PLOT_MAX_SPEED_MS, speedMs)) / SPEED_PLOT_MAX_SPEED_MS) * plotH;
+	const xTicks = [0, 50, 100, 150, 200].filter((tick) => tick <= domainDistanceM);
+	const yTicks = [0, 0.5, 1, 1.5, 2];
+	const lineSamples = speedLineSamplesAt({ timeline: args.timeline, poolLength: args.poolLength, atMs });
+	const speedPoints = steppedSvgPoints(lineSamples.map((sample) => ({ x: toX(sample.distanceM), y: toY(sample.speedMs) })));
+	const currentPoint = distance > 0 ? { x: toX(distance), y: toY(speed) } : null;
+	const watermarkSize = scaledCssPx(isPortrait ? rem(0.68) : rem(0.62), scale);
+	const watermarkMargin = scaledCssPx(rem(0.75), scale);
+
+	return `<svg xmlns="http://www.w3.org/2000/svg" width="${args.width}" height="${args.height}" viewBox="0 0 ${args.width} ${args.height}">
+<defs>
+<linearGradient id="speedPlotBg" x1="0" y1="${bandY}" x2="0" y2="${bandY + bandHeight}" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#0d1320" stop-opacity="0.86"/><stop offset="1" stop-color="#000000" stop-opacity="0.86"/></linearGradient>
+<linearGradient id="speedPlotLine" x1="${plotX}" y1="0" x2="${plotX + plotW}" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#2dd4bf"/><stop offset="1" stop-color="#5eead4"/></linearGradient>
+</defs>
+<rect x="${boxX}" y="${boxY}" width="${boxW}" height="${boxH}" rx="${radius}" fill="rgba(15, 23, 42, 0.55)"/>
+<text x="${innerX}" y="${innerY}" dominant-baseline="text-before-edge" font-family="DejaVu Sans, Arial, sans-serif" font-size="${labelSize}" font-weight="400" letter-spacing="${labelSpacing}" fill="#cbd5e1">TIME</text>
+<text x="${rightX}" y="${innerY}" text-anchor="end" dominant-baseline="text-before-edge" font-family="DejaVu Sans, Arial, sans-serif" font-size="${labelSize}" font-weight="400" letter-spacing="${labelSpacing}" fill="#cbd5e1">DISTANCE</text>
+<text x="${innerX}" y="${valueY}" dominant-baseline="text-before-edge" font-family="DejaVu Sans Mono, ui-monospace, monospace" font-size="${valueSize}" font-weight="400" fill="#f1f5f9">${escapeXmlText(formatHudTime(diveElapsedAt(args.timeline, atMs)))}</text>
+<text x="${rightX}" y="${valueY}" text-anchor="end" dominant-baseline="text-before-edge" font-family="DejaVu Sans Mono, ui-monospace, monospace" font-size="${valueSize}" font-weight="400" fill="#f1f5f9">${escapeXmlText(`${distance.toFixed(1)} m`)}</text>
+<text x="${innerX}" y="${subY}" dominant-baseline="text-before-edge" font-family="DejaVu Sans, Arial, sans-serif" font-size="${subSize}" font-weight="400" fill="#cbd5e1">${escapeXmlText(`Lap ${laps}/${args.timeline.laps.length}`)}</text>
+<text x="${rightX}" y="${subY}" text-anchor="end" dominant-baseline="text-before-edge" font-family="DejaVu Sans Mono, ui-monospace, monospace" font-size="${subSize}" font-weight="400" fill="#cbd5e1">${escapeXmlText(`${speed.toFixed(2)} m/s`)}</text>
+<rect x="${bandX}" y="${bandY}" width="${bandW}" height="${bandHeight}" rx="${plotRadius}" fill="url(#speedPlotBg)"/>
+${xTicks.map((tick) => {
+		const x = Math.round(toX(tick));
+		return `<line x1="${x}" y1="${plotY}" x2="${x}" y2="${plotY + plotH}" stroke="rgba(255,255,255,0.1)" stroke-width="${gridWidth}"/><text x="${x}" y="${Math.round(plotY + plotH + axisSize * 1.35)}" text-anchor="middle" dominant-baseline="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="${axisSize}" font-weight="600" fill="rgba(203,213,225,0.82)">${tick}m</text>`;
+	}).join('')}
+${yTicks.map((tick) => {
+		const y = Math.round(toY(tick));
+		return `<line x1="${plotX}" y1="${y}" x2="${plotX + plotW}" y2="${y}" stroke="rgba(255,255,255,0.1)" stroke-width="${gridWidth}"/><text x="${Math.round(plotX - axisSize * 0.55)}" y="${Math.round(y + axisSize * 0.15)}" text-anchor="end" dominant-baseline="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="${axisSize}" font-weight="600" fill="rgba(203,213,225,0.82)">${tick % 1 === 0 ? tick.toFixed(0) : tick.toFixed(1)}</text>`;
+	}).join('')}
+<text x="${Math.round(bandX + axisSize * 0.8)}" y="${Math.round(plotY + plotH / 2)}" text-anchor="middle" dominant-baseline="middle" transform="rotate(-90 ${Math.round(bandX + axisSize * 0.8)} ${Math.round(plotY + plotH / 2)})" font-family="DejaVu Sans, Arial, sans-serif" font-size="${axisSize}" font-weight="600" fill="rgba(203,213,225,0.82)">speed [m/s]</text>
+${speedPoints ? `<polyline points="${speedPoints}" fill="none" stroke="url(#speedPlotLine)" stroke-width="${lineWidth}" stroke-linecap="round" stroke-linejoin="round"/>` : ''}
+${currentPoint ? `<circle cx="${currentPoint.x.toFixed(1)}" cy="${currentPoint.y.toFixed(1)}" r="${Math.max(3, Math.round(6 * plotScale))}" fill="#f8fafc"/>` : ''}
+<text x="${watermarkMargin}" y="${args.height - watermarkMargin}" dominant-baseline="auto" font-family="DejaVu Sans, Arial, sans-serif" font-size="${watermarkSize}" font-weight="400" fill="rgba(241,245,249,0.6)">${escapeXmlText('Overdive.app')}</text>
+</svg>`;
+}
+
+async function writeSvgOverlayFrameSequence(args: {
+	timeline: DiveTimeline;
+	poolLength: number;
+	durationSeconds: number;
+	width: number;
+	height: number;
+}): Promise<{ framesDir: string; framePattern: string }> {
+	const framesDir = join(tmpdir(), `overdive-overlay-frames-${randomUUID()}`);
+	await mkdir(framesDir, { recursive: true });
+	const durationSeconds = Math.max(args.durationSeconds, args.timeline.diveEndMs / 1000, 1);
+	const frameCount = Math.max(2, Math.ceil(durationSeconds * 10) + 1);
+	for (let frame = 0; frame < frameCount; frame += 1) {
+		const atMs = Math.min(durationSeconds * 1000, frame * 100);
+		const svg = overlaySvg({ ...args, durationSeconds, atMs });
+		const png = new Resvg(svg, {
+			fitTo: { mode: 'original' },
+			font: {
+				loadSystemFonts: true,
+				defaultFontFamily: 'DejaVu Sans'
+			}
+		}).render().asPng();
+		await writeFile(join(framesDir, `frame-${frame.toString().padStart(6, '0')}.png`), png);
+	}
+	return { framesDir, framePattern: join(framesDir, 'frame-%06d.png') };
 }
 
 function withFirstSpeedSegmentAcceleration(
@@ -862,57 +1006,118 @@ async function generateOverlayDownload(args: {
 	const boundedDurationSeconds = Math.max(1, Math.ceil((args.video.durationSeconds ?? 0) + 1));
 	return withMasterFile(args.video, async (inputPath) => {
 		const outputPath = join(tmpdir(), `overdive-overlay-${randomUUID()}.mp4`);
-		const assPath = join(tmpdir(), `overdive-overlay-${randomUUID()}.ass`);
+		let assPath: string | null = null;
+		let svgFramesDir: string | null = null;
 		try {
-			await writeFile(
-				assPath,
-				overlayAss({
+			try {
+				const overlayFrames = await writeSvgOverlayFrameSequence({
 					timeline: args.video.timeline as DiveTimeline,
 					poolLength: args.video.poolLength ?? 25,
-					discipline: args.video.discipline ?? 'DYN',
 					durationSeconds: args.video.durationSeconds ?? 0,
 					width: outputDimensions.width,
 					height: outputDimensions.height
-				})
-			);
-			const filterChain = [
-				...displayRotationFilters(args.video),
-				`scale=${outputDimensions.width}:${outputDimensions.height}`,
-				`subtitles=${assPath}`
-			].join(',');
-			await execFileAsync(ffmpeg, [
-				'-y',
-				'-fflags',
-				'+genpts',
-				'-i',
-				inputPath,
-				'-t',
-				String(boundedDurationSeconds),
-				'-map',
-				'0:v:0',
-				'-map',
-				'0:a:0?',
-				'-vf',
-				filterChain,
-				'-c:v',
-				'libx264',
-				'-preset',
-				'ultrafast',
-				'-crf',
-				'28',
-				'-pix_fmt',
-				'yuv420p',
-				'-c:a',
-				'aac',
-				'-b:a',
-				'96k',
-				'-shortest',
-				'-max_muxing_queue_size',
-				'1024',
-				'-movflags',
-				'+faststart',
-				outputPath
-			], { timeout: 8 * 60 * 1000, maxBuffer: 10 * 1024 * 1024 });
+				});
+				svgFramesDir = overlayFrames.framesDir;
+				const baseFilter = [
+					...displayRotationFilters(args.video),
+					`scale=${outputDimensions.width}:${outputDimensions.height}`
+				].join(',');
+				const filterComplex = `[0:v]${baseFilter}[base];[1:v]format=rgba[overlay];[base][overlay]overlay=0:0:shortest=1,format=yuv420p[v]`;
+				await execFileAsync(ffmpeg, [
+					'-y',
+					'-fflags',
+					'+genpts',
+					'-i',
+					inputPath,
+					'-framerate',
+					'10',
+					'-start_number',
+					'0',
+					'-i',
+					overlayFrames.framePattern,
+					'-t',
+					String(boundedDurationSeconds),
+					'-filter_complex',
+					filterComplex,
+					'-map',
+					'[v]',
+					'-map',
+					'0:a:0?',
+					'-c:v',
+					'libx264',
+					'-preset',
+					'ultrafast',
+					'-crf',
+					'28',
+					'-pix_fmt',
+					'yuv420p',
+					'-c:a',
+					'aac',
+					'-b:a',
+					'96k',
+					'-shortest',
+					'-max_muxing_queue_size',
+					'1024',
+					'-movflags',
+					'+faststart',
+					outputPath
+				], { timeout: 8 * 60 * 1000, maxBuffer: 10 * 1024 * 1024 });
+			} catch (err) {
+				logger.warn('SVG overlay render failed; falling back to ASS renderer', {
+					videoId: args.videoId,
+					error: err instanceof Error ? err.message : String(err)
+				});
+				assPath = join(tmpdir(), `overdive-overlay-${randomUUID()}.ass`);
+				await writeFile(
+					assPath,
+					overlayAss({
+						timeline: args.video.timeline as DiveTimeline,
+						poolLength: args.video.poolLength ?? 25,
+						discipline: args.video.discipline ?? 'DYN',
+						durationSeconds: args.video.durationSeconds ?? 0,
+						width: outputDimensions.width,
+						height: outputDimensions.height
+					})
+				);
+				const filterChain = [
+					...displayRotationFilters(args.video),
+					`scale=${outputDimensions.width}:${outputDimensions.height}`,
+					`subtitles=${assPath}`
+				].join(',');
+				await execFileAsync(ffmpeg, [
+					'-y',
+					'-fflags',
+					'+genpts',
+					'-i',
+					inputPath,
+					'-t',
+					String(boundedDurationSeconds),
+					'-map',
+					'0:v:0',
+					'-map',
+					'0:a:0?',
+					'-vf',
+					filterChain,
+					'-c:v',
+					'libx264',
+					'-preset',
+					'ultrafast',
+					'-crf',
+					'28',
+					'-pix_fmt',
+					'yuv420p',
+					'-c:a',
+					'aac',
+					'-b:a',
+					'96k',
+					'-shortest',
+					'-max_muxing_queue_size',
+					'1024',
+					'-movflags',
+					'+faststart',
+					outputPath
+				], { timeout: 8 * 60 * 1000, maxBuffer: 10 * 1024 * 1024 });
+			}
 
 			const bytes = await readFile(outputPath);
 			const key = `users/${ownerId}/videos/${args.videoId}/overlay/download.mp4`;
@@ -937,7 +1142,11 @@ async function generateOverlayDownload(args: {
 				disposable: true
 			}) as unknown as DiveVideoArtifactRef;
 		} finally {
-			await Promise.all([rm(outputPath, { force: true }), rm(assPath, { force: true })]);
+			await Promise.all([
+				rm(outputPath, { force: true }),
+				assPath ? rm(assPath, { force: true }) : Promise.resolve(),
+				svgFramesDir ? rm(svgFramesDir, { recursive: true, force: true }) : Promise.resolve()
+			]);
 		}
 	});
 }

@@ -108,6 +108,8 @@ Status: `MetricHudSvg.svelte` now renders the shared metric HUD frame as browser
 - Retire the top-metric ASS events once the SVG/PNG overlay path is reliable.
 - Preserve audio, faststart, 720p export, and existing Wasabi artifact storage.
 
+Status: Cloud Functions now uses `@resvg/resvg-js` to render full-frame transparent SVG HUD frames to PNG and composites them over the rotated/scaled source video with FFmpeg. The previous ASS renderer remains as a logged fallback while the SVG/PNG path proves reliable in production.
+
 ### Phase 4 - Background Readiness and Invalidation
 
 - Keep upload-time `generate-overlay-download` queueing.
