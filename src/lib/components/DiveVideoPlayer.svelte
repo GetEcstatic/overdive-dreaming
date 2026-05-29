@@ -120,7 +120,7 @@
 		allowAutoFullscreen?: boolean;
 		/** Hide native inline controls and use Overdive controls in the video frame. */
 		customInlineControls?: boolean;
-		/** Place overlay/download actions inside the video frame instead of below it. */
+		/** Use the compact action row for feed cards. */
 		inlineActions?: boolean;
 		/** Muted single-card autoplay for dashboard feed playback. */
 		dashboardAutoplay?: boolean;
@@ -336,8 +336,7 @@
 	const autoFullscreenEnabled = $derived(allowAutoFullscreen ?? !compact);
 	const nativeControlsVisible = $derived(!isFullscreen && !customInlineControls);
 	const showPlayerActions = $derived(!compact);
-	const showInlineActions = $derived(showPlayerActions && inlineActions && !isFullscreen);
-	const showBelowActions = $derived(showPlayerActions && !inlineActions);
+	const showBelowActions = $derived(showPlayerActions && !isFullscreen);
 	const portraitFullscreenAllowed = $derived(fullscreenOnPlay || tapToFullscreen);
 	const canDownloadVideo = $derived(
 		$user?.uid === liveVideo.ownerId || $user?.uid === liveVideo.userId
@@ -388,9 +387,7 @@
 	const speedPlotModel = $derived(
 		projectSpeedPlot(speedPlotFrame, speedPlotViewportWidth, speedPlotDomDesign.bandHeightPx)
 	);
-	const speedPlotControlsClearance = $derived(
-		showInlineActions ? 36 : isFullscreen ? 72 : 0
-	);
+	const speedPlotControlsClearance = $derived(isFullscreen ? 72 : nativeControlsVisible ? 42 : 0);
 	const speedPlotStyle = $derived(
 		speedPlotCssVariables(speedPlotViewportWidth, speedPlotControlsClearance)
 	);
@@ -1689,59 +1686,11 @@
 		</div>
 	{/if}
 
-	{#if showInlineActions}
-		<div class="player-actions player-actions-overlay">
-			<button
-				type="button"
-				class="pill pill-toggle"
-				class:pill-active={showAnyOverlay}
-				onclick={cycleHudPreset}
-				disabled={downloading}
-				aria-pressed={showAnyOverlay}
-			>
-				<span class="pill-dot" class:pill-dot-active={showAnyOverlay}></span>
-				<span>{hudPresetLabel()}</span>
-			</button>
-
-			{#if canDownloadVideo}
-				<button
-					type="button"
-					class="pill pill-primary"
-					onclick={downloadCurrentVideo}
-					disabled={downloading || requestingServerOverlay || (showOverlay && !requiresBrowserOverlayExport && effectiveOverlayDownloadStatus === 'queued')}
-				>
-					{#if downloading}
-						<span class="pill-spinner" aria-hidden="true"></span>
-						<span>Preparing…</span>
-					{:else if showOverlay && !requiresBrowserOverlayExport && requestingServerOverlay}
-						<span class="pill-spinner" aria-hidden="true"></span>
-						<span>Queueing...</span>
-					{:else if showOverlay && !requiresBrowserOverlayExport && effectiveOverlayDownloadStatus === 'queued'}
-						<span class="pill-spinner" aria-hidden="true"></span>
-						<span>Overlay processing...</span>
-					{:else if showOverlay && !requiresBrowserOverlayExport && (effectiveOverlayDownloadStatus === 'not-requested' || effectiveOverlayDownloadStatus === 'retryable' || effectiveOverlayDownloadStatus === 'processing')}
-						<span aria-hidden="true">⬇︎</span>
-						<span>Download</span>
-					{:else}
-						<span aria-hidden="true">⬇︎</span>
-						<span>Download</span>
-					{/if}
-				</button>
-			{/if}
-
-			{#if downloadError}
-				<p class="download-error">{downloadError}</p>
-			{/if}
-			{#if exportDiagnostic && !downloadError}
-				<p class="export-diagnostic">{exportDiagnostic}</p>
-			{/if}
-		</div>
-	{/if}
 </div>
 
 {#if showBelowActions}
 	<!-- Overlay toggle — standalone pill button directly below the video. -->
-	<div class="player-actions">
+	<div class="player-actions" class:player-actions-compact={inlineActions}>
 		<button
 			type="button"
 			class="pill pill-toggle"
@@ -1780,7 +1729,7 @@
 			</button>
 		{/if}
 
-		{#if canEditWaypoints}
+		{#if canEditWaypoints && !inlineActions}
 			<button
 				type="button"
 				class="pill pill-secondary"
@@ -2115,39 +2064,21 @@
 		align-items: center;
 		margin-top: 0.9rem;
 	}
-	.player-actions-overlay {
-		position: absolute;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		z-index: 12;
+	.player-actions-compact {
+		margin-top: 0.55rem;
 		justify-content: flex-end;
-		padding: 2.4rem 0.65rem 0.65rem;
-		margin-top: 0;
-		background: linear-gradient(
-			to top,
-			rgba(0, 0, 0, 0.62) 0%,
-			rgba(0, 0, 0, 0.32) 55%,
-			rgba(0, 0, 0, 0) 100%
-		);
-		pointer-events: none;
 	}
-	.player-actions-overlay > * {
-		pointer-events: auto;
-	}
-	.player-actions-overlay .pill {
+	.player-actions-compact .pill {
 		min-height: 36px;
 		padding: 0.56rem 0.82rem;
 		font-size: 0.78rem;
-		box-shadow: 0 10px 28px rgba(0, 0, 0, 0.26);
 	}
-	.player-actions-overlay .download-error,
-	.player-actions-overlay .export-diagnostic {
+	.player-actions-compact .download-error,
+	.player-actions-compact .export-diagnostic {
 		flex-basis: 100%;
 		margin: 0;
 		padding: 0 0.15rem;
 		text-align: right;
-		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
 	}
 	.pill {
 		display: inline-flex;
