@@ -23,7 +23,7 @@ const require = createRequire(import.meta.url);
 const ffmpegPath = require('ffmpeg-static') as string | null;
 const ffprobeStatic = require('ffprobe-static') as { path?: string };
 const execFileAsync = promisify(execFile);
-const OVERLAY_STYLE_VERSION = 'overdive-overlay-v8';
+const OVERLAY_STYLE_VERSION = 'overdive-overlay-v9';
 
 const HUD_REFERENCE_SHORT_EDGE_PX = 390;
 const CSS_PX_PER_REM = 16;

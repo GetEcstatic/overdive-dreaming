@@ -118,6 +118,8 @@ Status: Cloud Functions now uses `@resvg/resvg-js` to render full-frame transpar
 - Ensure stale style artifacts are treated as retryable and can be regenerated automatically on player open.
 - Keep timeline-correction invalidation and include HUD style version in the artifact metadata.
 
+Status: the frontend and function worker now expect `overdive-overlay-v9`, so older `v8` ASS-rendered overlay downloads are treated as stale and can be regenerated through the existing retry/queue path.
+
 ### Phase 5 - Visual Regression
 
 - Add a committed comparison fixture directory with generated in-app SVG, server SVG/PNG, and a side-by-side comparison image.
