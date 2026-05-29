@@ -24,6 +24,7 @@ const ffmpegPath = require('ffmpeg-static') as string | null;
 const ffprobeStatic = require('ffprobe-static') as { path?: string };
 const execFileAsync = promisify(execFile);
 const OVERLAY_STYLE_VERSION = 'overdive-overlay-v9';
+const OVERLAY_REQUEST_LOCK_STALE_MS = 10 * 60 * 1000;
 
 const HUD_REFERENCE_SHORT_EDGE_PX = 390;
 const CSS_PX_PER_REM = 16;
@@ -56,6 +57,12 @@ interface MediaProcessingJobDoc {
 	status: 'queued' | 'processing' | 'ready' | 'failed' | 'retryable';
 	attempts?: number;
 	claimedAt?: FirebaseFirestore.Timestamp;
+}
+
+interface OverlayRequestLockDoc {
+	jobId?: string;
+	status?: 'queued' | 'processing' | 'ready' | 'failed' | 'retryable';
+	updatedAt?: FirebaseFirestore.Timestamp;
 }
 
 interface DiveVideoDoc {
@@ -1209,14 +1216,24 @@ async function markFailed(args: {
 		updatedAt: FieldValue.serverTimestamp()
 	};
 	if (stateKey) videoUpdate[`processingState.${stateKey}`] = 'retryable';
-	await Promise.all([
+	const updates: Promise<unknown>[] = [
 		db.collection('mediaProcessingJobs').doc(args.jobId).update({
 			status: 'retryable',
 			lastError: message,
 			updatedAt: FieldValue.serverTimestamp()
 		}),
 		db.collection('diveVideos').doc(args.videoId).update(videoUpdate)
-	]);
+	];
+	if (args.type === 'generate-overlay-download') {
+		updates.push(
+			db.collection('diveVideos').doc(args.videoId).collection('processingLocks').doc('overlayDownload').set({
+				jobId: args.jobId,
+				status: 'retryable',
+				updatedAt: FieldValue.serverTimestamp()
+			}, { merge: true })
+		);
+	}
+	await Promise.all(updates);
 }
 
 async function runMediaJob(args: { jobId: string; uid?: string }): Promise<{
@@ -1274,6 +1291,11 @@ async function runMediaJob(args: { jobId: string; uid?: string }): Promise<{
 				updatedAt: FieldValue.serverTimestamp()
 			});
 		} else if (job.type === 'generate-overlay-download') {
+			await videoRef.collection('processingLocks').doc('overlayDownload').set({
+				jobId: args.jobId,
+				status: 'processing',
+				updatedAt: FieldValue.serverTimestamp()
+			}, { merge: true });
 			const overlay = await generateOverlayDownload({ videoId: job.videoId, video });
 			await videoRef.update({
 				storagePathBurned: overlay.object.key,
@@ -1284,6 +1306,11 @@ async function runMediaJob(args: { jobId: string; uid?: string }): Promise<{
 				'processingState.pendingJobs': FieldValue.arrayRemove(job.type),
 				updatedAt: FieldValue.serverTimestamp()
 			});
+			await videoRef.collection('processingLocks').doc('overlayDownload').set({
+				jobId: args.jobId,
+				status: 'ready',
+				updatedAt: FieldValue.serverTimestamp()
+			}, { merge: true });
 		} else {
 			throw new HttpsError(
 				'failed-precondition',
@@ -1316,35 +1343,62 @@ export const requestOverlayDownload = onCall(
 		const videoId = requiredString(data, 'videoId');
 		const db = getFirestore();
 		const videoRef = db.collection('diveVideos').doc(videoId);
-		const jobRef = db.collection('mediaProcessingJobs').doc();
-		const jobId = jobRef.id;
-		const videoSnap = await videoRef.get();
-		if (!videoSnap.exists) throw new HttpsError('not-found', 'Dive video not found');
-		const video = videoSnap.data() as DiveVideoDoc;
-		const ownerId = video.ownerId ?? video.userId;
-		if (ownerId !== uid) {
-			throw new HttpsError('permission-denied', 'Only the video owner can request overlay export');
-		}
-		await Promise.all([
-			jobRef.set(
-				{
-					videoId,
-					ownerId,
-					type: 'generate-overlay-download',
-					status: 'queued',
-					attempts: 0,
-					createdAt: FieldValue.serverTimestamp(),
+		const lockRef = videoRef.collection('processingLocks').doc('overlayDownload');
+		return db.runTransaction(async (transaction) => {
+			const [videoSnap, lockSnap] = await Promise.all([
+				transaction.get(videoRef),
+				transaction.get(lockRef)
+			]);
+			if (!videoSnap.exists) throw new HttpsError('not-found', 'Dive video not found');
+			const video = videoSnap.data() as DiveVideoDoc;
+			const ownerId = video.ownerId ?? video.userId;
+			if (ownerId !== uid) {
+				throw new HttpsError('permission-denied', 'Only the video owner can request overlay export');
+			}
+
+			const currentOverlay = video.artifacts?.find(
+				(artifact) => artifact.kind === 'overlay-download' && artifact.styleVersion === OVERLAY_STYLE_VERSION
+			);
+			if (currentOverlay) {
+				transaction.set(lockRef, {
+					status: 'ready',
 					updatedAt: FieldValue.serverTimestamp()
-				},
-				{ merge: true }
-			),
-			videoRef.update({
+				}, { merge: true });
+				return { queued: false, ready: true };
+			}
+
+			const lock = lockSnap.exists ? lockSnap.data() as OverlayRequestLockDoc : null;
+			const lockUpdatedAt = lock?.updatedAt?.toMillis?.() ?? 0;
+			const lockIsActive =
+				(lock?.status === 'queued' || lock?.status === 'processing') &&
+				Date.now() - lockUpdatedAt < OVERLAY_REQUEST_LOCK_STALE_MS;
+			if (lockIsActive && lock?.jobId) {
+				return { jobId: lock.jobId, queued: true, existing: true };
+			}
+
+			const jobRef = db.collection('mediaProcessingJobs').doc();
+			const jobId = jobRef.id;
+			transaction.set(jobRef, {
+				videoId,
+				ownerId,
+				type: 'generate-overlay-download',
+				status: 'queued',
+				attempts: 0,
+				createdAt: FieldValue.serverTimestamp(),
+				updatedAt: FieldValue.serverTimestamp()
+			});
+			transaction.set(lockRef, {
+				jobId,
+				status: 'queued',
+				updatedAt: FieldValue.serverTimestamp()
+			}, { merge: true });
+			transaction.update(videoRef, {
 				'processingState.overlayDownload': 'queued',
 				'processingState.pendingJobs': FieldValue.arrayUnion('generate-overlay-download'),
 				updatedAt: FieldValue.serverTimestamp()
-			})
-		]);
-		return { jobId, queued: true };
+			});
+			return { jobId, queued: true };
+		});
 	}
 );
 
