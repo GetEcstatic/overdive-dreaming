@@ -127,6 +127,8 @@ Status: the frontend and function worker now expect `overdive-overlay-v9`, so ol
 - Document how to regenerate the comparison artifact.
 - Use this fixture before every future HUD style-version bump.
 
+Status: `scripts/generate-hud-parity-fixtures.ts` writes shared SVG, server-rasterized PNG, and side-by-side HTML artifacts under `docs/video/fixtures/burned-hud-parity/` for the portrait and landscape metric HUD fixtures.
+
 ## Acceptance Criteria
 
 - In-app and server HUD metric strings match for fixed test timestamps.

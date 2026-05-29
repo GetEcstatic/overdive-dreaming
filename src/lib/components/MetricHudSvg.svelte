@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { MetricHudFrame, MetricHudTextRun } from '$lib/media/metricHudFrame';
+	import type { MetricHudFrame } from '$lib/media/metricHudFrame';
+	import { metricHudFrameSvgMarkup } from '$lib/media/metricHudSvg';
 
 	interface Props {
 		frame: MetricHudFrame;
@@ -9,21 +10,7 @@
 
 	const viewHeight = $derived(frame.box.y + frame.box.height);
 	const safeOffsetPx = $derived(Math.max(0, frame.box.y));
-
-	function textAnchor(run: MetricHudTextRun): 'start' | 'end' {
-		return run.align === 'right' ? 'end' : 'start';
-	}
-
-	function textStyle(run: MetricHudTextRun): string {
-		return [
-			`font-family: ${run.style.family}`,
-			`font-size: ${run.style.sizePx}px`,
-			`font-weight: ${run.style.weight}`,
-			`letter-spacing: ${run.style.letterSpacingEm}em`,
-			`fill: ${run.style.color}`,
-			`opacity: ${run.style.opacity}`
-		].join('; ');
-	}
+	const svgMarkup = $derived(metricHudFrameSvgMarkup(frame));
 </script>
 
 <div
@@ -36,26 +23,7 @@
 		preserveAspectRatio="none"
 		role="presentation"
 	>
-		<rect
-			x={frame.box.x}
-			y={frame.box.y}
-			width={frame.box.width}
-			height={frame.box.height}
-			rx={frame.box.radius}
-			fill={frame.background}
-		/>
-
-		{#each frame.textRuns as run}
-			<text
-				x={run.x}
-				y={run.y}
-				text-anchor={textAnchor(run)}
-				dominant-baseline="text-before-edge"
-				style={textStyle(run)}
-			>
-				{run.text}
-			</text>
-		{/each}
+		{@html svgMarkup}
 	</svg>
 </div>
 
@@ -80,8 +48,4 @@
 		overflow: visible;
 	}
 
-	.metric-hud-svg text {
-		font-variant-numeric: tabular-nums;
-		text-transform: none;
-	}
 </style>
