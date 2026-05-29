@@ -101,6 +101,7 @@
 	} from '$lib/media/speedPlotHud';
 
 	const MAX_BROWSER_OVERLAY_EXPORT_BYTES = 200 * 1024 * 1024;
+	const OVERLAY_DOWNLOAD_STALE_MS = 15 * 60 * 1000;
 
 	interface Props {
 		video: DiveVideo;
@@ -595,8 +596,14 @@
 	let exportProgress = $state(0); // 0..1 while baking
 	const overlayDownloadStatus = $derived(liveVideo.processingState?.overlayDownload ?? 'not-requested');
 	const hasCurrentServerOverlay = $derived(hasCurrentServerOverlayArtifact(liveVideo));
+	const overlayDownloadStale = $derived(
+		(overlayDownloadStatus === 'queued' || overlayDownloadStatus === 'processing') &&
+		Date.now() - timestampMillis(liveVideo.updatedAt) > OVERLAY_DOWNLOAD_STALE_MS
+	);
 	const effectiveOverlayDownloadStatus = $derived(
-		overlayDownloadStatus === 'ready' && !hasCurrentServerOverlay ? 'retryable' : overlayDownloadStatus
+		overlayDownloadStale || (overlayDownloadStatus === 'ready' && !hasCurrentServerOverlay)
+			? 'retryable'
+			: overlayDownloadStatus
 	);
 
 	$effect(() => {
@@ -611,6 +618,13 @@
 		if (mime.includes('mp4')) return 'mp4';
 		if (mime.includes('webm')) return 'webm';
 		return 'bin';
+	}
+
+	function timestampMillis(value: { toMillis?: () => number } | Date | undefined): number {
+		if (!value) return 0;
+		if (value instanceof Date) return value.getTime();
+		if ('toMillis' in value && typeof value.toMillis === 'function') return value.toMillis();
+		return 0;
 	}
 
 	function resolutionPresetForDimensions(width: number, height: number): '720p' | '1080p' {
