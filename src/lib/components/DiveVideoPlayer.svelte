@@ -2065,7 +2065,8 @@
 		margin-top: 0.9rem;
 	}
 	.player-actions-compact {
-		margin-top: 0.55rem;
+		margin-top: 0;
+		padding: 0.55rem 0;
 		justify-content: flex-end;
 	}
 	.player-actions-compact .pill {
