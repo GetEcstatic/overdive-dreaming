@@ -1,6 +1,6 @@
 # Burned HUD Parity Plan
 
-Status: investigation complete; implementation planned.
+Status: Phase 1 in progress.
 
 ## Goal
 
@@ -75,12 +75,21 @@ This gives us browser-inspectable visuals, deterministic server output, and a pa
 
 ## Implementation Plan
 
+Implementation decisions:
+
+- Use SVG as the canonical visual renderer for parity. It is browser-inspectable in-app and can be rasterized deterministically server-side.
+- Move the in-app top metric HUD fully to SVG rather than carrying a long-lived debug fork. A short-lived comparison route or fixture is useful, but the product path should have one renderer.
+- Use bundled web fonts if needed for parity, choosing system-like faces rather than relying on platform font stacks in server output.
+- Keep `Overdive.app` watermark as a server-export-only layer, not part of the shared in-app HUD.
+
 ### Phase 1 - Shared Model and Fixture
 
 - Add a shared `metricHudFrame` pure module with timestamp inputs and a renderer-neutral output: box rect, rows, text runs, colors, opacity, font tokens, and value strings.
 - Keep timeline math pure and shared: `diveElapsedAt`, `distanceAt`, `speedAt`, lap count, speed plot frame.
 - Add fixture data for one portrait and one landscape dive frame at fixed timestamps.
 - Add tests proving in-app and server inputs produce identical metric strings and layout geometry.
+
+Status: `src/lib/media/metricHudFrame.ts` now produces renderer-neutral top metric HUD frames from `HUD_DESIGN`, timeline math, pool length, timestamp, width, and HUD mode. `metricHudFrame.fixtures.ts` provides portrait and landscape fixtures, and `metricHudFrame.test.ts` pins metric strings and shared geometry.
 
 ### Phase 2 - In-App SVG Renderer
 
@@ -121,9 +130,9 @@ This gives us browser-inspectable visuals, deterministic server output, and a pa
 - The old ASS renderer is either removed or clearly kept only as a fallback, not the primary parity path.
 - A side-by-side comparison artifact and regeneration script are committed so this process is not lost again.
 
-## Open Questions
+## Resolved Decisions
 
-- Which server SVG rasterizer should we standardize on for Cloud Functions size and runtime reliability?
-- Should the in-app top metric HUD move fully to SVG immediately, or ship behind a debug comparison route first?
-- Do we want to match current system font stacks, or choose bundled web fonts for exact cross-platform parity?
-- Should the burned-in watermark remain part of the shared HUD renderer or stay as a server-export-only layer?
+- Server rasterizer: use an SVG-first renderer and select the smallest reliable Cloud Functions rasterizer during Phase 3 implementation. Prefer a dependency that can rasterize SVG to PNG without requiring system packages.
+- In-app migration: move top metrics to the shared SVG renderer as the product path, with tests/fixtures as the safety net.
+- Fonts: use bundled system-like web fonts if needed to make server output deterministic.
+- Watermark: keep `Overdive.app` server-export-only.
