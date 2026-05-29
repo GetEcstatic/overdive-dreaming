@@ -2066,6 +2066,7 @@
 	}
 	.player-actions-compact {
 		margin-top: 0;
+		margin-bottom: 0.55rem;
 		padding: 0.55rem 0;
 		justify-content: flex-end;
 	}
