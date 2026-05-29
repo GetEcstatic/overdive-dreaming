@@ -23,7 +23,7 @@ const require = createRequire(import.meta.url);
 const ffmpegPath = require('ffmpeg-static') as string | null;
 const ffprobeStatic = require('ffprobe-static') as { path?: string };
 const execFileAsync = promisify(execFile);
-const OVERLAY_STYLE_VERSION = 'overdive-overlay-v12';
+const OVERLAY_STYLE_VERSION = 'overdive-overlay-v13';
 const OVERLAY_REQUEST_LOCK_STALE_MS = 10 * 60 * 1000;
 const OVERLAY_EXPORT_HEIGHT_PX = 1080;
 const OVERLAY_EXPORT_CRF = '20';
@@ -527,8 +527,8 @@ function overlaySvg(args: {
 	const bandX = safeX;
 	const bandY = Math.max(0, args.height - bandHeight - bottomInset);
 	const bandW = Math.max(1, args.width - safeX * 2);
-	const plotPadLeft = Math.round(118 * plotScale);
-	const plotPadRight = Math.round(64 * plotScale);
+	const plotPadLeft = Math.round(150 * plotScale);
+	const plotPadRight = Math.round(96 * plotScale);
 	const plotPadTop = Math.round(44 * plotScale);
 	const plotPadBottom = Math.round(82 * plotScale);
 	const plotX = bandX + plotPadLeft;
@@ -536,7 +536,7 @@ function overlaySvg(args: {
 	const plotW = Math.max(1, bandW - plotPadLeft - plotPadRight);
 	const plotH = Math.max(1, bandHeight - plotPadTop - plotPadBottom);
 	const domainDistanceM = speedPlotDomainM(args.timeline, args.poolLength);
-	const axisSize = Math.max(8, Math.round(26 * plotScale));
+	const axisSize = Math.max(8, Math.round(24 * plotScale));
 	const lineWidth = Math.max(2, Math.round(4.5 * plotScale));
 	const gridWidth = Math.max(1, Math.round(1.35 * plotScale));
 	const plotRadius = Math.round(18 * plotScale);
@@ -571,7 +571,7 @@ ${yTicks.map((tick) => {
 		const y = Math.round(toY(tick));
 		return `<line x1="${plotX}" y1="${y}" x2="${plotX + plotW}" y2="${y}" stroke="rgba(255,255,255,0.1)" stroke-width="${gridWidth}"/><text x="${Math.round(plotX - axisSize * 0.55)}" y="${Math.round(y + axisSize * 0.15)}" text-anchor="end" dominant-baseline="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="${axisSize}" font-weight="600" fill="rgba(203,213,225,0.82)">${tick % 1 === 0 ? tick.toFixed(0) : tick.toFixed(1)}</text>`;
 	}).join('')}
-<text x="${Math.round(bandX + axisSize * 1.45)}" y="${Math.round(plotY + plotH / 2)}" text-anchor="middle" dominant-baseline="middle" transform="rotate(-90 ${Math.round(bandX + axisSize * 1.45)} ${Math.round(plotY + plotH / 2)})" font-family="DejaVu Sans, Arial, sans-serif" font-size="${axisSize}" font-weight="600" fill="rgba(203,213,225,0.82)">speed [m/s]</text>
+<text x="${Math.round(bandX + axisSize * 2)}" y="${Math.round(plotY + plotH / 2)}" text-anchor="middle" dominant-baseline="middle" transform="rotate(-90 ${Math.round(bandX + axisSize * 2)} ${Math.round(plotY + plotH / 2)})" font-family="DejaVu Sans, Arial, sans-serif" font-size="${axisSize}" font-weight="600" fill="rgba(203,213,225,0.82)">speed [m/s]</text>
 ${speedPoints ? `<polyline points="${speedPoints}" fill="none" stroke="url(#speedPlotLine)" stroke-width="${lineWidth}" stroke-linecap="round" stroke-linejoin="round"/>` : ''}
 ${currentPoint ? `<circle cx="${currentPoint.x.toFixed(1)}" cy="${currentPoint.y.toFixed(1)}" r="${Math.max(3, Math.round(5.5 * plotScale))}" fill="#f8fafc"/>` : ''}
 <text x="${watermarkMargin}" y="${args.height - watermarkMargin}" dominant-baseline="auto" font-family="DejaVu Sans, Arial, sans-serif" font-size="${watermarkSize}" font-weight="400" fill="rgba(241,245,249,0.6)">${escapeXmlText('Overdive.app')}</text>
@@ -638,8 +638,8 @@ function speedPlotAssEvents(args: {
 	const bandX = safeX;
 	const bandY = Math.max(0, args.height - bandHeight - bottomInset);
 	const bandW = Math.max(1, args.width - safeX * 2);
-	const padLeft = Math.round(118 * scale);
-	const padRight = Math.round(64 * scale);
+	const padLeft = Math.round(150 * scale);
+	const padRight = Math.round(96 * scale);
 	const padTop = Math.round(44 * scale);
 	const padBottom = Math.round(82 * scale);
 	const plotX = bandX + padLeft;
@@ -647,7 +647,7 @@ function speedPlotAssEvents(args: {
 	const plotW = Math.max(1, bandW - padLeft - padRight);
 	const plotH = Math.max(1, bandHeight - padTop - padBottom);
 	const domainDistanceM = speedPlotDomainM(args.timeline, args.poolLength);
-	const axisSize = Math.max(8, Math.round(26 * scale));
+	const axisSize = Math.max(8, Math.round(24 * scale));
 	const lineWidth = Math.max(2, Math.round(4.5 * scale));
 	const gridWidth = Math.max(1, Math.round(1.35 * scale));
 	const radius = Math.round(18 * scale);
@@ -670,7 +670,7 @@ function speedPlotAssEvents(args: {
 		events.push(`Dialogue: 1,${fullStart},${fullEnd},SpeedPlotGrid,,0,0,0,,{\\an7\\pos(0,0)\\p1}${rectAssPath(plotX, y, plotW, gridWidth)}`);
 		events.push(`Dialogue: 3,${fullStart},${fullEnd},SpeedPlotAxis,,0,0,0,,{\\an6\\pos(${Math.round(plotX - axisSize * 0.55)},${Math.round(y + axisSize * 0.15)})}${tick % 1 === 0 ? tick.toFixed(0) : tick.toFixed(1)}`);
 	}
-	events.push(`Dialogue: 3,${fullStart},${fullEnd},SpeedPlotAxis,,0,0,0,,{\\an5\\pos(${Math.round(bandX + axisSize * 1.45)},${Math.round(plotY + plotH / 2)})\\frz270}speed [m/s]`);
+	events.push(`Dialogue: 3,${fullStart},${fullEnd},SpeedPlotAxis,,0,0,0,,{\\an5\\pos(${Math.round(bandX + axisSize * 2)},${Math.round(plotY + plotH / 2)})\\frz270}speed [m/s]`);
 
 	for (let tick = 0; tick < Math.ceil(durationSeconds * 10); tick += 1) {
 		const startSeconds = tick / 10;
@@ -789,7 +789,7 @@ Style: HUDSubMono,DejaVu Sans Mono,${subSize},&H00E1D5CB,&H000000FF,&H00000000,&
 Style: SpeedPlotBG,Arial,1,&H73000000,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 Style: SpeedPlotGrid,Arial,1,&HCCFFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 Style: SpeedPlotLine,Arial,1,&H00BFD42D,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
-Style: SpeedPlotAxis,DejaVu Sans,${Math.max(8, Math.round(26 * Math.max(0.35, Math.min(1.25, args.width / SPEED_PLOT_REFERENCE_WIDTH_PX))))},&H2EE1D5CB,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
+Style: SpeedPlotAxis,DejaVu Sans,${Math.max(8, Math.round(24 * Math.max(0.35, Math.min(1.25, args.width / SPEED_PLOT_REFERENCE_WIDTH_PX))))},&H2EE1D5CB,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 Style: Watermark,DejaVu Sans,${watermarkSize},&H66F9F5F1,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,1,0,0,0,1
 
 [Events]

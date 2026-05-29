@@ -116,10 +116,10 @@ export const SPEED_PLOT_HUD_DESIGN: SpeedPlotHudDesign = {
 		safeInsetXPx: 24,
 		bottomInsetPx: 32,
 		radiusPx: 18,
-		plotPadding: { leftPx: 118, rightPx: 64, topPx: 44, bottomPx: 82 },
+		plotPadding: { leftPx: 150, rightPx: 96, topPx: 44, bottomPx: 82 },
 		background: { top: '#0d1320', bottom: '#000000', opacity: 0.86 },
 		grid: { color: 'rgba(255,255,255,0.12)', widthPx: 1.35 },
-		axisText: { family: SANS_FAMILY, sizePx: 26, weight: 450, color: 'rgba(255,255,255,0.82)' },
+		axisText: { family: SANS_FAMILY, sizePx: 24, weight: 450, color: 'rgba(255,255,255,0.82)' },
 		line: { from: '#2dd4bf', to: '#5eead4', widthPx: 4.5 },
 		pbMarker: { color: '#facc15', widthPx: 2.5, symbolSizePx: 15 },
 		currentPoint: { radiusPx: 6, color: '#f8fafc' }
@@ -361,7 +361,7 @@ export function projectSpeedPlot(frame: SpeedPlotFrame, widthPx: number, heightP
 		xLabels,
 		yLabels,
 		yAxisLabel: {
-			x: bandRect.x + design.axisText.sizePx * 1.45,
+			x: bandRect.x + design.axisText.sizePx * 2,
 			y: plotRect.y + plotRect.height / 2,
 			value: 0,
 			text: 'speed [m/s]',
