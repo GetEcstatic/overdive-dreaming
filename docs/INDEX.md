@@ -28,6 +28,7 @@ Things designed but not yet shipped, or shipped partially.
 ### Video
 - [Imported video waypoint editor](video/imported-video-waypoint-editor.md) — plan for correcting dense imported-video waypoint data with quick fixes and lap-stacked marker editing
 - [Stored video waypoint reprocessing](video/stored-video-waypoint-reprocessing.md) — plan for editing already-uploaded video waypoints and syncing HUD, overlay downloads, and linked routine-log lap data
+- [Burned HUD parity](video/burned-hud-parity-plan.md) — investigation and implementation plan for making server-burned HUD downloads match the in-app HUD while preserving background readiness
 - [Speed plot HUD overlay](video/speed-plot-hud-overlay.md) — plan for a bottom video HUD graph showing speed over distance, PB marker, playback/export parity, and low-friction HUD selection
 - [Fullscreen distance scrubber](video/fullscreen-distance-scrubber.md) — dashboard fullscreen video timeline with distance markers and scrub preview
 - [WebCodecs evaluation](video/webcodecs-evaluation.md) — research only; do **not** replace MediaRecorder yet

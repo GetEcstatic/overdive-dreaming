@@ -1,6 +1,29 @@
 # Instructions 
 I'll use this section to list updates and fixes over time. When called to check for updates in this md file, I want the agent to read the first request, create a new section below the request list with a suitable name, plan an implementation in that section using our fundamentals as outlined in claude.md, create a checklist in that section, and then start to implement the plan. Continue implementing without stopping unless a major decision gate is met, commiting with a suitable message after each major step, and finally push to main once that request is complete. Once complete, remove the original request from the list and continue to the next request.
 
+## Burned HUD Parity Investigation
+
+### Problem
+The in-app HUD is approaching the desired look and behavior, but server-burned downloads still lag behind. We need to understand the current render/export paths, identify drift and redundant code, and decide whether HUD parity can be improved while preserving server-side background processing.
+
+### Findings
+- In-app playback uses `HUD_DESIGN` and DOM/CSS variables for the top metric HUD, plus a pure speed-plot model and SVG renderer for the bottom graph.
+- Browser canvas fallback export already reuses `scaleHudModeDesign`, so it is closer to the in-app HUD than the server path.
+- Server burn-in uses `functions/src/mediaWorker.ts` to generate ASS subtitle events from manually duplicated layout/style constants, then FFmpeg burns those subtitles into the video.
+- Background readiness is already in place: uploads enqueue `generate-overlay-download`, player open can request/retry stale overlay jobs, timeline corrections invalidate old overlays, and overlay artifacts are versioned.
+- The main parity weakness is renderer duplication. ASS cannot faithfully reproduce all browser HUD details, and copied constants will keep drifting.
+
+### Plan Created
+Created `docs/video/burned-hud-parity-plan.md` and added it to `docs/INDEX.md`. The recommended path is a shared HUD frame model plus SVG-based in-app and server rendering, with server-side SVG/PNG compositing replacing the primary ASS renderer while keeping the current background job queue and style-version invalidation.
+
+### Checklist
+- [x] Investigate current in-app HUD rendering.
+- [x] Investigate current server burn-in rendering.
+- [x] Evaluate strengths, weaknesses, and redundant code.
+- [x] Answer whether HUD parity can improve.
+- [x] Create and index a new implementation plan.
+
+
 ## HUD Comparison Artifact Search
 
 ### Problem
