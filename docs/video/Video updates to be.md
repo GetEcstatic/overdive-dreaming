@@ -1,6 +1,29 @@
 # Instructions 
 I'll use this section to list updates and fixes over time. When called to check for updates in this md file, I want the agent to read the first request, create a new section below the request list with a suitable name, plan an implementation in that section using our fundamentals as outlined in claude.md, create a checklist in that section, and then start to implement the plan. Continue implementing without stopping unless a major decision gate is met, commiting with a suitable message after each major step, and finally push to main once that request is complete. Once complete, remove the original request from the list and continue to the next request.
 
+## HUD Comparison Artifact Search
+
+### Problem
+The burned-in download HUD still does not match the in-app HUD closely enough. There was an earlier visual-comparison process that reportedly produced a close side-by-side match, so the first step is to locate the comparison artifact and the markdown process note before changing renderer code again.
+
+### Search Performed
+- Searched current docs, source, functions, scripts, static assets, animation files, and local generated files for side-by-side/comparison/HUD/parity/ASS/burned-in references.
+- Searched Git history filenames and commit messages for HUD comparison artifacts.
+- Searched Git history text for side-by-side, frame-by-frame, burned HUD, dashboard HUD, SVG/canvas, and HUD parity references.
+- Searched `/tmp`, `/var/folders`, and Copilot chat resources for generated image/HTML artifacts with HUD/overlay/compare/render names.
+
+### Findings
+- The strongest process reference is `docs/video/speed-plot-hud-overlay.md`, whose visual checks explicitly list side-by-side SVG and canvas renders at 720p, 1080p, and 4K.
+- A second relevant process reference is `docs/video/server-side-recording-pipeline.md`, which calls out comparing the burned HUD against the dashboard HUD frame-by-frame on portrait and landscape clips.
+- `docs/video/dashboard-player-hud-parity-plan.md` covers matching replay HUD styling to the recorder/player HUD, but it does not reference the server burned-in comparison artifact directly.
+- I did not find a committed or local generated side-by-side image/HTML artifact in the workspace, temp folders, Copilot chat resources, or Git history filenames. The artifact was likely transient or stored outside this workspace.
+
+### Checklist
+- [x] Locate markdown references to the prior HUD comparison process.
+- [x] Search workspace and Git history for generated comparison artifacts.
+- [x] Search local temp/chat-resource locations for uncommitted artifacts.
+- [x] Record the found process docs and missing-artifact result.
+
 ## Native-Ratio Dashboard Player Width
 
 ### Problem
