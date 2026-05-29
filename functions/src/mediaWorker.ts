@@ -1291,7 +1291,19 @@ async function runMediaJob(args: { jobId: string; uid?: string }): Promise<{
 				updatedAt: FieldValue.serverTimestamp()
 			});
 		} else if (job.type === 'generate-overlay-download') {
-			await videoRef.collection('processingLocks').doc('overlayDownload').set({
+			const lockRef = videoRef.collection('processingLocks').doc('overlayDownload');
+			const lockSnap = await lockRef.get();
+			const lock = lockSnap.exists ? lockSnap.data() as OverlayRequestLockDoc : null;
+			if (lock?.jobId && lock.jobId !== args.jobId) {
+				await db.collection('mediaProcessingJobs').doc(args.jobId).update({
+					status: 'ready',
+					supersededByJobId: lock.jobId,
+					completedAt: FieldValue.serverTimestamp(),
+					updatedAt: FieldValue.serverTimestamp()
+				});
+				return { jobId: args.jobId, status: 'ready', type: job.type, alreadyComplete: true };
+			}
+			await lockRef.set({
 				jobId: args.jobId,
 				status: 'processing',
 				updatedAt: FieldValue.serverTimestamp()
