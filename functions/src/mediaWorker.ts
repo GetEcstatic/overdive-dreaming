@@ -23,8 +23,11 @@ const require = createRequire(import.meta.url);
 const ffmpegPath = require('ffmpeg-static') as string | null;
 const ffprobeStatic = require('ffprobe-static') as { path?: string };
 const execFileAsync = promisify(execFile);
-const OVERLAY_STYLE_VERSION = 'overdive-overlay-v9';
+const OVERLAY_STYLE_VERSION = 'overdive-overlay-v10';
 const OVERLAY_REQUEST_LOCK_STALE_MS = 10 * 60 * 1000;
+const OVERLAY_EXPORT_HEIGHT_PX = 1080;
+const OVERLAY_EXPORT_CRF = '20';
+const OVERLAY_EXPORT_PRESET = 'veryfast';
 
 const HUD_REFERENCE_SHORT_EDGE_PX = 390;
 const CSS_PX_PER_REM = 16;
@@ -283,35 +286,22 @@ function displayDimensions(video: DiveVideoDoc): { width: number; height: number
 	return dimensions;
 }
 
-function scaledDimensions(dimensions: { width: number; height: number }, maxEdge = 1280): {
+function scaledDimensions(dimensions: { width: number; height: number }, targetHeight = 720): {
 	width: number;
 	height: number;
 } {
-	const ratio = Math.min(1, maxEdge / Math.max(dimensions.width, dimensions.height));
+	const ratio = targetHeight / dimensions.height;
 	return {
 		width: even(dimensions.width * ratio),
 		height: even(dimensions.height * ratio)
 	};
 }
 
-function overlayExportProfile(video: DiveVideoDoc): {
-	maxEdge: 540 | 720 | 1080;
-	profile: 'overlay-mp4-540p' | 'overlay-mp4-720p' | 'overlay-mp4-1080p';
+function overlayExportProfile(): {
+	targetHeight: 1080;
+	profile: 'overlay-mp4-1080p';
 } {
-	const sizeBytes = video.cleanObject?.sizeBytes ?? video.sizeBytes ?? 0;
-	const durationSeconds = video.durationSeconds ?? 0;
-	const inferredBitrateBps =
-		sizeBytes > 0 && durationSeconds > 0 ? (sizeBytes * 8) / durationSeconds : undefined;
-	const bitrateBps = video.actualAverageBitrateBps ?? inferredBitrateBps ?? 0;
-	const codecDescription = `${video.mimeType ?? ''} ${video.cleanObject?.contentType ?? ''} ${
-		video.probeAudioCodec ?? ''
-	}`.toLowerCase();
-	const suspectCodec = codecDescription.includes('opus');
-	if (suspectCodec) return { maxEdge: 540, profile: 'overlay-mp4-540p' };
-	if (sizeBytes > 250 * 1024 * 1024 || durationSeconds > 180 || bitrateBps > 12_000_000) {
-		return { maxEdge: 720, profile: 'overlay-mp4-720p' };
-	}
-	return { maxEdge: 1080, profile: 'overlay-mp4-1080p' };
+	return { targetHeight: OVERLAY_EXPORT_HEIGHT_PX, profile: 'overlay-mp4-1080p' };
 }
 
 function diveElapsedAt(timeline: DiveTimeline, atMs: number): number {
@@ -1008,8 +998,8 @@ async function generateOverlayDownload(args: {
 	}
 	const ownerId = args.video.ownerId ?? args.video.userId;
 	if (!ownerId) throw new HttpsError('failed-precondition', 'Dive video has no owner');
-	const exportProfile = overlayExportProfile(args.video);
-	const outputDimensions = scaledDimensions(displayDimensions(args.video), exportProfile.maxEdge);
+	const exportProfile = overlayExportProfile();
+	const outputDimensions = scaledDimensions(displayDimensions(args.video), exportProfile.targetHeight);
 	const boundedDurationSeconds = Math.max(1, Math.ceil((args.video.durationSeconds ?? 0) + 1));
 	return withMasterFile(args.video, async (inputPath) => {
 		const outputPath = join(tmpdir(), `overdive-overlay-${randomUUID()}.mp4`);
@@ -1027,7 +1017,7 @@ async function generateOverlayDownload(args: {
 				svgFramesDir = overlayFrames.framesDir;
 				const baseFilter = [
 					...displayRotationFilters(args.video),
-					`scale=${outputDimensions.width}:${outputDimensions.height}`
+					`scale=${outputDimensions.width}:${outputDimensions.height}:flags=lanczos`
 				].join(',');
 				const filterComplex = `[0:v]${baseFilter}[base];[1:v]format=rgba[overlay];[base][overlay]overlay=0:0:shortest=1,format=yuv420p[v]`;
 				await execFileAsync(ffmpeg, [
@@ -1053,9 +1043,9 @@ async function generateOverlayDownload(args: {
 					'-c:v',
 					'libx264',
 					'-preset',
-					'ultrafast',
+					OVERLAY_EXPORT_PRESET,
 					'-crf',
-					'28',
+					OVERLAY_EXPORT_CRF,
 					'-pix_fmt',
 					'yuv420p',
 					'-c:a',
@@ -1088,7 +1078,7 @@ async function generateOverlayDownload(args: {
 				);
 				const filterChain = [
 					...displayRotationFilters(args.video),
-					`scale=${outputDimensions.width}:${outputDimensions.height}`,
+					`scale=${outputDimensions.width}:${outputDimensions.height}:flags=lanczos`,
 					`subtitles=${assPath}`
 				].join(',');
 				await execFileAsync(ffmpeg, [
@@ -1108,9 +1098,9 @@ async function generateOverlayDownload(args: {
 					'-c:v',
 					'libx264',
 					'-preset',
-					'ultrafast',
+					OVERLAY_EXPORT_PRESET,
 					'-crf',
-					'28',
+					OVERLAY_EXPORT_CRF,
 					'-pix_fmt',
 					'yuv420p',
 					'-c:a',
