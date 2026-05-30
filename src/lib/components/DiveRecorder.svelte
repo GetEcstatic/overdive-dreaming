@@ -957,10 +957,9 @@
 			max(0.75rem, env(safe-area-inset-left));
 	}
 	.controls-ready .secondary-actions {
-		left: auto;
+		left: var(--recorder-edge-x);
 		right: calc(var(--recorder-edge-x) + var(--recorder-primary-width) + var(--recorder-control-gap));
 		bottom: calc(1rem + env(safe-area-inset-bottom));
-		width: var(--recorder-cancel-width);
 	}
 	.secondary-actions {
 		position: absolute;

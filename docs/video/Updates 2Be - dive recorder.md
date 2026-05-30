@@ -23,6 +23,22 @@ Leave unrelated worktree changes alone. Never commit secrets or `.env` files. If
 
 # Requests
 
+## Recorder Cancel Edge Spacing
+
+### Problem
+After making Record and Camera dominant, the smaller Cancel button now floats with noticeably more empty space to its left than Record has to the right edge. That makes the bottom control cluster feel slightly off-balance.
+
+### Implementation Plan
+Keep the existing Record and Camera sizing unchanged. Adjust only the ready-state Cancel positioning/width so its left edge uses the same safe-area-aware edge inset as the Record button's right edge, while preserving the gap between Cancel and Record. Leave non-ready recorder phases unchanged.
+
+### Checklist
+- [x] Keep ready Record and Camera dimensions unchanged.
+- [x] Expand ready Cancel leftward to the matching screen edge inset.
+- [x] Preserve the gap between Cancel and Record.
+- [x] Preserve landscape and non-ready control behavior.
+- [x] Run Svelte/type checks.
+- [x] Commit and push the cancel spacing update.
+
 ## Recorder Ready Control Ratio
 
 ### Problem
