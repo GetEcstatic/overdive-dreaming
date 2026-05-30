@@ -183,6 +183,7 @@
 	let suppressInlineClick = false;
 	let rvfcHandle: number | null = null;
 	let dashboardAutoplayId: string | null = null;
+	let inlineScrubberHideTimer: ReturnType<typeof setTimeout> | null = null;
 
 	type HudPreset = 'clean' | 'hud';
 
@@ -459,6 +460,20 @@
 		fullscreenControlsTimer = null;
 	}
 
+	function clearInlineScrubberHideTimer(): void {
+		if (!inlineScrubberHideTimer) return;
+		clearTimeout(inlineScrubberHideTimer);
+		inlineScrubberHideTimer = null;
+	}
+
+	function scheduleInlineScrubberHide(delayMs = 2000): void {
+		clearInlineScrubberHideTimer();
+		inlineScrubberHideTimer = setTimeout(() => {
+			if (!isScrubbing) inlineScrubberVisible = false;
+			inlineScrubberHideTimer = null;
+		}, delayMs);
+	}
+
 	function revealFullscreenControls(): void {
 		showFullscreenControls = true;
 		clearFullscreenControlsTimer();
@@ -500,15 +515,29 @@
 		seekToProgress((event.clientX - rect.left) / rect.width);
 	}
 
-	function shouldStartInlineScrub(event: PointerEvent): boolean {
-		if (!inlineActions || isFullscreen || !event.isPrimary || event.pointerType === 'mouse') return false;
+	function isPointerInInlineScrubZone(event: PointerEvent): boolean {
+		if (!containerEl) return false;
+		const rect = containerEl.getBoundingClientRect();
+		if (rect.height <= 0) return false;
+		const y = event.clientY - rect.top;
+		return y >= rect.height * 0.58 && y <= rect.height;
+	}
+
+	function isInteractiveInlineTarget(event: PointerEvent): boolean {
 		const target = event.target;
-		return !(target instanceof Element && target.closest('button, input, .fs-controls'));
+		return target instanceof Element && target.closest('button, input, .fs-controls') !== null;
+	}
+
+	function shouldStartInlineScrub(event: PointerEvent): boolean {
+		if (!inlineActions || isFullscreen || !event.isPrimary || isInteractiveInlineTarget(event)) return false;
+		if (event.pointerType === 'mouse') return isPointerInInlineScrubZone(event);
+		return true;
 	}
 
 	function onPlayerPointerDown(event: PointerEvent): void {
 		onFullscreenPointerDown(event);
 		if (!shouldStartInlineScrub(event)) return;
+		clearInlineScrubberHideTimer();
 		inlineScrubberVisible = true;
 		suppressInlineClick = true;
 		beginScrub();
@@ -518,8 +547,25 @@
 
 	function onPlayerPointerMove(event: PointerEvent): void {
 		onFullscreenPointerMove(event);
+		if (
+			inlineActions &&
+			!isFullscreen &&
+			!isScrubbing &&
+			event.pointerType === 'mouse' &&
+			!isInteractiveInlineTarget(event) &&
+			isPointerInInlineScrubZone(event)
+		) {
+			clearInlineScrubberHideTimer();
+			inlineScrubberVisible = true;
+		}
 		if (!inlineScrubberVisible || !isScrubbing || isFullscreen) return;
 		seekInlineScrubber(event);
+	}
+
+	function onPlayerPointerLeave(event: PointerEvent): void {
+		clearPortraitSwipe();
+		if (!inlineActions || isScrubbing || event.pointerType !== 'mouse') return;
+		scheduleInlineScrubberHide(250);
 	}
 
 	function clearPortraitSwipe(): void {
@@ -527,11 +573,11 @@
 	}
 
 	function endInlineScrub(event?: PointerEvent): void {
-		if (inlineScrubberVisible) {
+		if (inlineScrubberVisible && isScrubbing) {
 			if (event) seekInlineScrubber(event);
-			inlineScrubberVisible = false;
 			endScrub();
 			if (event) containerEl?.releasePointerCapture?.(event.pointerId);
+			scheduleInlineScrubberHide(event?.pointerType === 'mouse' ? 1200 : 2000);
 		}
 		clearPortraitSwipe();
 	}
@@ -651,6 +697,7 @@
 
 	onDestroy(() => {
 		clearFullscreenControlsTimer();
+		clearInlineScrubberHideTimer();
 		if (videoEl && rvfcHandle !== null) {
 			const el = videoEl as VideoWithRvfc;
 			el.cancelVideoFrameCallback?.(rvfcHandle);
@@ -1645,6 +1692,7 @@
 	onpointerdown={onPlayerPointerDown}
 	onpointerup={endInlineScrub}
 	onpointercancel={endInlineScrub}
+	onpointerleave={onPlayerPointerLeave}
 >
 	<!-- svelte-ignore a11y_media_has_caption -->
 	<video

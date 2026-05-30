@@ -1,6 +1,22 @@
 # Instructions 
 I'll use this section to list updates and fixes over time. When called to check for updates in this md file, I want the agent to read the first request, create a new section below the request list with a suitable name, plan an implementation in that section using our fundamentals as outlined in claude.md, create a checklist in that section, and then start to implement the plan. Continue implementing without stopping unless a major decision gate is met, commiting with a suitable message after each major step, and finally push to main once that request is complete. Once complete, remove the original request from the list and continue to the next request.
 
+## Inline Scrubber Polish
+
+### Problem
+The new inline scrubber disappears immediately on mobile release, which can hide the final timeline position under the user's finger. Desktop feed users also need a discoverable pointer-based way to reveal and use the same scrubber now that the pseudo-fullscreen path is gone.
+
+### Implementation Plan
+Keep the scrubber visible for two seconds after a touch scrub ends, cancelling that delay whenever a new scrub starts. For desktop pointers, reveal the same scrubber when the cursor moves through the lower HUD/scrubber band, keep it visible while the cursor remains in the player, and allow mouse drag/click seeking from that band without changing the mobile touch interaction.
+
+### Checklist
+- [x] Add a two-second post-release linger for the inline scrubber.
+- [x] Cancel pending linger timers when a new scrub starts or the player unmounts.
+- [x] Reveal the inline scrubber from the desktop lower HUD band.
+- [x] Allow desktop mouse drag/click seeking from that revealed scrubber band.
+- [x] Preserve play/pause taps and compact action buttons.
+- [x] Run Svelte/type checks.
+- [x] Commit and push the scrubber polish update.
 ## Inline Feed Playback Controls
 
 ### Problem
