@@ -505,8 +505,6 @@
 							dashboardAutoplay
 							feedFrame
 							inlineActions
-							mutedInline
-							tapToFullscreen
 						/>
 					{:else}
 						<!-- svelte-ignore a11y_media_has_caption -->

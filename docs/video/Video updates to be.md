@@ -1,6 +1,23 @@
 # Instructions 
 I'll use this section to list updates and fixes over time. When called to check for updates in this md file, I want the agent to read the first request, create a new section below the request list with a suitable name, plan an implementation in that section using our fundamentals as outlined in claude.md, create a checklist in that section, and then start to implement the plan. Continue implementing without stopping unless a major decision gate is met, commiting with a suitable message after each major step, and finally push to main once that request is complete. Once complete, remove the original request from the list and continue to the next request.
 
+## Inline Feed Playback Controls
+
+### Problem
+The dashboard feed no longer needs the custom pseudo-fullscreen player now that feed videos are sized correctly. Removing that path means the inline feed player needs two missing affordances: persistent sound control in the compact action row, and an inline scrubber that temporarily replaces the lower speed HUD while the user touches/scrubs the video.
+
+### Implementation Plan
+Keep playback inside the feed card by removing the feed-card `tapToFullscreen` path and making inline taps toggle play. Add a compact volume button next to the HUD/download actions, persisted in localStorage, and wire dashboard autoplay so only the centered/active feed video can play with sound. Then add an inline touch scrubber overlay that appears in the lower HUD area during pointer interaction, seeks by distance/time, and restores the speed HUD on release when the HUD is enabled.
+
+### Checklist
+- [x] Remove dashboard feed pseudo-fullscreen entry points.
+- [x] Add persistent compact feed volume control.
+- [x] Ensure only the centered active feed video can play sound.
+- [x] Add touch/drag inline scrubber in place of the lower HUD.
+- [x] Preserve HUD/download actions and desktop/mobile feed sizing.
+- [x] Run Svelte/type checks.
+- [x] Commit and push the completed playback control update.
+
 ## Burned HUD Parity Investigation
 
 ### Problem

@@ -13,11 +13,15 @@
 -->
 <script lang="ts" module>
 	const DASHBOARD_AUTOPLAY_MIN_RATIO = 0.65;
+	const DASHBOARD_SOUND_KEY = 'overdive.dashboardFeedSound';
 	let dashboardAutoplayInstance = 0;
+	let dashboardSoundEnabled = false;
+	const dashboardSoundListeners = new Set<(enabled: boolean) => void>();
 
 	interface DashboardAutoplayEntry {
 		id: string;
 		ratio: number;
+		centerDistance: number;
 		play: () => void;
 		pause: () => void;
 	}
@@ -29,7 +33,7 @@
 		const next =
 			[...dashboardAutoplayEntries.values()]
 				.filter((entry) => entry.ratio >= DASHBOARD_AUTOPLAY_MIN_RATIO)
-				.sort((a, b) => b.ratio - a.ratio)[0]?.id ?? null;
+				.sort((a, b) => a.centerDistance - b.centerDistance || b.ratio - a.ratio)[0]?.id ?? null;
 
 		activeDashboardAutoplayId = next;
 		for (const entry of dashboardAutoplayEntries.values()) {
@@ -49,12 +53,36 @@
 		const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
 		return reducedMotion || connection?.saveData === true;
 	}
+
+	function loadDashboardSoundPreference(): boolean {
+		if (typeof localStorage === 'undefined') return false;
+		dashboardSoundEnabled = localStorage.getItem(DASHBOARD_SOUND_KEY) === 'on';
+		return dashboardSoundEnabled;
+	}
+
+	function setDashboardSoundPreference(enabled: boolean): void {
+		dashboardSoundEnabled = enabled;
+		try {
+			localStorage.setItem(DASHBOARD_SOUND_KEY, enabled ? 'on' : 'off');
+		} catch {
+			// Ignore storage failures; the in-memory preference still applies.
+		}
+		for (const listener of dashboardSoundListeners) listener(enabled);
+		refreshDashboardAutoplay();
+	}
+
+	function subscribeDashboardSound(listener: (enabled: boolean) => void): () => void {
+		dashboardSoundListeners.add(listener);
+		listener(loadDashboardSoundPreference());
+		return () => dashboardSoundListeners.delete(listener);
+	}
 </script>
 
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { doc, onSnapshot } from 'firebase/firestore';
+	import { Volume2, VolumeX } from 'lucide-svelte';
 	import { db } from '$lib/firebase';
 	import { user } from '$lib/stores/auth';
 	import MetricHudSvg from '$lib/components/MetricHudSvg.svelte';
@@ -73,9 +101,7 @@
 	} from '$lib/capture/videoQuality';
 	import {
 		diveVideoBehavior,
-		exitDiveFullscreen,
-		requestDiveFullscreen,
-		DIVE_FS_EVENT
+		exitDiveFullscreen
 	} from '$lib/stores/videoPlayback';
 	import {
 		getDiveVideoBurnedDownloadUrl,
@@ -125,10 +151,6 @@
 		inlineActions?: boolean;
 		/** Muted single-card autoplay for dashboard feed playback. */
 		dashboardAutoplay?: boolean;
-		/** Pressing inline video opens custom fullscreen instead of toggling inline playback. */
-		tapToFullscreen?: boolean;
-		/** Mute the inline video while dashboard autoplay owns playback. */
-		mutedInline?: boolean;
 		/** Fill the dashboard feed media frame instead of preserving source aspect ratio inline. */
 		feedFrame?: boolean;
 	}
@@ -143,8 +165,6 @@
 		customInlineControls = false,
 		inlineActions = false,
 		dashboardAutoplay = false,
-		tapToFullscreen = false,
-		mutedInline = false,
 		feedFrame = false
 	}: Props = $props();
 	function initialLiveVideo(): DiveVideo {
@@ -158,12 +178,16 @@
 	let currentMs = $state(0);
 	let isPlaying = $state(false);
 	let inlineMuted = $state(false);
+	let feedSoundOn = $state(false);
+	let inlineScrubberVisible = $state(false);
+	let suppressInlineClick = false;
 	let rvfcHandle: number | null = null;
+	let dashboardAutoplayId: string | null = null;
 
 	type HudPreset = 'clean' | 'hud';
 
 	let showOverlay = $state(true);
-	const showSpeedPlot = $derived(showOverlay);
+	const showSpeedPlot = $derived(showOverlay && !inlineScrubberVisible);
 	let pbDistanceM = $state<number | null>(null);
 	let autoRequestedOverlayVideoId = $state<string | null>(null);
 
@@ -186,6 +210,13 @@
 		return () => {
 			cancelled = true;
 		};
+	});
+
+	onMount(() => {
+		if (!inlineActions) return;
+		return subscribeDashboardSound((enabled) => {
+			feedSoundOn = enabled;
+		});
 	});
 
 	async function resolveDisciplinePbDistance(
@@ -283,8 +314,18 @@
 
 	function togglePlay() {
 		if (!videoEl) return;
-		if (videoEl.paused || videoEl.ended) videoEl.play().catch(() => {});
+		if (videoEl.paused || videoEl.ended) {
+			if (inlineActions) {
+				inlineMuted = !feedSoundOn || dashboardAutoplayId !== activeDashboardAutoplayId;
+				videoEl.muted = inlineMuted;
+			}
+			videoEl.play().catch(() => {});
+		}
 		else videoEl.pause();
+	}
+
+	function toggleFeedSound(): void {
+		setDashboardSoundPreference(!feedSoundOn);
 	}
 
 	function toggleFit() {
@@ -293,17 +334,6 @@
 
 	function exitFullscreen() {
 		exitDiveFullscreen(containerEl ?? null);
-	}
-
-	function requestInlineFullscreen(): void {
-		if (!tapToFullscreen) return;
-		fitMode = 'cover';
-		inlineMuted = false;
-		if (videoEl) {
-			videoEl.muted = false;
-			if (videoEl.paused || videoEl.ended) videoEl.play().catch(() => {});
-		}
-		requestDiveFullscreen(containerEl ?? null);
 	}
 
 	const timeline: DiveTimeline = $derived(liveVideo.timeline);
@@ -338,7 +368,7 @@
 	const nativeControlsVisible = $derived(!isFullscreen && !customInlineControls);
 	const showPlayerActions = $derived(!compact);
 	const showBelowActions = $derived(showPlayerActions && !isFullscreen);
-	const portraitFullscreenAllowed = $derived(fullscreenOnPlay || tapToFullscreen);
+	const portraitFullscreenAllowed = $derived(fullscreenOnPlay);
 	const canDownloadVideo = $derived(
 		$user?.uid === liveVideo.ownerId || $user?.uid === liveVideo.userId
 	);
@@ -463,16 +493,55 @@
 		}
 	}
 
+	function seekInlineScrubber(event: PointerEvent): void {
+		if (!containerEl) return;
+		const rect = containerEl.getBoundingClientRect();
+		if (rect.width <= 0) return;
+		seekToProgress((event.clientX - rect.left) / rect.width);
+	}
+
+	function shouldStartInlineScrub(event: PointerEvent): boolean {
+		if (!inlineActions || isFullscreen || !event.isPrimary || event.pointerType === 'mouse') return false;
+		const target = event.target;
+		return !(target instanceof Element && target.closest('button, input, .fs-controls'));
+	}
+
+	function onPlayerPointerDown(event: PointerEvent): void {
+		onFullscreenPointerDown(event);
+		if (!shouldStartInlineScrub(event)) return;
+		inlineScrubberVisible = true;
+		suppressInlineClick = true;
+		beginScrub();
+		containerEl?.setPointerCapture?.(event.pointerId);
+		seekInlineScrubber(event);
+	}
+
+	function onPlayerPointerMove(event: PointerEvent): void {
+		onFullscreenPointerMove(event);
+		if (!inlineScrubberVisible || !isScrubbing || isFullscreen) return;
+		seekInlineScrubber(event);
+	}
+
 	function clearPortraitSwipe(): void {
 		portraitSwipeStart = null;
 	}
 
+	function endInlineScrub(event?: PointerEvent): void {
+		if (inlineScrubberVisible) {
+			if (event) seekInlineScrubber(event);
+			inlineScrubberVisible = false;
+			endScrub();
+			if (event) containerEl?.releasePointerCapture?.(event.pointerId);
+		}
+		clearPortraitSwipe();
+	}
+
 	function onInlineVideoClick(): void {
-		if (!customInlineControls || isFullscreen) return;
-		if (tapToFullscreen) {
-			requestInlineFullscreen();
+		if (suppressInlineClick) {
+			suppressInlineClick = false;
 			return;
 		}
+		if (!customInlineControls || isFullscreen) return;
 		void togglePlay();
 	}
 
@@ -482,18 +551,22 @@
 		if (!containerEl) return;
 
 		const id = `${video.id}:${dashboardAutoplayInstance++}`;
+		dashboardAutoplayId = id;
 		const entry: DashboardAutoplayEntry = {
 			id,
 			ratio: 0,
+			centerDistance: Number.POSITIVE_INFINITY,
 			play: () => {
 				if (!videoEl || isFullscreen) return;
-				inlineMuted = mutedInline;
-				videoEl.muted = mutedInline;
+				inlineMuted = !dashboardSoundEnabled;
+				videoEl.muted = inlineMuted;
 				if (videoEl.paused || videoEl.ended) videoEl.play().catch(() => {});
 			},
 			pause: () => {
-				if (!videoEl || isFullscreen || videoEl.paused) return;
-				videoEl.pause();
+				if (!videoEl || isFullscreen) return;
+				videoEl.muted = true;
+				inlineMuted = true;
+				if (!videoEl.paused) videoEl.pause();
 			}
 		};
 		dashboardAutoplayEntries.set(id, entry);
@@ -502,6 +575,10 @@
 			(entries) => {
 				const observed = entries[0];
 				entry.ratio = observed?.isIntersecting ? observed.intersectionRatio : 0;
+				const rect = observed?.boundingClientRect;
+				entry.centerDistance = rect
+					? Math.abs(rect.top + rect.height / 2 - window.innerHeight / 2)
+					: Number.POSITIVE_INFINITY;
 				refreshDashboardAutoplay();
 			},
 			{ threshold: [0, 0.35, 0.65, 0.85, 1] }
@@ -518,6 +595,7 @@
 			observer.disconnect();
 			document.removeEventListener('visibilitychange', onVisibilityChange);
 			dashboardAutoplayEntries.delete(id);
+			dashboardAutoplayId = null;
 			refreshDashboardAutoplay();
 		};
 	});
@@ -1563,10 +1641,10 @@
 	style="position: relative; --dive-video-fit: {fitMode}; --dive-video-display-ratio: {displayAspectRatioNumber}; --dive-video-display-aspect: {displayTransform.aspectRatio}; aspect-ratio: {displayTransform.aspectRatio};"
 	data-fullscreen-root
 	data-display-orientation={displayTransform.hudMode}
-	onpointermove={onFullscreenPointerMove}
-	onpointerdown={onFullscreenPointerDown}
-	onpointerup={clearPortraitSwipe}
-	onpointercancel={clearPortraitSwipe}
+	onpointermove={onPlayerPointerMove}
+	onpointerdown={onPlayerPointerDown}
+	onpointerup={endInlineScrub}
+	onpointercancel={endInlineScrub}
 >
 	<!-- svelte-ignore a11y_media_has_caption -->
 	<video
@@ -1577,7 +1655,7 @@
 		style="object-fit: {isFullscreen ? 'var(--dive-video-fit, cover)' : 'contain'}; transform: {displayTransform.transform}; transform-origin: center;"
 		controls={nativeControlsVisible}
 		preload="metadata"
-		muted={inlineMuted}
+		muted={inlineMuted || (inlineActions && !feedSoundOn)}
 		playsinline
 		onclick={onInlineVideoClick}
 		ontimeupdate={onTimeUpdate}
@@ -1597,7 +1675,7 @@
 			type="button"
 			class="inline-play-button"
 			aria-label="Play dive video"
-			onclick={tapToFullscreen ? requestInlineFullscreen : togglePlay}
+			onclick={togglePlay}
 		>
 			<span aria-hidden="true">▶</span>
 		</button>
@@ -1609,6 +1687,21 @@
 
 	{#if showSpeedPlot}
 		<SpeedPlotHudSvg model={speedPlotModel} style={speedPlotStyle} />
+	{/if}
+
+	{#if inlineScrubberVisible && !isFullscreen && inlineActions}
+		<div class="inline-scrubber-hud" style={speedPlotStyle} aria-hidden="true">
+			<div class="inline-scrub-badge" style="left: {scrubProgress * 100}%;">
+				{formatDistanceLabel(scrubDistance)}
+			</div>
+			<div class="inline-scrub-track" style="--scrub-progress-percent: {scrubProgress * 100}%;">
+				<div class="inline-scrub-thumb"></div>
+			</div>
+			<div class="inline-scrub-labels">
+				<span>0m</span>
+				<span>{formatDistanceLabel(totalDistance)}</span>
+			</div>
+		</div>
 	{/if}
 
 	{#if isFullscreen}
@@ -1716,6 +1809,24 @@
 			<span class="pill-dot" class:pill-dot-active={showAnyOverlay}></span>
 			<span>{hudPresetLabel()}</span>
 		</button>
+
+		{#if inlineActions}
+			<button
+				type="button"
+				class="pill pill-icon"
+				class:pill-active={feedSoundOn}
+				onclick={toggleFeedSound}
+				aria-label={feedSoundOn ? 'Mute feed videos' : 'Unmute feed videos'}
+				aria-pressed={feedSoundOn}
+				disabled={downloading}
+			>
+				{#if feedSoundOn}
+					<Volume2 size={16} strokeWidth={2.4} aria-hidden="true" />
+				{:else}
+					<VolumeX size={16} strokeWidth={2.4} aria-hidden="true" />
+				{/if}
+			</button>
+		{/if}
 
 		{#if canDownloadVideo}
 			<button
@@ -1842,6 +1953,72 @@
 	}
 	.inline-play-button:active {
 		transform: translate(-50%, -50%) scale(0.96);
+	}
+	.inline-scrubber-hud {
+		position: absolute;
+		left: var(--speed-plot-safe-x);
+		right: var(--speed-plot-safe-x);
+		bottom: max(var(--speed-plot-bottom), env(safe-area-inset-bottom));
+		z-index: 10;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 0.55rem;
+		height: min(7rem, var(--speed-plot-band-height));
+		padding: 1rem 1rem 0.8rem;
+		border-radius: var(--speed-plot-radius);
+		background: linear-gradient(180deg, rgba(13, 19, 32, 0.9), rgba(0, 0, 0, 0.9));
+		pointer-events: none;
+		box-shadow: 0 16px 44px rgba(0, 0, 0, 0.24);
+	}
+	.inline-scrub-badge {
+		position: absolute;
+		top: 0.6rem;
+		transform: translateX(-50%);
+		padding: 0.24rem 0.5rem;
+		border-radius: 9999px;
+		background: rgba(15, 23, 42, 0.88);
+		border: 1px solid rgba(255, 255, 255, 0.18);
+		color: #f8fafc;
+		font-size: 0.72rem;
+		font-weight: 800;
+		font-variant-numeric: tabular-nums;
+		line-height: 1;
+		white-space: nowrap;
+	}
+	.inline-scrub-track {
+		position: relative;
+		height: 7px;
+		margin-top: 1.35rem;
+		border-radius: 9999px;
+		background: linear-gradient(
+			to right,
+			var(--color-primary) 0%,
+			var(--color-primary) var(--scrub-progress-percent),
+			rgba(226, 232, 240, 0.34) var(--scrub-progress-percent),
+			rgba(226, 232, 240, 0.34) 100%
+		);
+	}
+	.inline-scrub-thumb {
+		position: absolute;
+		left: var(--scrub-progress-percent);
+		top: 50%;
+		width: 20px;
+		height: 20px;
+		transform: translate(-50%, -50%);
+		border: 3px solid #0f172a;
+		border-radius: 9999px;
+		background: var(--color-primary);
+		box-shadow: 0 0 0 3px rgba(248, 250, 252, 0.22);
+	}
+	.inline-scrub-labels {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		color: rgba(241, 245, 249, 0.78);
+		font-size: 0.74rem;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
 	}
 
 	/*
@@ -2147,6 +2324,19 @@
 	}
 	.pill-toggle.pill-active:hover:not(:disabled) {
 		filter: brightness(1.05);
+	}
+	.pill-icon {
+		width: 36px;
+		min-width: 36px;
+		padding: 0;
+		background: rgba(30, 41, 59, 0.85);
+		border-color: rgba(148, 163, 184, 0.2);
+		color: var(--color-text);
+	}
+	.pill-icon.pill-active {
+		background: var(--color-primary);
+		border-color: var(--color-primary);
+		color: #0f172a;
 	}
 	.pill-dot {
 		display: inline-block;
