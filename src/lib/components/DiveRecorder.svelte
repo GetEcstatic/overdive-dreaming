@@ -47,7 +47,7 @@
 		type RecorderState
 	} from '$lib/capture/recorderState';
 	import {
-		canUndo,
+		canMoveWaypointCursorBack,
 		completedLapCount,
 		cumulativeDistanceM,
 		diveElapsedMs,
@@ -156,9 +156,11 @@
 	let nowMs = $state(0);
 	let tickHandle: number | null = null;
 	let bannerClearHandle: ReturnType<typeof setTimeout> | null = null;
+	let waypointTapLockHandle: ReturnType<typeof setTimeout> | null = null;
+	let waypointTapLocked = $state(false);
 
 	const primaryAction = $derived(primaryActionSpec(rs));
-	const undoAvailable = $derived(canUndo(rs));
+	const canMoveWaypointBack = $derived(canMoveWaypointCursorBack(rs));
 	const elapsedMs = $derived(diveElapsedMs(rs, nowMs));
 	const distanceM = $derived(cumulativeDistanceM(rs, nowMs));
 	const speedMs = $derived(liveSpeedMs(rs));
@@ -295,14 +297,21 @@
 	}
 
 	function onPressWaypoint(): void {
+		if (waypointTapLocked) return;
 		const atPerfMs = performance.now();
 		const kind = nextTapKind(rs);
 		pulseTap(kind === 'wall' ? 'wall' : 'split');
 		dispatch({ type: 'waypoint/manualTapped', atPerfMs });
+		waypointTapLocked = true;
+		if (waypointTapLockHandle) clearTimeout(waypointTapLockHandle);
+		waypointTapLockHandle = setTimeout(() => {
+			waypointTapLockHandle = null;
+			waypointTapLocked = false;
+		}, 2000);
 	}
 
-	function onPressUndo(): void {
-		dispatch({ type: 'waypoint/undone' });
+	function moveWaypointCursor(direction: -1 | 1): void {
+		dispatch({ type: 'waypoint/cursorMoved', direction });
 	}
 
 	function onPressEndDive(): void {
@@ -452,6 +461,7 @@
 		if (primaryRequiresFreshPress) {
 			return;
 		}
+		if (primaryAction.action === 'waypoint' && waypointTapLocked) return;
 		if (primaryAction.action !== 'waypoint') {
 			pulseTap();
 		}
@@ -486,6 +496,11 @@
 			clearTimeout(bannerClearHandle);
 			bannerClearHandle = null;
 		}
+		if (waypointTapLockHandle) {
+			clearTimeout(waypointTapLockHandle);
+			waypointTapLockHandle = null;
+		}
+		waypointTapLocked = false;
 		timeLimitAutoStopTriggered = false;
 		timeLimitBannerVisible = false;
 		onPrimaryHoldEnd();
@@ -677,21 +692,24 @@
 				<button class="utility-button" type="button" onclick={() => void onPressStopRecording()}>
 					Stop
 				</button>
-			{:else if rs.phase === 'diving'}
-				<button
-					class="utility-button"
-					type="button"
-					disabled={!undoAvailable}
-					onclick={onPressUndo}
-				>
-					Undo
-				</button>
 			{/if}
 		</div>
 
 		<div class="primary-wrap">
+			{#if rs.phase === 'diving'}
+				<button
+					class="waypoint-step-button"
+					type="button"
+					aria-label="Previous waypoint distance"
+					disabled={!canMoveWaypointBack}
+					onclick={() => moveWaypointCursor(-1)}
+				>
+					&larr;
+				</button>
+			{/if}
 			<button
 				class="primary-action action-{primaryAction.action}"
+				class:is-waypoint-locked={waypointTapLocked && primaryAction.action === 'waypoint'}
 				class:is-held={endDiveHeld}
 				disabled={primaryAction.disabled}
 				onpointerdown={onPrimaryHoldStart}
@@ -720,6 +738,16 @@
 					<span class="hold-progress" aria-hidden="true"></span>
 				{/if}
 			</button>
+			{#if rs.phase === 'diving'}
+				<button
+					class="waypoint-step-button"
+					type="button"
+					aria-label="Next waypoint distance"
+					onclick={() => moveWaypointCursor(1)}
+				>
+					&rarr;
+				</button>
+			{/if}
 		</div>
 
 		{#if rs.phase === 'diving' || rs.phase === 'ended'}
@@ -1017,7 +1045,31 @@
 		bottom: calc(1rem + env(safe-area-inset-bottom));
 		transform: translateX(-50%);
 		display: flex;
+		align-items: stretch;
+		gap: 0.55rem;
 		pointer-events: auto;
+	}
+	.waypoint-step-button {
+		width: clamp(3.1rem, 14vw, 4.25rem);
+		min-height: var(--recorder-primary-height);
+		border: 1px solid rgba(125, 211, 252, 0.32);
+		border-radius: 18px;
+		background: rgba(8, 47, 73, 0.78);
+		box-shadow:
+			0 18px 52px rgba(0, 0, 0, 0.32),
+			inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+		color: #e0f2fe;
+		font: inherit;
+		font-size: clamp(2rem, 8vw, 2.6rem);
+		font-weight: 750;
+		line-height: 1;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		-webkit-tap-highlight-color: transparent;
+	}
+	.waypoint-step-button:disabled {
+		opacity: 0.42;
 	}
 	.controls-ready .primary-wrap,
 	.controls-prepping .primary-wrap {
@@ -1063,6 +1115,9 @@
 	}
 	.primary-action:disabled {
 		opacity: 0.56;
+	}
+	.primary-action.is-waypoint-locked {
+		filter: saturate(0.82) brightness(0.88);
 	}
 	.primary-action.action-record,
 	.primary-action.action-stopRecording {
@@ -1115,13 +1170,11 @@
 	.btn.w-2 { flex: 1 1 auto; }
 	.btn.w-3 { flex: 2 1 auto; min-height: 84px; font-size: 1.15rem; font-weight: 700; }
 
-	.btn.btn-cancel,
-	.btn.btn-undoWaypoint {
+	.btn.btn-cancel {
 		background: #1e293b;
 		color: var(--color-text);
 	}
-	.btn.btn-cancel:hover,
-	.btn.btn-undoWaypoint:hover {
+	.btn.btn-cancel:hover {
 		background: #273244;
 	}
 	.btn.btn-record,
@@ -1250,6 +1303,11 @@
 		.primary-action {
 			width: clamp(10rem, 25vw, 13rem);
 			min-height: 4.9rem;
+		}
+		.waypoint-step-button {
+			width: clamp(3rem, 8vw, 4rem);
+			min-height: 4.9rem;
+			font-size: clamp(1.8rem, 5vw, 2.4rem);
 		}
 		.secondary-actions {
 			left: auto;

@@ -23,6 +23,25 @@ Leave unrelated worktree changes alone. Never commit secrets or `.env` files. If
 
 # Requests
 
+## Recorder Waypoint Cursor Controls
+
+### Problem
+During the active dive phase, Undo removes previously recorded timeline data. The requested correction model is lighter: keep the Waypoint button as the only action that records a mark, and use adjacent previous/next controls only to change which distance the Waypoint button is targeting.
+
+### Implementation Plan
+Add pure cursor-adjustment events to the recorder reducer so the expected waypoint can move backward or forward without changing the timeline. Replace the diving Undo button with arrow buttons beside the existing Waypoint button, constrain backward movement so already committed marks are not duplicated, keep automatic waypoint-distance advance running, and add a component-level 2-second short-tap lockout after successful waypoint taps.
+
+### Checklist
+- [x] Add reducer support for previous/next waypoint cursor adjustment.
+- [x] Keep cursor adjustment separate from timeline marking.
+- [x] Replace the diving Undo button with back/forward arrow controls.
+- [x] Keep Waypoint as the only control that records a waypoint.
+- [x] Preserve automatic waypoint-distance advance.
+- [x] Add a 2-second short-tap lockout after waypoint taps.
+- [x] Add focused reducer/selector tests for cursor adjustment.
+- [x] Run focused tests and Svelte/type checks.
+- [x] Commit and push the waypoint controls update.
+
 ## Recorder Start Dive Controls Layout
 
 ### Problem

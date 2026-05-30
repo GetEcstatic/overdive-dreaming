@@ -186,10 +186,9 @@ export function shouldAutoAdvance(
 	return raw >= target + waypointSpacingM(state.config) / 2;
 }
 
-/** Can the user undo the last tap (wall or split)? */
-export function canUndo(state: RecorderState): boolean {
+export function canMoveWaypointCursorBack(state: RecorderState): boolean {
 	if (state.phase !== 'diving') return false;
-	return state.waypointCursor.history.length > 0;
+	return expectedWaypointIndex(state) > state.waypointCursor.lastManualIndex + 1;
 }
 
 // ---------------------------------------------------------------------------
@@ -201,8 +200,9 @@ export type ButtonKind =
 	| 'record'
 	| 'stopRecording'
 	| 'startDive'
+	| 'previousWaypoint'
 	| 'waypoint'
-	| 'undoWaypoint'
+	| 'nextWaypoint'
 	| 'endDive';
 
 export interface ButtonSpec {
@@ -317,17 +317,17 @@ export function buttonLayout(state: RecorderState): ButtonLayout {
 			return {
 				buttons: [
 					{
-						kind: 'undoWaypoint',
-						label: 'Undo',
+						kind: 'previousWaypoint',
+						label: 'Previous waypoint',
 						weight: 1,
-						disabled: !canUndo(state)
+						disabled: !canMoveWaypointCursorBack(state)
 					},
 					{
 						kind: 'waypoint',
 						label: `Waypoint ${formatMetersPlain(targetM)} m`,
 						weight: 3
 					},
-					{ kind: 'endDive', label: 'End dive', weight: 1 }
+					{ kind: 'nextWaypoint', label: 'Next waypoint', weight: 1 }
 				],
 				hint: null
 			};

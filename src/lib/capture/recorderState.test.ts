@@ -8,7 +8,7 @@ import {
 } from './recorderState';
 import {
 	buttonLayout,
-	canUndo,
+	canMoveWaypointCursorBack,
 	completedLapCount,
 	cumulativeDistanceM,
 	diveElapsedMs,
@@ -125,17 +125,6 @@ describe('waypoints', () => {
 		expect(s.waypointCursor.expectedIndex).toBe(2);
 	});
 
-	it('undo removes the last lap', () => {
-		let s = recorderReducer(diving, {
-			type: 'waypoint/tapped',
-			atPerfMs: 15000
-		});
-		s = recorderReducer(s, { type: 'waypoint/undone' });
-		expect(s.timeline.laps).toHaveLength(0);
-		expect(s.timeline.subSplits ?? []).toHaveLength(0);
-		expect(s.waypointCursor.expectedIndex).toBe(1);
-	});
-
 	it('auto-advance moves the cursor without appending laps', () => {
 		const s = recorderReducer(diving, {
 			type: 'waypoint/auto',
@@ -165,17 +154,32 @@ describe('waypoints', () => {
 		expect(s.waypointCursor.expectedIndex).toBe(3);
 	});
 
-	it('undo can step back through auto-advance without deleting timeline data', () => {
+	it('cursor back steps through auto-advance without deleting timeline data', () => {
 		let s = recorderReducer(diving, {
 			type: 'waypoint/auto',
 			atPerfMs: 12000,
 			count: 1
 		});
 		expect(s.waypointCursor.expectedIndex).toBe(2);
-		s = recorderReducer(s, { type: 'waypoint/undone' });
+		s = recorderReducer(s, { type: 'waypoint/cursorMoved', direction: -1 });
 		expect(s.waypointCursor.expectedIndex).toBe(1);
 		expect(s.timeline.laps).toHaveLength(0);
 		expect(s.timeline.subSplits ?? []).toHaveLength(0);
+	});
+
+	it('cursor next changes the target without appending timeline data', () => {
+		const s = recorderReducer(diving, { type: 'waypoint/cursorMoved', direction: 1 });
+		expect(s.waypointCursor.expectedIndex).toBe(2);
+		expect(s.timeline.laps).toHaveLength(0);
+		expect(s.timeline.subSplits ?? []).toHaveLength(0);
+	});
+
+	it('cursor back cannot target an already committed waypoint', () => {
+		let s = recorderReducer(diving, { type: 'waypoint/tapped', atPerfMs: 15000 });
+		expect(s.waypointCursor.expectedIndex).toBe(2);
+		s = recorderReducer(s, { type: 'waypoint/cursorMoved', direction: -1 });
+		expect(s.waypointCursor.expectedIndex).toBe(2);
+		expect(s.timeline.subSplits).toHaveLength(1);
 	});
 });
 
@@ -243,16 +247,6 @@ describe('wall/split (v2)', () => {
 		s = recorderReducer(s, { type: 'split/tapped', atPerfMs: 12000 });
 		s = recorderReducer(s, { type: 'split/tapped', atPerfMs: 14000 });
 		expect(s.timeline.subSplits).toHaveLength(1);
-	});
-
-	it('undo removes the most recent tap — wall or split — whichever came later', () => {
-		let s: RecorderState = diving;
-		s = recorderReducer(s, { type: 'wall/tapped', atPerfMs: 20000 });
-		s = recorderReducer(s, { type: 'split/tapped', atPerfMs: 28000 });
-		s = recorderReducer(s, { type: 'waypoint/undone' });
-		// Removed the split, wall remains.
-		expect(s.timeline.laps).toHaveLength(1);
-		expect((s.timeline.subSplits ?? []).length).toBe(0);
 	});
 
 	it('sample/recorded appends to samples stream in order', () => {
@@ -388,13 +382,14 @@ describe('selectors', () => {
 		expect(waypointSpacingM(CONFIG)).toBe(12.5);
 	});
 
-	it('canUndo only while diving and at least one lap', () => {
-		expect(canUndo(diving)).toBe(false);
-		const s = recorderReducer(diving, {
-			type: 'waypoint/tapped',
-			atPerfMs: 15000
-		});
-		expect(canUndo(s)).toBe(true);
+	it('canMoveWaypointCursorBack only allows uncommitted targets', () => {
+		expect(canMoveWaypointCursorBack(diving)).toBe(false);
+
+		let s = recorderReducer(diving, { type: 'waypoint/cursorMoved', direction: 1 });
+		expect(canMoveWaypointCursorBack(s)).toBe(true);
+
+		s = recorderReducer(s, { type: 'waypoint/tapped', atPerfMs: 15000 });
+		expect(canMoveWaypointCursorBack(s)).toBe(false);
 	});
 });
 
@@ -424,6 +419,15 @@ describe('shouldAutoAdvance (halfway to following waypoint)', () => {
 		// Cursor now expects 25 m, which is the wall for a 25m/2-waypoint lap.
 		expect(shouldAutoAdvance(advanced, 28_400)).toBe(false);
 		expect(shouldAutoAdvance(advanced, 28_410)).toBe(true);
+	});
+
+	it('continues auto-advance after manual cursor adjustment', () => {
+		let s = recorderReducer(diving, { type: 'waypoint/cursorMoved', direction: 1 });
+		expect(nextWaypointM(s)).toBe(25);
+		expect(shouldAutoAdvance(s, 28_410)).toBe(true);
+
+		s = recorderReducer(s, { type: 'waypoint/auto', atPerfMs: 28_410, count: 1 });
+		expect(nextWaypointM(s)).toBe(37.5);
 	});
 
 	it('uses the advanced cursor target for another mid-lap waypoint', () => {
@@ -474,13 +478,13 @@ describe('buttonLayout', () => {
 		]);
 	});
 
-	it('diving → Undo + Waypoint + End dive', () => {
+	it('diving → Previous waypoint + Waypoint + Next waypoint', () => {
 		const s = startDiveAt(startRecordingAt(arm(base), 0), 0);
 		const layout = buttonLayout(s);
 		expect(layout.buttons.map((b) => b.kind)).toEqual([
-			'undoWaypoint',
+			'previousWaypoint',
 			'waypoint',
-			'endDive'
+			'nextWaypoint'
 		]);
 		expect(layout.buttons[0].disabled).toBe(true);
 	});
@@ -514,7 +518,8 @@ describe('primaryActionSpec', () => {
 		const s = startDiveAt(startRecordingAt(arm(base), 0), 0);
 		const spec = primaryActionSpec(s);
 		expect(spec.action).toBe('waypoint');
-		expect(spec.label).toBe('Waypoint 12.5 m');
+		expect(spec.label).toBe('Tap to mark');
+		expect(spec.sub).toBe('Waypoint 12.5 m / hold to end dive');
 		expect(spec.supportsLongPressEndDive).toBe(true);
 	});
 

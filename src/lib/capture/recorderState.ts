@@ -17,8 +17,7 @@ import type {
 } from '$lib/types';
 import {
 	createEmptyTimeline,
-	finalizeTimeline,
-	removeLastTap
+	finalizeTimeline
 } from './timeline';
 import type { LapEvent } from '$lib/types';
 
@@ -101,11 +100,11 @@ export type RecorderEvent =
 	 *  call-sites that haven't migrated yet. */
 	| { type: 'waypoint/tapped'; atPerfMs: number }
 	| { type: 'waypoint/manualTapped'; atPerfMs: number; index?: number }
+	| { type: 'waypoint/cursorMoved'; direction: -1 | 1 }
 	| { type: 'waypoint/autoAdvanced'; atPerfMs: number; fromIndex: number; toIndex: number }
 	| { type: 'wall/tapped'; atPerfMs: number }
 	| { type: 'split/tapped'; atPerfMs: number }
 	| { type: 'waypoint/auto'; atPerfMs: number; count: number }
-	| { type: 'waypoint/undone' }
 	| { type: 'sample/recorded'; atPerfMs: number; distanceM: number; speedMs: number }
 	| { type: 'dive/ended'; atPerfMs: number }
 	| { type: 'recording/stopping' }
@@ -281,40 +280,22 @@ function applyWaypointAutoAdvance(
 	};
 }
 
-function undoWaypointCursor(state: RecorderState): RecorderState {
-	const history = state.waypointCursor.history;
-	const last = history[history.length - 1];
-	if (!last) return state;
-
-	if (last.kind === 'manual') {
-		const remainingHistory = history.slice(0, -1);
-		const previousManual = [...remainingHistory]
-			.reverse()
-			.find((entry): entry is Extract<WaypointCursorHistoryEntry, { kind: 'manual' }> =>
-				entry.kind === 'manual'
-			);
-		return {
-			...state,
-			timeline: removeLastTap(state.timeline),
-			waypointCursor: {
-				...state.waypointCursor,
-				expectedIndex: last.index,
-				lastManualIndex: previousManual?.index ?? 0,
-				history: remainingHistory
-			},
-			autoAdvance: null
-		};
-	}
+function moveWaypointCursor(state: RecorderState, direction: -1 | 1): RecorderState {
+	const minExpectedIndex = state.waypointCursor.lastManualIndex + 1;
+	const nextExpectedIndex = Math.max(
+		minExpectedIndex,
+		state.waypointCursor.expectedIndex + direction
+	);
+	if (nextExpectedIndex === state.waypointCursor.expectedIndex) return state;
 
 	return {
 		...state,
 		waypointCursor: {
 			...state.waypointCursor,
-			expectedIndex: last.fromIndex,
+			expectedIndex: nextExpectedIndex,
 			autoAdvancedIndexes: state.waypointCursor.autoAdvancedIndexes.filter(
-				(index) => index < last.fromIndex || index >= last.toIndex
-			),
-			history: history.slice(0, -1)
+				(index) => index < nextExpectedIndex
+			)
 		},
 		autoAdvance: null
 	};
@@ -384,6 +365,11 @@ export function recorderReducer(
 			);
 		}
 
+		case 'waypoint/cursorMoved': {
+			if (state.phase !== 'diving') return state;
+			return moveWaypointCursor(state, event.direction);
+		}
+
 		case 'wall/tapped': {
 			if (state.phase !== 'diving') return state;
 			const wpl = Math.max(1, state.config.waypointsPerLap);
@@ -435,11 +421,6 @@ export function recorderReducer(
 		case 'waypoint/autoAdvanced': {
 			if (state.phase !== 'diving' || event.toIndex <= event.fromIndex) return state;
 			return applyWaypointAutoAdvance(state, event.atPerfMs, event.fromIndex, event.toIndex);
-		}
-
-		case 'waypoint/undone': {
-			if (state.phase !== 'diving') return state;
-			return undoWaypointCursor(state);
 		}
 
 		case 'dive/ended': {
