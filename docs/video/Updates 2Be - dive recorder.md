@@ -1,0 +1,41 @@
+# Agent instructions
+
+Use this file as a project update queue and working memory. It can hold requests for any area of the app, not only video. When asked to check this file, work from the first numbered request at the top, then move downward only after that request is complete.
+
+For each request:
+
+1. Read the request, then read any nearby code/docs needed to understand the current system before editing.
+2. Create a new section below the request list with a clear title.
+3. In that section, write a short `Problem`, an `Implementation Plan`, and a checklist.
+4. Follow the project fundamentals from `claude.md`:
+	- Prefer plain data structures, discriminated unions, readonly records/arrays, and pure functions for business logic.
+	- Keep side effects at the edges: Svelte components, Firestore calls, DOM listeners, timers, storage, and file IO should stay thin and intentional.
+	- Derive values instead of storing duplicate state.
+	- Use Svelte 5 runes syntax for new Svelte work and avoid mixing in old `export let` / `$:` patterns.
+	- Preserve the mobile-first, minimalist, clarity-focused, data-focused design language.
+	- Follow existing local component, CSS, Firebase, and TypeScript patterns before introducing new abstractions.
+5. Implement continuously unless a real decision gate or external blocker appears. Do not stop after planning.
+6. Validate at the right level for the change: focused tests for pure logic, `npm run check` for Svelte/TypeScript changes, `npm --prefix functions run build` and deploy tasks for Cloud Functions changes, and any relevant manual/CLI verification.
+7. Commit after each major completed step with a concise message, then push to `main` when the request is complete.
+8. Mark the checklist complete, remove the original numbered request from the list, and continue to the next request if one exists.
+
+Leave unrelated worktree changes alone. Never commit secrets or `.env` files. If a command is replaced with a new instruction, treat the replacement as the newest request.
+
+# Requests
+
+## Recorder Ready Controls Layout
+
+### Problem
+The recorder ready-state controls are split across a small cancel pill, a central red Record button, and a separate camera pill. This makes the live preview feel visually messy before recording starts, even though these controls are part of one setup/action cluster.
+
+### Implementation Plan
+Keep the existing recorder state and actions intact. Adjust only `DiveRecorder.svelte` ready-state layout styles so Record keeps its size and moves to the lower right, Cancel becomes a matching full-height rectangular button filling the remaining lower-left space, and Camera becomes a compact rectangular button directly above Record at the same width and roughly one-third the Record height. Preserve the current bottom-sheet camera selector and non-ready recorder phases.
+
+### Checklist
+- [x] Add a ready-state layout class to the recorder controls.
+- [x] Move the ready Record button to the right while preserving its width.
+- [x] Make ready Cancel match the Record height/shape and fill the left space.
+- [x] Restyle and align the Camera button above Record at matching width.
+- [x] Preserve non-ready Stop/Undo/Waypoint layouts and camera sheet behavior.
+- [x] Run Svelte/type checks.
+- [x] Commit and push the recorder ready controls update.

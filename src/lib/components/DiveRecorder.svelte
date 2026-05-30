@@ -663,7 +663,7 @@
 		{/if}
 	</div>
 
-	<div class="controls">
+	<div class="controls" class:controls-ready={rs.phase === 'ready'}>
 		<div class="secondary-actions">
 			{#if rs.phase === 'ready'}
 				<button class="utility-button" type="button" onclick={cancel}>
@@ -739,6 +739,11 @@
 		background: #000;
 		color: var(--color-text);
 		overflow: hidden;
+		--recorder-edge-x: max(0.9rem, env(safe-area-inset-left), env(safe-area-inset-right));
+		--recorder-control-gap: 0.7rem;
+		--recorder-primary-width: clamp(11rem, 46vw, 16rem);
+		--recorder-primary-height: 5.2rem;
+		--recorder-camera-height: calc(var(--recorder-primary-height) / 3);
 	}
 
 	.preview {
@@ -771,37 +776,43 @@
 	}
 	.camera-control {
 		position: absolute;
-		right: max(1rem, env(safe-area-inset-right));
-		bottom: calc(7.45rem + env(safe-area-inset-bottom));
+		right: var(--recorder-edge-x);
+		bottom: calc(
+			1rem + env(safe-area-inset-bottom) + var(--recorder-primary-height) +
+				var(--recorder-control-gap)
+		);
 		z-index: 4;
 		display: flex;
 		flex-direction: column;
 		align-items: flex-end;
 		gap: 0.25rem;
-		max-width: min(14rem, calc(100vw - 2rem));
+		width: var(--recorder-primary-width);
+		max-width: calc(100vw - var(--recorder-edge-x) * 2);
 	}
 	.camera-pill {
-		display: inline-flex;
+		display: flex;
 		align-items: center;
+		justify-content: space-between;
 		gap: 0.45rem;
-		min-height: 2.5rem;
-		max-width: 100%;
+		width: 100%;
+		min-height: var(--recorder-camera-height);
+		max-height: var(--recorder-camera-height);
 		overflow: hidden;
-		border: 1px solid rgba(20, 184, 166, 0.5);
-		border-radius: 999px;
-		padding: 0.45rem 0.7rem;
-		background: rgba(15, 23, 42, 0.86);
+		border: 1px solid rgba(125, 211, 252, 0.34);
+		border-radius: 12px;
+		padding: 0.35rem 0.7rem;
+		background: rgba(8, 47, 73, 0.82);
 		box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
-		color: #d1fae5;
+		color: #e0f2fe;
 		font: inherit;
-		font-size: 0.78rem;
+		font-size: 0.74rem;
 		font-weight: 650;
 		pointer-events: auto;
 		-webkit-tap-highlight-color: transparent;
 	}
 	.camera-pill-label {
-		color: #99f6e4;
-		font-size: 0.68rem;
+		color: #bae6fd;
+		font-size: 0.62rem;
 		font-weight: 800;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
@@ -944,6 +955,11 @@
 			calc(1rem + env(safe-area-inset-bottom))
 			max(0.75rem, env(safe-area-inset-left));
 	}
+	.controls-ready .secondary-actions {
+		left: var(--recorder-edge-x);
+		right: calc(var(--recorder-edge-x) + var(--recorder-primary-width) + var(--recorder-control-gap));
+		bottom: calc(1rem + env(safe-area-inset-bottom));
+	}
 	.secondary-actions {
 		position: absolute;
 		left: max(0.9rem, env(safe-area-inset-left));
@@ -969,6 +985,20 @@
 	.utility-button:disabled {
 		opacity: 0.45;
 	}
+	.controls-ready .utility-button {
+		width: 100%;
+		min-width: 0;
+		min-height: var(--recorder-primary-height);
+		border-radius: 18px;
+		border-color: rgba(191, 219, 254, 0.24);
+		padding: 0.9rem 1rem;
+		background: rgba(30, 64, 175, 0.78);
+		box-shadow:
+			0 18px 52px rgba(0, 0, 0, 0.36),
+			inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+		color: #dbeafe;
+		font-size: 1rem;
+	}
 	.primary-wrap {
 		position: absolute;
 		left: 50%;
@@ -977,11 +1007,17 @@
 		display: flex;
 		pointer-events: auto;
 	}
+	.controls-ready .primary-wrap {
+		left: auto;
+		right: var(--recorder-edge-x);
+		bottom: calc(1rem + env(safe-area-inset-bottom));
+		transform: none;
+	}
 	.primary-action {
 		position: relative;
 		overflow: hidden;
 		width: clamp(11rem, 58vw, 16rem);
-		min-height: 5.2rem;
+		min-height: var(--recorder-primary-height);
 		border: 2px solid rgba(255, 255, 255, 0.22);
 		border-radius: 18px;
 		padding: 0.9rem 1.15rem;
@@ -1004,6 +1040,9 @@
 		transition:
 			transform 0.06s ease,
 			filter 0.12s ease;
+	}
+	.controls-ready .primary-action {
+		width: var(--recorder-primary-width);
 	}
 	.primary-action:active:not(:disabled) {
 		transform: scale(0.96);
@@ -1153,6 +1192,11 @@
 	}
 
 	@media (orientation: landscape) {
+		.recorder {
+			--recorder-primary-width: clamp(10rem, 25vw, 13rem);
+			--recorder-primary-height: 4.9rem;
+			--recorder-control-gap: 0.55rem;
+		}
 		.hud {
 			left: 0.5rem;
 			right: auto;
@@ -1165,13 +1209,18 @@
 		}
 		.camera-control {
 			top: auto;
-			right: max(1rem, env(safe-area-inset-right));
-			bottom: calc(11.25rem + env(safe-area-inset-bottom));
-			max-width: 11rem;
+			right: var(--recorder-edge-x);
+			bottom: calc(
+				1rem + env(safe-area-inset-bottom) + var(--recorder-primary-height) +
+					var(--recorder-control-gap)
+			);
+			width: var(--recorder-primary-width);
+			max-width: calc(100vw - var(--recorder-edge-x) * 2);
 		}
 		.camera-pill {
-			min-height: 2.35rem;
-			padding: 0.38rem 0.6rem;
+			min-height: var(--recorder-camera-height);
+			max-height: var(--recorder-camera-height);
+			padding: 0.32rem 0.6rem;
 			font-size: 0.72rem;
 		}
 		.camera-pill-label {
@@ -1191,6 +1240,12 @@
 			left: auto;
 			right: calc(1.2rem + env(safe-area-inset-right));
 			bottom: calc(7.9rem + env(safe-area-inset-bottom));
+		}
+		.controls-ready .secondary-actions {
+			left: auto;
+			right: calc(var(--recorder-edge-x) + var(--recorder-primary-width) + var(--recorder-control-gap));
+			bottom: calc(1rem + env(safe-area-inset-bottom));
+			width: clamp(7rem, 18vw, 11rem);
 		}
 		.summary-line {
 			left: auto;
