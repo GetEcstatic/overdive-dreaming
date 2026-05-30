@@ -741,7 +741,8 @@
 		overflow: hidden;
 		--recorder-edge-x: max(0.9rem, env(safe-area-inset-left), env(safe-area-inset-right));
 		--recorder-control-gap: 0.7rem;
-		--recorder-primary-width: clamp(11rem, 46vw, 16rem);
+		--recorder-primary-width: clamp(13rem, 66vw, 18rem);
+		--recorder-cancel-width: clamp(4rem, 20vw, 5.4rem);
 		--recorder-primary-height: 5.2rem;
 		--recorder-camera-height: calc(var(--recorder-primary-height) / 3);
 	}
@@ -956,9 +957,10 @@
 			max(0.75rem, env(safe-area-inset-left));
 	}
 	.controls-ready .secondary-actions {
-		left: var(--recorder-edge-x);
+		left: auto;
 		right: calc(var(--recorder-edge-x) + var(--recorder-primary-width) + var(--recorder-control-gap));
 		bottom: calc(1rem + env(safe-area-inset-bottom));
+		width: var(--recorder-cancel-width);
 	}
 	.secondary-actions {
 		position: absolute;
@@ -1193,7 +1195,8 @@
 
 	@media (orientation: landscape) {
 		.recorder {
-			--recorder-primary-width: clamp(10rem, 25vw, 13rem);
+			--recorder-primary-width: clamp(11rem, 28vw, 16rem);
+			--recorder-cancel-width: clamp(3.5rem, 8vw, 4.8rem);
 			--recorder-primary-height: 4.9rem;
 			--recorder-control-gap: 0.55rem;
 		}
@@ -1245,7 +1248,7 @@
 			left: auto;
 			right: calc(var(--recorder-edge-x) + var(--recorder-primary-width) + var(--recorder-control-gap));
 			bottom: calc(1rem + env(safe-area-inset-bottom));
-			width: clamp(7rem, 18vw, 11rem);
+			width: var(--recorder-cancel-width);
 		}
 		.summary-line {
 			left: auto;

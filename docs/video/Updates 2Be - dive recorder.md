@@ -23,6 +23,23 @@ Leave unrelated worktree changes alone. Never commit secrets or `.env` files. If
 
 # Requests
 
+## Recorder Ready Control Ratio
+
+### Problem
+The first ready-control layout made Cancel fill the left-side space, which visually overstates a secondary action. Record is the default path and should dominate the bottom control cluster, with Camera matching Record and Cancel reduced to a smaller escape action.
+
+### Implementation Plan
+Keep the ready-state cluster and button shapes from the previous pass. Increase the ready Record/Camera width and introduce a separate ready Cancel width at roughly 30% of the main button width. Apply the same ratio-minded sizing in landscape while leaving non-ready recorder phases unchanged.
+
+### Checklist
+- [x] Increase the ready Record and Camera button width.
+- [x] Reduce ready Cancel to roughly 30% of the main button width.
+- [x] Keep ready Cancel the same height and shape as Record.
+- [x] Preserve the camera button alignment above Record.
+- [x] Preserve non-ready recorder layouts.
+- [x] Run Svelte/type checks.
+- [x] Commit and push the recorder ratio update.
+
 ## Recorder Ready Controls Layout
 
 ### Problem
