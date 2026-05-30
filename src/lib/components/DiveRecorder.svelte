@@ -722,10 +722,16 @@
 					? `${primaryAction.label}. ${primaryAction.sub ?? 'Hold to end dive.'}`
 					: primaryAction.label}
 			>
-				<span class="btn-main">
-					{endDiveHeld ? 'Hold' : primaryAction.label}
-				</span>
-				{#if primaryAction.sub || primaryAction.supportsLongPressEndDive}
+				{#if primaryAction.action === 'waypoint'}
+					<span class="waypoint-button-label">{endDiveHeld ? 'Hold' : 'Tap to mark'}</span>
+					<span class="waypoint-button-distance">{formatMeters(nextM)}m</span>
+					<span class="waypoint-button-label">{endDiveHeld ? 'end dive' : 'Hold to end dive'}</span>
+				{:else}
+					<span class="btn-main">
+						{endDiveHeld ? 'Hold' : primaryAction.label}
+					</span>
+				{/if}
+				{#if primaryAction.action !== 'waypoint' && (primaryAction.sub || primaryAction.supportsLongPressEndDive)}
 					<span class="btn-sub">
 						{endDiveHeld
 							? 'end dive'
@@ -1218,6 +1224,21 @@
 		line-height: 1.1;
 		position: relative;
 		z-index: 1;
+	}
+	.waypoint-button-label,
+	.waypoint-button-distance {
+		position: relative;
+		z-index: 1;
+		line-height: 1.05;
+		text-align: center;
+	}
+	.waypoint-button-label {
+		font-size: clamp(0.86rem, 3.4vw, 1rem);
+		font-weight: 500;
+	}
+	.waypoint-button-distance {
+		font-size: clamp(1.65rem, 7vw, 2.25rem);
+		font-weight: 850;
 	}
 	.btn-sub {
 		font-size: clamp(0.82rem, 3.4vw, 1rem);

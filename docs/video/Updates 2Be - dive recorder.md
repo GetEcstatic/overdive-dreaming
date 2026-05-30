@@ -23,6 +23,23 @@ Leave unrelated worktree changes alone. Never commit secrets or `.env` files. If
 
 # Requests
 
+## Recorder Waypoint Button Text Hierarchy
+
+### Problem
+The active Waypoint button currently mixes the target distance into the smaller sublabel. That makes the most important correction target harder to scan during a dive.
+
+### Implementation Plan
+Keep the Waypoint button behavior unchanged, but render its content as three rows: a regular "Tap to mark" command, a larger bold distance-only row such as "50m", and a regular "Hold to end dive" affordance. Leave other primary button phases using the existing label/subtitle structure.
+
+### Checklist
+- [x] Render Waypoint content as three rows.
+- [x] Make the distance row larger, bold, and distance-only.
+- [x] Keep the top and bottom rows regular-weight and matching size.
+- [x] Preserve hold-to-end behavior and progress affordance.
+- [x] Preserve non-waypoint primary button text.
+- [x] Run Svelte/type checks.
+- [x] Commit and push the waypoint text update.
+
 ## Recorder Manual Back Auto-Advance Hold
 
 ### Problem
