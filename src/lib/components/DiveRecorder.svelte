@@ -663,7 +663,11 @@
 		{/if}
 	</div>
 
-	<div class="controls" class:controls-ready={rs.phase === 'ready'}>
+	<div
+		class="controls"
+		class:controls-ready={rs.phase === 'ready'}
+		class:controls-prepping={rs.phase === 'prepping'}
+	>
 		<div class="secondary-actions">
 			{#if rs.phase === 'ready'}
 				<button class="utility-button" type="button" onclick={cancel}>
@@ -956,7 +960,8 @@
 			calc(1rem + env(safe-area-inset-bottom))
 			max(0.75rem, env(safe-area-inset-left));
 	}
-	.controls-ready .secondary-actions {
+	.controls-ready .secondary-actions,
+	.controls-prepping .secondary-actions {
 		left: var(--recorder-edge-x);
 		right: calc(var(--recorder-edge-x) + var(--recorder-primary-width) + var(--recorder-control-gap));
 		bottom: calc(1rem + env(safe-area-inset-bottom));
@@ -986,7 +991,8 @@
 	.utility-button:disabled {
 		opacity: 0.45;
 	}
-	.controls-ready .utility-button {
+	.controls-ready .utility-button,
+	.controls-prepping .utility-button {
 		width: 100%;
 		min-width: 0;
 		min-height: var(--recorder-primary-height);
@@ -1000,6 +1006,11 @@
 		color: #dbeafe;
 		font-size: 1rem;
 	}
+	.controls-prepping .utility-button {
+		border-color: rgba(254, 202, 202, 0.28);
+		background: rgba(127, 29, 29, 0.82);
+		color: #fee2e2;
+	}
 	.primary-wrap {
 		position: absolute;
 		left: 50%;
@@ -1008,7 +1019,8 @@
 		display: flex;
 		pointer-events: auto;
 	}
-	.controls-ready .primary-wrap {
+	.controls-ready .primary-wrap,
+	.controls-prepping .primary-wrap {
 		left: auto;
 		right: var(--recorder-edge-x);
 		bottom: calc(1rem + env(safe-area-inset-bottom));
@@ -1042,7 +1054,8 @@
 			transform 0.06s ease,
 			filter 0.12s ease;
 	}
-	.controls-ready .primary-action {
+	.controls-ready .primary-action,
+	.controls-prepping .primary-action {
 		width: var(--recorder-primary-width);
 	}
 	.primary-action:active:not(:disabled) {
@@ -1243,11 +1256,11 @@
 			right: calc(1.2rem + env(safe-area-inset-right));
 			bottom: calc(7.9rem + env(safe-area-inset-bottom));
 		}
-		.controls-ready .secondary-actions {
-			left: auto;
+		.controls-ready .secondary-actions,
+		.controls-prepping .secondary-actions {
+			left: var(--recorder-edge-x);
 			right: calc(var(--recorder-edge-x) + var(--recorder-primary-width) + var(--recorder-control-gap));
 			bottom: calc(1rem + env(safe-area-inset-bottom));
-			width: var(--recorder-cancel-width);
 		}
 		.summary-line {
 			left: auto;

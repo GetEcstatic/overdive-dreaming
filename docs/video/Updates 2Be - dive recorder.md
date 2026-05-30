@@ -23,6 +23,23 @@ Leave unrelated worktree changes alone. Never commit secrets or `.env` files. If
 
 # Requests
 
+## Recorder Start Dive Controls Layout
+
+### Problem
+After Record is pressed, the prepping screen still uses the older centered Start Dive button with a small Stop pill. That no longer matches the ready-state Record/Cancel control language, so the transition between setup and dive start feels visually inconsistent.
+
+### Implementation Plan
+Add a prepping-specific controls state that reuses the ready-state edge-aligned primary/secondary sizing for Start Dive and Stop. Keep Start Dive green, style Stop as a destructive red stop action, and preserve later in-dive controls such as Undo/Waypoint.
+
+### Checklist
+- [x] Add a prepping control layout state.
+- [x] Match Start Dive sizing and right alignment to Record.
+- [x] Match Stop sizing and left alignment to Cancel.
+- [x] Style Stop with an appropriate destructive colour.
+- [x] Preserve ready, diving, and landscape behaviour.
+- [x] Run Svelte/type checks.
+- [x] Commit and push the start-dive controls update.
+
 ## Recorder Cancel Edge Spacing
 
 ### Problem
