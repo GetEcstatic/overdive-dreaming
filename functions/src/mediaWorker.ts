@@ -23,7 +23,7 @@ const require = createRequire(import.meta.url);
 const ffmpegPath = require('ffmpeg-static') as string | null;
 const ffprobeStatic = require('ffprobe-static') as { path?: string };
 const execFileAsync = promisify(execFile);
-const OVERLAY_STYLE_VERSION = 'overdive-overlay-v13';
+const OVERLAY_STYLE_VERSION = 'overdive-overlay-v14';
 const OVERLAY_REQUEST_LOCK_STALE_MS = 10 * 60 * 1000;
 const OVERLAY_EXPORT_HEIGHT_PX = 1080;
 const OVERLAY_EXPORT_CRF = '20';
@@ -36,6 +36,7 @@ const SPEED_PLOT_DEFAULT_DOMAIN_M = 200;
 const SPEED_PLOT_DOMAIN_PADDING_RATIO = 1.2;
 const SPEED_PLOT_MAX_SPEED_MS = 2;
 const SPEED_PLOT_FIRST_ACCELERATION_M = 3;
+const SPEED_PLOT_SEGMENT_STEP_EPSILON_MS = 0.01;
 
 function rem(value: number): number {
 	return value * CSS_PX_PER_REM;
@@ -427,9 +428,8 @@ function speedSamplesFromTimeline(timeline: DiveTimeline): { distanceM: number; 
 		const segmentMs = Math.max(1, waypoint.atMs - previousAtMs);
 		const segmentDistanceM = Math.max(0, waypoint.cumulativeDistanceM - previousDistanceM);
 		const segmentSpeedMs = segmentDistanceM / (segmentMs / 1000);
-		if (samples.length === 0) {
-			samples.push({ atMs: previousAtMs, distanceM: previousDistanceM, speedMs: segmentSpeedMs });
-		}
+		const segmentStartAtMs = samples.length === 0 ? previousAtMs : previousAtMs + SPEED_PLOT_SEGMENT_STEP_EPSILON_MS;
+		samples.push({ atMs: segmentStartAtMs, distanceM: previousDistanceM, speedMs: segmentSpeedMs });
 		samples.push({ atMs: waypoint.atMs, distanceM: waypoint.cumulativeDistanceM, speedMs: segmentSpeedMs });
 		previousAtMs = waypoint.atMs;
 		previousDistanceM = waypoint.cumulativeDistanceM;

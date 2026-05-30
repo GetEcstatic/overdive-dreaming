@@ -35,9 +35,28 @@ describe('speedPlotHud', () => {
 		const samples = samplesFromTimeline(timeline, 25);
 
 		expect(samples[0]).toMatchObject({ atMs: 1_000, distanceM: 0 });
-		expect(samples).toHaveLength(5);
+		expect(samples).toHaveLength(8);
 		expect(samples[1]).toMatchObject({ atMs: 16_000, distanceM: 12.5 });
 		expect(samples[1].speedMs).toBeCloseTo(12.5 / 15);
+	});
+
+	it('starts each waypoint section with that section average speed', () => {
+		const unevenTimeline: DiveTimeline = {
+			diveStartMs: 0,
+			diveEndMs: 15_000,
+			laps: [
+				{ lapNumber: 1, atMs: 10_000, cumulativeDistanceM: 10, splitMs: 10_000 },
+				{ lapNumber: 2, atMs: 15_000, cumulativeDistanceM: 20, splitMs: 5_000 }
+			]
+		};
+
+		const samples = samplesFromTimeline(unevenTimeline, 25);
+
+		expect(samples).toHaveLength(4);
+		expect(samples[0]).toMatchObject({ distanceM: 0, speedMs: 1 });
+		expect(samples[1]).toMatchObject({ distanceM: 10, speedMs: 1 });
+		expect(samples[2]).toMatchObject({ distanceM: 10, speedMs: 2 });
+		expect(samples[3]).toMatchObject({ distanceM: 20, speedMs: 2 });
 	});
 
 	it('reveals only the active line and interpolates the current point', () => {
@@ -125,10 +144,11 @@ describe('speedPlotHud', () => {
 		});
 		const model = projectSpeedPlot(frame, 390, 103);
 
-		expect(model.speedLine).toHaveLength(4);
+		expect(model.speedLine).toHaveLength(5);
 		expect(model.speedLine[0].y).toBeGreaterThan(model.speedLine[1].y);
 		expect(model.speedLine[1].x).toBeLessThan(model.speedLine[2].x);
 		expect(model.speedLine[1].y).toBeCloseTo(model.speedLine[2].y);
+		expect(model.speedLine[2].x).toBeCloseTo(model.speedLine[3].x);
 	});
 
 	it('prepends the 0m anchor when the first revealed sample is already in motion', () => {

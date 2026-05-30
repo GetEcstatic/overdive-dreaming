@@ -1,6 +1,23 @@
 # Instructions 
 I'll use this section to list updates and fixes over time. When called to check for updates in this md file, I want the agent to read the first request, create a new section below the request list with a suitable name, plan an implementation in that section using our fundamentals as outlined in claude.md, create a checklist in that section, and then start to implement the plan. Continue implementing without stopping unless a major decision gate is met, commiting with a suitable message after each major step, and finally push to main once that request is complete. Once complete, remove the original request from the list and continue to the next request.
 
+## Speed Plot Section Mapping
+
+### Problem
+The top metric HUD computes waypoint fallback speed from the active segment between the previous waypoint and the next waypoint. The lower speed plot, however, feeds a stepped polyline with only one sample at each waypoint using the segment that just ended. Because the renderer holds the previous point's y-value until the next x-position, that ended-segment speed can visually occupy the following distance section.
+
+### Implementation Plan
+Represent waypoint fallback speed plot data as explicit segment spans: one point at the start distance with that segment's average speed and one point at the end distance with the same speed, then add the next segment's start point at the same distance so the step happens at the waypoint. Mirror the same data-shape fix in the server overlay renderer, bump the server overlay style version, and add focused tests for uneven segment speeds so future changes catch the off-by-one mapping.
+
+### Checklist
+- [x] Confirm the top HUD and lower plot use different waypoint speed mapping shapes.
+- [x] Change frontend waypoint speed samples to explicit segment spans.
+- [x] Add a focused uneven-segment speed plot test.
+- [x] Mirror the segment-span mapping in the server overlay worker.
+- [x] Bump server overlay style version for regenerated burned HUDs.
+- [x] Run focused tests, function build, and Svelte/type checks.
+- [x] Commit and push the speed plot mapping fix.
+
 ## Inline Scrubber Polish
 
 ### Problem

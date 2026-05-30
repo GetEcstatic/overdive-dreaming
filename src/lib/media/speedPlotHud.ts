@@ -104,6 +104,7 @@ export interface SpeedPlotHudDesign {
 
 const SANS_FAMILY = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
 const FIRST_SEGMENT_ACCELERATION_DISTANCE_M = 3;
+const SEGMENT_STEP_EPSILON_MS = 0.01;
 
 export const SPEED_PLOT_HUD_DESIGN: SpeedPlotHudDesign = {
 	referenceWidthPx: 1080,
@@ -206,9 +207,8 @@ export function samplesFromTimeline(timeline: DiveTimeline, poolLengthM: number)
 		const segmentMs = Math.max(1, waypoint.atMs - previousAtMs);
 		const segmentDistanceM = Math.max(0, waypoint.cumulativeDistanceM - previousDistanceM);
 		const segmentSpeedMs = segmentDistanceM / (segmentMs / 1000);
-		if (samples.length === 0) {
-			samples.push({ atMs: previousAtMs, distanceM: previousDistanceM, speedMs: segmentSpeedMs });
-		}
+		const segmentStartAtMs = samples.length === 0 ? previousAtMs : previousAtMs + SEGMENT_STEP_EPSILON_MS;
+		samples.push({ atMs: segmentStartAtMs, distanceM: previousDistanceM, speedMs: segmentSpeedMs });
 		samples.push({ atMs: waypoint.atMs, distanceM: waypoint.cumulativeDistanceM, speedMs: segmentSpeedMs });
 		previousAtMs = waypoint.atMs;
 		previousDistanceM = waypoint.cumulativeDistanceM;
