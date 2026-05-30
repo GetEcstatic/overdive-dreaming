@@ -72,6 +72,7 @@ Designs that are largely settled. Read for context, not as a roadmap.
 - [QA checklist](video/qa-checklist.md) — device matrix for dynamic video testing
 
 ### Storage / data import
+- [Firebase cost guardrails](storage-infra/firebase-cost-guardrails.md) — current GCP/Firebase budget alerts, Cloud Functions cost caps, and remaining billing risks
 - [CSV parser](storage-infra/csv-parser.md) — biometric import; handles three formats (single-round, multi-round, per-interval)
 - [Backend migration options](storage-infra/backend-migration-options.md) — Convex vs Supabase eval (no imminent action)
 
