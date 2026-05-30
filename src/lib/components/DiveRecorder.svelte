@@ -687,16 +687,22 @@
 		{/if}
 
 		{#if pendingEndDiveAtPerfMs !== null && rs.phase === 'diving'}
+			{@const pendingEndElapsedMs = diveElapsedMs(rs, pendingEndDiveAtPerfMs)}
+			{@const pendingEndDistanceM = cumulativeDistanceM(rs, pendingEndDiveAtPerfMs)}
 			<div class="end-confirm-layer">
 				<div class="end-confirm-card" role="dialog" aria-modal="true" aria-labelledby="end-confirm-title">
 					<h2 id="end-confirm-title">End dive?</h2>
-					<p>Use the long-press moment as the final time and distance, or resume the dive.</p>
+					<p>You have marked the dive as ended at:</p>
+					<div class="end-confirm-metrics" aria-label="Pending final dive metrics">
+						<div class="end-confirm-time">{formatMs(pendingEndElapsedMs)}</div>
+						<div class="end-confirm-distance">{formatMeters(pendingEndDistanceM)}m</div>
+					</div>
 					<div class="end-confirm-actions">
 						<button class="end-confirm-button resume" type="button" onclick={resumeDiveAfterEndRequest}>
 							Resume
 						</button>
 						<button class="end-confirm-button end" type="button" onclick={confirmEndDive}>
-							End dive
+							Confirm End
 						</button>
 					</div>
 				</div>
@@ -1022,10 +1028,10 @@
 		pointer-events: auto;
 	}
 	.end-confirm-card {
-		width: min(100%, 21rem);
+		width: min(100%, 24rem);
 		border: 1px solid rgba(226, 232, 240, 0.18);
-		border-radius: 16px;
-		padding: 1rem;
+		border-radius: 18px;
+		padding: 1.2rem;
 		background: rgba(15, 23, 42, 0.94);
 		box-shadow: 0 22px 62px rgba(0, 0, 0, 0.44);
 		backdrop-filter: blur(12px);
@@ -1033,22 +1039,48 @@
 	}
 	.end-confirm-card h2 {
 		margin: 0;
-		font-size: 1.1rem;
+		font-size: 1.25rem;
+		text-align: center;
 	}
 	.end-confirm-card p {
-		margin: 0.45rem 0 0;
+		margin: 0.6rem 0 0;
 		color: #cbd5e1;
-		font-size: 0.9rem;
+		font-size: 0.92rem;
 		line-height: 1.35;
+		text-align: center;
+	}
+	.end-confirm-metrics {
+		display: grid;
+		gap: 0.25rem;
+		margin-top: 1rem;
+		padding: 0.9rem;
+		border: 1px solid rgba(20, 184, 166, 0.24);
+		border-radius: 14px;
+		background: rgba(8, 47, 73, 0.52);
+		text-align: center;
+	}
+	.end-confirm-time {
+		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+		font-size: clamp(2rem, 11vw, 3.1rem);
+		font-variant-numeric: tabular-nums;
+		font-weight: 850;
+		line-height: 1;
+		color: #f8fafc;
+	}
+	.end-confirm-distance {
+		font-size: clamp(1.35rem, 7vw, 2rem);
+		font-weight: 850;
+		line-height: 1.05;
+		color: #5eead4;
 	}
 	.end-confirm-actions {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 0.65rem;
-		margin-top: 1rem;
+		gap: 0.75rem;
+		margin-top: 1.05rem;
 	}
 	.end-confirm-button {
-		min-height: 3rem;
+		min-height: 3.25rem;
 		border: 1px solid rgba(226, 232, 240, 0.18);
 		border-radius: 12px;
 		font: inherit;

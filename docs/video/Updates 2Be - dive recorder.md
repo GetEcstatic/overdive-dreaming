@@ -23,6 +23,23 @@ Leave unrelated worktree changes alone. Never commit secrets or `.env` files. If
 
 # Requests
 
+## Recorder End Confirmation Metrics
+
+### Problem
+The end-dive confirmation card asks the user to confirm, but it does not show the exact time and distance that will be saved. That makes the confirmation less reassuring than it could be.
+
+### Implementation Plan
+Keep the existing pending long-press timestamp behavior. Derive the pending end time and distance from that timestamp, render them prominently in a larger confirmation card, and rename the destructive action to "Confirm End" while preserving Resume.
+
+### Checklist
+- [x] Derive pending end time from the long-press timestamp.
+- [x] Derive pending end distance from the long-press timestamp.
+- [x] Show both metrics prominently in the confirmation card.
+- [x] Increase and polish the confirmation card styling.
+- [x] Use Resume and Confirm End button labels.
+- [x] Run Svelte/type checks.
+- [x] Commit and push the confirmation metrics update.
+
 ## Recorder End Dive Confirmation
 
 ### Problem
