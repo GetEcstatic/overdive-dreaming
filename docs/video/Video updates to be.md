@@ -1,6 +1,23 @@
 # Instructions 
 I'll use this section to list updates and fixes over time. When called to check for updates in this md file, I want the agent to read the first request, create a new section below the request list with a suitable name, plan an implementation in that section using our fundamentals as outlined in claude.md, create a checklist in that section, and then start to implement the plan. Continue implementing without stopping unless a major decision gate is met, commiting with a suitable message after each major step, and finally push to main once that request is complete. Once complete, remove the original request from the list and continue to the next request.
 
+## Thumb-Only Inline Scrubbing
+
+### Problem
+The inline scrubber currently treats broad video touches as seek gestures. That makes accidental touches risky because revealing or interacting with the player can also move the playback position.
+
+### Implementation Plan
+Keep broad touches and desktop lower-band hover as reveal-only interactions, preserving the recent two-second linger. Make the scrubber thumb expose an explicit pointer target, and only start a seek/drag session when the pointer down originates from that thumb target. During an active thumb drag, continue using the existing pointer capture and progress calculation.
+
+### Checklist
+- [x] Add an explicit pointer target around the inline scrubber thumb.
+- [x] Make broad touch interactions reveal the scrubber without seeking.
+- [x] Start seeking only from the scrubber thumb target.
+- [x] Preserve desktop lower-band reveal and thumb dragging.
+- [x] Preserve play/pause and compact action buttons.
+- [x] Run Svelte/type checks.
+- [x] Commit and push the thumb-only scrubber update.
+
 ## Speed Plot Section Mapping
 
 ### Problem

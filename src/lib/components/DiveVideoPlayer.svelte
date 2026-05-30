@@ -528,14 +528,31 @@
 		return target instanceof Element && target.closest('button, input, .fs-controls') !== null;
 	}
 
+	function isInlineScrubThumbTarget(event: PointerEvent): boolean {
+		const target = event.target;
+		return target instanceof Element && target.closest('.inline-scrub-thumb-hit') !== null;
+	}
+
 	function shouldStartInlineScrub(event: PointerEvent): boolean {
 		if (!inlineActions || isFullscreen || !event.isPrimary || isInteractiveInlineTarget(event)) return false;
-		if (event.pointerType === 'mouse') return isPointerInInlineScrubZone(event);
-		return true;
+		return isInlineScrubThumbTarget(event);
 	}
 
 	function onPlayerPointerDown(event: PointerEvent): void {
 		onFullscreenPointerDown(event);
+		if (inlineActions && !isFullscreen && event.isPrimary && !isInteractiveInlineTarget(event)) {
+			clearInlineScrubberHideTimer();
+			if (event.pointerType !== 'mouse' || isPointerInInlineScrubZone(event)) {
+				inlineScrubberVisible = true;
+			}
+			if (!isInlineScrubThumbTarget(event)) {
+				if (event.pointerType !== 'mouse' || isPointerInInlineScrubZone(event)) {
+					suppressInlineClick = true;
+					scheduleInlineScrubberHide(event.pointerType === 'mouse' ? 1200 : 2000);
+				}
+				return;
+			}
+		}
 		if (!shouldStartInlineScrub(event)) return;
 		clearInlineScrubberHideTimer();
 		inlineScrubberVisible = true;
@@ -1743,7 +1760,9 @@
 				{formatDistanceLabel(scrubDistance)}
 			</div>
 			<div class="inline-scrub-track" style="--scrub-progress-percent: {scrubProgress * 100}%;">
-				<div class="inline-scrub-thumb"></div>
+				<div class="inline-scrub-thumb-hit" style="left: {scrubProgress * 100}%;">
+					<div class="inline-scrub-thumb"></div>
+				</div>
 			</div>
 			<div class="inline-scrub-labels">
 				<span>0m</span>
@@ -2047,9 +2066,19 @@
 			rgba(226, 232, 240, 0.34) 100%
 		);
 	}
+	.inline-scrub-thumb-hit {
+		position: absolute;
+		top: 50%;
+		width: 44px;
+		height: 44px;
+		transform: translate(-50%, -50%);
+		border-radius: 9999px;
+		pointer-events: auto;
+		touch-action: none;
+	}
 	.inline-scrub-thumb {
 		position: absolute;
-		left: var(--scrub-progress-percent);
+		left: 50%;
 		top: 50%;
 		width: 20px;
 		height: 20px;
