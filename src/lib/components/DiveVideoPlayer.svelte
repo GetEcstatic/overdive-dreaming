@@ -547,7 +547,6 @@
 			}
 			if (!isInlineScrubThumbTarget(event)) {
 				if (event.pointerType !== 'mouse' || isPointerInInlineScrubZone(event)) {
-					suppressInlineClick = true;
 					scheduleInlineScrubberHide(event.pointerType === 'mouse' ? 1200 : 2000);
 				}
 				return;
