@@ -1,5 +1,25 @@
-# Instructions 
-I'll use this section to list updates and fixes over time. When called to check for updates in this md file, I want the agent to read the first request, create a new section below the request list with a suitable name, plan an implementation in that section using our fundamentals as outlined in claude.md, create a checklist in that section, and then start to implement the plan. Continue implementing without stopping unless a major decision gate is met, commiting with a suitable message after each major step, and finally push to main once that request is complete. Once complete, remove the original request from the list and continue to the next request.
+# Instructions
+
+Use this file as a project update queue and working memory. It can hold requests for any area of the app, not only video. When asked to check this file, work from the first numbered request at the top, then move downward only after that request is complete.
+
+For each request:
+
+1. Read the request, then read any nearby code/docs needed to understand the current system before editing.
+2. Create a new section below the request list with a clear title.
+3. In that section, write a short `Problem`, an `Implementation Plan`, and a checklist.
+4. Follow the project fundamentals from `claude.md`:
+	- Prefer plain data structures, discriminated unions, readonly records/arrays, and pure functions for business logic.
+	- Keep side effects at the edges: Svelte components, Firestore calls, DOM listeners, timers, storage, and file IO should stay thin and intentional.
+	- Derive values instead of storing duplicate state.
+	- Use Svelte 5 runes syntax for new Svelte work and avoid mixing in old `export let` / `$:` patterns.
+	- Preserve the mobile-first, minimalist, clarity-focused, data-focused design language.
+	- Follow existing local component, CSS, Firebase, and TypeScript patterns before introducing new abstractions.
+5. Implement continuously unless a real decision gate or external blocker appears. Do not stop after planning.
+6. Validate at the right level for the change: focused tests for pure logic, `npm run check` for Svelte/TypeScript changes, `npm --prefix functions run build` and deploy tasks for Cloud Functions changes, and any relevant manual/CLI verification.
+7. Commit after each major completed step with a concise message, then push to `main` when the request is complete.
+8. Mark the checklist complete, remove the original numbered request from the list, and continue to the next request if one exists.
+
+Leave unrelated worktree changes alone. Never commit secrets or `.env` files. If a command is replaced with a new instruction, treat the replacement as the newest request.
 
 ## Thumb-Only Inline Scrubbing
 
