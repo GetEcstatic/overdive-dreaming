@@ -148,7 +148,9 @@ function withoutOverlayDownloadArtifacts(video: DiveVideoDoc): unknown[] {
 	return (video.artifacts ?? []).filter((artifact) => artifact.kind !== 'overlay-download');
 }
 
-export const saveDiveVideoTimelineCorrection = onCall(async (request) => {
+export const saveDiveVideoTimelineCorrection = onCall(
+	{ timeoutSeconds: 60, memory: '256MiB', maxInstances: 5 },
+	async (request) => {
 	const uid = requireUid(request.auth);
 	const data = asRecord(request.data);
 	const videoId = requiredString(data, 'videoId');
@@ -189,4 +191,5 @@ export const saveDiveVideoTimelineCorrection = onCall(async (request) => {
 	});
 
 	return { saved: true, overlayDownload: 'not-requested' };
-});
+}
+);

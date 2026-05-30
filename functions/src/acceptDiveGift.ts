@@ -67,7 +67,9 @@ function requiredString(data: Record<string, unknown>, key: string): string {
 	return value.trim();
 }
 
-export const acceptDiveGift = onCall(async (request) => {
+export const acceptDiveGift = onCall(
+	{ timeoutSeconds: 60, memory: '256MiB', maxInstances: 5 },
+	async (request) => {
 	const uid = requireUid(request.auth);
 	const data = asRecord(request.data);
 	const videoId = requiredString(data, 'videoId');
@@ -200,4 +202,5 @@ export const acceptDiveGift = onCall(async (request) => {
 		routineLogId: finalRoutineLogId,
 		alreadyAccepted: finalRoutineLogId !== routineLogId
 	};
-});
+}
+);

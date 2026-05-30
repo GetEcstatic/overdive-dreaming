@@ -1354,7 +1354,8 @@ export const requestOverlayDownload = onCall(
 	{
 		secrets: [WASABI_ACCESS_KEY_ID, WASABI_SECRET_ACCESS_KEY],
 		timeoutSeconds: 60,
-		memory: '256MiB'
+		memory: '256MiB',
+		maxInstances: 5
 	},
 	async (request) => {
 		const uid = requireUid(request.auth);
@@ -1427,7 +1428,8 @@ export const processMediaJob = onCall(
 		timeoutSeconds: 540,
 		memory: '4GiB',
 		cpu: 2,
-		concurrency: 1
+		concurrency: 1,
+		maxInstances: 1
 	},
 	async (request) => {
 		const uid = requireUid(request.auth);
@@ -1444,7 +1446,8 @@ export const onMediaProcessingJobCreated = onDocumentCreated(
 		timeoutSeconds: 540,
 		memory: '4GiB',
 		cpu: 2,
-		concurrency: 1
+		concurrency: 1,
+		maxInstances: 1
 	},
 	async (event) => {
 		const snap = event.data;

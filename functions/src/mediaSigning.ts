@@ -266,7 +266,10 @@ function assertExistingDiveVideoObject(args: {
 }
 
 const callableOptions = {
-	secrets: [WASABI_ACCESS_KEY_ID, WASABI_SECRET_ACCESS_KEY]
+	secrets: [WASABI_ACCESS_KEY_ID, WASABI_SECRET_ACCESS_KEY],
+	timeoutSeconds: 60,
+	memory: '256MiB' as const,
+	maxInstances: 10
 };
 
 function rethrowMediaBackendError(step: string, err: unknown): never {

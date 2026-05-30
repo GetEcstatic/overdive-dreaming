@@ -72,7 +72,10 @@ async function deleteWasabiRef(ref: { bucket?: string; key: string } | undefined
 export const onDiveVideoCreated = onDocumentCreated(
 	{
 		document: `${COLLECTION}/{videoId}`,
-		secrets: [WASABI_ACCESS_KEY_ID, WASABI_SECRET_ACCESS_KEY]
+		secrets: [WASABI_ACCESS_KEY_ID, WASABI_SECRET_ACCESS_KEY],
+		timeoutSeconds: 120,
+		memory: '256MiB',
+		maxInstances: 2
 	},
 	async (event) => {
 		const snap = event.data;
