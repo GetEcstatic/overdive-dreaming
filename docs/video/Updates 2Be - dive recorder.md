@@ -23,6 +23,25 @@ Leave unrelated worktree changes alone. Never commit secrets or `.env` files. If
 
 # Requests
 
+## Recorder End Dive Confirmation
+
+### Problem
+A completed long press currently ends the dive immediately. That still leaves room for accidental end-dive commits, and it also means the user cannot resume after an unintended long press.
+
+### Implementation Plan
+Treat a completed long press as an end-dive request instead of the final commit. Capture the pointer-down timestamp, keep recording and live metrics running while a confirmation card is shown, commit the dive at that captured timestamp only if the user confirms, and clear the request without changing state if the user resumes. Ensure finalization ignores samples recorded after the confirmed end timestamp.
+
+### Checklist
+- [x] Capture the initial long-press timestamp.
+- [x] Show an End dive / Resume confirmation after hold completion.
+- [x] Keep recording and live metrics running while the card is open.
+- [x] Commit final time/distance at the initial long-press timestamp.
+- [x] Let Resume clear the pending end request without changing dive state.
+- [x] Trim finalized samples after the committed end timestamp.
+- [x] Add focused tests for final sample trimming.
+- [x] Run focused tests and Svelte/type checks.
+- [x] Commit and push the end confirmation update.
+
 ## Recorder Waypoint Button Text Hierarchy
 
 ### Problem

@@ -158,6 +158,7 @@
 	let bannerClearHandle: ReturnType<typeof setTimeout> | null = null;
 	let waypointTapLockHandle: ReturnType<typeof setTimeout> | null = null;
 	let waypointTapLocked = $state(false);
+	let pendingEndDiveAtPerfMs = $state<number | null>(null);
 
 	const primaryAction = $derived(primaryActionSpec(rs));
 	const canMoveWaypointBack = $derived(canMoveWaypointCursorBack(rs));
@@ -314,11 +315,17 @@
 		dispatch({ type: 'waypoint/cursorMoved', direction });
 	}
 
-	function onPressEndDive(): void {
-		const atPerfMs = performance.now();
+	function confirmEndDive(): void {
+		const atPerfMs = pendingEndDiveAtPerfMs;
+		if (atPerfMs === null) return;
+		pendingEndDiveAtPerfMs = null;
 		nowMs = atPerfMs;
 		dispatch({ type: 'dive/ended', atPerfMs });
 		stopTicking();
+	}
+
+	function resumeDiveAfterEndRequest(): void {
+		pendingEndDiveAtPerfMs = null;
 	}
 
 	// ---- Haptics -----------------------------------------------------------
@@ -366,6 +373,7 @@
 	function onPrimaryHoldStart(ev: PointerEvent): void {
 		primaryRequiresFreshPress = false;
 		if (!primaryAction.supportsLongPressEndDive || rs.phase !== 'diving') return;
+		const holdStartedAtPerfMs = performance.now();
 		const target = ev.currentTarget as HTMLElement | null;
 		if (target && typeof target.setPointerCapture === 'function') {
 			try {
@@ -381,7 +389,7 @@
 			endDiveHeld = false;
 			primaryRequiresFreshPress = true;
 			pulseHoldCommit();
-			onPressEndDive();
+			pendingEndDiveAtPerfMs = holdStartedAtPerfMs;
 		}, END_DIVE_HOLD_MS);
 	}
 
@@ -503,6 +511,7 @@
 		waypointTapLocked = false;
 		timeLimitAutoStopTriggered = false;
 		timeLimitBannerVisible = false;
+		pendingEndDiveAtPerfMs = null;
 		onPrimaryHoldEnd();
 	}
 
@@ -673,6 +682,23 @@
 						compact
 						onChange={switchCamera}
 					/>
+				</div>
+			</div>
+		{/if}
+
+		{#if pendingEndDiveAtPerfMs !== null && rs.phase === 'diving'}
+			<div class="end-confirm-layer">
+				<div class="end-confirm-card" role="dialog" aria-modal="true" aria-labelledby="end-confirm-title">
+					<h2 id="end-confirm-title">End dive?</h2>
+					<p>Use the long-press moment as the final time and distance, or resume the dive.</p>
+					<div class="end-confirm-actions">
+						<button class="end-confirm-button resume" type="button" onclick={resumeDiveAfterEndRequest}>
+							Resume
+						</button>
+						<button class="end-confirm-button end" type="button" onclick={confirmEndDive}>
+							End dive
+						</button>
+					</div>
 				</div>
 			</div>
 		{/if}
@@ -983,6 +1009,58 @@
 		font: inherit;
 		font-size: 1.2rem;
 		cursor: pointer;
+	}
+	.end-confirm-layer {
+		position: absolute;
+		inset: 0;
+		z-index: 14;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 1rem;
+		background: rgba(2, 6, 23, 0.42);
+		pointer-events: auto;
+	}
+	.end-confirm-card {
+		width: min(100%, 21rem);
+		border: 1px solid rgba(226, 232, 240, 0.18);
+		border-radius: 16px;
+		padding: 1rem;
+		background: rgba(15, 23, 42, 0.94);
+		box-shadow: 0 22px 62px rgba(0, 0, 0, 0.44);
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
+	}
+	.end-confirm-card h2 {
+		margin: 0;
+		font-size: 1.1rem;
+	}
+	.end-confirm-card p {
+		margin: 0.45rem 0 0;
+		color: #cbd5e1;
+		font-size: 0.9rem;
+		line-height: 1.35;
+	}
+	.end-confirm-actions {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.65rem;
+		margin-top: 1rem;
+	}
+	.end-confirm-button {
+		min-height: 3rem;
+		border: 1px solid rgba(226, 232, 240, 0.18);
+		border-radius: 12px;
+		font: inherit;
+		font-weight: 750;
+	}
+	.end-confirm-button.resume {
+		background: rgba(8, 47, 73, 0.82);
+		color: #e0f2fe;
+	}
+	.end-confirm-button.end {
+		background: #ef4444;
+		color: #fff;
 	}
 	.controls {
 		position: absolute;

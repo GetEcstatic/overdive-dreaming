@@ -161,7 +161,13 @@ export function removeLastTap(timeline: DiveTimeline): DiveTimeline {
  * Finalise the timeline when STOP is pressed.
  */
 export function finalizeTimeline(timeline: DiveTimeline, diveEndMs: number): DiveTimeline {
-	return { ...timeline, diveEndMs };
+	return {
+		...timeline,
+		diveEndMs,
+		...(timeline.samples
+			? { samples: timeline.samples.filter((sample) => sample.atMs <= diveEndMs) }
+			: {})
+	};
 }
 
 /**

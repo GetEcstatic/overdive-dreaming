@@ -84,6 +84,26 @@ describe('recorderReducer — phase transitions', () => {
 		expect(s.timeline.diveEndMs).toBe(8000);
 	});
 
+	it('dive/ended trims samples recorded after the committed end time', () => {
+		let s = startDiveAt(startRecordingAt(arm(base), 1000), 5000);
+		s = recorderReducer(s, {
+			type: 'sample/recorded',
+			atPerfMs: 7000,
+			distanceM: 2,
+			speedMs: 1
+		});
+		s = recorderReducer(s, {
+			type: 'sample/recorded',
+			atPerfMs: 9500,
+			distanceM: 4.5,
+			speedMs: 1
+		});
+
+		s = recorderReducer(s, { type: 'dive/ended', atPerfMs: 8000 });
+		expect(s.timeline.diveEndMs).toBe(7000);
+		expect(s.timeline.samples).toEqual([{ atMs: 6000, distanceM: 2, speedMs: 1 }]);
+	});
+
 	it('recording/stopping from ended → stopping', () => {
 		let s = startDiveAt(startRecordingAt(arm(base), 1000), 5000);
 		s = recorderReducer(s, { type: 'dive/ended', atPerfMs: 9000 });
