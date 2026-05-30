@@ -152,6 +152,7 @@ describe('waypoints', () => {
 		expect(s.timeline.laps).toHaveLength(1);
 		expect(s.timeline.laps[0].cumulativeDistanceM).toBe(25);
 		expect(s.waypointCursor.expectedIndex).toBe(3);
+		expect(s.waypointCursor.manualHoldBackIndex).toBeNull();
 	});
 
 	it('cursor back steps through auto-advance without deleting timeline data', () => {
@@ -167,11 +168,35 @@ describe('waypoints', () => {
 		expect(s.timeline.subSplits ?? []).toHaveLength(0);
 	});
 
+	it('cursor back holds the target against immediate auto-readvance', () => {
+		let s = recorderReducer(diving, {
+			type: 'waypoint/auto',
+			atPerfMs: 17_055,
+			count: 1
+		});
+		expect(s.waypointCursor.expectedIndex).toBe(2);
+
+		s = recorderReducer(s, { type: 'waypoint/cursorMoved', direction: -1 });
+		expect(s.waypointCursor.expectedIndex).toBe(1);
+		expect(s.waypointCursor.manualHoldBackIndex).toBe(1);
+		expect(shouldAutoAdvance(s, 28_410)).toBe(false);
+	});
+
 	it('cursor next changes the target without appending timeline data', () => {
 		const s = recorderReducer(diving, { type: 'waypoint/cursorMoved', direction: 1 });
 		expect(s.waypointCursor.expectedIndex).toBe(2);
 		expect(s.timeline.laps).toHaveLength(0);
 		expect(s.timeline.subSplits ?? []).toHaveLength(0);
+	});
+
+	it('cursor next clears a manual back hold', () => {
+		let s = recorderReducer(diving, { type: 'waypoint/cursorMoved', direction: 1 });
+		s = recorderReducer(s, { type: 'waypoint/cursorMoved', direction: -1 });
+		expect(s.waypointCursor.manualHoldBackIndex).toBe(1);
+
+		s = recorderReducer(s, { type: 'waypoint/cursorMoved', direction: 1 });
+		expect(s.waypointCursor.expectedIndex).toBe(2);
+		expect(s.waypointCursor.manualHoldBackIndex).toBeNull();
 	});
 
 	it('cursor back cannot target an already committed waypoint', () => {

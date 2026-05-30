@@ -23,6 +23,23 @@ Leave unrelated worktree changes alone. Never commit secrets or `.env` files. If
 
 # Requests
 
+## Recorder Manual Back Auto-Advance Hold
+
+### Problem
+The new back arrow can move the waypoint target backward, but the auto-advance rule immediately sees the live distance beyond that target and advances it forward again. That makes the back control feel disabled in practice whenever the diver has already drifted past the threshold.
+
+### Implementation Plan
+Track when the user manually moves the expected waypoint backward and pause auto-advance only for that held target. Clear the hold when the user moves forward, records the waypoint, or normal auto-advance proceeds, so automatic waypoint-distance advance continues in the rest of the flow.
+
+### Checklist
+- [x] Identify the auto-advance re-advance gate.
+- [x] Add reducer state for a manually held back waypoint target.
+- [x] Prevent auto-advance only while the held target is active.
+- [x] Clear the hold on forward movement and waypoint marking.
+- [x] Add focused regression tests for back-after-auto-advance.
+- [x] Run focused tests and Svelte/type checks.
+- [x] Commit and push the auto-advance hold update.
+
 ## Recorder Waypoint Cursor Controls
 
 ### Problem

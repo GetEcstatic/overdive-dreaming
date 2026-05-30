@@ -72,6 +72,7 @@ export interface WaypointCursor {
 	expectedIndex: number;
 	lastManualIndex: number;
 	autoAdvancedIndexes: number[];
+	manualHoldBackIndex: number | null;
 	history: WaypointCursorHistoryEntry[];
 }
 
@@ -139,6 +140,7 @@ export function initialWaypointCursor(): WaypointCursor {
 		expectedIndex: 1,
 		lastManualIndex: 0,
 		autoAdvancedIndexes: [],
+		manualHoldBackIndex: null,
 		history: []
 	};
 }
@@ -239,6 +241,7 @@ function commitManualWaypoint(
 			...state.waypointCursor,
 			expectedIndex: safeIndex + 1,
 			lastManualIndex: safeIndex,
+			manualHoldBackIndex: null,
 			history: [...state.waypointCursor.history, { kind: 'manual', index: safeIndex }]
 		},
 		autoAdvance: null
@@ -262,6 +265,7 @@ function applyWaypointAutoAdvance(
 		waypointCursor: {
 			...state.waypointCursor,
 			expectedIndex: safeTo,
+			manualHoldBackIndex: null,
 			autoAdvancedIndexes: [
 				...state.waypointCursor.autoAdvancedIndexes,
 				...skipped
@@ -293,6 +297,7 @@ function moveWaypointCursor(state: RecorderState, direction: -1 | 1): RecorderSt
 		waypointCursor: {
 			...state.waypointCursor,
 			expectedIndex: nextExpectedIndex,
+			manualHoldBackIndex: direction < 0 ? nextExpectedIndex : null,
 			autoAdvancedIndexes: state.waypointCursor.autoAdvancedIndexes.filter(
 				(index) => index < nextExpectedIndex
 			)
