@@ -25,6 +25,26 @@ Leave unrelated worktree changes alone. Never commit secrets or `.env` files. If
 
 No open requests.
 
+## Metrics-Only Recorder Implementation
+
+### Problem
+The planned metrics-only recorder needed to move from mockup to app behavior while keeping the waypoint target as the dominant control. The mode should reuse the existing recorder reducer/selectors, avoid video upload work, and use color as a functional signal rather than a decorative theme.
+
+### Implementation Plan
+Add a dedicated metrics-only recorder surface beside `DiveRecorder.svelte`, backed by the same `recorderState` reducer and selector math. Route the record setup page through either video capture or metrics-only capture, then let metrics-only results review and save into the existing dynamic-max log seed path without creating media artifacts.
+
+### Checklist
+- [x] Add a capture mode choice to the setup page.
+- [x] Build a metrics-only recorder component that reuses the existing reducer and selectors.
+- [x] Give the waypoint target button the largest active-dive screen area.
+- [x] Use subdued panels with teal reserved for the primary waypoint/start actions and amber/red reserved for warnings/end actions.
+- [x] Preserve waypoint back/next controls, 2-second tap lockout, auto-advance warning, and end confirmation.
+- [x] Add a metrics-only capture result path with no video blob.
+- [x] Review metrics-only captures without video diagnostics, pinning, gifting, or upload controls.
+- [x] Save metrics-only captures by seeding the existing dynamic-max dive log form.
+- [x] Run Svelte/type checks.
+- [x] Remove the completed request from the queue.
+
 ## Metrics-Only Recorder UI Plan
 
 ### Problem

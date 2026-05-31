@@ -16,6 +16,7 @@
 	import { onMount } from 'svelte';
 	import { user } from '$lib/stores/auth';
 	import DiveRecorder from '$lib/components/DiveRecorder.svelte';
+	import MetricsOnlyRecorder from '$lib/components/MetricsOnlyRecorder.svelte';
 	import AthletePicker from '$lib/components/AthletePicker.svelte';
 	import NumberWheelInput from '$lib/components/NumberWheelInput.svelte';
 	import {
@@ -64,7 +65,7 @@
 
 	const sessionId = $derived($page.params.id ?? '');
 
-	interface CaptureResult {
+	interface VideoCaptureResult {
 		blob: Blob;
 		source?: 'camera' | 'import';
 		mimeType: string;
@@ -85,6 +86,17 @@
 		displayOrientation: DiveVideoDisplayOrientation;
 		displayRotationDeg: DiveVideoRotation;
 	}
+
+	interface MetricsOnlyCaptureResult {
+		source: 'metrics-only';
+		timeline: DiveTimeline;
+		discipline: DiveVideoDiscipline;
+		poolLength: number;
+		waypointsPerLap: number;
+		durationSeconds: number;
+	}
+
+	type CaptureResult = VideoCaptureResult | MetricsOnlyCaptureResult;
 
 	interface ImportWaypointRow {
 		index: number;
@@ -153,6 +165,7 @@
 	let discipline = $state<DiveVideoDiscipline | undefined>(undefined);
 	let resolution = $state<DiveVideoResolution>('720p');
 	let qualityPreset = $state<DiveVideoQualityPreset>(DEFAULT_VIDEO_QUALITY_PRESET);
+	let captureMode = $state<'video' | 'metrics-only'>('video');
 	let cameraPreference = $state<CameraPreference>(AUTO_REAR_CAMERA);
 	let resolutionLoaded = $state(false);
 	/**
@@ -214,7 +227,11 @@
 		return `${frameRate.toFixed(frameRate % 1 === 0 ? 0 : 1)} fps`;
 	}
 
-	function qualityWarningsFor(result: CaptureResult): string[] {
+	function isVideoCapture(result: CaptureResult): result is VideoCaptureResult {
+		return result.source !== 'metrics-only';
+	}
+
+	function qualityWarningsFor(result: VideoCaptureResult): string[] {
 		const warnings: string[] = [];
 		if (
 			result.actualAverageBitrateBps &&
@@ -521,6 +538,11 @@
 		return totalDistanceM(result.timeline, discipline ? defaultSpeedMs(discipline) : 1);
 	}
 
+	function waypointCountForCapture(result: CaptureResult): number {
+		if (result.source === 'import') return importWaypointRows(result.timeline).length;
+		return result.timeline.laps.length + (result.timeline.subSplits?.length ?? 0);
+	}
+
 	function importSpeedAt(timeline: DiveTimeline): number {
 		if (importFlowPhase === 'ready' || importFlowPhase === 'playing' || importFlowPhase === 'ended') return 0;
 		const atMs = clamp(importPreviewTimeMs, timeline.diveStartMs, timeline.diveEndMs);
@@ -805,6 +827,47 @@
 		});
 	}
 
+	async function saveMetricsOnlyCapture(
+		uid: string,
+		selectedDiscipline: DiveVideoDiscipline,
+		result: MetricsOnlyCaptureResult
+	): Promise<void> {
+		const summary = summaryWithWaypointSegments(
+			summariseTimeline(result.timeline, defaultSpeedMs(selectedDiscipline)),
+			result.timeline
+		);
+		try {
+			sessionStorage.setItem(
+				`dive-log-seed:${sessionId}`,
+				JSON.stringify({
+					discipline: selectedDiscipline,
+					poolLength: result.poolLength,
+					summary,
+					capturedAt: Date.now(),
+					source: 'metrics-only'
+				})
+			);
+		} catch {
+			// storage quota / private mode — the user can still fill the log manually
+		}
+
+		stage = 'done';
+		if (poolLength && waypointsPerLap) {
+			updateUserSettings(uid, {
+				defaultPoolLength: poolLength,
+				defaultWaypointsPerLap: waypointsPerLap,
+				defaultVideoResolution: resolution,
+				defaultVideoQualityPreset: qualityPreset
+			}).catch((err) => {
+				// eslint-disable-next-line no-console
+				console.warn('[dive-record] could not save recorder defaults', err);
+			});
+		}
+		await goto(
+			`/dives?publicPreset=dynamic-max&seed=${encodeURIComponent(sessionId)}`
+		);
+	}
+
 	async function save(): Promise<void> {
 		if (!capture) return;
 		const uid = $user?.uid;
@@ -820,6 +883,11 @@
 		stage = 'saving';
 		saveError = null;
 		try {
+			if (capture.source === 'metrics-only') {
+				await saveMetricsOnlyCapture(uid, selectedDiscipline, capture);
+				return;
+			}
+
 			logUploadDiagnostic({
 				level: 'info',
 				step: 'record-save:start',
@@ -1050,7 +1118,7 @@
 				</p>
 			</header>
 
-			{#if storageHealthy === false}
+			{#if storageHealthy === false && captureMode === 'video'}
 				<div class="storage-warning" role="alert">
 					<strong>Browser storage check failed.</strong>
 					<p>
@@ -1095,6 +1163,36 @@
 						Required for every recording so the video never starts with a stale
 						fin/no-fin mode.
 					</p>
+				</div>
+			</section>
+
+			<section class="card capture-mode-card">
+				<div class="field">
+					<span class="field-label">Capture mode</span>
+					<div class="mode-selector" role="radiogroup" aria-label="Capture mode">
+						<button
+							type="button"
+							class="mode-option"
+							class:active={captureMode === 'video'}
+							role="radio"
+							aria-checked={captureMode === 'video'}
+							onclick={() => (captureMode = 'video')}
+						>
+							<strong>Record video</strong>
+							<span>Camera, upload, and overlay review.</span>
+						</button>
+						<button
+							type="button"
+							class="mode-option"
+							class:active={captureMode === 'metrics-only'}
+							role="radio"
+							aria-checked={captureMode === 'metrics-only'}
+							onclick={() => (captureMode = 'metrics-only')}
+						>
+							<strong>Track metrics only</strong>
+							<span>Large timing and waypoint controls, no upload.</span>
+						</button>
+					</div>
 				</div>
 			</section>
 
@@ -1172,6 +1270,7 @@
 				</section>
 			{/if}
 
+			{#if captureMode === 'video'}
 			<section class="card">
 				<div class="field">
 					<span class="field-label">Video resolution</span>
@@ -1221,6 +1320,7 @@
 					</p>
 				</div>
 			</section>
+			{/if}
 
 			<div class="actions">
 				<button class="btn btn-secondary" onclick={() => history.back()}>
@@ -1242,7 +1342,13 @@
 						if (canStartRecording) stage = 'record';
 					}}
 				>
-					{discipline ? 'Start recording' : 'Select discipline to start'}
+					{#if !discipline}
+						Select discipline to start
+					{:else if captureMode === 'metrics-only'}
+						Start metrics
+					{:else}
+						Start recording
+					{/if}
 				</button>
 			</div>
 		</div>
@@ -1475,17 +1581,27 @@
 		</div>
 	</div>
 {:else if stage === 'record' && discipline}
-	<DiveRecorder
-		poolLength={poolLength ?? 25}
-		waypointsPerLap={waypointsPerLap ?? 2}
-		{resolution}
-		{qualityPreset}
-		{discipline}
-		{cameraPreference}
-		onCameraPreferenceResolved={(preference) => (cameraPreference = preference)}
-		onCapture={onCaptured}
-		onCancel={() => (stage = 'setup')}
-	/>
+	{#if captureMode === 'metrics-only'}
+		<MetricsOnlyRecorder
+			poolLength={poolLength ?? 25}
+			waypointsPerLap={waypointsPerLap ?? 2}
+			{discipline}
+			onCapture={onCaptured}
+			onCancel={() => (stage = 'setup')}
+		/>
+	{:else}
+		<DiveRecorder
+			poolLength={poolLength ?? 25}
+			waypointsPerLap={waypointsPerLap ?? 2}
+			{resolution}
+			{qualityPreset}
+			{discipline}
+			{cameraPreference}
+			onCameraPreferenceResolved={(preference) => (cameraPreference = preference)}
+			onCapture={onCaptured}
+			onCancel={() => (stage = 'setup')}
+		/>
+	{/if}
 {:else}
 	<div class="review-screen">
 		<div class="review-inner">
@@ -1530,7 +1646,7 @@
 					<div><span>Dive time</span><strong>{diveDurationSeconds(capture).toFixed(1)} s</strong></div>
 					<div>
 						<span>Waypoints tapped</span>
-						<strong>{capture.source === 'import' ? importWaypointRows(capture.timeline).length : capture.timeline.laps.length}</strong>
+						<strong>{waypointCountForCapture(capture)}</strong>
 					</div>
 					<div>
 						<span>Distance</span>
@@ -1544,9 +1660,12 @@
 						-->
 						<strong>{formatMeters(captureDistanceM(capture))} m</strong>
 					</div>
-					<div><span>Size</span><strong>{formatMegabytes(capture.sizeBytes)}</strong></div>
+					{#if isVideoCapture(capture)}
+						<div><span>Size</span><strong>{formatMegabytes(capture.sizeBytes)}</strong></div>
+					{/if}
 				</div>
 
+				{#if isVideoCapture(capture)}
 				<section class="diagnostics-card" aria-label="Capture diagnostics">
 					<div class="diagnostics-head">
 						<div>
@@ -1572,8 +1691,14 @@
 						</ul>
 					{/if}
 				</section>
+				{:else}
+				<section class="import-review-card metrics-review-card">
+					<p class="import-review-hint">Metrics are ready to save into the dive log. No video will be uploaded for this dive.</p>
+				</section>
+				{/if}
 			{/if}
 
+			{#if capture && isVideoCapture(capture)}
 			<section class="card">
 				<label class="pin">
 					<input type="checkbox" bind:checked={pinned} />
@@ -1591,6 +1716,7 @@
 					{/if}
 				</div>
 			</section>
+			{/if}
 
 			{#if saveError}
 				<p class="error">{saveError}</p>
@@ -1602,14 +1728,14 @@
 					onclick={discard}
 					disabled={stage === 'saving'}
 				>
-					Re-record
+					{capture?.source === 'metrics-only' ? 'Re-track' : 'Re-record'}
 				</button>
 				<button
 					class="btn btn-primary"
 					onclick={save}
 					disabled={stage === 'saving' || !capture}
 				>
-					{stage === 'saving' ? 'Saving locally…' : 'Save dive'}
+					{stage === 'saving' ? 'Saving locally…' : capture?.source === 'metrics-only' ? 'Save metrics' : 'Save dive'}
 				</button>
 			</div>
 		</div>
@@ -1739,6 +1865,49 @@
 		opacity: 0.85;
 	}
 
+	.capture-mode-card {
+		gap: 0.75rem;
+	}
+
+	.mode-selector {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.55rem;
+	}
+
+	.mode-option {
+		display: flex;
+		min-height: 5.4rem;
+		flex-direction: column;
+		align-items: flex-start;
+		justify-content: center;
+		gap: 0.22rem;
+		padding: 0.85rem;
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		border-radius: 8px;
+		background: rgba(15, 23, 42, 0.58);
+		color: var(--color-text);
+		font: inherit;
+		text-align: left;
+	}
+
+	.mode-option.active {
+		border-color: rgba(20, 184, 166, 0.55);
+		background: rgba(20, 184, 166, 0.11);
+		box-shadow: inset 0 0 0 1px rgba(20, 184, 166, 0.08);
+	}
+
+	.mode-option strong {
+		font-size: 0.96rem;
+		font-weight: 850;
+	}
+
+	.mode-option span {
+		color: var(--color-text-muted);
+		font-size: 0.78rem;
+		line-height: 1.3;
+	}
+
 	.summary {
 		font-size: 0.85rem;
 		color: var(--color-text-muted);
@@ -1851,6 +2020,10 @@
 		text-transform: uppercase;
 	}
 	@media (max-width: 520px) {
+		.mode-selector {
+			grid-template-columns: 1fr;
+		}
+
 		.actions {
 			flex-wrap: wrap;
 		}
