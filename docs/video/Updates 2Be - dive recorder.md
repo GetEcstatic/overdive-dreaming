@@ -25,6 +25,24 @@ Leave unrelated worktree changes alone. Never commit secrets or `.env` files. If
 
 No open requests.
 
+## Metrics-Only Recorder Centered Layout Fix
+
+### Problem
+The metrics-only primary controls were still too low because the previous adjustment lived on the outer fixed surface instead of the controls cluster itself. On desktop and landscape screens, the component also spread metrics and buttons across the full viewport, which felt unlike the app's centered card-width layouts.
+
+### Implementation Plan
+Constrain the metrics-only header, metric body, and controls to a centered max-width column. Move the extra browser-chrome clearance onto `.metrics-controls` so the actual primary button row is lifted, and remove the landscape split-column layout so desktop stays centered and predictable.
+
+### Checklist
+- [x] Center metrics-only recorder sections in a max-width column.
+- [x] Move bottom clearance from the outer fixed surface to the controls cluster.
+- [x] Lift mobile controls further above browser bottom chrome.
+- [x] Remove the landscape split layout that pushed controls to the far right.
+- [x] Preserve the larger waypoint target button and existing interaction behavior.
+- [x] Run Svelte/type checks.
+- [x] Remove the completed request from the queue.
+
+
 ## Metrics-Only Recorder Follow-Up Fixes
 
 ### Problem

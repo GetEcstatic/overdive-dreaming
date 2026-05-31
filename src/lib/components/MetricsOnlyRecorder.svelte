@@ -489,7 +489,7 @@
 		grid-template-rows: auto 1fr auto;
 		height: 100dvh;
 		min-height: 100vh;
-		padding: max(0.9rem, env(safe-area-inset-top)) max(0.9rem, env(safe-area-inset-right)) max(4.75rem, calc(2.8rem + env(safe-area-inset-bottom))) max(0.9rem, env(safe-area-inset-left));
+		padding: max(0.9rem, env(safe-area-inset-top)) max(0.9rem, env(safe-area-inset-right)) calc(1rem + env(safe-area-inset-bottom)) max(0.9rem, env(safe-area-inset-left));
 		background: #020617;
 		color: var(--color-text);
 		overflow: hidden;
@@ -497,6 +497,13 @@
 		touch-action: none;
 		user-select: none;
 		-webkit-user-select: none;
+	}
+
+	.metrics-head,
+	.metrics-main,
+	.metrics-controls {
+		width: min(100%, 32rem);
+		justify-self: center;
 	}
 
 	.metrics-head {
@@ -634,6 +641,7 @@
 	.metrics-controls {
 		display: grid;
 		gap: 0.7rem;
+		padding-bottom: clamp(2.8rem, 10vh, 4.75rem);
 	}
 
 	.utility-button {
@@ -858,13 +866,12 @@
 
 	@media (orientation: landscape) {
 		.metrics-recorder {
-			grid-template-columns: minmax(0, 1fr) minmax(20rem, 34vw);
-			grid-template-rows: auto 1fr;
-			column-gap: 1rem;
+			grid-template-rows: auto 1fr auto;
+			justify-content: center;
 		}
 
 		.metrics-head {
-			grid-column: 1 / -1;
+			grid-column: auto;
 		}
 
 		.metrics-main {
@@ -872,7 +879,8 @@
 		}
 
 		.metrics-controls {
-			align-self: end;
+			align-self: auto;
+			padding-bottom: clamp(1rem, 5vh, 2.5rem);
 		}
 
 		.primary-action.action-waypoint {
