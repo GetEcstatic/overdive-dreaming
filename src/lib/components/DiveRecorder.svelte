@@ -48,8 +48,8 @@
 	} from '$lib/capture/recorderState';
 	import {
 		canMoveWaypointCursorBack,
-		completedLapCount,
 		cumulativeDistanceM,
+		currentTargetLapNumber,
 		diveElapsedMs,
 		liveSpeedMs,
 		nextTapKind,
@@ -167,7 +167,7 @@
 	const speedMs = $derived(liveSpeedMs(rs));
 	const nextM = $derived(nextWaypointM(rs));
 	const waypointTapCount = $derived(waypointCount(rs));
-	const lapCount = $derived(completedLapCount(rs));
+	const lapNumber = $derived(currentTargetLapNumber(rs));
 	const spacing = $derived(waypointSpacingM(rs.config));
 	const activeCameraLabel = $derived(
 		acquired?.deviceLabel
@@ -597,7 +597,7 @@
 			<div class="hud-sub">
 				<span>
 					{#if rs.phase === 'diving' || rs.phase === 'ended' || rs.phase === 'stopping'}
-						Waypoint {waypointTapCount} · lap {lapCount} · next {formatMeters(nextM)} m
+						Waypoint {waypointTapCount} · lap {lapNumber} · next {formatMeters(nextM)} m
 					{:else if rs.phase === 'prepping'}
 						● Recording — breathe-up
 					{:else}

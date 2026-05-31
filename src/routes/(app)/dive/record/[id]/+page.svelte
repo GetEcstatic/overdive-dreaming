@@ -1326,6 +1326,7 @@
 				<button class="btn btn-secondary" onclick={() => history.back()}>
 					Cancel
 				</button>
+				{#if captureMode === 'video'}
 				<label class="btn btn-secondary import-video-button" class:disabled={!discipline || importingVideo}>
 					<input
 						type="file"
@@ -1335,6 +1336,7 @@
 					/>
 					{importingVideo ? 'Reading video...' : 'Select video'}
 				</label>
+				{/if}
 				<button
 					class="btn btn-primary"
 					disabled={!canStartRecording}

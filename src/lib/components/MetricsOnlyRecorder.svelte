@@ -12,8 +12,8 @@
 	} from '$lib/capture/recorderState';
 	import {
 		canMoveWaypointCursorBack,
-		completedLapCount,
 		cumulativeDistanceM,
+		currentTargetLapNumber,
 		diveElapsedMs,
 		liveSpeedMs,
 		nextTapKind,
@@ -85,7 +85,7 @@
 	const speedMs = $derived(liveSpeedMs(rs));
 	const nextM = $derived(nextWaypointM(rs));
 	const waypointTapCount = $derived(waypointCount(rs));
-	const lapCount = $derived(completedLapCount(rs));
+	const lapNumber = $derived(currentTargetLapNumber(rs));
 	const spacing = $derived(waypointSpacingM(rs.config));
 
 	function dispatch(event: RecorderEvent): RecorderState {
@@ -386,7 +386,7 @@
 			<div class="secondary-metrics">
 				<div><span>Speed</span><strong>{speedMs.toFixed(2)} m/s</strong></div>
 				<div><span>Marks</span><strong>{waypointTapCount}</strong></div>
-				<div><span>Lap</span><strong>{lapCount}</strong></div>
+				<div><span>Lap</span><strong>{lapNumber}</strong></div>
 			</div>
 		</section>
 
@@ -489,7 +489,7 @@
 		grid-template-rows: auto 1fr auto;
 		height: 100dvh;
 		min-height: 100vh;
-		padding: max(0.9rem, env(safe-area-inset-top)) max(0.9rem, env(safe-area-inset-right)) calc(2.6rem + env(safe-area-inset-bottom)) max(0.9rem, env(safe-area-inset-left));
+		padding: max(0.9rem, env(safe-area-inset-top)) max(0.9rem, env(safe-area-inset-right)) max(4.75rem, calc(2.8rem + env(safe-area-inset-bottom))) max(0.9rem, env(safe-area-inset-left));
 		background: #020617;
 		color: var(--color-text);
 		overflow: hidden;

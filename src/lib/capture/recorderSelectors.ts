@@ -44,6 +44,13 @@ export function completedLapCount(state: RecorderState): number {
 	return Math.floor(waypointCount(state) / Math.max(1, state.config.waypointsPerLap));
 }
 
+export function currentTargetLapNumber(state: RecorderState): number {
+	return Math.max(
+		1,
+		Math.ceil(expectedWaypointIndex(state) / Math.max(1, state.config.waypointsPerLap))
+	);
+}
+
 // ---------------------------------------------------------------------------
 // v2 helpers — unified wall+split view
 // ---------------------------------------------------------------------------

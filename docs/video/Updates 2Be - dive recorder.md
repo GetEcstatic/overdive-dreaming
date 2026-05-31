@@ -25,6 +25,23 @@ Leave unrelated worktree changes alone. Never commit secrets or `.env` files. If
 
 No open requests.
 
+## Metrics-Only Recorder Follow-Up Fixes
+
+### Problem
+The metrics-only primary control still sat too close to mobile browser chrome, the active recorder lap display started at `Lap 0`, and the setup screen still exposed `Select video` even when the user had chosen metrics-only tracking.
+
+### Implementation Plan
+Move the metrics-only controls further above browser chrome with a stronger bottom inset, add a pure current-target lap selector that starts at 1 and share it between video and metrics recorder UIs, and conditionally hide the video import action unless the setup page is in video mode.
+
+### Checklist
+- [x] Reposition the metrics-only primary controls higher above the browser bottom bar.
+- [x] Add a pure current-target lap selector that starts at 1.
+- [x] Use the lap selector in the metrics-only tracker.
+- [x] Use the lap selector in the video recorder HUD.
+- [x] Hide `Select video` while metrics-only tracking is selected.
+- [x] Run focused and full Svelte/type checks.
+- [x] Remove the completed request from the queue.
+
 ## Metrics-Only Recorder UI Polish
 
 ### Problem
