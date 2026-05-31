@@ -25,6 +25,68 @@ Leave unrelated worktree changes alone. Never commit secrets or `.env` files. If
 
 No open requests.
 
+## Review Final Metrics Edit Plan
+
+### Problem
+After recording or marking a dive, the review screen shows final duration and distance as derived values. A coach may know the precise competition-style final distance or time after the fact, especially when a tap was late, the diver surfaced between waypoints, or an uploaded video was scrub-marked imperfectly. The review step should let the user correct the saved final metrics before the app seeds the dynamic-max log, without making them re-record or re-mark the whole timeline.
+
+This must work for three capture sources:
+- Metrics-only recorder.
+- Dynamic video recorder.
+- Uploaded video metric tracker, including both live playback marking and scrub-to-mark flows.
+
+### Implementation Plan
+Keep the source timeline as the audit trail and introduce a small review-level final metric override model. The review UI should show the captured values first, then offer wheel-selector edits for final distance and final duration. Saving should use the corrected values for the log seed and any user-facing summary, while preserving the original timeline and media metadata for later review.
+
+1. Add a route-local `reviewMetricEdits` state object on `src/routes/(app)/dive/record/[id]/+page.svelte`:
+	- `distanceM?: number`
+	- `durationSeconds?: number`
+	- `dirtyDistance: boolean`
+	- `dirtyDuration: boolean`
+2. Derive `capturedReviewMetrics` from the existing source functions:
+	- `durationSeconds = diveDurationSeconds(capture)`
+	- `distanceM = captureDistanceM(capture)`
+	- `avgSpeedMs = distanceM / durationSeconds` when duration is positive.
+3. Derive `finalReviewMetrics` by taking explicit wheel edits when dirty, otherwise captured values. This keeps display and save paths from maintaining duplicate truth.
+4. Add a `Final metrics` section immediately below the review stats card. It should use the same card width and subdued styling as the rest of review, not a modal.
+5. Use `NumberWheelInput` chips for the editable values:
+	- Distance: `min=0`, `max` based on context, `step=0.5`, `unit="m"`, label `Final distance`.
+	- Duration: either a small `DurationInput` wrapper if it already matches the wheel-sheet UX, or two `NumberWheelInput` chips for minutes and seconds if that gives clearer mobile behavior. Prefer a single `DurationInput` only if it opens the same bottom-sheet wheel pattern.
+6. Show captured-vs-final context directly in the section:
+	- Primary display: edited final values.
+	- Secondary text: `Captured 103.4 m · 02:04.2`.
+	- Reset affordance: `Use captured values`, visible only when either field is dirty.
+7. Keep the controls fast and glanceable on mobile:
+	- Two large chips in a 2-column grid on wider mobile/desktop, stacked on narrow screens.
+	- Avoid inline explanatory paragraphs; use concise labels, captured baseline text, and the reset action.
+	- Distance and time should be the only editable fields in this review section for now.
+8. On save, use `finalReviewMetrics` instead of raw captured metrics when writing `dive-log-seed:{sessionId}`:
+	- `summary.totalDistanceM = finalReviewMetrics.distanceM`
+	- `summary.totalTimeSeconds = finalReviewMetrics.durationSeconds`
+	- `summary.averageSpeedMs = distance / duration`
+	- Preserve `summary.perLap` from the captured timeline unless a later implementation supports proportional split adjustment.
+9. For uploaded/imported video and camera video, keep the `DiveVideo.timeline` unchanged. Add optional metadata to the `diveVideo` document only if needed later, such as `reviewMetricOverride`, but avoid changing persisted media semantics in the first pass unless product needs video cards to show the corrected metric before a routine log exists.
+10. For metrics-only captures, the override only needs to affect the review screen and log seed; there is no media document to update.
+
+### UI / UX Notes
+- The section should feel like confirmation, not data entry. Title: `Final metrics`. Chips: `Distance` and `Duration`. Secondary line: `Captured from tracker: ...`.
+- The default state should require no action. The user only opens a wheel when they need to correct a value.
+- Reset should be a quiet text button, not a destructive red action.
+- If duration is set to `0`, average speed should display as `—` and saving should still allow the log form to handle validation.
+- If distance is edited but duration is not, average speed should update immediately from edited distance and captured duration.
+- If duration is edited but distance is not, average speed should update immediately from captured distance and edited duration.
+- Imported video users should still be able to tap `Mark again`; the final metrics edit is a lighter correction for the common case where only the final headline values need adjustment.
+
+### Checklist
+- [x] Inspect current review/save flow for metrics-only, camera video, and imported video captures.
+- [x] Inspect the existing `NumberWheelInput` chip API.
+- [x] Define a review-level final metric override model.
+- [x] Plan final metrics UI placement, copy, and reset behavior.
+- [x] Plan save-path propagation into the existing dynamic-max log seed.
+- [x] Call out timeline/media preservation boundaries.
+- [x] Remove the completed request from the queue.
+
+
 ## Metrics-Only Recorder Centered Layout Fix
 
 ### Problem
