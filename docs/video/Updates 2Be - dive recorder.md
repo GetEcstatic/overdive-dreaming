@@ -25,6 +25,26 @@ Leave unrelated worktree changes alone. Never commit secrets or `.env` files. If
 
 No open requests.
 
+
+## Static Max Metrics-Only Recorder Implementation
+
+### Problem
+The record dive page supported dynamic video recording and dynamic metrics-only tracking, but STA was missing. Static max attempts need the same quick recorder-to-log flow without distance, waypoint, video, or upload behavior: a simple stopwatch that seeds a Static Max quick log.
+
+### Implementation Plan
+Add a dedicated static metrics-only recorder component for STA, broaden the record-page setup discipline choice to include STA, force STA into the no-video stopwatch path, and seed the existing `static-max` public preset with the captured final duration.
+
+### Checklist
+- [x] Add STA to the record dive discipline selector.
+- [x] Keep video recording and video import limited to dynamic disciplines.
+- [x] Add a static-only stopwatch recorder with large mobile controls.
+- [x] Route STA captures into the review screen without distance or waypoint metrics.
+- [x] Keep the final duration editable with the existing duration wheel selector.
+- [x] Save static captures into `dive-log-seed:{sessionId}` for `static-max`.
+- [x] Preserve dynamic metrics-only, camera video, and imported-video behavior.
+- [x] Remove the completed request from the queue.
+
+
 ## Review Final Metrics Edit Implementation
 
 ### Problem

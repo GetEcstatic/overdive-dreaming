@@ -17,6 +17,7 @@
 	import { user } from '$lib/stores/auth';
 	import DiveRecorder from '$lib/components/DiveRecorder.svelte';
 	import MetricsOnlyRecorder from '$lib/components/MetricsOnlyRecorder.svelte';
+	import StaticOnlyRecorder from '$lib/components/StaticOnlyRecorder.svelte';
 	import AthletePicker from '$lib/components/AthletePicker.svelte';
 	import DurationInput from '$lib/components/DurationInput.svelte';
 	import NumberWheelInput from '$lib/components/NumberWheelInput.svelte';
@@ -61,10 +62,12 @@
 		DiveVideoDisplayOrientation,
 		DiveVideoCapturePosture,
 		DiveVideoResolution,
-		DiveVideoRotation
+		DiveVideoRotation,
+		Discipline
 	} from '$lib/types';
 
 	const sessionId = $derived($page.params.id ?? '');
+	type RecordDiscipline = DiveVideoDiscipline | 'STA';
 
 	interface VideoCaptureResult {
 		blob: Blob;
@@ -97,7 +100,14 @@
 		durationSeconds: number;
 	}
 
-	type CaptureResult = VideoCaptureResult | MetricsOnlyCaptureResult;
+	interface StaticOnlyCaptureResult {
+		source: 'static-metrics-only';
+		timeline: DiveTimeline;
+		discipline: 'STA';
+		durationSeconds: number;
+	}
+
+	type CaptureResult = VideoCaptureResult | MetricsOnlyCaptureResult | StaticOnlyCaptureResult;
 
 	interface ReviewMetrics {
 		distanceM: number;
@@ -169,7 +179,7 @@
 
 	let poolLength = $state<number | undefined>(25);
 	let waypointsPerLap = $state<number | undefined>(2);
-	let discipline = $state<DiveVideoDiscipline | undefined>(undefined);
+	let discipline = $state<RecordDiscipline | undefined>(undefined);
 	let resolution = $state<DiveVideoResolution>('720p');
 	let qualityPreset = $state<DiveVideoQualityPreset>(DEFAULT_VIDEO_QUALITY_PRESET);
 	let captureMode = $state<'video' | 'metrics-only'>('video');
@@ -210,7 +220,9 @@
 	let importPreviewVideo = $state<HTMLVideoElement | null>(null);
 	let storageHealthy = $state<boolean | null>(null);
 
-	const canStartRecording = $derived(Boolean(discipline && poolLength && waypointsPerLap));
+	const canStartRecording = $derived(
+		discipline === 'STA' ? captureMode === 'metrics-only' : Boolean(discipline && poolLength && waypointsPerLap)
+	);
 	const waypointSpacing = $derived(
 		poolLength && waypointsPerLap ? poolLength / waypointsPerLap : 0
 	);
@@ -239,7 +251,25 @@
 	}
 
 	function isVideoCapture(result: CaptureResult): result is VideoCaptureResult {
-		return result.source !== 'metrics-only';
+		return result.source !== 'metrics-only' && result.source !== 'static-metrics-only';
+	}
+
+	function isDynamicDiscipline(value: RecordDiscipline | undefined): value is DiveVideoDiscipline {
+		return value === 'DYN' || value === 'DYNB' || value === 'DNF';
+	}
+
+	function isStaticCapture(result: CaptureResult): result is StaticOnlyCaptureResult {
+		return result.source === 'static-metrics-only';
+	}
+
+	function selectDiscipline(value: RecordDiscipline): void {
+		discipline = value;
+		if (value === 'STA') captureMode = 'metrics-only';
+	}
+
+	function selectCaptureMode(value: 'video' | 'metrics-only'): void {
+		if (discipline === 'STA' && value === 'video') return;
+		captureMode = value;
 	}
 
 	function qualityWarningsFor(result: VideoCaptureResult): string[] {
@@ -431,7 +461,7 @@
 		const file = input.files?.[0];
 		input.value = '';
 		if (!file) return;
-		if (!discipline) {
+		if (!isDynamicDiscipline(discipline)) {
 			importError = 'Choose a discipline before selecting a video.';
 			return;
 		}
@@ -486,7 +516,7 @@
 		return {
 			poolLengthM: poolLength ?? 25,
 			waypointsPerLap: Math.max(1, waypointsPerLap ?? 1),
-			defaultSpeedMs: discipline ? defaultSpeedMs(discipline) : 1
+			defaultSpeedMs: isDynamicDiscipline(discipline) ? defaultSpeedMs(discipline) : 1
 		};
 	}
 
@@ -598,7 +628,7 @@
 	function importDistanceAtTime(timeline: DiveTimeline, targetMs: number): number {
 		const atMs = clamp(targetMs, timeline.diveStartMs, timeline.diveEndMs);
 		const rows = importWaypointRows(timeline);
-		const defaultSpeed = discipline ? defaultSpeedMs(discipline) : 1;
+		const defaultSpeed = isDynamicDiscipline(discipline) ? defaultSpeedMs(discipline) : 1;
 		if (rows.length === 0) {
 			return ((atMs - timeline.diveStartMs) / 1000) * defaultSpeed;
 		}
@@ -621,11 +651,13 @@
 	}
 
 	function captureDistanceM(result: CaptureResult): number {
+		if (isStaticCapture(result)) return 0;
 		if (result.source === 'import') return importDistanceAtTime(result.timeline, result.timeline.diveEndMs);
-		return totalDistanceM(result.timeline, discipline ? defaultSpeedMs(discipline) : 1);
+		return totalDistanceM(result.timeline, isDynamicDiscipline(discipline) ? defaultSpeedMs(discipline) : 1);
 	}
 
 	function waypointCountForCapture(result: CaptureResult): number {
+		if (isStaticCapture(result)) return 0;
 		if (result.source === 'import') return importWaypointRows(result.timeline).length;
 		return result.timeline.laps.length + (result.timeline.subSplits?.length ?? 0);
 	}
@@ -634,7 +666,7 @@
 		if (importFlowPhase === 'ready' || importFlowPhase === 'playing' || importFlowPhase === 'ended') return 0;
 		const atMs = clamp(importPreviewTimeMs, timeline.diveStartMs, timeline.diveEndMs);
 		const rows = importWaypointRows(timeline);
-		const defaultSpeed = discipline ? defaultSpeedMs(discipline) : 1;
+		const defaultSpeed = isDynamicDiscipline(discipline) ? defaultSpeedMs(discipline) : 1;
 		const next = rows.find((row) => row.atMs >= atMs);
 		if (next) return next.speedMs;
 		const last = rows[rows.length - 1];
@@ -959,6 +991,48 @@
 		);
 	}
 
+	async function saveStaticMetricsOnlyCapture(
+		uid: string,
+		result: StaticOnlyCaptureResult
+	): Promise<void> {
+		const metrics = finalReviewMetricsFor(result);
+		const summary: ReturnType<typeof summariseTimeline> = {
+			totalTimeSeconds: metrics.durationSeconds,
+			totalDistanceM: 0,
+			averageSpeedMs: 0,
+			lapCount: 0,
+			avgSplitSeconds: 0,
+			fastestLapSeconds: null,
+			slowestLapSeconds: null,
+			perLap: []
+		};
+		try {
+			sessionStorage.setItem(
+				`dive-log-seed:${sessionId}`,
+				JSON.stringify({
+					discipline: 'STA' satisfies Discipline,
+					summary,
+					capturedAt: Date.now(),
+					source: 'static-metrics-only'
+				})
+			);
+		} catch {
+			// storage quota / private mode — the user can still fill the log manually
+		}
+
+		stage = 'done';
+		updateUserSettings(uid, {
+			defaultVideoResolution: resolution,
+			defaultVideoQualityPreset: qualityPreset
+		}).catch((err) => {
+			// eslint-disable-next-line no-console
+			console.warn('[dive-record] could not save recorder defaults', err);
+		});
+		await goto(
+			`/dives?publicPreset=static-max&seed=${encodeURIComponent(sessionId)}`
+		);
+	}
+
 	async function save(): Promise<void> {
 		if (!capture) return;
 		const uid = $user?.uid;
@@ -974,9 +1048,19 @@
 		stage = 'saving';
 		saveError = null;
 		try {
+			if (capture.source === 'static-metrics-only') {
+				await saveStaticMetricsOnlyCapture(uid, capture);
+				return;
+			}
 			if (capture.source === 'metrics-only') {
+				if (!isDynamicDiscipline(selectedDiscipline)) {
+					throw new Error('Choose a dynamic discipline before saving metrics.');
+				}
 				await saveMetricsOnlyCapture(uid, selectedDiscipline, capture);
 				return;
+			}
+			if (!isDynamicDiscipline(selectedDiscipline)) {
+				throw new Error('Choose a dynamic discipline before saving video.');
 			}
 
 			logUploadDiagnostic({
@@ -1203,7 +1287,9 @@
 			<header class="setup-head">
 				<h1>Record dive</h1>
 				<p>
-					{#if discipline}
+					{#if discipline === 'STA'}
+						STA selected. Start a stopwatch-style static max tracker.
+					{:else if discipline}
 						{discipline} selected. Check the pool setup, then start recording.
 					{:else if hasQuickStart && !quickStartExpanded}
 						Choose this dive's discipline. Your pool setup is already loaded.
@@ -1237,6 +1323,7 @@
 					<span class="field-label">Choose discipline</span>
 					<div class="segmented" role="radiogroup" aria-label="Discipline">
 						{#each [
+							{ value: 'STA', label: 'STA', sub: 'static' },
 							{ value: 'DYN', label: 'DYN', sub: 'fins' },
 							{ value: 'DYNB', label: 'DYNB', sub: 'bifins' },
 							{ value: 'DNF', label: 'DNF', sub: 'no fins' }
@@ -1247,7 +1334,7 @@
 								class:active={discipline === opt.value}
 								role="radio"
 								aria-checked={discipline === opt.value}
-								onclick={() => (discipline = opt.value as DiveVideoDiscipline)}
+								onclick={() => selectDiscipline(opt.value as RecordDiscipline)}
 							>
 								<span class="seg-label">{opt.label}</span>
 								<span class="seg-sub">{opt.sub}</span>
@@ -1255,8 +1342,7 @@
 						{/each}
 					</div>
 					<p class="field-hint">
-						Required for every recording so the video never starts with a stale
-						fin/no-fin mode.
+						STA uses a static stopwatch. Dynamic disciplines can record video or track metrics only.
 					</p>
 				</div>
 			</section>
@@ -1271,7 +1357,8 @@
 							class:active={captureMode === 'video'}
 							role="radio"
 							aria-checked={captureMode === 'video'}
-							onclick={() => (captureMode = 'video')}
+							disabled={discipline === 'STA'}
+							onclick={() => selectCaptureMode('video')}
 						>
 							<strong>Record video</strong>
 							<span>Camera, upload, and overlay review.</span>
@@ -1282,16 +1369,26 @@
 							class:active={captureMode === 'metrics-only'}
 							role="radio"
 							aria-checked={captureMode === 'metrics-only'}
-							onclick={() => (captureMode = 'metrics-only')}
+							onclick={() => selectCaptureMode('metrics-only')}
 						>
-							<strong>Track metrics only</strong>
-							<span>Large timing and waypoint controls, no upload.</span>
+							<strong>{discipline === 'STA' ? 'Track static hold' : 'Track metrics only'}</strong>
+							<span>{discipline === 'STA' ? 'Large stopwatch controls, no upload.' : 'Large timing and waypoint controls, no upload.'}</span>
 						</button>
 					</div>
 				</div>
 			</section>
 
-			{#if hasQuickStart && !quickStartExpanded && poolLength && waypointsPerLap}
+			{#if discipline === 'STA'}
+				<section class="quick-start">
+					<div class="quick-defaults">
+						<span class="quick-eyebrow">Static setup</span>
+						<strong class="quick-summary">No pool distance needed</strong>
+					</div>
+					<p class="quick-hint">
+						The tracker will save the final hold duration into a Static Max log.
+					</p>
+				</section>
+			{:else if hasQuickStart && !quickStartExpanded && poolLength && waypointsPerLap}
 				<section class="quick-start">
 					<div class="quick-defaults">
 						<span class="quick-eyebrow">Pool setup</span>
@@ -1365,7 +1462,7 @@
 				</section>
 			{/if}
 
-			{#if captureMode === 'video'}
+			{#if captureMode === 'video' && isDynamicDiscipline(discipline)}
 			<section class="card">
 				<div class="field">
 					<span class="field-label">Video resolution</span>
@@ -1421,7 +1518,7 @@
 				<button class="btn btn-secondary" onclick={() => history.back()}>
 					Cancel
 				</button>
-				{#if captureMode === 'video'}
+				{#if captureMode === 'video' && isDynamicDiscipline(discipline)}
 				<label class="btn btn-secondary import-video-button" class:disabled={!discipline || importingVideo}>
 					<input
 						type="file"
@@ -1441,6 +1538,8 @@
 				>
 					{#if !discipline}
 						Select discipline to start
+					{:else if discipline === 'STA'}
+						Start static
 					{:else if captureMode === 'metrics-only'}
 						Start metrics
 					{:else}
@@ -1678,7 +1777,12 @@
 		</div>
 	</div>
 {:else if stage === 'record' && discipline}
-	{#if captureMode === 'metrics-only'}
+	{#if discipline === 'STA'}
+		<StaticOnlyRecorder
+			onCapture={onCaptured}
+			onCancel={() => (stage = 'setup')}
+		/>
+	{:else if captureMode === 'metrics-only' && isDynamicDiscipline(discipline)}
 		<MetricsOnlyRecorder
 			poolLength={poolLength ?? 25}
 			waypointsPerLap={waypointsPerLap ?? 2}
@@ -1686,7 +1790,7 @@
 			onCapture={onCaptured}
 			onCancel={() => (stage = 'setup')}
 		/>
-	{:else}
+	{:else if isDynamicDiscipline(discipline)}
 		<DiveRecorder
 			poolLength={poolLength ?? 25}
 			waypointsPerLap={waypointsPerLap ?? 2}
@@ -1707,6 +1811,7 @@
 			{#if capture && discipline}
 				{@const capturedMetrics = capturedReviewMetricsFor(capture)}
 				{@const finalMetrics = finalReviewMetricsFor(capture)}
+				{@const staticCapture = isStaticCapture(capture)}
 				{#if capture.source === 'import' && importPreviewUrl}
 					<section class="import-review-card">
 						<p class="import-review-hint">Imported video markers are ready to save. Re-open the marker flow if you need to adjust start, end, or waypoints.</p>
@@ -1743,22 +1848,26 @@
 
 				<div class="stats-card">
 					<div><span>Dive time</span><strong>{formatMs(Math.round(finalMetrics.durationSeconds * 1000))}</strong></div>
-					<div>
-						<span>Waypoints tapped</span>
-						<strong>{waypointCountForCapture(capture)}</strong>
-					</div>
-					<div>
-						<span>Distance</span>
-						<!--
-						  Distance includes a best-effort estimate for:
-						   • dives that ended before the first waypoint tap
-						     (estimated from the default 1 m/s pace), and
-						   • dives that ended mid-lap (last waypoint + tail
-						     estimated from the most recent measured pace).
-						  See `totalDistanceM` in src/lib/capture/timeline.ts.
-						-->
-						<strong>{formatMeters(finalMetrics.distanceM)} m</strong>
-					</div>
+					{#if staticCapture}
+						<div><span>Discipline</span><strong>STA</strong></div>
+					{:else}
+						<div>
+							<span>Waypoints tapped</span>
+							<strong>{waypointCountForCapture(capture)}</strong>
+						</div>
+						<div>
+							<span>Distance</span>
+							<!--
+							  Distance includes a best-effort estimate for:
+							   • dives that ended before the first waypoint tap
+							     (estimated from the default 1 m/s pace), and
+							   • dives that ended mid-lap (last waypoint + tail
+							     estimated from the most recent measured pace).
+							  See `totalDistanceM` in src/lib/capture/timeline.ts.
+							-->
+							<strong>{formatMeters(finalMetrics.distanceM)} m</strong>
+						</div>
+					{/if}
 					{#if isVideoCapture(capture)}
 						<div><span>Size</span><strong>{formatMegabytes(capture.sizeBytes)}</strong></div>
 					{/if}
@@ -1768,7 +1877,13 @@
 					<div class="final-metrics-head">
 						<div>
 							<span class="final-metrics-eyebrow">Final metrics</span>
-							<strong>{formatMeters(finalMetrics.distanceM)} m · {formatMs(Math.round(finalMetrics.durationSeconds * 1000))}</strong>
+							<strong>
+								{#if staticCapture}
+									{formatMs(Math.round(finalMetrics.durationSeconds * 1000))}
+								{:else}
+									{formatMeters(finalMetrics.distanceM)} m · {formatMs(Math.round(finalMetrics.durationSeconds * 1000))}
+								{/if}
+							</strong>
 						</div>
 						{#if reviewDistanceDirty || reviewDurationDirty}
 							<button class="reset-metrics-button" type="button" onclick={() => resetReviewMetricEdits(capture)}>
@@ -1777,17 +1892,19 @@
 						{/if}
 					</div>
 					<div class="final-metric-inputs">
-						<NumberWheelInput
-							bind:value={reviewDistanceM}
-							variant="chip"
-							label="Final distance"
-							min={0}
-							max={reviewDistanceWheelMax(capturedMetrics.distanceM)}
-							step={0.5}
-							unit="m"
-							hint="Correct the headline distance saved to the log."
-							onValueChange={markReviewDistanceEdited}
-						/>
+						{#if !staticCapture}
+							<NumberWheelInput
+								bind:value={reviewDistanceM}
+								variant="chip"
+								label="Final distance"
+								min={0}
+								max={reviewDistanceWheelMax(capturedMetrics.distanceM)}
+								step={0.5}
+								unit="m"
+								hint="Correct the headline distance saved to the log."
+								onValueChange={markReviewDistanceEdited}
+							/>
+						{/if}
 						<DurationInput
 							bind:value={reviewDurationSeconds}
 							label="Final duration"
@@ -1798,8 +1915,12 @@
 						/>
 					</div>
 					<div class="final-metrics-summary">
-						<span>Captured {formatMeters(capturedMetrics.distanceM)} m · {formatMs(Math.round(capturedMetrics.durationSeconds * 1000))}</span>
-						<span>Avg speed {formatReviewSpeed(finalMetrics.averageSpeedMs)}</span>
+						{#if staticCapture}
+							<span>Captured {formatMs(Math.round(capturedMetrics.durationSeconds * 1000))}</span>
+						{:else}
+							<span>Captured {formatMeters(capturedMetrics.distanceM)} m · {formatMs(Math.round(capturedMetrics.durationSeconds * 1000))}</span>
+							<span>Avg speed {formatReviewSpeed(finalMetrics.averageSpeedMs)}</span>
+						{/if}
 					</div>
 				</section>
 
@@ -1831,7 +1952,7 @@
 				</section>
 				{:else}
 				<section class="import-review-card metrics-review-card">
-					<p class="import-review-hint">Metrics are ready to save into the dive log. No video will be uploaded for this dive.</p>
+					<p class="import-review-hint">{staticCapture ? 'Static hold time is ready to save into a Static Max log. No video will be uploaded for this dive.' : 'Metrics are ready to save into the dive log. No video will be uploaded for this dive.'}</p>
 				</section>
 				{/if}
 			{/if}
@@ -1866,14 +1987,14 @@
 					onclick={discard}
 					disabled={stage === 'saving'}
 				>
-					{capture?.source === 'metrics-only' ? 'Re-track' : 'Re-record'}
+					{capture?.source === 'metrics-only' || capture?.source === 'static-metrics-only' ? 'Re-track' : 'Re-record'}
 				</button>
 				<button
 					class="btn btn-primary"
 					onclick={save}
 					disabled={stage === 'saving' || !capture}
 				>
-					{stage === 'saving' ? 'Saving locally…' : capture?.source === 'metrics-only' ? 'Save metrics' : 'Save dive'}
+					{stage === 'saving' ? 'Saving locally…' : capture?.source === 'static-metrics-only' ? 'Save time' : capture?.source === 'metrics-only' ? 'Save metrics' : 'Save dive'}
 				</button>
 			</div>
 		</div>
