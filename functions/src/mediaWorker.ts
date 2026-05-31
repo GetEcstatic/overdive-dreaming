@@ -8,6 +8,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { Resvg } from '@resvg/resvg-js';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { logger } from 'firebase-functions/v2';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import {
@@ -28,6 +29,8 @@ const OVERLAY_REQUEST_LOCK_STALE_MS = 10 * 60 * 1000;
 const OVERLAY_EXPORT_HEIGHT_PX = 1080;
 const OVERLAY_EXPORT_CRF = '20';
 const OVERLAY_EXPORT_PRESET = 'veryfast';
+const OVERLAY_RENDER_TIMEOUT_MS = 4 * 60 * 1000;
+const MEDIA_JOB_PROCESSING_STALE_MS = 10 * 60 * 1000;
 
 const HUD_REFERENCE_SHORT_EDGE_PX = 390;
 const CSS_PX_PER_REM = 16;
@@ -62,6 +65,13 @@ interface MediaProcessingJobDoc {
 	attempts?: number;
 	claimedAt?: FirebaseFirestore.Timestamp;
 }
+
+type MediaProcessingResult = {
+	jobId: string;
+	status: 'ready' | 'retryable';
+	type?: DiveVideoProcessingJob;
+	alreadyComplete?: boolean;
+};
 
 interface OverlayRequestLockDoc {
 	jobId?: string;
@@ -176,7 +186,7 @@ function isImplementedAutomaticJob(type: DiveVideoProcessingJob): boolean {
 function isStaleProcessingJob(job: MediaProcessingJobDoc, nowMs = Date.now()): boolean {
 	const claimedAt = job.claimedAt;
 	if (!claimedAt || typeof claimedAt.toMillis !== 'function') return false;
-	return nowMs - claimedAt.toMillis() > 15 * 60 * 1000;
+	return nowMs - claimedAt.toMillis() > MEDIA_JOB_PROCESSING_STALE_MS;
 }
 
 function frameRate(value: string | undefined): number | undefined {
@@ -1058,7 +1068,7 @@ async function generateOverlayDownload(args: {
 					'-movflags',
 					'+faststart',
 					outputPath
-				], { timeout: 8 * 60 * 1000, maxBuffer: 10 * 1024 * 1024 });
+				], { timeout: OVERLAY_RENDER_TIMEOUT_MS, maxBuffer: 10 * 1024 * 1024 });
 			} catch (err) {
 				logger.warn('SVG overlay render failed; falling back to ASS renderer', {
 					videoId: args.videoId,
@@ -1113,7 +1123,7 @@ async function generateOverlayDownload(args: {
 					'-movflags',
 					'+faststart',
 					outputPath
-				], { timeout: 8 * 60 * 1000, maxBuffer: 10 * 1024 * 1024 });
+				], { timeout: OVERLAY_RENDER_TIMEOUT_MS, maxBuffer: 10 * 1024 * 1024 });
 			}
 
 			const bytes = await readFile(outputPath);
@@ -1200,6 +1210,24 @@ async function markFailed(args: {
 	const message = args.error instanceof Error ? args.error.message : String(args.error);
 	const db = getFirestore();
 	const stateKey = stateKeyFor(args.type);
+	await db.collection('mediaProcessingJobs').doc(args.jobId).update({
+		status: 'retryable',
+		lastError: message,
+		updatedAt: FieldValue.serverTimestamp()
+	});
+
+	const videoRef = db.collection('diveVideos').doc(args.videoId);
+	const videoSnap = await videoRef.get();
+	if (!videoSnap.exists) {
+		logger.warn('media job failed for missing dive video', {
+			jobId: args.jobId,
+			videoId: args.videoId,
+			type: args.type,
+			message
+		});
+		return;
+	}
+
 	const videoUpdate: Record<string, unknown> = {
 		'processingState.lastError': message,
 		'processingState.lastErrorAt': FieldValue.serverTimestamp(),
@@ -1207,16 +1235,11 @@ async function markFailed(args: {
 	};
 	if (stateKey) videoUpdate[`processingState.${stateKey}`] = 'retryable';
 	const updates: Promise<unknown>[] = [
-		db.collection('mediaProcessingJobs').doc(args.jobId).update({
-			status: 'retryable',
-			lastError: message,
-			updatedAt: FieldValue.serverTimestamp()
-		}),
-		db.collection('diveVideos').doc(args.videoId).update(videoUpdate)
+		videoRef.update(videoUpdate)
 	];
 	if (args.type === 'generate-overlay-download') {
 		updates.push(
-			db.collection('diveVideos').doc(args.videoId).collection('processingLocks').doc('overlayDownload').set({
+			videoRef.collection('processingLocks').doc('overlayDownload').set({
 				jobId: args.jobId,
 				status: 'retryable',
 				updatedAt: FieldValue.serverTimestamp()
@@ -1226,12 +1249,7 @@ async function markFailed(args: {
 	await Promise.all(updates);
 }
 
-async function runMediaJob(args: { jobId: string; uid?: string }): Promise<{
-	jobId: string;
-	status: 'ready';
-	type?: DiveVideoProcessingJob;
-	alreadyComplete?: boolean;
-}> {
+async function runMediaJob(args: { jobId: string; uid?: string; throwOnFailure?: boolean }): Promise<MediaProcessingResult> {
 	const db = getFirestore();
 	const job = await claimJob({ uid: args.uid, jobId: args.jobId });
 	if (job.status === 'ready') return { jobId: args.jobId, status: 'ready', alreadyComplete: true };
@@ -1346,6 +1364,9 @@ async function runMediaJob(args: { jobId: string; uid?: string }): Promise<{
 	} catch (err) {
 		logger.error('processMediaJob failed', { jobId: args.jobId, err });
 		await markFailed({ jobId: args.jobId, videoId: job.videoId, type: job.type, error: err });
+		if (args.throwOnFailure === false) {
+			return { jobId: args.jobId, status: 'retryable', type: job.type };
+		}
 		throw err;
 	}
 }
@@ -1422,6 +1443,7 @@ export const requestOverlayDownload = onCall(
 	}
 );
 
+
 export const processMediaJob = onCall(
 	{
 		secrets: [WASABI_ACCESS_KEY_ID, WASABI_SECRET_ACCESS_KEY],
@@ -1460,6 +1482,39 @@ export const onMediaProcessingJobCreated = onDocumentCreated(
 			});
 			return;
 		}
-		await runMediaJob({ jobId: event.params.jobId });
+		await runMediaJob({ jobId: event.params.jobId, throwOnFailure: false });
+	}
+);
+
+export const recoverStaleMediaProcessingJobs = onSchedule(
+	{
+		schedule: 'every 10 minutes',
+		timeZone: 'Etc/UTC',
+		timeoutSeconds: 60,
+		memory: '256MiB',
+		maxInstances: 1
+	},
+	async () => {
+		const db = getFirestore();
+		const staleBeforeMs = Date.now() - MEDIA_JOB_PROCESSING_STALE_MS;
+		const snap = await db.collection('mediaProcessingJobs')
+			.where('status', '==', 'processing')
+			.limit(50)
+			.get();
+		let recovered = 0;
+		for (const doc of snap.docs) {
+			const job = doc.data() as MediaProcessingJobDoc;
+			if (!job.claimedAt?.toMillis || job.claimedAt.toMillis() >= staleBeforeMs) continue;
+			await markFailed({
+				jobId: doc.id,
+				videoId: job.videoId,
+				type: job.type,
+				error: new Error('Media processing job timed out and was recovered automatically')
+			});
+			recovered += 1;
+		}
+		if (recovered > 0) {
+			logger.warn('recovered stale media processing jobs', { recovered });
+		}
 	}
 );

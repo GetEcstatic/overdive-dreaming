@@ -24,5 +24,10 @@ export {
 	getMediaReadUrl,
 	signDiveVideoPart
 } from './mediaSigning.js';
-export { onMediaProcessingJobCreated, processMediaJob, requestOverlayDownload } from './mediaWorker.js';
+export {
+	onMediaProcessingJobCreated,
+	processMediaJob,
+	recoverStaleMediaProcessingJobs,
+	requestOverlayDownload
+} from './mediaWorker.js';
 export { acceptDiveGift } from './acceptDiveGift.js';
