@@ -25,6 +25,25 @@ Leave unrelated worktree changes alone. Never commit secrets or `.env` files. If
 
 No open requests.
 
+## Review Final Metrics Edit Implementation
+
+### Problem
+The review screen needed the planned final metric correction controls so users can refine the saved headline distance and duration after metrics-only tracking, camera recording, or imported-video marking.
+
+### Implementation Plan
+Add review-local final metric edit state to the dive record route, render wheel-sheet controls for final distance and duration directly under the review stats, and feed corrected values into the existing dynamic-max log seed while preserving the source timeline and media document semantics.
+
+### Checklist
+- [x] Add review metric edit state and captured/final metric derivations.
+- [x] Reset edit state whenever a new capture enters review.
+- [x] Add `NumberWheelInput` for final distance.
+- [x] Add `DurationInput` for final duration using the existing wheel sheet.
+- [x] Show captured baseline values and updated average speed.
+- [x] Add a quiet reset action for edited values.
+- [x] Use final metrics in the metrics-only log seed.
+- [x] Use final metrics in the video/import log seed.
+- [x] Preserve original timelines and video metadata.
+
 ## Review Final Metrics Edit Plan
 
 ### Problem

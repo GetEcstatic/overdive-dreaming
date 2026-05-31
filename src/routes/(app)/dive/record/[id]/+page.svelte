@@ -18,6 +18,7 @@
 	import DiveRecorder from '$lib/components/DiveRecorder.svelte';
 	import MetricsOnlyRecorder from '$lib/components/MetricsOnlyRecorder.svelte';
 	import AthletePicker from '$lib/components/AthletePicker.svelte';
+	import DurationInput from '$lib/components/DurationInput.svelte';
 	import NumberWheelInput from '$lib/components/NumberWheelInput.svelte';
 	import {
 		buildDiveVideoFormData,
@@ -97,6 +98,12 @@
 	}
 
 	type CaptureResult = VideoCaptureResult | MetricsOnlyCaptureResult;
+
+	interface ReviewMetrics {
+		distanceM: number;
+		durationSeconds: number;
+		averageSpeedMs: number | null;
+	}
 
 	interface ImportWaypointRow {
 		index: number;
@@ -181,6 +188,10 @@
 	let athleteId = $state<string | undefined>(undefined);
 
 	let capture = $state<CaptureResult | null>(null);
+	let reviewDistanceM = $state<number | undefined>(undefined);
+	let reviewDurationSeconds = $state<number | undefined>(undefined);
+	let reviewDistanceDirty = $state(false);
+	let reviewDurationDirty = $state(false);
 	let saveError = $state<string | null>(null);
 	let importError = $state<string | null>(null);
 	let importingVideo = $state(false);
@@ -256,6 +267,81 @@
 
 	function diveDurationSeconds(result: CaptureResult): number {
 		return Math.max(0, result.timeline.diveEndMs - result.timeline.diveStartMs) / 1000;
+	}
+
+	function averageSpeedFor(distanceM: number, durationSeconds: number): number | null {
+		return durationSeconds > 0 ? distanceM / durationSeconds : null;
+	}
+
+	function capturedReviewMetricsFor(result: CaptureResult): ReviewMetrics {
+		const distanceM = captureDistanceM(result);
+		const durationSeconds = diveDurationSeconds(result);
+		return {
+			distanceM,
+			durationSeconds,
+			averageSpeedMs: averageSpeedFor(distanceM, durationSeconds)
+		};
+	}
+
+	function finalReviewMetricsFor(result: CaptureResult): ReviewMetrics {
+		const capturedMetrics = capturedReviewMetricsFor(result);
+		const distanceM = reviewDistanceDirty && reviewDistanceM !== undefined
+			? reviewDistanceM
+			: capturedMetrics.distanceM;
+		const durationSeconds = reviewDurationDirty && reviewDurationSeconds !== undefined
+			? reviewDurationSeconds
+			: capturedMetrics.durationSeconds;
+		return {
+			distanceM,
+			durationSeconds,
+			averageSpeedMs: averageSpeedFor(distanceM, durationSeconds)
+		};
+	}
+
+	function resetReviewMetricEdits(result: CaptureResult | null = capture): void {
+		if (!result) {
+			reviewDistanceM = undefined;
+			reviewDurationSeconds = undefined;
+		} else {
+			const metrics = capturedReviewMetricsFor(result);
+			reviewDistanceM = Number(metrics.distanceM.toFixed(1));
+			reviewDurationSeconds = Math.round(metrics.durationSeconds);
+		}
+		reviewDistanceDirty = false;
+		reviewDurationDirty = false;
+	}
+
+	function markReviewDistanceEdited(): void {
+		reviewDistanceDirty = true;
+	}
+
+	function markReviewDurationEdited(): void {
+		reviewDurationDirty = true;
+	}
+
+	function reviewDistanceWheelMax(capturedDistanceM: number): number {
+		return Math.max(300, Math.ceil((capturedDistanceM + 50) / 10) * 10);
+	}
+
+	function reviewDurationWheelMax(capturedDurationSeconds: number): number {
+		return Math.max(600, Math.ceil((capturedDurationSeconds + 180) / 60) * 60);
+	}
+
+	function formatReviewSpeed(speedMs: number | null): string {
+		return speedMs === null ? '—' : `${speedMs.toFixed(2)} m/s`;
+	}
+
+	function applyFinalReviewMetricsToSummary(
+		summary: ReturnType<typeof summariseTimeline>,
+		result: CaptureResult
+	): ReturnType<typeof summariseTimeline> {
+		const metrics = finalReviewMetricsFor(result);
+		return {
+			...summary,
+			totalDistanceM: metrics.distanceM,
+			totalTimeSeconds: metrics.durationSeconds,
+			averageSpeedMs: metrics.averageSpeedMs ?? 0
+		};
 	}
 
 	function secondsFromMs(ms: number): string {
@@ -336,6 +422,7 @@
 
 	function onCaptured(result: CaptureResult): void {
 		capture = result;
+		resetReviewMetricEdits(result);
 		stage = 'review';
 	}
 
@@ -660,6 +747,7 @@
 	function reviewImportedCapture(): void {
 		if (importPreviewVideo) importPreviewVideo.pause();
 		importPreviewPlaying = false;
+		resetReviewMetricEdits(capture);
 		stage = 'review';
 	}
 
@@ -832,9 +920,12 @@
 		selectedDiscipline: DiveVideoDiscipline,
 		result: MetricsOnlyCaptureResult
 	): Promise<void> {
-		const summary = summaryWithWaypointSegments(
-			summariseTimeline(result.timeline, defaultSpeedMs(selectedDiscipline)),
-			result.timeline
+		const summary = applyFinalReviewMetricsToSummary(
+			summaryWithWaypointSegments(
+				summariseTimeline(result.timeline, defaultSpeedMs(selectedDiscipline)),
+				result.timeline
+			),
+			result
 		);
 		try {
 			sessionStorage.setItem(
@@ -986,9 +1077,12 @@
 			// showing up on the gifter's dashboard feed.
 			const isGift = Boolean(athleteId && athleteId !== uid);
 			if (capture && !isGift) {
-				const summary = summaryWithWaypointSegments(
-					summariseTimeline(capture.timeline, defaultSpeedMs(selectedDiscipline)),
-					capture.timeline
+				const summary = applyFinalReviewMetricsToSummary(
+					summaryWithWaypointSegments(
+						summariseTimeline(capture.timeline, defaultSpeedMs(selectedDiscipline)),
+						capture.timeline
+					),
+					capture
 				);
 				try {
 					sessionStorage.setItem(
@@ -1048,6 +1142,7 @@
 
 	function discard(): void {
 		capture = null;
+		resetReviewMetricEdits(null);
 		stage = 'record';
 	}
 
@@ -1610,6 +1705,8 @@
 			<h1 class="review-title">Review &amp; save</h1>
 
 			{#if capture && discipline}
+				{@const capturedMetrics = capturedReviewMetricsFor(capture)}
+				{@const finalMetrics = finalReviewMetricsFor(capture)}
 				{#if capture.source === 'import' && importPreviewUrl}
 					<section class="import-review-card">
 						<p class="import-review-hint">Imported video markers are ready to save. Re-open the marker flow if you need to adjust start, end, or waypoints.</p>
@@ -1645,7 +1742,7 @@
 				{/if}
 
 				<div class="stats-card">
-					<div><span>Dive time</span><strong>{diveDurationSeconds(capture).toFixed(1)} s</strong></div>
+					<div><span>Dive time</span><strong>{formatMs(Math.round(finalMetrics.durationSeconds * 1000))}</strong></div>
 					<div>
 						<span>Waypoints tapped</span>
 						<strong>{waypointCountForCapture(capture)}</strong>
@@ -1660,12 +1757,51 @@
 						     estimated from the most recent measured pace).
 						  See `totalDistanceM` in src/lib/capture/timeline.ts.
 						-->
-						<strong>{formatMeters(captureDistanceM(capture))} m</strong>
+						<strong>{formatMeters(finalMetrics.distanceM)} m</strong>
 					</div>
 					{#if isVideoCapture(capture)}
 						<div><span>Size</span><strong>{formatMegabytes(capture.sizeBytes)}</strong></div>
 					{/if}
 				</div>
+
+				<section class="final-metrics-card" aria-label="Final editable metrics">
+					<div class="final-metrics-head">
+						<div>
+							<span class="final-metrics-eyebrow">Final metrics</span>
+							<strong>{formatMeters(finalMetrics.distanceM)} m · {formatMs(Math.round(finalMetrics.durationSeconds * 1000))}</strong>
+						</div>
+						{#if reviewDistanceDirty || reviewDurationDirty}
+							<button class="reset-metrics-button" type="button" onclick={() => resetReviewMetricEdits(capture)}>
+								Use captured
+							</button>
+						{/if}
+					</div>
+					<div class="final-metric-inputs">
+						<NumberWheelInput
+							bind:value={reviewDistanceM}
+							variant="chip"
+							label="Final distance"
+							min={0}
+							max={reviewDistanceWheelMax(capturedMetrics.distanceM)}
+							step={0.5}
+							unit="m"
+							hint="Correct the headline distance saved to the log."
+							onValueChange={markReviewDistanceEdited}
+						/>
+						<DurationInput
+							bind:value={reviewDurationSeconds}
+							label="Final duration"
+							min={0}
+							max={reviewDurationWheelMax(capturedMetrics.durationSeconds)}
+							hint="Correct the headline dive time saved to the log."
+							onValueChange={markReviewDurationEdited}
+						/>
+					</div>
+					<div class="final-metrics-summary">
+						<span>Captured {formatMeters(capturedMetrics.distanceM)} m · {formatMs(Math.round(capturedMetrics.durationSeconds * 1000))}</span>
+						<span>Avg speed {formatReviewSpeed(finalMetrics.averageSpeedMs)}</span>
+					</div>
+				</section>
 
 				{#if isVideoCapture(capture)}
 				<section class="diagnostics-card" aria-label="Capture diagnostics">
@@ -2021,9 +2157,84 @@
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 	}
+
+	.final-metrics-card {
+		display: grid;
+		gap: 0.85rem;
+		margin: 0 0 1rem;
+		padding: 0.95rem;
+		border: 1px solid rgba(20, 184, 166, 0.2);
+		border-radius: 8px;
+		background: rgba(15, 23, 42, 0.72);
+	}
+
+	.final-metrics-head {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 0.8rem;
+	}
+
+	.final-metrics-head > div {
+		display: grid;
+		gap: 0.16rem;
+	}
+
+	.final-metrics-eyebrow {
+		color: var(--color-text-muted);
+		font-size: 0.72rem;
+		font-weight: 800;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+
+	.final-metrics-head strong {
+		color: var(--color-text);
+		font-size: 1.08rem;
+		font-weight: 850;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.reset-metrics-button {
+		flex: 0 0 auto;
+		min-height: 2.25rem;
+		border: 1px solid rgba(20, 184, 166, 0.28);
+		border-radius: 999px;
+		padding: 0.35rem 0.7rem;
+		background: rgba(20, 184, 166, 0.08);
+		color: var(--color-primary);
+		font: inherit;
+		font-size: 0.78rem;
+		font-weight: 750;
+	}
+
+	.final-metric-inputs {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.75rem;
+	}
+
+	.final-metrics-summary {
+		display: flex;
+		justify-content: space-between;
+		gap: 0.75rem;
+		color: var(--color-text-muted);
+		font-size: 0.78rem;
+		font-weight: 650;
+		font-variant-numeric: tabular-nums;
+	}
+
 	@media (max-width: 520px) {
 		.mode-selector {
 			grid-template-columns: 1fr;
+		}
+
+		.final-metric-inputs {
+			grid-template-columns: 1fr;
+		}
+
+		.final-metrics-summary {
+			flex-direction: column;
 		}
 
 		.actions {
