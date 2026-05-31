@@ -23,6 +23,152 @@ Leave unrelated worktree changes alone. Never commit secrets or `.env` files. If
 
 # Requests
 
+No open requests.
+
+## Metrics-Only Recorder UI Plan
+
+### Problem
+Some dives should be logged with the recorder's timing, distance, waypoint, speed, and split metrics without recording video. The current recorder is built around a full-screen camera preview, which forces the phone to point at the pool and uses much of the screen as video glass. A metrics-only mode should let a coach or buddy hold the phone naturally, keep the same waypoint/timeline behavior, and make the primary numbers and buttons larger and easier to hit.
+
+### Implementation Plan
+Build this as a sibling mode of the existing `DiveRecorder` flow, not a separate metrics engine. The pure reducer and selectors in `src/lib/capture/recorderState.ts` and `src/lib/capture/recorderSelectors.ts` already own the important state: phases, waypoints, elapsed time, cumulative distance, speed, auto-advance, cursor movement, and end confirmation. The implementation should reuse that model and swap the camera/MediaRecorder edge for a lightweight metrics-only edge.
+
+1. Add a capture-mode choice before the recorder starts: `Record video` and `Track metrics only`.
+2. Introduce a result shape for metrics-only captures that includes the `DiveTimeline`, summary metrics, discipline, pool length, waypoint spacing, and optional notes, but no blob or media object.
+3. Keep the recorder reducer unchanged unless a small config flag is needed for labels. Avoid duplicating timing or waypoint logic in the Svelte component.
+4. Create a metrics-only recorder surface that uses the same phases: `ready`, `prepping`, `diving`, `ended`, and `stopping/saving`.
+5. Replace the video preview with a calm dashboard: large elapsed time, large distance, current target, speed/split secondary metrics, and central controls.
+6. Keep long-press end confirmation, previous/next target controls, 2-second waypoint lockout, and auto-advance warning behavior consistent with video mode.
+7. Save metrics-only captures into the same review/save path where possible, with media-specific fields omitted and UI copy changed from video language to log language.
+
+### Checklist
+- [x] Inspect existing recorder state, selectors, and `DiveRecorder.svelte` control layout.
+- [x] Identify where camera/video coupling exists in the current result contract.
+- [x] Sketch a metrics-only interaction model that reuses pure recorder logic.
+- [x] Draw mobile mockups for ready, diving, and end-confirmation states.
+- [x] Note implementation stages and open decisions.
+- [x] Remove the completed request from the queue.
+
+### Mobile Mockups
+
+#### 1. Ready / Setup
+
+Use this when the coach has selected discipline, pool length, and waypoint spacing. The phone can be held upright at chest height; no camera preview is needed.
+
+```text
++--------------------------------+
+| DYN        25m pool   12.5m step|
+| Metrics only                   |
+|                                |
+|        Ready to track          |
+|                                |
+|   Next target                  |
+|        12.5m                   |
+|                                |
+|  Waypoints/lap 2   Auto +10m   |
+|                                |
+|                                |
+| [ Cancel ]        [ Start ]    |
++--------------------------------+
+```
+
+Notes:
+- Primary action should be `Start`, not `Record`, because no media is being captured.
+- The top row should keep mode and setup visible without feeling like a video HUD.
+- The central target preview helps the user understand what the first tap will mark.
+
+#### 2. Active Dive
+
+This is the main value of the mode: large glanceable numbers and large central controls. The waypoint button can sit in the physical center of the phone instead of the bottom edge.
+
+```text
++--------------------------------+
+| DYN               lap 1         |
+|                                |
+|          01:18.4               |
+|          elapsed               |
+|                                |
+|          62.5m                 |
+|          distance              |
+|                                |
+|  speed 0.82 m/s   next 75m     |
+|                                |
+|    [ < ]   [ 75m ]   [ > ]     |
+|            Tap mark            |
+|                                |
+|        Hold 75m to end         |
++--------------------------------+
+```
+
+Notes:
+- The waypoint target is the center button's primary text. It should be large enough to hit while watching the diver.
+- Previous/next target controls remain adjacent, but can be much larger than video mode because there is no preview to preserve.
+- The lower `Hold to end` affordance can stay attached to the same central button to preserve muscle memory.
+
+#### 3. Active Dive With Auto-Advance Warning
+
+The existing auto-advance concept still matters because a coach may miss a tap. In metrics-only mode, the warning can be more readable and less transient than a video toast.
+
+```text
++--------------------------------+
+|          02:03.9               |
+|          elapsed               |
+|                                |
+|          101.4m                |
+|          distance              |
+|                                |
+|  Skipped 87.5m -> target 100m  |
+|                                |
+|    [ < ]   [100m]   [ > ]      |
+|            Tap mark            |
+|                                |
+|  Last mark 75m at 01:31.2      |
++--------------------------------+
+```
+
+Notes:
+- The warning should be near the controls and persist long enough to be read.
+- The back button should remain available to hold the target back, using the existing `manualHoldBackIndex` behavior.
+
+#### 4. End Confirmation
+
+Reuse the current end-confirmation behavior, but give the card more of the screen because there is no video behind it.
+
+```text
++--------------------------------+
+|                                |
+|          End dive?             |
+|                                |
+|          03:42.6               |
+|          151.2m                |
+|                                |
+|   This is what will be saved   |
+|                                |
+| [ Resume ]     [ Confirm End ] |
+|                                |
++--------------------------------+
+```
+
+Notes:
+- Continue deriving the pending end metrics from the captured long-press timestamp.
+- After confirmation, the result can go straight to review/save without waiting for MediaRecorder finalization.
+
+### Suggested Implementation Stages
+
+1. **Planning-safe first cut:** Add the capture-mode choice on the record setup page and route metrics-only mode to a placeholder screen behind a feature flag or local branch only.
+2. **Pure result contract:** Define a discriminated union such as `{ source: 'video'; ... } | { source: 'metrics-only'; timeline: DiveTimeline; ... }` in the route/component boundary.
+3. **Metrics-only component:** Extract or share the reducer wiring from `DiveRecorder.svelte`, but omit camera acquisition, `MediaRecorder`, video element, camera selector, upload metadata, and video quality settings.
+4. **Review/save integration:** Update the review page copy and save path to accept metrics-only logs without media artifacts.
+5. **Polish pass:** Tune mobile spacing, larger type, button geometry, haptics/vibration if available, and accessibility labels.
+6. **Tests:** Add focused reducer/selector tests only if reducer behavior changes. For UI plumbing, run `npm run check` and manually test mobile widths around 375px.
+
+### Open Decisions
+
+- Should metrics-only logs create a `diveVideo`-like draft without media, or should they save directly as routine/session logs?
+- Should the setup page default to the last used capture mode per user/device?
+- Should metrics-only mode support a post-dive notes prompt before review?
+- Should the UI offer an optional metronome/countdown/haptic tick now that the phone is not occupied by video capture?
+
 ## Recorder End Confirmation Metrics
 
 ### Problem
