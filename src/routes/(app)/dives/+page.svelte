@@ -767,11 +767,6 @@
 							<h2 id="public-presets-title">Choose a session</h2>
 							<p>Start with a simple preset and log only the useful result.</p>
 						</div>
-						<div class="public-safety-note" role="note">
-							<strong>Safety first</strong>
-							<span>Never freedive alone. Log sessions with a trained buddy and stop if anything feels off.</span>
-							<a href="/profile#safety">Safety resources</a>
-						</div>
 						<div class="public-preset-list">
 							{#each publicPresetRows as row}
 								<button
@@ -937,33 +932,6 @@
 		gap: 0.7rem;
 	}
 
-	.public-safety-note {
-		display: grid;
-		gap: 0.25rem;
-		padding: 0.85rem 1rem;
-		border: 1px solid rgba(251, 191, 36, 0.28);
-		border-radius: 8px;
-		background: rgba(251, 191, 36, 0.08);
-	}
-
-	.public-safety-note strong {
-		font-size: 0.86rem;
-		color: #fbbf24;
-	}
-
-	.public-safety-note span,
-	.public-safety-note a {
-		font-size: 0.84rem;
-		line-height: 1.35;
-		color: var(--color-text-muted);
-	}
-
-	.public-safety-note a {
-		color: var(--color-primary);
-		font-weight: 700;
-		text-decoration: none;
-	}
-
 	.public-record-link {
 		display: inline-flex;
 		align-items: center;
@@ -971,6 +939,7 @@
 		gap: 0.55rem;
 		width: 100%;
 		min-height: 3rem;
+		margin-bottom: 1.35rem;
 		padding: 0.8rem 1rem;
 		border: 1px solid rgba(20, 184, 166, 0.45);
 		border-radius: 8px;

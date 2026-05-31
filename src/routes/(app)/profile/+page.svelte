@@ -726,8 +726,8 @@
 
 		<section id="safety" class="profile-card safety-card">
 			<div class="card-header">
-				<h2 class="card-title">Freediving Safety</h2>
-				<span class="card-subtitle">A quick reminder before training or recording</span>
+				<h2 class="card-title">Safety First</h2>
+				<span class="card-subtitle">Before training or recording</span>
 			</div>
 			<p class="safety-copy">
 				Never freedive alone. Train with a capable buddy, agree on safety signals before the session, and end the dive or session early if conditions change.
