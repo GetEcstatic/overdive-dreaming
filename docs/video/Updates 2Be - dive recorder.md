@@ -25,6 +25,24 @@ Leave unrelated worktree changes alone. Never commit secrets or `.env` files. If
 
 No open requests.
 
+## Metrics-Only Recorder UI Polish
+
+### Problem
+The first metrics-only implementation worked, but the primary control sat too close to mobile browser chrome and could be partially covered. The large time and distance values were readable but visually too heavy, making the surface feel more playful than calm and training-focused.
+
+### Implementation Plan
+Keep the metrics-only layout and interaction model intact. Increase the fixed recorder surface's bottom breathing room with dynamic viewport sizing and a larger safe-area-aware bottom inset, then soften the live metric typography by reducing font weight and using the app's system type stack with tabular numerals.
+
+### Checklist
+- [x] Lift the metrics-only footer controls above mobile browser bottom chrome.
+- [x] Preserve safe-area support for iOS-style home indicators.
+- [x] Reduce the live time and distance font weight.
+- [x] Keep tabular numerals for stable live metric updates.
+- [x] Slightly soften the primary button weight without reducing its screen priority.
+- [x] Run Svelte/type checks.
+- [x] Remove the completed request from the queue.
+
+
 ## Metrics-Only Recorder Implementation
 
 ### Problem

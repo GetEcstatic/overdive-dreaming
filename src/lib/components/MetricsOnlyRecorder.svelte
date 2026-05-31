@@ -487,8 +487,9 @@
 		z-index: 50;
 		display: grid;
 		grid-template-rows: auto 1fr auto;
+		height: 100dvh;
 		min-height: 100vh;
-		padding: max(0.9rem, env(safe-area-inset-top)) max(0.9rem, env(safe-area-inset-right)) calc(1rem + env(safe-area-inset-bottom)) max(0.9rem, env(safe-area-inset-left));
+		padding: max(0.9rem, env(safe-area-inset-top)) max(0.9rem, env(safe-area-inset-right)) calc(2.6rem + env(safe-area-inset-bottom)) max(0.9rem, env(safe-area-inset-left));
 		background: #020617;
 		color: var(--color-text);
 		overflow: hidden;
@@ -559,10 +560,10 @@
 
 	.hero-time span,
 	.hero-distance span {
-		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+		font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 		font-variant-numeric: tabular-nums;
-		font-weight: 900;
-		line-height: 0.95;
+		font-weight: 720;
+		line-height: 1;
 		letter-spacing: 0;
 	}
 
@@ -684,7 +685,7 @@
 		border: 2px solid rgba(255, 255, 255, 0.2);
 		padding: 1rem;
 		box-shadow: 0 18px 46px rgba(0, 0, 0, 0.35), inset 0 0 0 5px rgba(255, 255, 255, 0.08);
-		font-weight: 900;
+		font-weight: 820;
 		overflow: hidden;
 	}
 
@@ -724,7 +725,8 @@
 
 	.btn-main {
 		font-size: clamp(2rem, 11vw, 4.2rem);
-		line-height: 0.95;
+		font-weight: 820;
+		line-height: 0.98;
 	}
 
 	.btn-sub {
