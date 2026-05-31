@@ -24,8 +24,12 @@
 	let nowMs = $state(0);
 	let holdStartedPerfMs = $state(0);
 	let holdEndedPerfMs = $state(0);
+	let endHoldHeld = $state(false);
 	let tickHandle: number | null = null;
+	let endHoldHandle: ReturnType<typeof setTimeout> | null = null;
 	let wakeLock: WakeLockHandle | null = null;
+	let primaryRequiresFreshPress = false;
+	const END_HOLD_MS = 500;
 
 	const elapsedMs = $derived.by(() => {
 		if (phase === 'ready') return 0;
@@ -72,9 +76,9 @@
 		vibrate(12);
 	}
 
-	function endHold(): void {
+	function endHold(atPerfMs = performance.now()): void {
 		if (phase !== 'holding') return;
-		holdEndedPerfMs = performance.now();
+		holdEndedPerfMs = atPerfMs;
 		nowMs = holdEndedPerfMs;
 		phase = 'ended';
 		stopTicking();
@@ -101,6 +105,12 @@
 
 	function cleanup(reset = true): void {
 		stopTicking();
+		if (endHoldHandle) {
+			clearTimeout(endHoldHandle);
+			endHoldHandle = null;
+		}
+		endHoldHeld = false;
+		primaryRequiresFreshPress = false;
 		if (wakeLock) {
 			wakeLock.release().catch(() => undefined);
 			wakeLock = null;
@@ -114,26 +124,54 @@
 	}
 
 	function handlePrimaryAction(): void {
+		if (primaryRequiresFreshPress) return;
 		if (phase === 'ready') {
 			void startHold();
 			return;
 		}
-		if (phase === 'holding') {
-			endHold();
-			return;
-		}
+		if (phase === 'holding') return;
 		review();
+	}
+
+	function onPrimaryHoldStart(ev: PointerEvent): void {
+		primaryRequiresFreshPress = false;
+		if (phase !== 'holding') return;
+		const holdStartedAtPerfMs = performance.now();
+		const target = ev.currentTarget as HTMLElement | null;
+		if (target && typeof target.setPointerCapture === 'function') {
+			try {
+				target.setPointerCapture(ev.pointerId);
+			} catch {
+				/* ignore */
+			}
+		}
+		endHoldHeld = true;
+		vibrate([20, 30, 20]);
+		endHoldHandle = setTimeout(() => {
+			endHoldHandle = null;
+			endHoldHeld = false;
+			primaryRequiresFreshPress = true;
+			endHold(holdStartedAtPerfMs);
+		}, END_HOLD_MS);
+	}
+
+	function onPrimaryHoldEnd(): void {
+		if (endHoldHandle) {
+			clearTimeout(endHoldHandle);
+			endHoldHandle = null;
+		}
+		endHoldHeld = false;
 	}
 
 	function primaryLabel(): string {
 		if (phase === 'ready') return 'Start hold';
-		if (phase === 'holding') return 'End hold';
+		if (phase === 'holding') return endHoldHeld ? 'Hold' : 'End hold';
 		return 'Review';
 	}
 
 	function primarySubLabel(): string {
 		if (phase === 'ready') return 'Static max stopwatch';
-		if (phase === 'holding') return 'Tap when the hold ends';
+		if (phase === 'holding') return endHoldHeld ? 'end hold' : 'Hold to end';
 		return 'Save time';
 	}
 
@@ -194,11 +232,20 @@
 			class:action-ready={phase === 'ready'}
 			class:action-end={phase === 'holding'}
 			class:action-review={phase === 'ended'}
+			class:is-held={endHoldHeld}
 			type="button"
+			onpointerdown={onPrimaryHoldStart}
+			onpointerup={onPrimaryHoldEnd}
+			onpointercancel={onPrimaryHoldEnd}
+			onpointerleave={onPrimaryHoldEnd}
+			oncontextmenu={(event) => event.preventDefault()}
 			onclick={handlePrimaryAction}
 		>
 			<span class="btn-main">{primaryLabel()}</span>
 			<span class="btn-sub">{primarySubLabel()}</span>
+			{#if endHoldHeld}
+				<span class="hold-progress" aria-hidden="true"></span>
+			{/if}
 		</button>
 	</footer>
 </div>
@@ -334,6 +381,7 @@
 	}
 
 	.primary-action {
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -347,6 +395,7 @@
 		box-shadow: 0 18px 46px rgba(0, 0, 0, 0.35), inset 0 0 0 5px rgba(255, 255, 255, 0.08);
 		font: inherit;
 		font-weight: 820;
+		overflow: hidden;
 		touch-action: manipulation;
 		-webkit-tap-highlight-color: transparent;
 	}
@@ -366,9 +415,34 @@
 		color: #fff;
 	}
 
+	.primary-action.is-held {
+		background: #b91c1c;
+		color: #fff;
+	}
+
 	.btn-main,
 	.btn-sub {
+		position: relative;
+		z-index: 1;
 		text-align: center;
+	}
+
+	.primary-action .hold-progress {
+		position: absolute;
+		inset: 0;
+		background: rgba(255, 255, 255, 0.18);
+		transform-origin: left center;
+		animation: hold-fill 500ms linear forwards;
+		pointer-events: none;
+	}
+
+	@keyframes hold-fill {
+		from {
+			transform: scaleX(0);
+		}
+		to {
+			transform: scaleX(1);
+		}
 	}
 
 	.btn-main {

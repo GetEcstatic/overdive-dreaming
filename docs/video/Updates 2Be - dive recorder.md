@@ -26,6 +26,23 @@ Leave unrelated worktree changes alone. Never commit secrets or `.env` files. If
 No open requests.
 
 
+## Static Hold Long-Press End
+
+### Problem
+The static max recorder ended the hold on a normal tap, which made it easier to stop a static attempt accidentally than a dynamic attempt. Static ending should use the same long-press protection pattern as the dynamic metrics recorder.
+
+### Implementation Plan
+Keep the static recorder's simple stopwatch flow, but make the in-hold primary action ignore regular clicks and require a short hold gesture before committing the final hold time. Reuse the existing visual language from dynamic controls: red hold state, progress fill, and vibration feedback.
+
+### Checklist
+- [x] Add long-press state and timeout handling to the static recorder.
+- [x] Make normal taps during an active static hold non-ending.
+- [x] Commit the static end timestamp from the start of the successful hold gesture.
+- [x] Add held-button visual feedback and progress fill.
+- [x] Clean up hold timers on cancel/unmount.
+- [x] Remove the completed request from the queue.
+
+
 ## Static Max Metrics-Only Recorder Implementation
 
 ### Problem
