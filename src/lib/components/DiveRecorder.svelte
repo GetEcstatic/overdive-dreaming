@@ -1480,4 +1480,43 @@
 			font-size: 0.75rem;
 		}
 	}
+
+	@media (min-width: 768px) {
+		.recorder {
+			--recorder-lane-width: min(32rem, calc(100vw - var(--recorder-edge-x) * 2));
+		}
+
+		.hud {
+			left: 50%;
+			right: auto;
+			box-sizing: border-box;
+			width: var(--recorder-lane-width);
+			max-width: none;
+			transform: translateX(-50%);
+		}
+
+		.camera-control,
+		.controls-ready .primary-wrap,
+		.controls-prepping .primary-wrap {
+			left: 50%;
+			right: auto;
+			transform: translateX(calc(var(--recorder-lane-width) / 2 - var(--recorder-primary-width)));
+		}
+
+		.controls-ready .secondary-actions,
+		.controls-prepping .secondary-actions {
+			left: 50%;
+			right: auto;
+			width: calc(var(--recorder-lane-width) - var(--recorder-primary-width) - var(--recorder-control-gap));
+			transform: translateX(calc(var(--recorder-lane-width) / -2));
+		}
+
+		.summary-line {
+			left: 50%;
+			right: auto;
+			max-width: var(--recorder-lane-width);
+			white-space: normal;
+			transform: translateX(-50%);
+		}
+	}
 </style>

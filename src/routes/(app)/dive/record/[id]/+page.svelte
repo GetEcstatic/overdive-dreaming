@@ -2584,6 +2584,7 @@
 		touch-action: none;
 		user-select: none;
 		-webkit-user-select: none;
+		--import-recorder-edge-x: max(0.9rem, env(safe-area-inset-left), env(safe-area-inset-right));
 	}
 
 	.import-recorder-preview {
@@ -3025,6 +3026,51 @@
 
 		.import-waypoint-row {
 			grid-template-columns: 1fr;
+		}
+	}
+
+	@media (min-width: 768px) {
+		.import-recorder {
+			--import-recorder-lane-width: min(32rem, calc(100vw - var(--import-recorder-edge-x) * 2));
+		}
+
+		.import-hud,
+		.summary-line {
+			left: 50%;
+			right: auto;
+			box-sizing: border-box;
+			width: var(--import-recorder-lane-width);
+			max-width: var(--import-recorder-lane-width);
+			transform: translateX(-50%);
+		}
+
+		.summary-line {
+			white-space: normal;
+		}
+
+		.editor-close {
+			left: 50%;
+			right: auto;
+			transform: translateX(calc(var(--import-recorder-lane-width) / 2 - 2.55rem));
+		}
+
+		.import-secondary-actions.left {
+			left: 50%;
+			transform: translateX(calc(var(--import-recorder-lane-width) / -2));
+		}
+
+		.import-secondary-actions.right {
+			left: 50%;
+			right: auto;
+			transform: translateX(calc(var(--import-recorder-lane-width) / 2 - 4.75rem));
+		}
+
+		.scrub-rail-wrap {
+			left: 50%;
+			right: auto;
+			box-sizing: border-box;
+			width: var(--import-recorder-lane-width);
+			transform: translateX(-50%);
 		}
 	}
 
