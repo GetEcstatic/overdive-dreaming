@@ -761,20 +761,10 @@
 		<div class="bg-(--color-bg-card) p-6 rounded-lg">
 			{#if !selectedRoutine}
 				<!-- Step 1: Select Routine -->
-				<div class="record-action-stack" aria-label="Recording actions">
-					<a class="public-record-link" href="/record">
-						<Video size={18} aria-hidden="true" />
-						<span>Record training dive</span>
-					</a>
-					<a class="public-record-link aida" href="/record?aida=official-competition">
-						<Video size={18} aria-hidden="true" />
-						<span>Record official AIDA attempt</span>
-					</a>
-					<a class="public-record-link practice" href="/record?aida=protocol-practice&capture=metrics-only">
-						<Video size={18} aria-hidden="true" />
-						<span>Live-track AIDA practice</span>
-					</a>
-				</div>
+				<a class="public-record-link" href="/record">
+					<Video size={18} aria-hidden="true" />
+					<span>Record dive</span>
+				</a>
 				{#if isPublicMode}
 					<section class="public-presets" aria-labelledby="public-presets-title">
 						<div class="public-presets-head">
@@ -946,12 +936,6 @@
 		gap: 0.7rem;
 	}
 
-	.record-action-stack {
-		display: grid;
-		gap: 0.65rem;
-		margin-bottom: 1.35rem;
-	}
-
 	.public-record-link {
 		display: inline-flex;
 		align-items: center;
@@ -959,6 +943,7 @@
 		gap: 0.55rem;
 		width: 100%;
 		min-height: 3rem;
+		margin-bottom: 1.35rem;
 		padding: 0.8rem 1rem;
 		border: 1px solid rgba(20, 184, 166, 0.45);
 		border-radius: 8px;
@@ -972,26 +957,6 @@
 	.public-record-link:hover {
 		border-color: rgba(20, 184, 166, 0.72);
 		background: rgba(20, 184, 166, 0.16);
-	}
-
-	.public-record-link.aida {
-		border-color: rgba(251, 191, 36, 0.48);
-		background: rgba(251, 191, 36, 0.12);
-	}
-
-	.public-record-link.aida:hover {
-		border-color: rgba(251, 191, 36, 0.78);
-		background: rgba(251, 191, 36, 0.16);
-	}
-
-	.public-record-link.practice {
-		border-color: rgba(56, 189, 248, 0.42);
-		background: rgba(56, 189, 248, 0.1);
-	}
-
-	.public-record-link.practice:hover {
-		border-color: rgba(56, 189, 248, 0.7);
-		background: rgba(56, 189, 248, 0.15);
 	}
 
 	.public-preset-button {
