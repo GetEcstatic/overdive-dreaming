@@ -439,10 +439,16 @@
 	{/if}
 
 	<!-- Competition -->
-	{#if log.isCompetition || log.compeitionOrg || log.cardTag || log.recordTag}
+	{#if log.isCompetition || log.compeitionOrg || log.cardTag || log.recordTag || log.aidaCompetition}
 		<section class="metrics-section">
 			<h2>Competition</h2>
 			<div class="metrics-grid">
+				{#if log.aidaCompetition}
+					<div class="metric-item">
+						<span class="label">AIDA Mode</span>
+						<span class="value">{log.aidaCompetition.mode === 'official-competition' ? 'Official competition' : 'Protocol practice'}</span>
+					</div>
+				{/if}
 				{#if log.isCompetition}
 					<div class="metric-item">
 						<span class="label">Competition</span>
@@ -465,6 +471,48 @@
 					<div class="metric-item">
 						<span class="label">Record</span>
 						<span class="value">{log.recordTag}</span>
+					</div>
+				{/if}
+				{#if log.aidaCompetition?.rawPoints !== undefined}
+					<div class="metric-item">
+						<span class="label">Raw Points</span>
+						<span class="value">{log.aidaCompetition.rawPoints}</span>
+					</div>
+				{/if}
+				{#if log.aidaCompetition?.penaltyPoints !== undefined && log.aidaCompetition.penaltyPoints > 0}
+					<div class="metric-item">
+						<span class="label">Penalty</span>
+						<span class="value">-{log.aidaCompetition.penaltyPoints}</span>
+					</div>
+				{/if}
+				{#if log.aidaCompetition?.finalPoints !== undefined}
+					<div class="metric-item">
+						<span class="label">Final Points</span>
+						<span class="value">{log.aidaCompetition.finalPoints}</span>
+					</div>
+				{/if}
+				{#if log.aidaCompetition?.startOffsetSeconds !== undefined}
+					<div class="metric-item">
+						<span class="label">OT Offset</span>
+						<span class="value">{log.aidaCompetition.startOffsetSeconds}s</span>
+					</div>
+				{/if}
+				{#if log.aidaCompetition?.surfaceProtocol?.elapsedSeconds !== undefined}
+					<div class="metric-item">
+						<span class="label">SP Time</span>
+						<span class="value">{log.aidaCompetition.surfaceProtocol.elapsedSeconds}s</span>
+					</div>
+				{/if}
+				{#if log.aidaCompetition?.penalties?.length}
+					<div class="metric-item">
+						<span class="label">Penalties</span>
+						<span class="value">{log.aidaCompetition.penalties.map((penalty) => penalty.code).join(', ')}</span>
+					</div>
+				{/if}
+				{#if log.aidaCompetition?.disqualificationReasons?.length}
+					<div class="metric-item">
+						<span class="label">DQ Reason</span>
+						<span class="value">{log.aidaCompetition.disqualificationReasons.map((reason) => reason.code).join(', ')}</span>
 					</div>
 				{/if}
 			</div>

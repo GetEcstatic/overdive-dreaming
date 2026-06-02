@@ -14,7 +14,11 @@
 		BreathingGas,
 		LungVolume,
 		RoutineLogPlanRow,
-		RoutineLogResultRow
+		RoutineLogResultRow,
+		AidaAttemptMode,
+		AidaCompetitionAttempt,
+		AidaPenaltyCode,
+		AidaDisqualificationCode
 	} from '$lib/types';
 	import type { LogFormData } from '$lib/components/QuickLogForm.svelte';
 	import {
@@ -41,6 +45,12 @@
 		repEditorDataToRoutineLogRows,
 		routineLogRowsToRepEditorData
 	} from '$lib/routineLayers/logPlan';
+	import {
+		AIDA_DQ_DETAIL_OPTIONS,
+		AIDA_PENALTY_CODES,
+		buildAidaAttempt,
+		dqOtherReferenceItems
+	} from '$lib/competition/aida';
 
 	interface Props {
 		routine: RoutineTemplate;
@@ -83,6 +93,20 @@
 	let compeitionOrg = $state<string>(formData.compeitionOrg ?? '');
 	let cardTag = $state<CardTag | undefined>(formData.cardTag);
 	let recordTag = $state<RecordTag | undefined>(formData.recordTag);
+	type CompetitionMode = 'training' | AidaAttemptMode;
+	let competitionMode = $state<CompetitionMode>(formData.aidaCompetition?.mode ?? (formData.isCompetition ? 'official-competition' : 'training'));
+	let aidaStartOffsetSeconds = $state<number | undefined>(formData.aidaCompetition?.startOffsetSeconds);
+	let aidaAnnouncedPerformance = $state<number | undefined>(formData.disciplineUsed === 'STA'
+		? formData.aidaCompetition?.announcedPerformanceSeconds
+		: formData.aidaCompetition?.announcedPerformanceMeters);
+	let aidaSurfaceProtocolSeconds = $state<number | undefined>(formData.aidaCompetition?.surfaceProtocol?.elapsedSeconds);
+	let aidaSurfaceProtocolCompleted = $state<boolean>(formData.aidaCompetition?.surfaceProtocol?.completed ?? false);
+	let aidaPenaltyCodes = $state<AidaPenaltyCode[]>((formData.aidaCompetition?.penalties ?? []).map((penalty) => penalty.code));
+	let aidaManualPenaltyPoints = $state<number | undefined>((formData.aidaCompetition?.penalties ?? []).find((penalty) => penalty.points !== undefined)?.points);
+	let aidaDisqualificationCode = $state<AidaDisqualificationCode | undefined>(formData.aidaCompetition?.disqualificationReasons?.[0]?.code);
+	let aidaDisqualificationDetails = $state<string[]>(formData.aidaCompetition?.disqualificationReasons?.[0]?.details ?? []);
+	let aidaDisqualificationNote = $state<string>(formData.aidaCompetition?.disqualificationReasons?.[0]?.note ?? '');
+	let aidaJudgeNotes = $state<string>(formData.aidaCompetition?.judgeNotes ?? '');
 	let visibility = $state<SessionVisibility>(formData.visibility ?? 'private');
 	const initialAttemptCategory = deriveAttemptCategory({
 		disciplineUsed: formData.disciplineUsed,
@@ -276,8 +300,75 @@
 		cardTag = cardTag === tag ? undefined : tag;
 	}
 
+	function selectCompetitionMode(mode: CompetitionMode) {
+		competitionMode = mode;
+		if (mode === 'training') {
+			isCompetition = false;
+			cardTag = undefined;
+			recordTag = undefined;
+			compeitionOrg = '';
+			return;
+		}
+		isCompetition = mode === 'official-competition';
+		compeitionOrg = mode === 'official-competition' ? 'AIDA' : '';
+	}
+
+	function toggleAidaPenaltyCode(code: AidaPenaltyCode) {
+		aidaPenaltyCodes = aidaPenaltyCodes.includes(code)
+			? aidaPenaltyCodes.filter((entry) => entry !== code)
+			: [...aidaPenaltyCodes, code];
+	}
+
+	function selectAidaDisqualificationCode(code: AidaDisqualificationCode) {
+		aidaDisqualificationCode = aidaDisqualificationCode === code ? undefined : code;
+		aidaDisqualificationDetails = [];
+		aidaDisqualificationNote = '';
+	}
+
+	function toggleAidaDisqualificationDetail(detail: string) {
+		aidaDisqualificationDetails = aidaDisqualificationDetails.includes(detail)
+			? aidaDisqualificationDetails.filter((entry) => entry !== detail)
+			: [...aidaDisqualificationDetails, detail];
+	}
+
+	function buildAidaCompetition(): AidaCompetitionAttempt | undefined {
+		if (competitionMode === 'training') return undefined;
+		const manualPenalties = aidaPenaltyCodes.map((code, index) => ({
+			code,
+			points: index === 0 ? aidaManualPenaltyPoints : undefined
+		}));
+		const disqualificationReasons = aidaDisqualificationCode
+			? [{
+				code: aidaDisqualificationCode,
+				details: aidaDisqualificationCode === 'DQOTHER' ? undefined : aidaDisqualificationDetails,
+				note: aidaDisqualificationNote.trim() || undefined
+			}]
+			: undefined;
+
+		return buildAidaAttempt({
+			mode: competitionMode,
+			discipline: disciplineUsed,
+			startOffsetSeconds: aidaStartOffsetSeconds,
+			announcedPerformanceSeconds: disciplineUsed === 'STA' ? aidaAnnouncedPerformance : undefined,
+			announcedPerformanceMeters: disciplineUsed === 'STA' ? undefined : aidaAnnouncedPerformance,
+			realizedPerformanceSeconds: disciplineUsed === 'STA' ? totalTimeSeconds : undefined,
+			realizedPerformanceMeters: disciplineUsed === 'STA' ? undefined : totalDistance,
+			card: cardTag,
+			recordTag,
+			manualPenalties,
+			disqualificationReasons,
+			surfaceProtocol: aidaSurfaceProtocolSeconds !== undefined || aidaSurfaceProtocolCompleted
+				? {
+					elapsedSeconds: aidaSurfaceProtocolSeconds,
+					completed: aidaSurfaceProtocolCompleted
+				}
+				: undefined,
+			judgeNotes: aidaJudgeNotes.trim() || undefined
+		});
+	}
+
 	$effect(() => {
-		if (!isCompetition) {
+		if (competitionMode === 'training' && !isCompetition) {
 			cardTag = undefined;
 			recordTag = undefined;
 			compeitionOrg = '';
@@ -300,6 +391,10 @@
 	}
 
 	function doSubmit() {
+		if (competitionMode === 'official-competition' && !cardTag) {
+			window.alert('Select a card before saving an official AIDA competition log.');
+			return;
+		}
 
 		// Collect facial gear array
 		const facialGear: string[] = [];
@@ -317,15 +412,17 @@
 			: undefined;
 		const lapsData: LapData[] | undefined = rowPayload?.laps ?? existingLaps;
 		const resultRows: RoutineLogResultRow[] | undefined = rowPayload?.resultRows ?? formData.resultRows;
+		const aidaCompetition = buildAidaCompetition();
 
 		const data: LogFormData = {
 			disciplineUsed,
 			sessionDate,
 			sessionTime,
-			isCompetition,
-			compeitionOrg: isCompetition ? compeitionOrg.trim() || undefined : undefined,
-			cardTag,
-				recordTag,
+			isCompetition: aidaCompetition?.mode === 'official-competition' || isCompetition,
+			compeitionOrg: aidaCompetition?.mode === 'official-competition' ? 'AIDA' : isCompetition ? compeitionOrg.trim() || undefined : undefined,
+			cardTag: aidaCompetition?.card ?? cardTag,
+			recordTag: aidaCompetition?.recordTag ?? recordTag,
+			aidaCompetition,
 				attemptConditions: buildAttemptConditions(),
 				visibility,
 			// Session context
@@ -610,75 +707,100 @@
 		<p class="field-hint">When did this session take place? (dates from 2016 onwards)</p>
 
 		{#if hasCompetitionLogging}
-		<div class="field-group">
-			<div class="field-label">Competition Metrics</div>
-			<div class="tag-row">
-				{#if config.trackCompetitionStatus || initialData.isCompetition}
-					<button
-						type="button"
-						class="tag-button"
-						class:active={isCompetition}
-						onclick={() => (isCompetition = !isCompetition)}
-					>
-						Comp
-					</button>
-				{/if}
-				{#if isCompetition}
+			<div class="field-group">
+				<div class="field-label">AIDA context</div>
+				<div class="tag-row">
+					<button type="button" class="tag-button" class:active={competitionMode === 'training'} onclick={() => selectCompetitionMode('training')}>Training</button>
+					<button type="button" class="tag-button" class:active={competitionMode === 'official-competition'} onclick={() => selectCompetitionMode('official-competition')}>Official AIDA</button>
+					<button type="button" class="tag-button" class:active={competitionMode === 'protocol-practice'} onclick={() => selectCompetitionMode('protocol-practice')}>Protocol practice</button>
+				</div>
+				{#if competitionMode !== 'training'}
+					<div class="field-grid">
+						<label class="field-group">
+							<span class="field-label">AP ({disciplineUsed === 'STA' ? 'seconds' : 'meters'})</span>
+							<input class="field-input" type="number" min="0" step={disciplineUsed === 'STA' ? '1' : '0.5'} bind:value={aidaAnnouncedPerformance} />
+						</label>
+						<label class="field-group">
+							<span class="field-label">Start offset from OT</span>
+							<input class="field-input" type="number" step="1" bind:value={aidaStartOffsetSeconds} placeholder="-3 or 14" />
+						</label>
+						<label class="field-group">
+							<span class="field-label">SP time (seconds)</span>
+							<input class="field-input" type="number" min="0" step="0.1" bind:value={aidaSurfaceProtocolSeconds} />
+						</label>
+						<label class="checkbox-field">
+							<input type="checkbox" bind:checked={aidaSurfaceProtocolCompleted} />
+							<span>SP complete</span>
+						</label>
+					</div>
+					<p class="field-hint">OT offsets use negative numbers for early starts and positive numbers for late starts.</p>
 					{#if config.trackCardColor || initialData.cardTag}
-						<span class="tag-group-label">Cards</span>
-						<div class="tag-group">
+						<div class="tag-row">
+							<span class="tag-group-label">Cards</span>
 							{#each [
 								{ value: 'white', label: 'White' },
 								{ value: 'yellow', label: 'Yellow' },
 								{ value: 'red', label: 'Red' }
 							] as card}
-								<button
-									type="button"
-									class="tag-button"
-									class:active={cardTag === card.value}
-									onclick={() => toggleCardTag(card.value as CardTag)}
-									aria-label={`${card.value} card`}
-								>
-									{card.label}
-								</button>
+								<button type="button" class="tag-button" class:active={cardTag === card.value} onclick={() => toggleCardTag(card.value as CardTag)}>{card.label}</button>
 							{/each}
 						</div>
 					{/if}
 					{#if config.trackRecordTag || initialData.recordTag}
-						<span class="tag-group-label">Record</span>
-						<div class="tag-group">
+						<div class="tag-row">
+							<span class="tag-group-label">Record</span>
 							{#each ['NR', 'CR', 'WR'] as tag}
-								<button
-									type="button"
-									class="tag-button"
-									class:active={recordTag === tag}
-									onclick={() => toggleRecordTag(tag as RecordTag)}
-								>
-									{tag}
-								</button>
+								<button type="button" class="tag-button" class:active={recordTag === tag} onclick={() => toggleRecordTag(tag as RecordTag)}>{tag}</button>
 							{/each}
 						</div>
 					{/if}
+					{#if cardTag === 'yellow'}
+						<div class="field-group">
+							<div class="field-label">Yellow card penalties</div>
+							<div class="tag-row">
+								{#each AIDA_PENALTY_CODES as code}
+									<button type="button" class="tag-button" class:active={aidaPenaltyCodes.includes(code)} onclick={() => toggleAidaPenaltyCode(code)}>{code}</button>
+								{/each}
+							</div>
+							<label class="field-group">
+								<span class="field-label">Manual penalty points</span>
+								<input class="field-input" type="number" min="0" step="0.1" bind:value={aidaManualPenaltyPoints} />
+							</label>
+							<p class="field-hint">Start and AP penalties are derived automatically when those values are present.</p>
+						</div>
+					{/if}
+					{#if cardTag === 'red'}
+						<div class="field-group">
+							<div class="field-label">Red card reason</div>
+							<div class="tag-row">
+								{#each ['DQBO', 'DQSP', 'DQAIRWAYS', 'DQTOUCH', 'DQ_LATE_START', 'DQOTHER'] as code}
+									<button type="button" class="tag-button" class:active={aidaDisqualificationCode === code} onclick={() => selectAidaDisqualificationCode(code as AidaDisqualificationCode)}>{code}</button>
+								{/each}
+							</div>
+							{#if aidaDisqualificationCode && aidaDisqualificationCode !== 'DQOTHER'}
+								<div class="tag-row">
+									{#each AIDA_DQ_DETAIL_OPTIONS[aidaDisqualificationCode] ?? [] as detail}
+										<button type="button" class="tag-button" class:active={aidaDisqualificationDetails.includes(detail)} onclick={() => toggleAidaDisqualificationDetail(detail)}>{detail}</button>
+									{/each}
+								</div>
+							{:else if aidaDisqualificationCode === 'DQOTHER'}
+								<label class="field-group">
+									<span class="field-label">DQOTHER note</span>
+									<textarea class="field-textarea" bind:value={aidaDisqualificationNote} rows="3"></textarea>
+								</label>
+								<details class="plan-details">
+									<summary>DQOTHER reference</summary>
+									<ul>{#each dqOtherReferenceItems(disciplineUsed) as item}<li>{item}</li>{/each}</ul>
+								</details>
+							{/if}
+						</div>
+					{/if}
+					<label class="field-group">
+						<span class="field-label">Judge notes</span>
+						<textarea class="field-textarea" bind:value={aidaJudgeNotes} rows="3"></textarea>
+					</label>
 				{/if}
-			</div>
-			<p class="field-hint">Competition, card, and record values are used for comparison.</p>
-		</div>
-		{/if}
-		{#if isCompetition}
-			<div class="field-group">
-				<label for="competitionOrg" class="field-label">Competition Org</label>
-				<input
-					id="competitionOrg"
-					type="text"
-					bind:value={compeitionOrg}
-					class="field-input"
-					list="competition-org-options"
-					placeholder="AIDA or CMAS"
-				/>
-				<datalist id="competition-org-options">
-					<option value="AIDA"></option>
-					<option value="CMAS"></option>
-				</datalist>
+				<p class="field-hint">Official AIDA attempts require a card before saving. Protocol practice uses the same scoring model but remains training.</p>
 			</div>
 		{/if}
 

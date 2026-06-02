@@ -67,7 +67,8 @@
 		DiveVideoDiscipline,
 		DiveVideoDisplayOrientation,
 		DiveVideoResolution,
-		DiveVideoRotation
+		DiveVideoRotation,
+		AidaAttemptMode
 	} from '$lib/types';
 
 	interface CaptureResult {
@@ -98,6 +99,7 @@
 		qualityPreset?: DiveVideoQualityPreset;
 		discipline?: DiveVideoDiscipline;
 		cameraPreference?: CameraPreference;
+		aidaMode?: 'training' | AidaAttemptMode;
 		autoAdvanceThresholdM?: number;
 		onCapture: (result: CaptureResult) => void;
 		onCancel?: () => void;
@@ -111,6 +113,7 @@
 		qualityPreset = DEFAULT_VIDEO_QUALITY_PRESET,
 		discipline = 'DYN',
 		cameraPreference = AUTO_REAR_CAMERA,
+		aidaMode = 'training',
 		autoAdvanceThresholdM = 10,
 		onCapture,
 		onCancel,
@@ -174,6 +177,7 @@
 			? classifyCameraLabel(acquired.deviceLabel).displayLabel
 			: cameraPreferenceLabel(selectedCamera)
 	);
+	const showAidaProtocol = $derived(aidaMode !== 'training');
 
 	function formatMs(ms: number): string {
 		const totalSecs = Math.floor(ms / 1000);
@@ -794,8 +798,12 @@
 				diveEndMs: rs.timeline.diveStartMs + elapsedMs
 			})}
 			<div class="summary-line">
-				Avg split {summary.avgSplitSeconds.toFixed(1)}s · Avg speed
-				{summary.averageSpeedMs.toFixed(2)} m/s
+				{#if rs.phase === 'ended' && showAidaProtocol}
+					Surface protocol: OK sign · remove mask/goggles · say "I am OK" · keep filming card
+				{:else}
+					Avg split {summary.avgSplitSeconds.toFixed(1)}s · Avg speed
+					{summary.averageSpeedMs.toFixed(2)} m/s
+				{/if}
 			</div>
 		{/if}
 	</div>

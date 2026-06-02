@@ -23,9 +23,10 @@ export function routineLogToFormData(log: RoutineLog): LogFormData {
 		isCompetition: log.isCompetition || false,
 		compeitionOrg: log.compeitionOrg ?? undefined,
 		cardTag: log.cardTag ?? undefined,
-			recordTag: log.recordTag ?? undefined,
-			attemptConditions: log.attemptConditions,
-			visibility: log.visibility ?? 'private',
+		recordTag: log.recordTag ?? undefined,
+		aidaCompetition: log.aidaCompetition,
+		attemptConditions: log.attemptConditions,
+		visibility: log.visibility ?? 'private',
 
 		// Session context
 		isDrySession: log.isDrySession,

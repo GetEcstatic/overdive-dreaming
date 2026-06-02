@@ -7,6 +7,11 @@
 
 import type { RoutineLog, RoutineTemplate, ActivityType, LapData } from '$lib/types';
 import { Timestamp } from 'firebase/firestore';
+import {
+  competitionCompatibilityFields,
+  normalizeAidaCompetitionAttempt,
+  scoreAidaPerformance
+} from '$lib/competition/aida';
 
 /**
  * Rehydrate a Firestore Timestamp that was accidentally written as a plain
@@ -256,6 +261,15 @@ export function normalizeRoutineLog(log: RoutineLog): RoutineLog {
   normalized.avgSpeed = normalized.avgSpeed ?? normalized.avgSpeedMs;
   normalized.maxRepSpeed = normalized.maxRepSpeed ?? normalized.fastestLapSpeedMs;
   normalized.minRepSpeed = normalized.minRepSpeed ?? normalized.slowestLapSpeedMs;
+
+  normalized.aidaCompetition = normalizeAidaCompetitionAttempt(normalized);
+  if (normalized.aidaCompetition) {
+    const compatibility = competitionCompatibilityFields(normalized.aidaCompetition);
+    normalized.isCompetition = compatibility.isCompetition;
+    normalized.compeitionOrg = compatibility.compeitionOrg;
+    normalized.cardTag = compatibility.cardTag ?? normalized.cardTag;
+    normalized.recordTag = compatibility.recordTag ?? normalized.recordTag;
+  }
   
   return normalized;
 }
@@ -320,6 +334,15 @@ export function prepareLogForWrite(log: Partial<RoutineLog>): Partial<RoutineLog
     prepared.minRepSpeed = prepared.slowestLapSpeedMs;
   } else if (prepared.minRepSpeed !== undefined && prepared.slowestLapSpeedMs === undefined) {
     prepared.slowestLapSpeedMs = prepared.minRepSpeed;
+  }
+
+  if (prepared.aidaCompetition) {
+    prepared.aidaCompetition = scoreAidaPerformance(prepared.aidaCompetition);
+    const compatibility = competitionCompatibilityFields(prepared.aidaCompetition);
+    prepared.isCompetition = compatibility.isCompetition;
+    prepared.compeitionOrg = compatibility.compeitionOrg;
+    prepared.cardTag = compatibility.cardTag;
+    prepared.recordTag = compatibility.recordTag;
   }
   
   // Calculate speed if we have the data

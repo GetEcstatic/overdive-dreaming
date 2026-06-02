@@ -4,7 +4,7 @@
 	import { user } from '$lib/stores/auth';
 	import { db } from '$lib/firebase';
 	import { collection, query, getDocs, where, orderBy } from 'firebase/firestore';
-	import type { RoutineLog, Discipline, Season } from '$lib/types';
+	import type { RoutineLog, Discipline, Season, CardTag } from '$lib/types';
 	import LineChart from '$lib/components/LineChart.svelte';
 	import ScatterChart from '$lib/components/ScatterChart.svelte';
 	import TimeOfDayAnalysis from '$lib/components/analytics/TimeOfDayAnalysis.svelte';
@@ -58,7 +58,8 @@
 		DYNB: { border: '#fbbf24', fill: 'rgba(251, 191, 36, 0.12)' },
 		STA: { border: '#a78bfa', fill: 'rgba(167, 139, 250, 0.12)' }
 	};
-	let progressCompOnly = $state(false);
+	type ProgressCompetitionFilter = 'all' | 'official' | 'practice';
+	let progressCompetitionFilter = $state<ProgressCompetitionFilter>('all');
 
 	// Reactive computations
 	const selectedSeason = $derived.by(() => {
@@ -123,11 +124,44 @@
 	const progressLogs = $derived.by(() => {
 		// First filter to only max attempt routines
 		let logs = filteredLogs.filter((log) => MAX_ATTEMPT_ROUTINE_IDS.includes(log.routineId));
-		// Then optionally filter to competition-only
-		if (progressCompOnly) {
-			logs = logs.filter((log) => log.isCompetition);
+		// Then optionally filter to official AIDA competitions or protocol practice.
+		if (progressCompetitionFilter === 'official') {
+			logs = logs.filter(isOfficialCompetitionLog);
+		} else if (progressCompetitionFilter === 'practice') {
+			logs = logs.filter(isProtocolPracticeLog);
 		}
 		return logs;
+	});
+
+	const aidaAnalytics = $derived.by(() => {
+		const officialLogs = filteredLogs.filter(isOfficialCompetitionLog);
+		const practiceLogs = filteredLogs.filter(isProtocolPracticeLog);
+		const cardCounts: Record<CardTag, number> = { white: 0, yellow: 0, red: 0 };
+		let totalFinalPoints = 0;
+		let finalPointCount = 0;
+		let bestFinalPoints: number | undefined;
+
+		for (const log of [...officialLogs, ...practiceLogs]) {
+			const card = logCard(log);
+			if (card) cardCounts[card] += 1;
+
+			const finalPoints = log.aidaCompetition?.finalPoints;
+			if (typeof finalPoints === 'number' && Number.isFinite(finalPoints)) {
+				totalFinalPoints += finalPoints;
+				finalPointCount += 1;
+				bestFinalPoints = bestFinalPoints === undefined
+					? finalPoints
+					: Math.max(bestFinalPoints, finalPoints);
+			}
+		}
+
+		return {
+			officialCount: officialLogs.length,
+			practiceCount: practiceLogs.length,
+			cardCounts,
+			avgFinalPoints: finalPointCount > 0 ? totalFinalPoints / finalPointCount : undefined,
+			bestFinalPoints
+		};
 	});
 	const personalBests = $derived.by(() => {
 		const pbs = calculatePersonalBests(allLogs);
@@ -496,6 +530,24 @@
 		return log.date.toDate();
 	}
 
+	function isOfficialCompetitionLog(log: RoutineLog): boolean {
+		if (log.aidaCompetition?.mode === 'official-competition') return true;
+		if (log.aidaCompetition?.mode === 'protocol-practice') return false;
+		return Boolean(log.isCompetition);
+	}
+
+	function isProtocolPracticeLog(log: RoutineLog): boolean {
+		return log.aidaCompetition?.mode === 'protocol-practice';
+	}
+
+	function logCard(log: RoutineLog): CardTag | undefined {
+		return log.aidaCompetition?.card ?? log.cardTag ?? undefined;
+	}
+
+	function formatPoints(value: number | undefined): string {
+		return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(1) : '—';
+	}
+
 	onMount(() => {
 		// Check for query params to pre-select filters
 		const disciplineParam = $page.url.searchParams.get('discipline');
@@ -723,14 +775,38 @@
 					<h2>Competition Summary</h2>
 					<div class="stat-list">
 						<div class="stat-item">
-							<span class="stat-label">Competition Dives</span>
-							<span class="stat-value">{competitionStats.competitionCount}</span>
+							<span class="stat-label">Official Attempts</span>
+							<span class="stat-value">{aidaAnalytics.officialCount}</span>
+						</div>
+						<div class="stat-item">
+							<span class="stat-label">Protocol Practice</span>
+							<span class="stat-value">{aidaAnalytics.practiceCount > 0 ? aidaAnalytics.practiceCount : '—'}</span>
 						</div>
 						<div class="stat-item">
 							<span class="stat-label">Records Tagged</span>
 							<span class="stat-value">
 								{competitionStats.recordCount > 0 ? competitionStats.recordCount : '—'}
 							</span>
+						</div>
+						<div class="stat-item">
+							<span class="stat-label">White Cards</span>
+							<span class="stat-value">{aidaAnalytics.cardCounts.white > 0 ? aidaAnalytics.cardCounts.white : '—'}</span>
+						</div>
+						<div class="stat-item">
+							<span class="stat-label">Yellow Cards</span>
+							<span class="stat-value">{aidaAnalytics.cardCounts.yellow > 0 ? aidaAnalytics.cardCounts.yellow : '—'}</span>
+						</div>
+						<div class="stat-item">
+							<span class="stat-label">Red Cards</span>
+							<span class="stat-value">{aidaAnalytics.cardCounts.red > 0 ? aidaAnalytics.cardCounts.red : '—'}</span>
+						</div>
+						<div class="stat-item">
+							<span class="stat-label">Best Final Points</span>
+							<span class="stat-value">{formatPoints(aidaAnalytics.bestFinalPoints)}</span>
+						</div>
+						<div class="stat-item">
+							<span class="stat-label">Avg Final Points</span>
+							<span class="stat-value">{formatPoints(aidaAnalytics.avgFinalPoints)}</span>
 						</div>
 						{#each disciplines as disc}
 							<div class="stat-item">
@@ -827,11 +903,29 @@
 					<button
 						type="button"
 						class="discipline-toggle"
-						class:active={progressCompOnly}
-						style="--pill-accent: #f97316"
-						onclick={() => (progressCompOnly = !progressCompOnly)}
+						class:active={progressCompetitionFilter === 'all'}
+						style="--pill-accent: #94a3b8"
+						onclick={() => (progressCompetitionFilter = 'all')}
 					>
-						Comp
+						All
+					</button>
+					<button
+						type="button"
+						class="discipline-toggle"
+						class:active={progressCompetitionFilter === 'official'}
+						style="--pill-accent: #f97316"
+						onclick={() => (progressCompetitionFilter = 'official')}
+					>
+						Official
+					</button>
+					<button
+						type="button"
+						class="discipline-toggle"
+						class:active={progressCompetitionFilter === 'practice'}
+						style="--pill-accent: #38bdf8"
+						onclick={() => (progressCompetitionFilter = 'practice')}
+					>
+						Practice
 					</button>
 				</div>
 				<LineChart

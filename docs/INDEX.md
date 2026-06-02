@@ -36,9 +36,13 @@ Things designed but not yet shipped, or shipped partially.
 
 ### UI / code health
 - [Medium-priority improvements](ui-patterns/medium-priority-improvements.md) — partial; remaining: integration, shared styles, form validation
+- [Generated code debt audit](code-health/generated-code-audit.md) — LLM-assisted audit plan for redundant, unused, stale, or low-confidence code
 
 ### Public release
 - [Free public version](public-release/free-public-version.md) — discussion starter for a simpler public UX with curated logging, PBs, and share cards
+
+### Competition
+- [AIDA competition mode](competition/aida-competition-mode.md) — planning for max-attempt competition logging, video/metric-only attempts, cards, penalties, and surface protocol capture
 
 ### Routines
 - [V2 create routine flow](routines/v2-create-routine-flow-plan.md) — plan for making Create Routine start from the layer model and route into the production layer editor

@@ -25,7 +25,8 @@
 		CameraPreference,
 		DiveTimeline,
 		DiveVideoDiscipline,
-		DiveVideoResolution
+		DiveVideoResolution,
+		AidaAttemptMode
 	} from '$lib/types';
 	import { AUTO_REAR_CAMERA } from '$lib/capture/cameraDevices';
 
@@ -42,6 +43,7 @@
 		poolLength: number;
 		waypointsPerLap?: number;
 		discipline?: DiveVideoDiscipline;
+		aidaMode?: 'training' | AidaAttemptMode;
 		autoAdvanceThresholdM?: number;
 		onCapture: (result: MetricsOnlyCaptureResult) => void;
 		onCancel?: () => void;
@@ -51,6 +53,7 @@
 		poolLength,
 		waypointsPerLap = 2,
 		discipline = 'DYN',
+		aidaMode = 'training',
 		autoAdvanceThresholdM = 10,
 		onCapture,
 		onCancel
@@ -87,6 +90,7 @@
 	const waypointTapCount = $derived(waypointCount(rs));
 	const lapNumber = $derived(currentTargetLapNumber(rs));
 	const spacing = $derived(waypointSpacingM(rs.config));
+	const showAidaProtocol = $derived(aidaMode !== 'training');
 
 	function dispatch(event: RecorderEvent): RecorderState {
 		rs = recorderReducer(rs, event);
@@ -474,7 +478,11 @@
 				diveEndMs: rs.timeline.diveStartMs + elapsedMs
 			})}
 			<div class="summary-line">
-				Avg split {summary.avgSplitSeconds.toFixed(1)}s · Avg speed {summary.averageSpeedMs.toFixed(2)} m/s
+				{#if rs.phase === 'ended' && showAidaProtocol}
+					Surface protocol: OK sign · remove mask/goggles · say "I am OK"
+				{:else}
+					Avg split {summary.avgSplitSeconds.toFixed(1)}s · Avg speed {summary.averageSpeedMs.toFixed(2)} m/s
+				{/if}
 			</div>
 		{/if}
 	</footer>

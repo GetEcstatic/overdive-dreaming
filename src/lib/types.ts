@@ -456,8 +456,63 @@ export interface RoutineTemplate {
 export type TimeOfDay = 'morning' | 'afternoon' | 'evening';
 export type RecordTag = 'NR' | 'CR' | 'WR';
 export type CardTag = 'white' | 'yellow' | 'red';
+export type AidaAttemptMode = 'official-competition' | 'protocol-practice';
+export type AidaPenaltyCode =
+	| 'EARLY_START'
+	| 'LATE_START'
+	| 'UNDER_AP'
+	| 'START'
+	| 'TURN'
+	| 'PULL';
+export type AidaDisqualificationCode =
+	| 'DQBO'
+	| 'DQSP'
+	| 'DQAIRWAYS'
+	| 'DQTOUCH'
+	| 'DQ_LATE_START'
+	| 'DQOTHER';
 export type SessionVisibility = 'private' | 'public';
 export type MediaStorageProvider = 'firebase-storage' | 'wasabi';
+
+export interface AidaPenalty {
+	code: AidaPenaltyCode;
+	occurrences?: number;
+	seconds?: number;
+	meters?: number;
+	points?: number;
+	note?: string;
+}
+
+export interface AidaDisqualificationReason {
+	code: AidaDisqualificationCode;
+	details?: string[];
+	note?: string;
+}
+
+export interface SurfaceProtocolResult {
+	elapsedSeconds?: number;
+	completed?: boolean;
+	notes?: string;
+}
+
+export interface AidaCompetitionAttempt {
+	mode: AidaAttemptMode;
+	discipline: Discipline;
+	startOffsetSeconds?: number;
+	announcedPerformanceSeconds?: number;
+	announcedPerformanceMeters?: number;
+	realizedPerformanceSeconds?: number;
+	realizedPerformanceMeters?: number;
+	rawPoints?: number;
+	penaltyPoints?: number;
+	finalPoints?: number;
+	card?: CardTag;
+	penalties?: AidaPenalty[];
+	disqualificationReasons?: AidaDisqualificationReason[];
+	surfaceProtocol?: SurfaceProtocolResult;
+	recordTag?: RecordTag;
+	judgeNotes?: string;
+}
 
 export interface MediaObjectRef {
 	provider: MediaStorageProvider;
@@ -756,6 +811,7 @@ export interface RoutineLog {
 	isPB?: boolean; // True if this dive was a personal best when logged
 	isCompetition?: boolean; // Competition dive tag
 	compeitionOrg?: string | null; // Competition organizer (e.g., AIDA, CMAS)
+	aidaCompetition?: AidaCompetitionAttempt;
 	importBatchId?: string; // Import batch identifier for undo actions
 	cardTag?: CardTag | null; // Card tag (white/yellow/red), only one allowed
 	recordTag?: RecordTag | null; // Record tag (NR/CR/WR), only one allowed

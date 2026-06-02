@@ -6,6 +6,7 @@
 	import { db } from '$lib/firebase';
 	import { getTimeOfDay } from '$lib/utils/sessions';
 	import { recalculatePBsForDisciplines } from '$lib/utils/personalBests';
+	import { buildAidaAttempt } from '$lib/competition/aida';
 	import type {
 		CardTag,
 		Discipline,
@@ -381,6 +382,15 @@ let importCurrent = $state(0);
 				if (row.totalDistance !== undefined) logData.totalDistance = row.totalDistance;
 				if (row.cardTag) logData.cardTag = row.cardTag;
 				if (row.recordTag) logData.recordTag = row.recordTag;
+				logData.aidaCompetition = buildAidaAttempt({
+					mode: 'official-competition',
+					discipline: row.discipline,
+					realizedPerformanceSeconds: row.totalTime,
+					realizedPerformanceMeters: row.totalDistance,
+					card: row.cardTag,
+					recordTag: row.recordTag,
+					judgeNotes: row.notes
+				});
 				if (row.notes) logData.notes = row.notes;
 				if ($user.displayName) logData.authorDisplayName = $user.displayName;
 				if ($user.photoURL) logData.authorPhotoURL = $user.photoURL;

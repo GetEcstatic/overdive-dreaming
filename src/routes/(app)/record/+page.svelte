@@ -7,6 +7,7 @@
 -->
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
 	import { Timestamp } from 'firebase/firestore';
 	import { user } from '$lib/stores/auth';
@@ -30,7 +31,8 @@
 				userId: resolvedUid,
 				date: Timestamp.now()
 			});
-			await goto(`/dive/record/${sessionId}`, { replaceState: true });
+			const params = $page.url.searchParams.toString();
+			await goto(`/dive/record/${sessionId}${params ? `?${params}` : ''}`, { replaceState: true });
 		} catch (err) {
 			errorMessage = err instanceof Error ? err.message : String(err);
 		}

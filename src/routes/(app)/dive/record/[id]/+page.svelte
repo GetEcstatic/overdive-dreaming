@@ -45,6 +45,7 @@
 		type PrecisionMarkingState
 	} from '$lib/capture/precisionWaypointMarker';
 	import { defaultSpeedMs } from '$lib/capture/disciplineSpeeds';
+	import { buildAidaAttempt } from '$lib/competition/aida';
 	import {
 		bitrateForResolution,
 		DEFAULT_VIDEO_QUALITY_PRESET,
@@ -63,7 +64,9 @@
 		DiveVideoCapturePosture,
 		DiveVideoResolution,
 		DiveVideoRotation,
-		Discipline
+		Discipline,
+		AidaAttemptMode,
+		AidaCompetitionAttempt
 	} from '$lib/types';
 
 	const sessionId = $derived($page.params.id ?? '');
@@ -183,6 +186,12 @@
 	let resolution = $state<DiveVideoResolution>('720p');
 	let qualityPreset = $state<DiveVideoQualityPreset>(DEFAULT_VIDEO_QUALITY_PRESET);
 	let captureMode = $state<'video' | 'metrics-only'>('video');
+	type AidaRecorderMode = 'training' | AidaAttemptMode;
+	let aidaMode = $state<AidaRecorderMode>('training');
+	let aidaAnnouncedSeconds = $state<number | undefined>(undefined);
+	let aidaAnnouncedMeters = $state<number | undefined>(undefined);
+	let aidaSurfaceProtocolSeconds = $state<number | undefined>(undefined);
+	let aidaSurfaceProtocolCompleted = $state(false);
 	let cameraPreference = $state<CameraPreference>(AUTO_REAR_CAMERA);
 	let resolutionLoaded = $state(false);
 	/**
@@ -258,6 +267,10 @@
 		return value === 'DYN' || value === 'DYNB' || value === 'DNF';
 	}
 
+	function hasAidaContext(): boolean {
+		return aidaMode !== 'training';
+	}
+
 	function isStaticCapture(result: CaptureResult): result is StaticOnlyCaptureResult {
 		return result.source === 'static-metrics-only';
 	}
@@ -265,6 +278,31 @@
 	function selectDiscipline(value: RecordDiscipline): void {
 		discipline = value;
 		if (value === 'STA') captureMode = 'metrics-only';
+	}
+
+	function selectAidaMode(value: AidaRecorderMode): void {
+		aidaMode = value;
+		if (value === 'training') {
+			aidaSurfaceProtocolSeconds = undefined;
+			aidaSurfaceProtocolCompleted = false;
+		}
+	}
+
+	function applyRecorderQueryParams(): void {
+		const requestedAidaMode = $page.url.searchParams.get('aida');
+		if (requestedAidaMode === 'official-competition' || requestedAidaMode === 'protocol-practice') {
+			selectAidaMode(requestedAidaMode);
+		}
+
+		const requestedCaptureMode = $page.url.searchParams.get('capture');
+		if (requestedCaptureMode === 'metrics-only') {
+			captureMode = 'metrics-only';
+		}
+
+		const requestedDiscipline = $page.url.searchParams.get('discipline');
+		if (requestedDiscipline === 'STA' || requestedDiscipline === 'DYN' || requestedDiscipline === 'DYNB' || requestedDiscipline === 'DNF') {
+			selectDiscipline(requestedDiscipline);
+		}
 	}
 
 	function selectCaptureMode(value: 'video' | 'metrics-only'): void {
@@ -326,6 +364,32 @@
 			durationSeconds,
 			averageSpeedMs: averageSpeedFor(distanceM, durationSeconds)
 		};
+	}
+
+	function buildSeededAidaAttempt(result: CaptureResult): AidaCompetitionAttempt | undefined {
+		if (!discipline || aidaMode === 'training') return undefined;
+		const metrics = finalReviewMetricsFor(result);
+		const isStatic = discipline === 'STA';
+		return buildAidaAttempt({
+			mode: aidaMode,
+			discipline: discipline as Discipline,
+			announcedPerformanceSeconds: isStatic ? aidaAnnouncedSeconds : undefined,
+			announcedPerformanceMeters: isStatic ? undefined : aidaAnnouncedMeters,
+			realizedPerformanceSeconds: isStatic ? metrics.durationSeconds : undefined,
+			realizedPerformanceMeters: isStatic ? undefined : metrics.distanceM,
+			surfaceProtocol: aidaSurfaceProtocolSeconds !== undefined || aidaSurfaceProtocolCompleted
+				? {
+					elapsedSeconds: aidaSurfaceProtocolSeconds,
+					completed: aidaSurfaceProtocolCompleted
+				}
+				: undefined
+		});
+	}
+
+	function aidaModeLabel(): string {
+		if (aidaMode === 'official-competition') return 'Official AIDA';
+		if (aidaMode === 'protocol-practice') return 'Protocol practice';
+		return 'Training';
 	}
 
 	function resetReviewMetricEdits(result: CaptureResult | null = capture): void {
@@ -967,7 +1031,8 @@
 					poolLength: result.poolLength,
 					summary,
 					capturedAt: Date.now(),
-					source: 'metrics-only'
+					source: 'metrics-only',
+					aidaCompetition: buildSeededAidaAttempt(result)
 				})
 			);
 		} catch {
@@ -1013,7 +1078,8 @@
 					discipline: 'STA' satisfies Discipline,
 					summary,
 					capturedAt: Date.now(),
-					source: 'static-metrics-only'
+					source: 'static-metrics-only',
+					aidaCompetition: buildSeededAidaAttempt(result)
 				})
 			);
 		} catch {
@@ -1175,7 +1241,8 @@
 							discipline: selectedDiscipline,
 							poolLength: poolLength ?? 25,
 							summary,
-							capturedAt: Date.now()
+							capturedAt: Date.now(),
+							aidaCompetition: buildSeededAidaAttempt(capture)
 						})
 					);
 				} catch {
@@ -1256,6 +1323,8 @@
 	});
 
 	onMount(() => {
+		applyRecorderQueryParams();
+
 		// Block iOS pinch-zoom for the whole record route.
 		const prevent = (e: Event) => e.preventDefault();
 		document.addEventListener('gesturestart', prevent);
@@ -1376,6 +1445,74 @@
 						</button>
 					</div>
 				</div>
+			</section>
+
+			<section class="card aida-context-card">
+				<div class="field">
+					<span class="field-label">Competition mode</span>
+					<div class="mode-selector three" role="radiogroup" aria-label="Competition mode">
+						<button
+							type="button"
+							class="mode-option compact"
+							class:active={aidaMode === 'training'}
+							role="radio"
+							aria-checked={aidaMode === 'training'}
+							onclick={() => selectAidaMode('training')}
+						>
+							<strong>Training</strong>
+							<span>Standard training log.</span>
+						</button>
+						<button
+							type="button"
+							class="mode-option compact"
+							class:active={aidaMode === 'official-competition'}
+							role="radio"
+							aria-checked={aidaMode === 'official-competition'}
+							onclick={() => selectAidaMode('official-competition')}
+						>
+							<strong>Official AIDA</strong>
+							<span>Requires card in Quick Log.</span>
+						</button>
+						<button
+							type="button"
+							class="mode-option compact"
+							class:active={aidaMode === 'protocol-practice'}
+							role="radio"
+							aria-checked={aidaMode === 'protocol-practice'}
+							onclick={() => selectAidaMode('protocol-practice')}
+						>
+							<strong>AIDA practice</strong>
+							<span>Same protocol, training log.</span>
+						</button>
+					</div>
+				</div>
+				{#if hasAidaContext()}
+					<div class="aida-ap-field">
+						{#if discipline === 'STA'}
+							<DurationInput
+								bind:value={aidaAnnouncedSeconds}
+								label="Announced performance"
+								min={0}
+								max={720}
+								hint="Optional. Under-AP penalties are calculated after the result is saved."
+							/>
+						{:else}
+							<NumberWheelInput
+								bind:value={aidaAnnouncedMeters}
+								variant="chip"
+								label="Announced performance"
+								min={0}
+								max={350}
+								step={1}
+								unit="m"
+								hint="Optional. Under-AP penalties are calculated after the result is saved."
+							/>
+						{/if}
+					</div>
+					<div class="summary aida-reminder">
+						Keep the camera on through surfacing, OK sign, mask/goggle removal, and the final card/verdict whenever possible.
+					</div>
+				{/if}
 			</section>
 
 			{#if discipline === 'STA'}
@@ -1779,6 +1916,7 @@
 {:else if stage === 'record' && discipline}
 	{#if discipline === 'STA'}
 		<StaticOnlyRecorder
+			{aidaMode}
 			onCapture={onCaptured}
 			onCancel={() => (stage = 'setup')}
 		/>
@@ -1787,6 +1925,7 @@
 			poolLength={poolLength ?? 25}
 			waypointsPerLap={waypointsPerLap ?? 2}
 			{discipline}
+			{aidaMode}
 			onCapture={onCaptured}
 			onCancel={() => (stage = 'setup')}
 		/>
@@ -1798,6 +1937,7 @@
 			{qualityPreset}
 			{discipline}
 			{cameraPreference}
+			{aidaMode}
 			onCameraPreferenceResolved={(preference) => (cameraPreference = preference)}
 			onCapture={onCaptured}
 			onCancel={() => (stage = 'setup')}
@@ -1923,6 +2063,33 @@
 						{/if}
 					</div>
 				</section>
+
+				{#if hasAidaContext()}
+					<section class="final-metrics-card aida-review-card" aria-label="AIDA surface protocol">
+						<div class="final-metrics-head">
+							<div>
+								<span class="final-metrics-eyebrow">{aidaModeLabel()}</span>
+								<strong>Surface protocol</strong>
+							</div>
+						</div>
+						<div class="final-metric-inputs">
+							<DurationInput
+								bind:value={aidaSurfaceProtocolSeconds}
+								label="SP elapsed"
+								min={0}
+								max={60}
+								hint="Time from surfacing to completed surface protocol."
+							/>
+						</div>
+						<label class="pin aida-sp-check">
+							<input type="checkbox" bind:checked={aidaSurfaceProtocolCompleted} />
+							Surface protocol completed
+						</label>
+						<div class="final-metrics-summary aida-protocol-copy">
+							<span>Record the card/verdict in Quick Log after saving this capture.</span>
+						</div>
+					</section>
+				{/if}
 
 				{#if isVideoCapture(capture)}
 				<section class="diagnostics-card" aria-label="Capture diagnostics">
@@ -2133,6 +2300,9 @@
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: 0.55rem;
 	}
+	.mode-selector.three {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
 
 	.mode-option {
 		display: flex;
@@ -2165,6 +2335,36 @@
 		color: var(--color-text-muted);
 		font-size: 0.78rem;
 		line-height: 1.3;
+	}
+
+	.mode-option.compact {
+		min-height: 4.5rem;
+		padding: 0.7rem 0.6rem;
+	}
+
+	.aida-context-card,
+	.aida-review-card {
+		border-color: rgba(251, 191, 36, 0.22);
+	}
+
+	.aida-ap-field {
+		display: grid;
+		gap: 0.35rem;
+	}
+
+	.aida-reminder,
+	.aida-protocol-copy {
+		color: #fde68a;
+	}
+
+	.aida-sp-check {
+		margin-top: 0.1rem;
+	}
+
+	@media (max-width: 430px) {
+		.mode-selector.three {
+			grid-template-columns: 1fr;
+		}
 	}
 
 	.summary {

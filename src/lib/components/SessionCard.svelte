@@ -102,6 +102,7 @@
 	const sessionTags = $derived.by(() => {
 		const tags: string[] = [];
 		if (log.isCompetition) tags.push('Comp');
+		if (log.aidaCompetition?.mode === 'protocol-practice') tags.push('AIDA practice');
 		if (log.compeitionOrg) tags.push(log.compeitionOrg.toUpperCase());
 		if (log.cardTag) {
 			const cardLabels: Record<string, string> = {
@@ -112,6 +113,7 @@
 			tags.push(cardLabels[log.cardTag] ?? log.cardTag);
 		}
 		if (log.recordTag) tags.push(log.recordTag);
+		if (log.aidaCompetition?.finalPoints !== undefined) tags.push(`${log.aidaCompetition.finalPoints} pts`);
 		return tags;
 	});
 

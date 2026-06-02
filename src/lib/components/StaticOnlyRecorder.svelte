@@ -2,7 +2,7 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { createEmptyTimeline, finalizeTimeline } from '$lib/capture/timeline';
 	import { requestWakeLock, type WakeLockHandle } from '$lib/capture/wakeLock';
-	import type { DiveTimeline } from '$lib/types';
+	import type { AidaAttemptMode, DiveTimeline } from '$lib/types';
 
 	interface StaticOnlyCaptureResult {
 		source: 'static-metrics-only';
@@ -12,11 +12,12 @@
 	}
 
 	interface Props {
+		aidaMode?: 'training' | AidaAttemptMode;
 		onCapture: (result: StaticOnlyCaptureResult) => void;
 		onCancel?: () => void;
 	}
 
-	let { onCapture, onCancel }: Props = $props();
+	let { aidaMode = 'training', onCapture, onCancel }: Props = $props();
 
 	type Phase = 'ready' | 'holding' | 'ended';
 
@@ -30,6 +31,7 @@
 	let wakeLock: WakeLockHandle | null = null;
 	let primaryRequiresFreshPress = false;
 	const END_HOLD_MS = 500;
+	const showAidaProtocol = $derived(aidaMode !== 'training');
 
 	const elapsedMs = $derived.by(() => {
 		if (phase === 'ready') return 0;
@@ -220,6 +222,13 @@
 				<strong>Static</strong>
 			</div>
 		</section>
+
+		{#if phase === 'ended' && showAidaProtocol}
+			<section class="protocol-panel" aria-label="AIDA surface protocol reminder">
+				<strong>Surface protocol</strong>
+				<span>OK sign · remove mask/goggles · say "I am OK"</span>
+			</section>
+		{/if}
 	</main>
 
 	<footer class="static-controls">
@@ -360,6 +369,28 @@
 		font-size: 1rem;
 		font-weight: 850;
 		color: #e2e8f0;
+	}
+
+	.protocol-panel {
+		display: grid;
+		gap: 0.25rem;
+		padding: 0.85rem 0.95rem;
+		border: 1px solid rgba(251, 191, 36, 0.34);
+		border-radius: 8px;
+		background: rgba(113, 63, 18, 0.34);
+		text-align: center;
+	}
+
+	.protocol-panel strong {
+		color: #fef3c7;
+		font-size: 0.9rem;
+		font-weight: 850;
+	}
+
+	.protocol-panel span {
+		color: #fde68a;
+		font-size: 0.82rem;
+		font-weight: 650;
 	}
 
 	.static-controls {
