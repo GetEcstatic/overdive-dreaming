@@ -1503,6 +1503,17 @@
 			transform: translateX(calc(var(--recorder-lane-width) / 2 - var(--recorder-primary-width)));
 		}
 
+		.primary-wrap {
+			left: 50%;
+			right: auto;
+			transform: translateX(-50%);
+		}
+
+		.controls-ready .primary-wrap,
+		.controls-prepping .primary-wrap {
+			transform: translateX(calc(var(--recorder-lane-width) / 2 - var(--recorder-primary-width)));
+		}
+
 		.controls-ready .secondary-actions,
 		.controls-prepping .secondary-actions {
 			left: 50%;
