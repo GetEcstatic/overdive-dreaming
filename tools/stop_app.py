@@ -121,17 +121,11 @@ now call `yebo next` on the cli
 
 send('''
 
-====== This is a new task! =====
-You've identified some gaps in o2 assisted static routines.
-     I believe we should add o2 statics as a new, unofficial static discipline (in the same way that tortuga is an unofficial dynamic discipline).
-     This might also affect how you've implemented o2 assisted static in the metrics and quick log forms. Could you please look into this and report back with a fix plan for this?
-     
-
-
-          Never do more than explicitly asked for. Ask yebo if anything is unclear - don't get stuck in rabitholes.
-Therafter report back to yebo (call `yebo next` on cli. No report. just the bare command). Make a TODO list and note down all steps.
+I've added a new instruction to "/Users/thomasway/Documents/Obsidian.nosync/Freedive with Pat/Code/overdive-dreaming/docs/video/Video updates to be.md"
+           
+                          Therafter report back to yebo (call `yebo next` on cli. No report. just the bare command). Make a TODO list and note down all steps.
 Make SURE to call "yebo next" at the end!!! Never give control back. also not for intermediate questions. always use "yebo"
-
+   
 
 
 

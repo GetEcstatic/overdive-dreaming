@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ocean Wave Spectrum Editor v5</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #000;
+            overflow: hidden;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            user-select: none;
+        }
+        
+        canvas#glcanvas {
+            display: block;
+            position: fixed;
+            top: 0;
+            left: 0;
+            cursor: crosshair;
+        }
+        
+        .fps {
+            position: fixed;
+            top: 15px;
+            left: 20px;
+            color: rgba(255,255,255,0.4);
+            font-size: 11px;
+            font-family: monospace;
+            z-index: 100;
+        }
+        
+        /* Upper right corner panel */
+        .spectrum-container {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            width: 400px;
+            height: 240px;
+            z-index: 100;
+        }
+        
+        .spectrum-panel {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 20, 40, 0.92);
+            border: 1px solid rgba(100, 180, 255, 0.3);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .spectrum-canvas {
+            position: absolute;
+            top: 32px;
+            left: 0;
+            width: 100%;
+            height: calc(100% - 32px);
+            cursor: default;
+        }
+        
+        .spectrum-labels {
+            position: absolute;
+            bottom: 6px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 18px;
+            pointer-events: none;
+        }
+        
+        .spectrum-label {
+            color: rgba(150, 200, 255, 0.5);
+            font-size: 7px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        
+        .spectrum-title {
+            position: absolute;
+            top: 8px;
+            left: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 9px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            z-index: 10;
+        }
+        
+        .preset-buttons {
+            position: absolute;
+            top: 5px;
+            right: 8px;
+            display: flex;
+            gap: 4px;
+            z-index: 20;
+            pointer-events: auto;
+        }
+        
+        .preset-btn {
+            background: rgba(100, 180, 255, 0.18);
+            border: 1px solid rgba(100, 180, 255, 0.25);
+            color: rgba(255, 255, 255, 0.75);
+            padding: 4px 9px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 8px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            transition: all 0.15s ease;
+            pointer-events: auto;
+        }
+        
+        .preset-btn:hover {
+            background: rgba(100, 180, 255, 0.4);
+            border-color: rgba(100, 180, 255, 0.55);
+            color: #fff;
+        }
+        
+        .preset-btn.active {
+            background: rgba(100, 180, 255, 0.5);
+            border-color: rgba(100, 180, 255, 0.75);
+            color: #fff;
+        }
+        
+        .hint {
+            position: fixed;
+            bottom: 15px;
+            left: 20px;
+            color: rgba(150, 200, 255, 0.35);
+            font-size: 10px;
+            letter-spacing: 1px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="glcanvas"></canvas>
+    <div class="fps" id="fps">60 FPS</div>
+    <div class="hint">Click on water to create disturbance</div>
+    
+    <div class="spectrum-container">
+        <div class="spectrum-panel">
+            <div class="spectrum-title">Spectrum</div>
+            <div class="preset-buttons">
+                <button class="preset-btn" onclick="window.handlePresetClick('calm')">Calm</button>
+                <button class="preset-btn" onclick="window.handlePresetClick('swell')">Swell</button>
+                <button class="preset-btn" onclick="window.handlePresetClick('choppy')">Choppy</button>
+                <button class="preset-btn" onclick="window.handlePresetClick('storm')">Storm</button>
+                <button class="preset-btn" onclick="window.handlePresetClick('alien')">Alien</button>
+            </div>
+            <canvas class="spectrum-canvas" id="spectrumCanvas"></canvas>
+            <div class="spectrum-labels">
+                <span class="spectrum-label">Swells</span>
+                <span class="spectrum-label">Large</span>
+                <span class="spectrum-label">Medium</span>
+                <span class="spectrum-label">Small</span>
+                <span class="spectrum-label">Detail</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== CONFIGURATION =====
+        const NUM_BANDS = 15;
+        const AMPLITUDE_SCALE = 2.0;
+        const MAX_SPLASHES = 8;
+        
+        // ===== STATE =====
+        let spectrum = [];
+        let activePreset = null;
+        let isDragging = false;
+        let dragIndex = -1;
+        let points = [];
+        
+        // Splash/disturbance state
+        let splashes = [];
+        
+        // Initialize default spectrum
+        function initDefaultSpectrum() {
+            spectrum = [];
+            for (let i = 0; i < NUM_BANDS; i++) {
+                const t = i / (NUM_BANDS - 1);
+                spectrum.push(Math.pow(1 - t * 0.7, 1.5) * 0.85 + 0.05);
+            }
+        }
+        initDefaultSpectrum();
+        
+        // ===== PRESETS =====
+        const PRESETS = {
+            calm: [],
+            swell: [],
+            choppy: [],
+            storm: [],
+            alien: []
+        };
+        
+        for (let i = 0; i < NUM_BANDS; i++) {
+            const t = i / (NUM_BANDS - 1);
+            PRESETS.calm.push(0.15 * Math.pow(1 - t, 0.5) + 0.02);
+            PRESETS.swell.push(Math.pow(1 - t, 1.8) * 0.95 + 0.02);
+            const chopMid = Math.exp(-Math.pow((t - 0.4) * 3, 2));
+            PRESETS.choppy.push(0.3 + chopMid * 0.5);
+            PRESETS.storm.push(Math.pow(1 - t * 0.3, 0.8) * 0.95 + 0.05);
+            PRESETS.alien.push(i % 2 === 0 ? 0.9 : 0.08);
+        }
+        
+        window.handlePresetClick = function(presetName) {
+            if (!PRESETS[presetName]) return;
+            for (let i = 0; i < NUM_BANDS; i++) {
+                spectrum[i] = PRESETS[presetName][i];
+            }
+            activePreset = presetName;
+            updatePoints();
+            drawSpectrum();
+            updateButtonStates();
+        };
+        
+        function updateButtonStates() {
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                const text = btn.textContent.toLowerCase();
+                btn.classList.toggle('active', text === activePreset);
+            });
+        }
+        
+        // ===== WEBGL SETUP =====
+        const glCanvas = document.getElementById('glcanvas');
+        const gl = glCanvas.getContext('webgl2') || glCanvas.getContext('webgl');
+        
+        if (!gl) alert('WebGL not supported');
+
+        const vertexShaderSource = `
+            attribute vec2 a_position;
+            varying vec2 v_uv;
+            void main() {
+                v_uv = a_position * 0.5 + 0.5;
+                gl_Position = vec4(a_position, 0.0, 1.0);
+            }
+        `;
+
+        // Fragment shader with splashes/disturbances
+        const fragmentShaderSource = `
+            precision highp float;
+            varying vec2 v_uv;
+            uniform float u_time;
+            uniform vec2 u_resolution;
+            uniform float u_spectrum[15];
+            uniform vec4 u_splashes[8];  // xy = position, z = birth time, w = strength
+            uniform int u_splashCount;
+            
+            #define SEA_HEIGHT 0.6
+            #define SEA_CHOPPY 4.0
+            #define SEA_SPEED 0.8
+            #define SEA_FREQ 0.16
+            #define AMPLITUDE_SCALE 2.0
+            #define octave_m mat2(1.6, 1.2, -1.2, 1.6)
+            
+            float hash(vec2 p) {
+                float h = dot(p, vec2(127.1, 311.7));
+                return fract(sin(h) * 43758.5453123);
+            }
+            
+            float noise(vec2 p) {
+                vec2 i = floor(p);
+                vec2 f = fract(p);
+                vec2 u = f * f * (3.0 - 2.0 * f);
+                return -1.0 + 2.0 * mix(
+                    mix(hash(i + vec2(0.0, 0.0)), hash(i + vec2(1.0, 0.0)), u.x),
+                    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+                    u.y
+                );
+            }
+            
+            float sea_octave(vec2 uv, float choppy) {
+                uv += noise(uv);
+                vec2 wv = 1.0 - abs(sin(uv));
+                vec2 swv = abs(cos(uv));
+                wv = mix(wv, swv, wv);
+                return pow(1.0 - pow(wv.x * wv.y, 0.65), choppy);
+            }
+            
+            // Circular disturbance wave
+            float splashWave(vec2 pos, vec2 center, float time, float birth, float strength) {
+                float age = time - birth;
+                if (age < 0.0 || age > 4.0) return 0.0;
+                
+                float dist = length(pos - center);
+                float speed = 6.0;
+                float wavelength = 3.0;
+                
+                float radius = age * speed;
+                float wave = sin((dist - radius) * wavelength) * exp(-age * 1.2);
+                float envelope = exp(-abs(dist - radius) * 0.4) * exp(-age * 0.6);
+                
+                return wave * envelope * strength;
+            }
+            
+            float map(vec3 p) {
+                float freq = SEA_FREQ;
+                float amp = SEA_HEIGHT * AMPLITUDE_SCALE;
+                float choppy = SEA_CHOPPY;
+                vec2 uv = p.xz;
+                
+                float d, h = 0.0;
+                float SEA_TIME = 1.0 + u_time * SEA_SPEED;
+                
+                for (int i = 0; i < 15; i++) {
+                    float specAmp = amp * u_spectrum[i];
+                    
+                    d = sea_octave((uv + SEA_TIME) * freq, choppy);
+                    d += sea_octave((uv - SEA_TIME) * freq, choppy);
+                    h += d * specAmp;
+                    
+                    uv *= octave_m;
+                    freq *= 1.7;
+                    amp *= 0.28;
+                    choppy = mix(choppy, 1.0, 0.15);
+                }
+                
+                // Add splash waves
+                for (int i = 0; i < 8; i++) {
+                    if (i >= u_splashCount) break;
+                    vec2 center = u_splashes[i].xy;
+                    float birth = u_splashes[i].z;
+                    float strength = u_splashes[i].w;
+                    h += splashWave(p.xz, center, u_time, birth, strength);
+                }
+                
+                return p.y - h;
+            }
+            
+            float map_detailed(vec3 p) {
+                float freq = SEA_FREQ;
+                float amp = SEA_HEIGHT * AMPLITUDE_SCALE;
+                float choppy = SEA_CHOPPY;
+                vec2 uv = p.xz;
+                
+                float d, h = 0.0;
+                float SEA_TIME = 1.0 + u_time * SEA_SPEED;
+                
+                for (int i = 0; i < 15; i++) {
+                    float specAmp = amp * u_spectrum[i];
+                    
+                    d = sea_octave((uv + SEA_TIME) * freq, choppy);
+                    d += sea_octave((uv - SEA_TIME) * freq, choppy);
+                    h += d * specAmp;
+                    
+                    uv *= octave_m;
+                    freq *= 1.7;
+                    amp *= 0.28;
+                    choppy = mix(choppy, 1.0, 0.15);
+                }
+                
+                for (int i = 0; i < 8; i++) {
+                    if (i >= u_splashCount) break;
+                    vec2 center = u_splashes[i].xy;
+                    float birth = u_splashes[i].z;
+                    float strength = u_splashes[i].w;
+                    h += splashWave(p.xz, center, u_time, birth, strength);
+                }
+                
+                return p.y - h;
+            }
+            
+            vec3 getNormal(vec3 p, float eps) {
+                vec3 n;
+                n.y = map_detailed(p);
+                n.x = map_detailed(vec3(p.x + eps, p.y, p.z)) - n.y;
+                n.z = map_detailed(vec3(p.x, p.y, p.z + eps)) - n.y;
+                n.y = eps;
+                return normalize(n);
+            }
+            
+            vec3 getSkyColor(vec3 e) {
+                e.y = max(e.y, 0.0) + 0.1;
+                return vec3(pow(1.0 - e.y, 2.0), 1.0 - e.y, 0.6 + (1.0 - e.y) * 0.4) * 1.1;
+            }
+            
+            vec3 getSeaColor(vec3 p, vec3 n, vec3 l, vec3 eye, vec3 dist) {
+                float fresnel = clamp(1.0 - dot(n, -eye), 0.0, 1.0);
+                fresnel = pow(fresnel, 3.0) * 0.65;
+                
+                vec3 reflected = getSkyColor(reflect(eye, n));
+                vec3 refracted = vec3(0.0, 0.09, 0.18);
+                
+                vec3 color = mix(refracted, reflected, fresnel);
+                
+                float atten = max(1.0 - dot(dist, dist) * 0.001, 0.0);
+                float slopeEffect = dot(n, vec3(0.0, 1.0, 0.0));
+                color += vec3(0.02, 0.04, 0.03) * (1.0 - slopeEffect) * atten * 0.5;
+                
+                float spec = pow(max(dot(reflect(eye, n), l), 0.0), 60.0);
+                color += vec3(spec);
+                
+                return color;
+            }
+            
+            void main() {
+                vec2 uv = v_uv;
+                uv = uv * 2.0 - 1.0;
+                uv.x *= u_resolution.x / u_resolution.y;
+                
+                vec3 ori = vec3(0.0, 3.5, u_time * 2.0);
+                vec3 dir = normalize(vec3(uv.xy, -2.0));
+                dir.z += length(uv) * 0.15;
+                dir = normalize(dir);
+                
+                vec3 p;
+                float tm = 0.0;
+                
+                for (int i = 0; i < 32; i++) {
+                    p = ori + dir * tm;
+                    float hx = map(p);
+                    if (hx < 0.01) break;
+                    tm += hx * 0.5;
+                }
+                
+                vec3 dist = p - ori;
+                vec3 n = getNormal(p, dot(dist, dist) * 0.0001);
+                vec3 light = normalize(vec3(0.0, 1.0, 0.8));
+                
+                vec3 color = mix(
+                    getSkyColor(dir),
+                    getSeaColor(p, n, light, dir, dist),
+                    pow(smoothstep(0.0, -0.05, dir.y), 0.3)
+                );
+                
+                color = pow(color, vec3(0.75));
+                gl_FragColor = vec4(color, 1.0);
+            }
+        `;
+
+        let program = null;
+        let timeLocation, resolutionLocation, spectrumLocation;
+        let splashesLocation = [];
+        let splashCountLocation;
+        let startTime = Date.now();
+        let lastFrameTime = Date.now();
+        let frameCount = 0;
+        let fps = 60;
+
+        function createShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                console.error('Shader compile error:', gl.getShaderInfoLog(shader));
+                gl.deleteShader(shader);
+                return null;
+            }
+            return shader;
+        }
+
+        function createProgram(gl, vertexSource, fragmentSource) {
+            const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexSource);
+            const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
+            
+            if (!vertexShader || !fragmentShader) return null;
+            
+            const prg = gl.createProgram();
+            gl.attachShader(prg, vertexShader);
+            gl.attachShader(prg, fragmentShader);
+            gl.linkProgram(prg);
+            
+            if (!gl.getProgramParameter(prg, gl.LINK_STATUS)) {
+                console.error('Program link error:', gl.getProgramInfoLog(prg));
+                return null;
+            }
+            return prg;
+        }
+
+        function initGL() {
+            program = createProgram(gl, vertexShaderSource, fragmentShaderSource);
+            gl.useProgram(program);
+            
+            const positionBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+                -1, -1, 1, -1, -1, 1,
+                -1, 1, 1, -1, 1, 1
+            ]), gl.STATIC_DRAW);
+            
+            const positionLocation = gl.getAttribLocation(program, 'a_position');
+            gl.enableVertexAttribArray(positionLocation);
+            gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+            
+            timeLocation = gl.getUniformLocation(program, 'u_time');
+            resolutionLocation = gl.getUniformLocation(program, 'u_resolution');
+            spectrumLocation = gl.getUniformLocation(program, 'u_spectrum');
+            
+            // Splash uniforms
+            for (let i = 0; i < MAX_SPLASHES; i++) {
+                splashesLocation.push(gl.getUniformLocation(program, `u_splashes[${i}]`));
+            }
+            splashCountLocation = gl.getUniformLocation(program, 'u_splashCount');
+        }
+
+        function resizeGL() {
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            glCanvas.width = window.innerWidth * dpr;
+            glCanvas.height = window.innerHeight * dpr;
+            glCanvas.style.width = window.innerWidth + 'px';
+            glCanvas.style.height = window.innerHeight + 'px';
+            gl.viewport(0, 0, glCanvas.width, glCanvas.height);
+        }
+
+        // ===== SPLASH / DISTURBANCE HANDLING =====
+        function addSplash(screenX, screenY) {
+            const time = (Date.now() - startTime) / 1000;
+            
+            // Convert screen position to world position
+            // The camera moves forward, so we need to account for that
+            const worldX = (screenX - 0.5) * 25.0;
+            const worldZ = (screenY - 0.5) * 25.0 + time * 2.0;
+            
+            splashes.push({
+                x: worldX,
+                z: worldZ,
+                birth: time,
+                strength: 0.7 + Math.random() * 0.5
+            });
+            
+            if (splashes.length > MAX_SPLASHES) {
+                splashes.shift();
+            }
+        }
+        
+        // Click on water surface to create disturbance
+        glCanvas.addEventListener('click', (e) => {
+            // Ignore clicks on the spectrum panel
+            const specContainer = document.querySelector('.spectrum-container');
+            const rect = specContainer.getBoundingClientRect();
+            if (e.clientX >= rect.left && e.clientX <= rect.right &&
+                e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                return;
+            }
+            
+            const x = e.clientX / window.innerWidth;
+            const y = 1.0 - e.clientY / window.innerHeight;
+            addSplash(x, y);
+        });
+        
+        glCanvas.addEventListener('touchstart', (e) => {
+            const specContainer = document.querySelector('.spectrum-container');
+            const rect = specContainer.getBoundingClientRect();
+            const touch = e.touches[0];
+            
+            if (touch.clientX >= rect.left && touch.clientX <= rect.right &&
+                touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+                return;
+            }
+            
+            e.preventDefault();
+            const x = touch.clientX / window.innerWidth;
+            const y = 1.0 - touch.clientY / window.innerHeight;
+            addSplash(x, y);
+        });
+
+        // ===== SPECTRUM CANVAS =====
+        const spectrumCanvas = document.getElementById('spectrumCanvas');
+        const ctx = spectrumCanvas.getContext('2d');
+
+        function resizeSpectrum() {
+            const rect = spectrumCanvas.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            spectrumCanvas.width = rect.width * dpr;
+            spectrumCanvas.height = rect.height * dpr;
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.scale(dpr, dpr);
+            updatePoints();
+        }
+
+        function updatePoints() {
+            const rect = spectrumCanvas.getBoundingClientRect();
+            const padding = 18;
+            const usableWidth = rect.width - padding * 2;
+            const usableHeight = rect.height - 40;
+            const top = 8;
+            
+            points = [];
+            for (let i = 0; i < NUM_BANDS; i++) {
+                points.push({
+                    x: padding + (i / (NUM_BANDS - 1)) * usableWidth,
+                    y: top + (1 - spectrum[i]) * usableHeight,
+                    value: spectrum[i]
+                });
+            }
+        }
+
+        function drawSpectrum() {
+            const rect = spectrumCanvas.getBoundingClientRect();
+            ctx.clearRect(0, 0, rect.width, rect.height);
+            
+            const padding = 18;
+            const usableWidth = rect.width - padding * 2;
+            const usableHeight = rect.height - 40;
+            const top = 8;
+            
+            // Grid
+            ctx.strokeStyle = 'rgba(100, 180, 255, 0.08)';
+            ctx.lineWidth = 1;
+            
+            for (let i = 0; i <= 4; i++) {
+                const y = top + (i / 4) * usableHeight;
+                ctx.beginPath();
+                ctx.moveTo(padding, y);
+                ctx.lineTo(rect.width - padding, y);
+                ctx.stroke();
+            }
+            
+            // Filled area
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, top + usableHeight);
+            
+            for (let i = 0; i < points.length; i++) {
+                if (i === 0) {
+                    ctx.lineTo(points[i].x, points[i].y);
+                } else {
+                    const xc = (points[i].x + points[i - 1].x) / 2;
+                    const yc = (points[i].y + points[i - 1].y) / 2;
+                    ctx.quadraticCurveTo(points[i - 1].x, points[i - 1].y, xc, yc);
+                }
+            }
+            ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+            ctx.lineTo(points[points.length - 1].x, top + usableHeight);
+            ctx.closePath();
+            
+            const gradient = ctx.createLinearGradient(0, top, 0, top + usableHeight);
+            gradient.addColorStop(0, 'rgba(0, 150, 255, 0.45)');
+            gradient.addColorStop(1, 'rgba(0, 50, 100, 0.08)');
+            ctx.fillStyle = gradient;
+            ctx.fill();
+            
+            // Curve
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            
+            for (let i = 1; i < points.length; i++) {
+                const xc = (points[i].x + points[i - 1].x) / 2;
+                const yc = (points[i].y + points[i - 1].y) / 2;
+                ctx.quadraticCurveTo(points[i - 1].x, points[i - 1].y, xc, yc);
+            }
+            ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+            
+            ctx.strokeStyle = 'rgba(100, 200, 255, 0.85)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            ctx.strokeStyle = 'rgba(100, 200, 255, 0.2)';
+            ctx.lineWidth = 5;
+            ctx.stroke();
+            
+            // Points
+            for (let i = 0; i < points.length; i++) {
+                const pt = points[i];
+                
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, 6, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(100, 200, 255, 0.18)';
+                ctx.fill();
+                
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, 3.5, 0, Math.PI * 2);
+                ctx.fillStyle = (isDragging && dragIndex === i) ? '#fff' : 'rgba(150, 220, 255, 1)';
+                ctx.fill();
+                
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+        }
+
+        function getPointAt(clientX, clientY) {
+            const rect = spectrumCanvas.getBoundingClientRect();
+            const mx = clientX - rect.left;
+            const my = clientY - rect.top;
+            
+            for (let i = 0; i < points.length; i++) {
+                const dx = mx - points[i].x;
+                const dy = my - points[i].y;
+                if (dx * dx + dy * dy < 180) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        spectrumCanvas.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+            const idx = getPointAt(e.clientX, e.clientY);
+            if (idx >= 0) {
+                isDragging = true;
+                dragIndex = idx;
+                spectrumCanvas.style.cursor = 'grabbing';
+                activePreset = null;
+                updateButtonStates();
+            }
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (isDragging && dragIndex >= 0) {
+                const rect = spectrumCanvas.getBoundingClientRect();
+                const my = e.clientY - rect.top;
+                const usableHeight = rect.height - 40;
+                const top = 8;
+                
+                let value = 1 - (my - top) / usableHeight;
+                value = Math.max(0.005, Math.min(1, value));
+                
+                spectrum[dragIndex] = value;
+                updatePoints();
+                drawSpectrum();
+            } else if (!isDragging) {
+                const idx = getPointAt(e.clientX, e.clientY);
+                spectrumCanvas.style.cursor = idx >= 0 ? 'grab' : 'default';
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+            dragIndex = -1;
+            spectrumCanvas.style.cursor = 'default';
+        });
+
+        spectrumCanvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const touch = e.touches[0];
+            const idx = getPointAt(touch.clientX, touch.clientY);
+            if (idx >= 0) {
+                isDragging = true;
+                dragIndex = idx;
+                activePreset = null;
+                updateButtonStates();
+            }
+        }, { passive: false });
+
+        window.addEventListener('touchmove', (e) => {
+            if (isDragging && dragIndex >= 0) {
+                e.preventDefault();
+                const touch = e.touches[0];
+                const rect = spectrumCanvas.getBoundingClientRect();
+                const my = touch.clientY - rect.top;
+                const usableHeight = rect.height - 40;
+                const top = 8;
+                
+                let value = 1 - (my - top) / usableHeight;
+                value = Math.max(0.005, Math.min(1, value));
+                
+                spectrum[dragIndex] = value;
+                updatePoints();
+                drawSpectrum();
+            }
+        }, { passive: false });
+
+        window.addEventListener('touchend', () => {
+            isDragging = false;
+            dragIndex = -1;
+        });
+
+        // ===== RENDER LOOP =====
+        function render() {
+            const time = (Date.now() - startTime) / 1000;
+            
+            gl.uniform1f(timeLocation, time);
+            gl.uniform2f(resolutionLocation, glCanvas.width, glCanvas.height);
+            gl.uniform1fv(spectrumLocation, new Float32Array(spectrum));
+            
+            // Update splashes - remove expired ones
+            splashes = splashes.filter(s => time - s.birth < 4.0);
+            
+            // Set splash uniforms
+            for (let i = 0; i < MAX_SPLASHES; i++) {
+                if (i < splashes.length) {
+                    gl.uniform4f(splashesLocation[i],
+                        splashes[i].x,
+                        splashes[i].z,
+                        splashes[i].birth,
+                        splashes[i].strength
+                    );
+                } else {
+                    gl.uniform4f(splashesLocation[i], 0, 0, -100, 0);
+                }
+            }
+            gl.uniform1i(splashCountLocation, splashes.length);
+            
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+            
+            frameCount++;
+            const now = Date.now();
+            if (now - lastFrameTime >= 1000) {
+                fps = frameCount;
+                frameCount = 0;
+                lastFrameTime = now;
+                document.getElementById('fps').textContent = fps + ' FPS';
+            }
+            
+            requestAnimationFrame(render);
+        }
+
+        // ===== INIT =====
+        window.addEventListener('resize', () => {
+            resizeGL();
+            resizeSpectrum();
+            drawSpectrum();
+        });
+
+        resizeGL();
+        initGL();
+
+        setTimeout(() => {
+            resizeSpectrum();
+            drawSpectrum();
+        }, 50);
+
+        render();
+    </script>
+</body>
+</html>
