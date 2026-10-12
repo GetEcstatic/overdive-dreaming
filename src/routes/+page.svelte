@@ -183,7 +183,7 @@
 					<p class="service-description">Live competition results and event information</p>
 					<span class="service-status service-status--live">Live</span>
 				</a>
-				<a href="https://sgopen2026.overdive.app" class="service-card service-card--active" class:focused={focusedCardIndex === 2} target="_blank" rel="noopener">
+				<div class="service-card service-card--active" class:focused={focusedCardIndex === 2}>
 					<svg class="service-icon" viewBox="0 0 24 24" fill="none" stroke="url(#gradient3)" stroke-width="2">
 						<defs>
 							<linearGradient id="gradient3" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -195,9 +195,12 @@
 						<path d="M8.21 13.89 7 23l5-3 5 3-1.21-9.12"/>
 					</svg>
 					<h3 class="service-title">SG Pool Freediving Open 2026</h3>
-					<p class="service-description">Results and event information from the AIDA Singapore Pool Freediving Open</p>
-					<span class="service-status service-status--live">Results</span>
-				</a>
+					<p class="service-description">AIDA Singapore Pool Freediving Open</p>
+					<div class="service-links">
+						<a href="https://sgopen2026.overdive.app" class="service-link" target="_blank" rel="noopener">Event orientation for athletes</a>
+						<a href="https://noxyapp.com/#/competitions/12/" class="service-link" target="_blank" rel="noopener">Results and live metrics</a>
+					</div>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -375,6 +378,31 @@
 		border-radius: 12px;
 	}
 
+	.service-links {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+	.service-link {
+		display: block;
+		padding: 0.5rem 0.75rem;
+		border: 1px solid rgba(20, 184, 166, 0.4);
+		border-radius: 8px;
+		background: rgba(20, 184, 166, 0.1);
+		color: var(--color-primary);
+		font-size: 0.875rem;
+		font-weight: 600;
+		text-decoration: none;
+		transition: background 0.2s ease, border-color 0.2s ease;
+	}
+	.service-link:hover,
+	.service-link:focus-visible {
+		background: rgba(20, 184, 166, 0.2);
+		border-color: #00FFFF;
+	}
+	.service-link::after {
+		content: ' →';
+	}
 	.service-status--live {
 		background: rgba(20, 184, 166, 0.2);
 		color: var(--color-primary);
