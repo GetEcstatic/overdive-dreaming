@@ -197,7 +197,7 @@ Goal: introduce a clear capability boundary without disrupting the current priva
 
 Goal: make the app feel immediately understandable after sign-in.
 
-- Reduce public bottom navigation to Feed, Log, Progress, Profile.
+- Reduce public bottom navigation to Feed, Log, Record, Progress, Profile (Record was added for all users in Oct 2026).
 - Move routine selection into Log as presets, not a top-level concept.
 - Keep the current advanced navigation for advanced users.
 - Remove public references to layer editors, read models, metric profiles, routine contracts, group routines, and beta-only tooling.

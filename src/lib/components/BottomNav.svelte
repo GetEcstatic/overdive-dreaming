@@ -79,16 +79,16 @@
 			<Plus size={28} strokeWidth={2} />
 		</a>
 
-		{#if canUseAdvancedMode}
-			<!-- Record dive -->
-			<a
-				href="/record"
-				class="nav-item"
-				class:active={$page.url.pathname.startsWith('/record') || $page.url.pathname.startsWith('/dive/record')}
-			>
-				<Video size={24} strokeWidth={2} />
-			</a>
+		<!-- Record dive -->
+		<a
+			href="/record"
+			class="nav-item"
+			class:active={$page.url.pathname.startsWith('/record') || $page.url.pathname.startsWith('/dive/record')}
+		>
+			<Video size={24} strokeWidth={2} />
+		</a>
 
+		{#if canUseAdvancedMode}
 			<!-- Routines -->
 			<a
 				href="/routines"
