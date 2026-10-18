@@ -19,17 +19,26 @@ import {
 } from './wasabiClient.js';
 import type { DiveVideoProcessingJob } from './mediaProcessingJobs.js';
 import type { DiveTimeline } from './lib/timelineToRoutineLog.js';
+import { SERVER_OVERLAY_STYLE_VERSION } from '../../src/lib/media/overlayStyle';
+import { OVERLAY_EXPORT_SHORT_EDGE_PX, scaleToShortEdge } from '../../src/lib/media/exportDimensions';
+import { collapseFrameRuns, concatListForRuns } from '../../src/lib/media/frameRuns';
+import { HUD_DEFAULT_FONT_FAMILY, HUD_FONT_FILES } from './hudFonts.js';
 
 const require = createRequire(import.meta.url);
 const ffmpegPath = require('ffmpeg-static') as string | null;
 const ffprobeStatic = require('ffprobe-static') as { path?: string };
 const execFileAsync = promisify(execFile);
-const OVERLAY_STYLE_VERSION = 'overdive-overlay-v14';
+const OVERLAY_STYLE_VERSION = SERVER_OVERLAY_STYLE_VERSION;
 const OVERLAY_REQUEST_LOCK_STALE_MS = 10 * 60 * 1000;
-const OVERLAY_EXPORT_HEIGHT_PX = 1080;
 const OVERLAY_EXPORT_CRF = '20';
 const OVERLAY_EXPORT_PRESET = 'veryfast';
-const OVERLAY_RENDER_TIMEOUT_MS = 4 * 60 * 1000;
+// Time an overlay export may spend (download, HUD frames, FFmpeg) inside the
+// 540 s processMediaJob timeout, leaving about 60 s to upload and record the
+// artifact. FFmpeg gets whatever is left, so it fails cleanly instead of the
+// function being killed mid-encode.
+const OVERLAY_EXPORT_BUDGET_MS = 480 * 1000;
+const OVERLAY_MIN_ENCODE_TIMEOUT_MS = 30 * 1000;
+const OVERLAY_TICK_MS = 100;
 const MEDIA_JOB_PROCESSING_STALE_MS = 10 * 60 * 1000;
 
 const HUD_REFERENCE_SHORT_EDGE_PX = 390;
@@ -255,11 +264,6 @@ function formatHudTime(ms: number): string {
 	return `${minutes}:${secs}.${tenths}`;
 }
 
-function even(value: number): number {
-	const rounded = Math.max(2, Math.round(value));
-	return rounded % 2 === 0 ? rounded : rounded - 1;
-}
-
 function displayRotationDeg(video: DiveVideoDoc): 0 | 90 | 180 | 270 {
 	if (video.displayOrientation === 'portrait-left') return video.displayRotationDeg ?? 90;
 	if (video.displayOrientation === 'portrait-right') return video.displayRotationDeg ?? 270;
@@ -297,22 +301,11 @@ function displayDimensions(video: DiveVideoDoc): { width: number; height: number
 	return dimensions;
 }
 
-function scaledDimensions(dimensions: { width: number; height: number }, targetHeight = 720): {
-	width: number;
-	height: number;
-} {
-	const ratio = targetHeight / dimensions.height;
-	return {
-		width: even(dimensions.width * ratio),
-		height: even(dimensions.height * ratio)
-	};
-}
-
 function overlayExportProfile(): {
-	targetHeight: 1080;
+	shortEdgePx: number;
 	profile: 'overlay-mp4-1080p';
 } {
-	return { targetHeight: OVERLAY_EXPORT_HEIGHT_PX, profile: 'overlay-mp4-1080p' };
+	return { shortEdgePx: OVERLAY_EXPORT_SHORT_EDGE_PX, profile: 'overlay-mp4-1080p' };
 }
 
 function diveElapsedAt(timeline: DiveTimeline, atMs: number): number {
@@ -566,25 +559,25 @@ function overlaySvg(args: {
 <linearGradient id="speedPlotLine" x1="${plotX}" y1="0" x2="${plotX + plotW}" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#2dd4bf"/><stop offset="1" stop-color="#5eead4"/></linearGradient>
 </defs>
 <rect x="${boxX}" y="${boxY}" width="${boxW}" height="${boxH}" rx="${radius}" fill="rgba(15, 23, 42, 0.55)"/>
-<text x="${innerX}" y="${innerY}" dominant-baseline="text-before-edge" font-family="DejaVu Sans, Arial, sans-serif" font-size="${labelSize}" font-weight="400" letter-spacing="${labelSpacing}" fill="#cbd5e1">TIME</text>
-<text x="${rightX}" y="${innerY}" text-anchor="end" dominant-baseline="text-before-edge" font-family="DejaVu Sans, Arial, sans-serif" font-size="${labelSize}" font-weight="400" letter-spacing="${labelSpacing}" fill="#cbd5e1">DISTANCE</text>
-<text x="${innerX}" y="${valueY}" dominant-baseline="text-before-edge" font-family="DejaVu Sans Mono, ui-monospace, monospace" font-size="${valueSize}" font-weight="400" fill="#f1f5f9">${escapeXmlText(formatHudTime(diveElapsedAt(args.timeline, atMs)))}</text>
-<text x="${rightX}" y="${valueY}" text-anchor="end" dominant-baseline="text-before-edge" font-family="DejaVu Sans Mono, ui-monospace, monospace" font-size="${valueSize}" font-weight="400" fill="#f1f5f9">${escapeXmlText(`${distance.toFixed(1)} m`)}</text>
-<text x="${innerX}" y="${subY}" dominant-baseline="text-before-edge" font-family="DejaVu Sans, Arial, sans-serif" font-size="${subSize}" font-weight="400" fill="#cbd5e1">${escapeXmlText(`Lap ${laps}/${args.timeline.laps.length}`)}</text>
-<text x="${rightX}" y="${subY}" text-anchor="end" dominant-baseline="text-before-edge" font-family="DejaVu Sans Mono, ui-monospace, monospace" font-size="${subSize}" font-weight="400" fill="#cbd5e1">${escapeXmlText(`${speed.toFixed(2)} m/s`)}</text>
+<text x="${innerX}" y="${innerY}" dominant-baseline="text-before-edge" font-family="Barlow" font-size="${labelSize}" font-weight="400" letter-spacing="${labelSpacing}" fill="#cbd5e1">TIME</text>
+<text x="${rightX}" y="${innerY}" text-anchor="end" dominant-baseline="text-before-edge" font-family="Barlow" font-size="${labelSize}" font-weight="400" letter-spacing="${labelSpacing}" fill="#cbd5e1">DISTANCE</text>
+<text x="${innerX}" y="${valueY}" dominant-baseline="text-before-edge" font-family="Barlow Condensed" font-size="${valueSize}" font-weight="400" fill="#f1f5f9">${escapeXmlText(formatHudTime(diveElapsedAt(args.timeline, atMs)))}</text>
+<text x="${rightX}" y="${valueY}" text-anchor="end" dominant-baseline="text-before-edge" font-family="Barlow Condensed" font-size="${valueSize}" font-weight="400" fill="#f1f5f9">${escapeXmlText(`${distance.toFixed(1)} m`)}</text>
+<text x="${innerX}" y="${subY}" dominant-baseline="text-before-edge" font-family="Barlow" font-size="${subSize}" font-weight="400" fill="#cbd5e1">${escapeXmlText(`Lap ${laps}/${args.timeline.laps.length}`)}</text>
+<text x="${rightX}" y="${subY}" text-anchor="end" dominant-baseline="text-before-edge" font-family="Barlow Condensed" font-size="${subSize}" font-weight="400" fill="#cbd5e1">${escapeXmlText(`${speed.toFixed(2)} m/s`)}</text>
 <rect x="${bandX}" y="${bandY}" width="${bandW}" height="${bandHeight}" rx="${plotRadius}" fill="url(#speedPlotBg)"/>
 ${xTicks.map((tick) => {
 		const x = Math.round(toX(tick));
-		return `<line x1="${x}" y1="${plotY}" x2="${x}" y2="${plotY + plotH}" stroke="rgba(255,255,255,0.1)" stroke-width="${gridWidth}"/><text x="${x}" y="${Math.round(plotY + plotH + axisSize * 1.35)}" text-anchor="middle" dominant-baseline="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="${axisSize}" font-weight="600" fill="rgba(203,213,225,0.82)">${tick}m</text>`;
+		return `<line x1="${x}" y1="${plotY}" x2="${x}" y2="${plotY + plotH}" stroke="rgba(255,255,255,0.1)" stroke-width="${gridWidth}"/><text x="${x}" y="${Math.round(plotY + plotH + axisSize * 1.35)}" text-anchor="middle" dominant-baseline="middle" font-family="Barlow" font-size="${axisSize}" font-weight="600" fill="rgba(203,213,225,0.82)">${tick}m</text>`;
 	}).join('')}
 ${yTicks.map((tick) => {
 		const y = Math.round(toY(tick));
-		return `<line x1="${plotX}" y1="${y}" x2="${plotX + plotW}" y2="${y}" stroke="rgba(255,255,255,0.1)" stroke-width="${gridWidth}"/><text x="${Math.round(plotX - axisSize * 0.55)}" y="${Math.round(y + axisSize * 0.15)}" text-anchor="end" dominant-baseline="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="${axisSize}" font-weight="600" fill="rgba(203,213,225,0.82)">${tick % 1 === 0 ? tick.toFixed(0) : tick.toFixed(1)}</text>`;
+		return `<line x1="${plotX}" y1="${y}" x2="${plotX + plotW}" y2="${y}" stroke="rgba(255,255,255,0.1)" stroke-width="${gridWidth}"/><text x="${Math.round(plotX - axisSize * 0.55)}" y="${Math.round(y + axisSize * 0.15)}" text-anchor="end" dominant-baseline="middle" font-family="Barlow" font-size="${axisSize}" font-weight="600" fill="rgba(203,213,225,0.82)">${tick % 1 === 0 ? tick.toFixed(0) : tick.toFixed(1)}</text>`;
 	}).join('')}
-<text x="${Math.round(bandX + axisSize * 2)}" y="${Math.round(plotY + plotH / 2)}" text-anchor="middle" dominant-baseline="middle" transform="rotate(-90 ${Math.round(bandX + axisSize * 2)} ${Math.round(plotY + plotH / 2)})" font-family="DejaVu Sans, Arial, sans-serif" font-size="${axisSize}" font-weight="600" fill="rgba(203,213,225,0.82)">speed [m/s]</text>
+<text x="${Math.round(bandX + axisSize * 2)}" y="${Math.round(plotY + plotH / 2)}" text-anchor="middle" dominant-baseline="middle" transform="rotate(-90 ${Math.round(bandX + axisSize * 2)} ${Math.round(plotY + plotH / 2)})" font-family="Barlow" font-size="${axisSize}" font-weight="600" fill="rgba(203,213,225,0.82)">speed [m/s]</text>
 ${speedPoints ? `<polyline points="${speedPoints}" fill="none" stroke="url(#speedPlotLine)" stroke-width="${lineWidth}" stroke-linecap="round" stroke-linejoin="round"/>` : ''}
 ${currentPoint ? `<circle cx="${currentPoint.x.toFixed(1)}" cy="${currentPoint.y.toFixed(1)}" r="${Math.max(3, Math.round(5.5 * plotScale))}" fill="#f8fafc"/>` : ''}
-<text x="${watermarkMargin}" y="${args.height - watermarkMargin}" dominant-baseline="auto" font-family="DejaVu Sans, Arial, sans-serif" font-size="${watermarkSize}" font-weight="400" fill="rgba(241,245,249,0.6)">${escapeXmlText('Overdive.app')}</text>
+<text x="${watermarkMargin}" y="${args.height - watermarkMargin}" dominant-baseline="auto" font-family="Barlow" font-size="${watermarkSize}" font-weight="400" fill="rgba(241,245,249,0.6)">${escapeXmlText('Overdive.app')}</text>
 </svg>`;
 }
 
@@ -594,24 +587,31 @@ async function writeSvgOverlayFrameSequence(args: {
 	durationSeconds: number;
 	width: number;
 	height: number;
-}): Promise<{ framesDir: string; framePattern: string }> {
+}): Promise<{ framesDir: string; concatListPath: string; renderedFrames: number; tickFrames: number }> {
 	const framesDir = join(tmpdir(), `overdive-overlay-frames-${randomUUID()}`);
 	await mkdir(framesDir, { recursive: true });
 	const durationSeconds = Math.max(args.durationSeconds, args.timeline.diveEndMs / 1000, 1);
 	const frameCount = Math.max(2, Math.ceil(durationSeconds * 10) + 1);
-	for (let frame = 0; frame < frameCount; frame += 1) {
-		const atMs = Math.min(durationSeconds * 1000, frame * 100);
-		const svg = overlaySvg({ ...args, durationSeconds, atMs });
-		const png = new Resvg(svg, {
+	const svgs = Array.from({ length: frameCount }, (_, frame) =>
+		overlaySvg({ ...args, durationSeconds, atMs: Math.min(durationSeconds * 1000, frame * OVERLAY_TICK_MS) })
+	);
+	// Identical consecutive frames (before GO, after the finish) are rendered once.
+	const runs = collapseFrameRuns(svgs);
+	const fileName = (index: number) => join(framesDir, `frame-${index.toString().padStart(6, '0')}.png`);
+	for (const run of runs) {
+		const png = new Resvg(svgs[run.startIndex], {
 			fitTo: { mode: 'original' },
 			font: {
-				loadSystemFonts: true,
-				defaultFontFamily: 'DejaVu Sans'
+				loadSystemFonts: false,
+				fontFiles: HUD_FONT_FILES,
+				defaultFontFamily: HUD_DEFAULT_FONT_FAMILY
 			}
 		}).render().asPng();
-		await writeFile(join(framesDir, `frame-${frame.toString().padStart(6, '0')}.png`), png);
+		await writeFile(fileName(run.startIndex), png);
 	}
-	return { framesDir, framePattern: join(framesDir, 'frame-%06d.png') };
+	const concatListPath = join(framesDir, 'frames.txt');
+	await writeFile(concatListPath, concatListForRuns(runs, OVERLAY_TICK_MS, fileName));
+	return { framesDir, concatListPath, renderedFrames: runs.length, tickFrames: frameCount };
 }
 
 function withFirstSpeedSegmentAcceleration(
@@ -1008,8 +1008,10 @@ async function generateOverlayDownload(args: {
 	}
 	const ownerId = args.video.ownerId ?? args.video.userId;
 	if (!ownerId) throw new HttpsError('failed-precondition', 'Dive video has no owner');
+	const exportDeadline = Date.now() + OVERLAY_EXPORT_BUDGET_MS;
+	const encodeTimeoutMs = () => Math.max(OVERLAY_MIN_ENCODE_TIMEOUT_MS, exportDeadline - Date.now());
 	const exportProfile = overlayExportProfile();
-	const outputDimensions = scaledDimensions(displayDimensions(args.video), exportProfile.targetHeight);
+	const outputDimensions = scaleToShortEdge(displayDimensions(args.video), exportProfile.shortEdgePx);
 	const boundedDurationSeconds = Math.max(1, Math.ceil((args.video.durationSeconds ?? 0) + 1));
 	return withMasterFile(args.video, async (inputPath) => {
 		const outputPath = join(tmpdir(), `overdive-overlay-${randomUUID()}.mp4`);
@@ -1017,6 +1019,7 @@ async function generateOverlayDownload(args: {
 		let svgFramesDir: string | null = null;
 		try {
 			try {
+				const framesStartedAt = Date.now();
 				const overlayFrames = await writeSvgOverlayFrameSequence({
 					timeline: args.video.timeline as DiveTimeline,
 					poolLength: args.video.poolLength ?? 25,
@@ -1025,6 +1028,15 @@ async function generateOverlayDownload(args: {
 					height: outputDimensions.height
 				});
 				svgFramesDir = overlayFrames.framesDir;
+				logger.info('Overlay HUD frames rendered', {
+					videoId: args.videoId,
+					width: outputDimensions.width,
+					height: outputDimensions.height,
+					renderedFrames: overlayFrames.renderedFrames,
+					tickFrames: overlayFrames.tickFrames,
+					ms: Date.now() - framesStartedAt
+				});
+				const encodeStartedAt = Date.now();
 				const baseFilter = [
 					...displayRotationFilters(args.video),
 					`scale=${outputDimensions.width}:${outputDimensions.height}:flags=lanczos`
@@ -1036,12 +1048,12 @@ async function generateOverlayDownload(args: {
 					'+genpts',
 					'-i',
 					inputPath,
-					'-framerate',
-					'10',
-					'-start_number',
+					'-f',
+					'concat',
+					'-safe',
 					'0',
 					'-i',
-					overlayFrames.framePattern,
+					overlayFrames.concatListPath,
 					'-t',
 					String(boundedDurationSeconds),
 					'-filter_complex',
@@ -1068,7 +1080,8 @@ async function generateOverlayDownload(args: {
 					'-movflags',
 					'+faststart',
 					outputPath
-				], { timeout: OVERLAY_RENDER_TIMEOUT_MS, maxBuffer: 10 * 1024 * 1024 });
+				], { timeout: encodeTimeoutMs(), maxBuffer: 10 * 1024 * 1024 });
+				logger.info('Overlay video encoded', { videoId: args.videoId, ms: Date.now() - encodeStartedAt });
 			} catch (err) {
 				logger.warn('SVG overlay render failed; falling back to ASS renderer', {
 					videoId: args.videoId,
@@ -1123,7 +1136,7 @@ async function generateOverlayDownload(args: {
 					'-movflags',
 					'+faststart',
 					outputPath
-				], { timeout: OVERLAY_RENDER_TIMEOUT_MS, maxBuffer: 10 * 1024 * 1024 });
+				], { timeout: encodeTimeoutMs(), maxBuffer: 10 * 1024 * 1024 });
 			}
 
 			const bytes = await readFile(outputPath);

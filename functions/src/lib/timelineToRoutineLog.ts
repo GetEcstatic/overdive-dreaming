@@ -43,6 +43,8 @@ export interface DiveTimeline {
 	subSplits?: LapEvent[];
 	samples?: DiveSample[];
 	events?: OverlayEvent[];
+	/** "Protocol done" tap, same clock as diveEndMs. Mirrors src/lib/capture/timelineTypes.ts. */
+	protocolEndMs?: number;
 }
 
 export type DiveVideoDiscipline = 'DYN' | 'DYNB' | 'DNF';

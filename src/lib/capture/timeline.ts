@@ -8,7 +8,7 @@
  * See docs/Dynamic video feature.md §6 for the data model.
  */
 
-import type { DiveTimeline, LapEvent } from '$lib/types';
+import type { DiveTimeline, LapEvent } from './timelineTypes';
 
 /**
  * Build an empty timeline that will be populated during capture.

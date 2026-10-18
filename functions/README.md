@@ -43,21 +43,21 @@ WASABI_BUCKET_DEV=overdive-media-dev
 Set `WASABI_ENV=dev` for a deployed/test functions environment that should
 write to the dev bucket. Production defaults to `overdive-media-prod`.
 
-Add a `functions` block to the root `firebase.json` when deploying for the
-first time:
+## Build
 
-```json
-{
-  "functions": [
-    {
-      "source": "functions",
-      "codebase": "default",
-      "runtime": "nodejs20",
-      "ignore": ["node_modules", ".git", "*.log"]
-    }
-  ]
-}
-```
+`npm run build` type-checks (`tsc --noEmit`) and then bundles `src/index.ts`
+with esbuild (`build.mjs`) into `lib/index.js`, copying the HUD fonts from
+`../static/fonts` to `lib/fonts`. npm packages stay external.
+
+The bundle can import **pure, import-free** modules from the web app
+(`../src/lib/...`), such as the overlay style version and export sizing.
+`src/lib/media/functionsSharedImports.test.ts` fails if one of those modules
+gains a `$lib` or package import.
+
+Deploying: the root `firebase.json` runs `npm run build` as a `predeploy`
+hook, so the uploaded `lib/` is always fresh. `package.json` has an empty
+`gcp-build` script so Cloud Build does **not** rebuild remotely (the upload
+does not include `../src`, so a remote build would fail).
 
 ## Dry-run mode
 

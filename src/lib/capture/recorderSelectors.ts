@@ -194,6 +194,11 @@ export function shouldAutoAdvance(
 	return raw >= target + waypointSpacingM(state.config) / 2;
 }
 
+/** True once "Protocol done" has been tapped for this dive. */
+export function isProtocolMarked(state: RecorderState): boolean {
+	return state.timeline.protocolEndMs !== undefined;
+}
+
 export function canMoveWaypointCursorBack(state: RecorderState): boolean {
 	if (state.phase !== 'diving') return false;
 	return expectedWaypointIndex(state) > state.waypointCursor.lastManualIndex + 1;
@@ -211,7 +216,8 @@ export type ButtonKind =
 	| 'previousWaypoint'
 	| 'waypoint'
 	| 'nextWaypoint'
-	| 'endDive';
+	| 'endDive'
+	| 'protocolDone';
 
 export interface ButtonSpec {
 	kind: ButtonKind;
@@ -231,6 +237,7 @@ export type PrimaryRecorderAction =
 	| 'record'
 	| 'startDive'
 	| 'waypoint'
+	| 'protocolDone'
 	| 'stopRecording'
 	| 'disabled';
 
@@ -274,13 +281,21 @@ export function primaryActionSpec(state: RecorderState): PrimaryActionSpec {
 		}
 
 		case 'ended':
-			return {
-				action: 'stopRecording',
-				label: 'Stop',
-				sub: 'save video',
-				disabled: false,
-				supportsLongPressEndDive: false
-			};
+			return isProtocolMarked(state)
+				? {
+						action: 'stopRecording',
+						label: 'Stop recording',
+						sub: 'Protocol marked',
+						disabled: false,
+						supportsLongPressEndDive: false
+					}
+				: {
+						action: 'protocolDone',
+						label: '✓ Protocol done',
+						sub: 'after the surface protocol',
+						disabled: false,
+						supportsLongPressEndDive: false
+					};
 
 		case 'stopping':
 			return {
@@ -342,14 +357,22 @@ export function buttonLayout(state: RecorderState): ButtonLayout {
 		}
 
 		case 'ended':
-			return {
-				buttons: [
-					{ kind: 'stopRecording', label: '■ Stop recording', weight: 3 }
-				],
-				hint:
-					'Dive clock stopped. Keep the camera on the diver for the ' +
-					'surface protocol, then tap Stop recording.'
-			};
+			return isProtocolMarked(state)
+				? {
+						buttons: [
+							{ kind: 'stopRecording', label: '■ Stop recording', weight: 3 }
+						],
+						hint: 'Protocol marked. Tap Stop recording when you are done filming.'
+					}
+				: {
+						buttons: [
+							{ kind: 'stopRecording', label: '■ Stop', weight: 1 },
+							{ kind: 'protocolDone', label: '✓ Protocol done', weight: 3 }
+						],
+						hint:
+							'Dive clock stopped. Keep the camera on the diver for the ' +
+							'surface protocol, then tap Protocol done.'
+					};
 
 		default:
 			return { buttons: [], hint: null };

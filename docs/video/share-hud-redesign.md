@@ -378,6 +378,15 @@ Target: a 3-minute dive renders HUD frames in < 90 s and encodes (`veryfast`, CR
 - Recorder **Protocol done** tap and `DiveTimeline.protocolEndMs` (§4.9.1), so real protocol times are collected before the social cut ships.
 - Acceptance: the existing design renders at full resolution, is noticeably faster, and existing tests pass. A test recording made with the Protocol done tap stores `protocolEndMs` and keeps recording until Stop.
 
+**Status (18 Oct 2026, branch `share-hud-redesign`, not deployed):** implemented.
+- Fonts: Barlow / Barlow Condensed in `static/fonts/` with `tnum` frozen (every digit 572.8 px wide at 200 px in resvg, previously 396.8–536.8). The worker renders with `loadSystemFonts: false`.
+- Resolution: `scaleToShortEdge` in `src/lib/media/exportDimensions.ts`. Style version `overdive-overlay-v15`, now a single constant in `src/lib/media/overlayStyle.ts` imported by both sides.
+- Frame dedupe (§6.2 item 2) was pulled forward: `src/lib/media/frameRuns.ts` plus an FFmpeg concat list.
+- Bundling: `functions/build.mjs` (esbuild), `predeploy` in `firebase.json`, empty `gcp-build`. Import guard test as described in `functions/README.md`.
+- Protocol done: the `protocol/done` reducer event, the selectors and the recorder button. `saveDiveVideoTimelineCorrection` keeps `protocolEndMs` (submitted, else stored, dropped if before `diveEndMs`).
+- FFmpeg timeouts now come from a 480 s export budget instead of a fixed 4 min.
+- **Measured locally (Apple silicon, audit clip, 198 s, 1080×1974): HUD frames 64 s for 1,652 rendered of 1,981 ticks (was 6 m 11 s at 590×1080 with system fonts). Encode 53 s using all cores. A 2-thread `veryfast` encode of 60 s of the clip took 27 s, so the worker encode is proposed at about 90–150 s.** The worker numbers are unverified until deployed; it logs `Overlay HUD frames rendered` and `Overlay video encoded` with timings.
+
 ### Phase 1: shared model + new full HUD download (MVP)
 - `shareHud/model.ts`, `speedGraph.ts`, `layout.ts` (native + reel full-bleed + stacked), `svg.ts`, `tokens.ts` with tests.
 - Server `hud-full` job: the whole recording in source framing with the new design and speed graph, result card appended after the last frame, frame dedupe.

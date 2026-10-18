@@ -297,6 +297,10 @@
 		}
 	}
 
+	function onPressProtocolDone(): void {
+		dispatch({ type: 'protocol/done', atPerfMs: performance.now() });
+	}
+
 	function onPressStartDive(): void {
 		dispatch({ type: 'dive/started', atPerfMs: performance.now() });
 	}
@@ -487,6 +491,9 @@
 				return;
 			case 'waypoint':
 				onPressWaypoint();
+				return;
+			case 'protocolDone':
+				onPressProtocolDone();
 				return;
 			case 'stopRecording':
 				void onPressStopRecording();
@@ -724,7 +731,7 @@
 				<button class="utility-button" type="button" onclick={cancel}>
 					Cancel
 				</button>
-			{:else if rs.phase === 'prepping'}
+			{:else if rs.phase === 'prepping' || (rs.phase === 'ended' && primaryAction.action === 'protocolDone')}
 				<button class="utility-button" type="button" onclick={() => void onPressStopRecording()}>
 					Stop
 				</button>
@@ -1246,6 +1253,10 @@
 	.primary-action.action-record,
 	.primary-action.action-stopRecording {
 		background: #ef4444;
+	}
+	.primary-action.action-protocolDone {
+		background: #10b981;
+		color: #052e25;
 	}
 	.primary-action.action-startDive {
 		background: #10b981;

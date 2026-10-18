@@ -16,6 +16,7 @@ interface DiveVideoDoc {
 	durationSeconds?: number;
 	recordedAt?: FirebaseFirestore.Timestamp;
 	artifacts?: Array<{ kind?: string }>;
+	timeline?: { protocolEndMs?: number };
 }
 
 function requireUid(auth?: { uid: string }): string {
@@ -100,6 +101,17 @@ function validateTimeline(value: unknown): DiveTimeline {
 	};
 }
 
+/**
+ * Keep the "Protocol done" mark across corrections: prefer the submitted value,
+ * fall back to the stored one, and drop it if it now precedes the dive end.
+ */
+function withProtocolEnd(timeline: DiveTimeline, submitted: unknown, stored: unknown): DiveTimeline {
+	const protocolEndMs = finiteNumber(submitted) ?? finiteNumber(stored);
+	return protocolEndMs !== null && protocolEndMs >= timeline.diveEndMs
+		? { ...timeline, protocolEndMs }
+		: timeline;
+}
+
 function canCorrect(uid: string, video: DiveVideoDoc): boolean {
 	return uid === video.ownerId || uid === video.userId || uid === video.athleteId;
 }
@@ -154,7 +166,7 @@ export const saveDiveVideoTimelineCorrection = onCall(
 	const uid = requireUid(request.auth);
 	const data = asRecord(request.data);
 	const videoId = requiredString(data, 'videoId');
-	const timeline = validateTimeline(data.timeline);
+	const submittedTimeline = validateTimeline(data.timeline);
 	const db = getFirestore();
 	const videoRef = db.collection('diveVideos').doc(videoId);
 
@@ -165,6 +177,11 @@ export const saveDiveVideoTimelineCorrection = onCall(
 		if (!canCorrect(uid, video)) {
 			throw new HttpsError('permission-denied', 'You cannot edit waypoints for this video');
 		}
+		const timeline = withProtocolEnd(
+			submittedTimeline,
+			asRecord(data.timeline).protocolEndMs,
+			video.timeline?.protocolEndMs
+		);
 
 		const now = FieldValue.serverTimestamp();
 		transaction.update(videoRef, {

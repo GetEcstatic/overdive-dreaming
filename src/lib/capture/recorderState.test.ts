@@ -84,6 +84,37 @@ describe('recorderReducer — phase transitions', () => {
 		expect(s.timeline.diveEndMs).toBe(8000);
 	});
 
+	it('protocol/done in ended stores protocolEndMs on the timeline clock, once', () => {
+		let s = startDiveAt(startRecordingAt(arm(base), 1000), 5000);
+		s = recorderReducer(s, { type: 'dive/ended', atPerfMs: 9000 });
+		expect(s.timeline.protocolEndMs).toBeUndefined();
+		s = recorderReducer(s, { type: 'protocol/done', atPerfMs: 21000 });
+		expect(s.phase).toBe('ended');
+		expect(s.timeline.protocolEndMs).toBe(20000);
+		const again = recorderReducer(s, { type: 'protocol/done', atPerfMs: 30000 });
+		expect(again).toBe(s);
+	});
+
+	it('protocol/done outside ended is a no-op', () => {
+		const diving = startDiveAt(startRecordingAt(arm(base), 1000), 5000);
+		expect(recorderReducer(diving, { type: 'protocol/done', atPerfMs: 6000 })).toBe(diving);
+	});
+
+	it('protocol/done never precedes diveEndMs', () => {
+		let s = startDiveAt(startRecordingAt(arm(base), 1000), 5000);
+		s = recorderReducer(s, { type: 'dive/ended', atPerfMs: 9000 });
+		s = recorderReducer(s, { type: 'protocol/done', atPerfMs: 8500 });
+		expect(s.timeline.protocolEndMs).toBe(8000);
+	});
+
+	it('stopping without Protocol done leaves protocolEndMs unset', () => {
+		let s = startDiveAt(startRecordingAt(arm(base), 1000), 5000);
+		s = recorderReducer(s, { type: 'dive/ended', atPerfMs: 9000 });
+		s = recorderReducer(s, { type: 'recording/stopping' });
+		expect(s.phase).toBe('stopping');
+		expect(s.timeline.protocolEndMs).toBeUndefined();
+	});
+
 	it('dive/ended trims samples recorded after the committed end time', () => {
 		let s = startDiveAt(startRecordingAt(arm(base), 1000), 5000);
 		s = recorderReducer(s, {
@@ -534,12 +565,20 @@ describe('buttonLayout', () => {
 		expect(layout.buttons[0].disabled).toBe(true);
 	});
 
-	it('ended → Stop recording', () => {
+	it('ended → Stop + Protocol done', () => {
 		let s = startDiveAt(startRecordingAt(arm(base), 0), 0);
 		s = recorderReducer(s, { type: 'dive/ended', atPerfMs: 1 });
 		expect(buttonLayout(s).buttons.map((b) => b.kind)).toEqual([
-			'stopRecording'
+			'stopRecording',
+			'protocolDone'
 		]);
+	});
+
+	it('ended after Protocol done → Stop recording', () => {
+		let s = startDiveAt(startRecordingAt(arm(base), 0), 0);
+		s = recorderReducer(s, { type: 'dive/ended', atPerfMs: 1 });
+		s = recorderReducer(s, { type: 'protocol/done', atPerfMs: 2 });
+		expect(buttonLayout(s).buttons.map((b) => b.kind)).toEqual(['stopRecording']);
 	});
 });
 
@@ -568,10 +607,13 @@ describe('primaryActionSpec', () => {
 		expect(spec.supportsLongPressEndDive).toBe(true);
 	});
 
-	it('ended maps to stop recording', () => {
+	it('ended maps to Protocol done, then to stop recording', () => {
 		let s = startDiveAt(startRecordingAt(arm(base), 0), 0);
 		s = recorderReducer(s, { type: 'dive/ended', atPerfMs: 1 });
+		expect(primaryActionSpec(s).action).toBe('protocolDone');
+		s = recorderReducer(s, { type: 'protocol/done', atPerfMs: 2 });
 		expect(primaryActionSpec(s).action).toBe('stopRecording');
+		expect(primaryActionSpec(s).sub).toBe('Protocol marked');
 	});
 
 	it('non-action phases are disabled', () => {

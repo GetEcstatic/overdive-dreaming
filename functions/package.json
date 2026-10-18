@@ -8,8 +8,9 @@
 	},
 	"main": "lib/index.js",
 	"scripts": {
-		"build": "tsc",
-		"build:watch": "tsc --watch",
+		"typecheck": "tsc --noEmit -p .",
+		"build": "npm run typecheck && node build.mjs",
+		"gcp-build": "",
 		"serve": "npm run build && firebase emulators:start --only functions",
 		"shell": "npm run build && firebase functions:shell",
 		"deploy": "firebase deploy --only functions",
@@ -25,6 +26,7 @@
 		"firebase-functions": "^7.2.5"
 	},
 	"devDependencies": {
+		"esbuild": "^0.27.2",
 		"typescript": "^5.9.3"
 	}
 }

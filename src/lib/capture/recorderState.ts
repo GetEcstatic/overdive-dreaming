@@ -108,6 +108,8 @@ export type RecorderEvent =
 	| { type: 'waypoint/auto'; atPerfMs: number; count: number }
 	| { type: 'sample/recorded'; atPerfMs: number; distanceM: number; speedMs: number }
 	| { type: 'dive/ended'; atPerfMs: number }
+	/** "Protocol done" tap after the surface protocol; marks the social-cut end. */
+	| { type: 'protocol/done'; atPerfMs: number }
 	| { type: 'recording/stopping' }
 	| { type: 'recording/stopped' }
 	| { type: 'banner/cleared' }
@@ -437,6 +439,19 @@ export function recorderReducer(
 				phase: 'ended',
 				clocks: { ...state.clocks, diveEndedPerfMs: event.atPerfMs },
 				timeline: finalizeTimeline(state.timeline, endOffsetMs)
+			};
+		}
+
+		case 'protocol/done': {
+			// Accepted once, only after the dive has ended.
+			if (state.phase !== 'ended' || state.timeline.protocolEndMs !== undefined) return state;
+			const protocolOffsetMs = event.atPerfMs - state.clocks.recordingStartedPerfMs;
+			return {
+				...state,
+				timeline: {
+					...state.timeline,
+					protocolEndMs: Math.max(state.timeline.diveEndMs, protocolOffsetMs)
+				}
 			};
 		}
 
