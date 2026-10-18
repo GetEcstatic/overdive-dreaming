@@ -72,10 +72,10 @@ describe('reel layout safe zones', () => {
 		}
 	});
 
-	it('leaves the diver band (y 600–1040) clear', () => {
+	it('leaves the diver band (y 600–1230) clear', () => {
 		for (const atMs of samples) {
 			for (const b of liveBoxes(atMs)) {
-				expect(b.y1 <= 600 || b.y0 >= 1040, `${atMs} ms ${JSON.stringify(b)}`).toBe(true);
+				expect(b.y1 <= 600 || b.y0 >= 1230, `${atMs} ms ${JSON.stringify(b)}`).toBe(true);
 			}
 		}
 	});

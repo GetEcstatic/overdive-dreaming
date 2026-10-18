@@ -152,10 +152,10 @@ Tom's structure: the start and a few strokes, fast-forward to each wall, normal 
 
 ### 4.3 Safe zones (reel canvas, 1080×1920)
 
-Based on Meta's published Reels guidance (keep text out of roughly the top 14%, bottom 35% and side 6%), adjusted for organic posts, which have a shorter caption block. **Re-verify against current Meta docs before implementation.**
+Based on Meta's published Reels guidance (keep text out of roughly the top 14%, bottom 35% and side 6%), adjusted for organic posts, which have a shorter caption block. The 35% figure is for Reels ads (Sponsored label, call-to-action button, longer captions); an organic Reel's username, collapsed caption and audio line cover about the bottom 15–20%, so the bottom reserve is 20% (18 Oct 2026, Tom). TikTok's bottom UI is taller and may clip the very bottom of the rail.
 
 - **Top reserved:** y < 250 (Instagram header).
-- **Bottom reserved:** y > 1340 (username, caption, audio).
+- **Bottom reserved:** y > 1536, the bottom 20% (username, collapsed caption, audio).
 - **Right reserved:** x > 940 for y > 1100 (like/comment/share/remix column).
 - **Side margin:** 70 px.
 - **Profile-grid crop:** Instagram's grid shows the centre 3:4 (y 240–1680). The header strip and primary stats (y 250–580) fall inside it, so the grid thumbnail shows the numbers.
@@ -293,8 +293,8 @@ Clear areas per output (reel canvas, 1080×1920, live elements only; the result 
 
 | Output | How the phone is held | Covered | Clear band for the diver |
 |---|---|---|---|
-| Social cut, full-bleed | Portrait | Instagram header (y < 250), header strip and stats (250–590), speed graph and rail (≈1050–1340), Instagram caption (> 1340), action column (x > 940 below y 1100) | **y 600–1040** (about 23% of the height), full width. With the toasts in their audit position (y 640–744) this was only y 760–1040 (15%), hence the toast move in §4.4. |
-| Social cut, stacked | Landscape | The data panel sits above the video band (y 840–1448), so it covers nothing. Instagram covers the band's bottom 18% (y > 1340) and its right 13% below y 1100. | The whole band except the bottom-right corner |
+| Social cut, full-bleed | Portrait | Instagram header (y < 250), header strip and stats (250–590), speed graph and rail (≈1250–1536), Instagram caption (> 1536), action column (x > 940 below y 1100) | **y 600–1230** (about 33% of the height), full width. Before the bottom reserve moved from 1340 to 1536 this was y 600–1040. With the toasts in their audit position (y 640–744) this was only y 760–1040 (15%), hence the toast move in §4.4. |
+| Social cut, stacked | Landscape | The data panel sits above the video band (y 840–1448), so it covers nothing. Instagram's caption (y > 1536) no longer reaches the band; only the action column covers its right 13% below y 1100. | The whole band except the bottom-right corner |
 | Full HUD download | Either | Native layout: stats top-left, speed graph bottom 22% | The middle of the frame |
 
 The portrait social cut is the most restrictive. If the diver is in its clear band, the other outputs are fine too, so the guide shows the social-cut zones for the current posture.

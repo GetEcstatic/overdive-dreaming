@@ -3,7 +3,7 @@
  * canvas pixels. Geometry is designed at a 1080-px short edge and scaled.
  *
  * - Portrait canvases use the reel geometry: everything inside Instagram's
- *   safe zones (top 250, bottom 1340 on 1920, right column below 1100).
+ *   safe zones (top 250, bottom 1536 on 1920, right column below 1100).
  *   Taller or shorter canvases keep the top block pinned to the top and the
  *   graph block pinned to the bottom.
  * - Landscape canvases use the native landscape geometry: stats top-left,
@@ -39,10 +39,14 @@ export interface Rect {
 	readonly h: number;
 }
 
-/** Reel safe zones on the 1080×1920 canvas (§4.3). Re-verify against Meta's docs. */
+/**
+ * Reel safe zones on the 1080×1920 canvas (§4.3). The bottom 20% is reserved
+ * for an organic Reel's username, collapsed caption and audio line. Meta's
+ * ads guidance (bottom 35%) is stricter than posts need.
+ */
 export const REEL_SAFE = {
 	top: 250,
-	bottom: 1340,
+	bottom: 1536,
 	side: 70,
 	actionColumnX: 940,
 	actionColumnTopY: 1100
@@ -88,6 +92,8 @@ export function geometry(canvas: HudCanvas): Geometry {
 	const rh = canvas.height / scale;
 	if (portrait) {
 		const dy = rh - 1920;
+		// Graph block sits on the safe bottom; offsets are from that line.
+		const b = REEL_SAFE.bottom + dy;
 		const left = REEL_SAFE.side;
 		return {
 			portrait,
@@ -103,8 +109,8 @@ export function geometry(canvas: HudCanvas): Geometry {
 			statsRight: rw - left,
 			subY: 566,
 			topScrim: 720,
-			bottomScrimY: 1060 + dy,
-			graph: { x0: 124, x1: 900, headerY: 1066 + dy, top: 1110 + dy, base: 1268 + dy, railY: 1316 + dy }
+			bottomScrimY: b - 280,
+			graph: { x0: 124, x1: 900, headerY: b - 274, top: b - 230, base: b - 72, railY: b - 24 }
 		};
 	}
 	const left = 96;
