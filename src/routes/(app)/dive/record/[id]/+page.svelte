@@ -48,8 +48,7 @@
 	import { buildAidaAttempt } from '$lib/competition/aida';
 	import {
 		bitrateForResolution,
-		DEFAULT_VIDEO_QUALITY_PRESET,
-		estimateBytesPerMinute
+		recordingVideoSettings
 	} from '$lib/capture/videoQuality';
 	import { getUserSettings, updateUserSettings } from '$lib/firestore';
 	import { diveRecording } from '$lib/stores/videoPlayback';
@@ -183,10 +182,12 @@
 	let poolLength = $state<number | undefined>(25);
 	let waypointsPerLap = $state<number | undefined>(2);
 	let discipline = $state<RecordDiscipline | undefined>(undefined);
-	let resolution = $state<DiveVideoResolution>('720p');
-	let qualityPreset = $state<DiveVideoQualityPreset>(DEFAULT_VIDEO_QUALITY_PRESET);
+	// Set in Profile; recordingVideoSettings supplies the defaults.
+	let resolution = $state<DiveVideoResolution>(recordingVideoSettings(undefined).resolution);
+	let qualityPreset = $state<DiveVideoQualityPreset>(recordingVideoSettings(undefined).qualityPreset);
 	let captureMode = $state<'video' | 'metrics-only'>('video');
-	type AidaRecorderMode = 'training' | AidaAttemptMode;
+	// Official AIDA attempts are logged from Quick Log; the recorder offers protocol practice only.
+	type AidaRecorderMode = 'training' | Extract<AidaAttemptMode, 'protocol-practice'>;
 	let aidaMode = $state<AidaRecorderMode>('training');
 	let aidaAnnouncedSeconds = $state<number | undefined>(undefined);
 	let aidaAnnouncedMeters = $state<number | undefined>(undefined);
@@ -245,10 +246,6 @@
 		return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 	}
 
-	function formatMegabytesPerMinute(bytes: number): string {
-		return `${(bytes / (1024 * 1024)).toFixed(0)} MB/min`;
-	}
-
 	function formatMbps(bitsPerSecond: number | undefined): string {
 		if (!bitsPerSecond || bitsPerSecond <= 0) return 'Unknown';
 		return `${(bitsPerSecond / 1_000_000).toFixed(1)} Mbps`;
@@ -263,6 +260,14 @@
 		return result.source !== 'metrics-only' && result.source !== 'static-metrics-only';
 	}
 
+	const DISCIPLINE_OPTIONS: readonly { value: RecordDiscipline; description: string }[] = [
+		{ value: 'STA', description: 'Static apnea · stopwatch, no video' },
+		{ value: 'DYN', description: 'Dynamic with fins' },
+		{ value: 'DYNB', description: 'Dynamic with bifins' },
+		{ value: 'DNF', description: 'Dynamic no fins' }
+	];
+	const selectedDisciplineOption = $derived(DISCIPLINE_OPTIONS.find((opt) => opt.value === discipline));
+
 	function isDynamicDiscipline(value: RecordDiscipline | undefined): value is DiveVideoDiscipline {
 		return value === 'DYN' || value === 'DYNB' || value === 'DNF';
 	}
@@ -276,8 +281,10 @@
 	}
 
 	function selectDiscipline(value: RecordDiscipline): void {
+		const wasStatic = discipline === 'STA';
 		discipline = value;
 		if (value === 'STA') captureMode = 'metrics-only';
+		else if (wasStatic) captureMode = 'video';
 	}
 
 	function selectAidaMode(value: AidaRecorderMode): void {
@@ -290,7 +297,7 @@
 
 	function applyRecorderQueryParams(): void {
 		const requestedAidaMode = $page.url.searchParams.get('aida');
-		if (requestedAidaMode === 'official-competition' || requestedAidaMode === 'protocol-practice') {
+		if (requestedAidaMode === 'protocol-practice') {
 			selectAidaMode(requestedAidaMode);
 		}
 
@@ -322,15 +329,6 @@
 			warnings.push('Actual frame rate was below 24 fps.');
 		}
 		return warnings;
-	}
-
-	function estimatedRecordingSize(
-		resolution: DiveVideoResolution,
-		preset: DiveVideoQualityPreset
-	): string {
-		return formatMegabytesPerMinute(
-			estimateBytesPerMinute(bitrateForResolution(resolution, preset))
-		);
 	}
 
 	function diveDurationSeconds(result: CaptureResult): number {
@@ -387,7 +385,6 @@
 	}
 
 	function aidaModeLabel(): string {
-		if (aidaMode === 'official-competition') return 'Official AIDA';
 		if (aidaMode === 'protocol-practice') return 'Protocol practice';
 		return 'Training';
 	}
@@ -456,15 +453,10 @@
 		if (!uid || resolutionLoaded) return;
 		resolutionLoaded = true;
 
-		// Load user-level defaults (resolution + last-used pool setup).
+		// Load user-level defaults (video settings from Profile + last-used pool setup).
 		getUserSettings(uid)
 			.then((settings) => {
-				if (settings?.defaultVideoResolution) {
-					resolution = settings.defaultVideoResolution;
-				}
-				if (settings?.defaultVideoQualityPreset) {
-					qualityPreset = settings.defaultVideoQualityPreset;
-				}
+				({ resolution, qualityPreset } = recordingVideoSettings(settings));
 				let gotAnyDefault = false;
 				if (typeof settings?.defaultPoolLength === 'number') {
 					poolLength = settings.defaultPoolLength;
@@ -1043,9 +1035,7 @@
 		if (poolLength && waypointsPerLap) {
 			updateUserSettings(uid, {
 				defaultPoolLength: poolLength,
-				defaultWaypointsPerLap: waypointsPerLap,
-				defaultVideoResolution: resolution,
-				defaultVideoQualityPreset: qualityPreset
+				defaultWaypointsPerLap: waypointsPerLap
 			}).catch((err) => {
 				// eslint-disable-next-line no-console
 				console.warn('[dive-record] could not save recorder defaults', err);
@@ -1087,13 +1077,6 @@
 		}
 
 		stage = 'done';
-		updateUserSettings(uid, {
-			defaultVideoResolution: resolution,
-			defaultVideoQualityPreset: qualityPreset
-		}).catch((err) => {
-			// eslint-disable-next-line no-console
-			console.warn('[dive-record] could not save recorder defaults', err);
-		});
 		await goto(
 			`/dives?publicPreset=static-max&seed=${encodeURIComponent(sessionId)}`
 		);
@@ -1262,9 +1245,7 @@
 			if (poolLength && waypointsPerLap) {
 				updateUserSettings(uid, {
 					defaultPoolLength: poolLength,
-					defaultWaypointsPerLap: waypointsPerLap,
-					defaultVideoResolution: resolution,
-					defaultVideoQualityPreset: qualityPreset
+					defaultWaypointsPerLap: waypointsPerLap
 				}).catch((err) => {
 					// eslint-disable-next-line no-console
 					console.warn('[dive-record] could not save recorder defaults', err);
@@ -1355,17 +1336,6 @@
 		<div class="setup-inner">
 			<header class="setup-head">
 				<h1>Record dive</h1>
-				<p>
-					{#if discipline === 'STA'}
-						STA selected. Start a stopwatch-style static max tracker.
-					{:else if discipline}
-						{discipline} selected. Check the pool setup, then start recording.
-					{:else if hasQuickStart && !quickStartExpanded}
-						Choose this dive's discipline. Your pool setup is already loaded.
-					{:else}
-						Choose discipline, pool length, and waypoints, then start the camera.
-					{/if}
-				</p>
 			</header>
 
 			{#if storageHealthy === false && captureMode === 'video'}
@@ -1387,106 +1357,72 @@
 				</div>
 			{/if}
 
-			<section class="card discipline-card" class:needs-choice={!discipline}>
-				<div class="field">
-					<span class="field-label">Choose discipline</span>
-					<div class="segmented" role="radiogroup" aria-label="Discipline">
-						{#each [
-							{ value: 'STA', label: 'STA', sub: 'static' },
-							{ value: 'DYN', label: 'DYN', sub: 'fins' },
-							{ value: 'DYNB', label: 'DYNB', sub: 'bifins' },
-							{ value: 'DNF', label: 'DNF', sub: 'no fins' }
-						] as opt (opt.value)}
-							<button
-								type="button"
-								class="seg-btn"
-								class:active={discipline === opt.value}
-								role="radio"
-								aria-checked={discipline === opt.value}
-								onclick={() => selectDiscipline(opt.value as RecordDiscipline)}
-							>
-								<span class="seg-label">{opt.label}</span>
-								<span class="seg-sub">{opt.sub}</span>
-							</button>
-						{/each}
-					</div>
-					<p class="field-hint">
-						STA uses a static stopwatch. Dynamic disciplines can record video or track metrics only.
-					</p>
-				</div>
-			</section>
-
-			<section class="card capture-mode-card">
-				<div class="field">
-					<span class="field-label">Capture mode</span>
-					<div class="mode-selector" role="radiogroup" aria-label="Capture mode">
+			<div class="discipline-picker">
+				<div class="discipline-chips" role="radiogroup" aria-label="Discipline">
+					{#each DISCIPLINE_OPTIONS as opt (opt.value)}
 						<button
 							type="button"
-							class="mode-option"
+							class="discipline-chip"
+							class:active={discipline === opt.value}
+							role="radio"
+							aria-checked={discipline === opt.value}
+							onclick={() => selectDiscipline(opt.value)}
+						>
+							{opt.value}
+						</button>
+					{/each}
+				</div>
+				<p class="discipline-name" class:prompt={!discipline}>
+					{selectedDisciplineOption?.description ?? 'Choose a discipline'}
+				</p>
+			</div>
+
+			{#if discipline}
+			<section class="card options-card" class:aida-context-card={hasAidaContext()}>
+				{#if isDynamicDiscipline(discipline)}
+					<div class="toggle" role="radiogroup" aria-label="Capture mode">
+						<button
+							type="button"
 							class:active={captureMode === 'video'}
 							role="radio"
 							aria-checked={captureMode === 'video'}
-							disabled={discipline === 'STA'}
 							onclick={() => selectCaptureMode('video')}
 						>
-							<strong>Record video</strong>
-							<span>Camera, upload, and overlay review.</span>
+							Record video
 						</button>
 						<button
 							type="button"
-							class="mode-option"
 							class:active={captureMode === 'metrics-only'}
 							role="radio"
 							aria-checked={captureMode === 'metrics-only'}
 							onclick={() => selectCaptureMode('metrics-only')}
 						>
-							<strong>{discipline === 'STA' ? 'Track static hold' : 'Track metrics only'}</strong>
-							<span>{discipline === 'STA' ? 'Large stopwatch controls, no upload.' : 'Large timing and waypoint controls, no upload.'}</span>
+							Metrics only
 						</button>
 					</div>
-				</div>
-			</section>
-
-			<section class="card aida-context-card">
-				<div class="field">
-					<span class="field-label">Competition mode</span>
-					<div class="mode-selector three" role="radiogroup" aria-label="Competition mode">
-						<button
-							type="button"
-							class="mode-option compact"
-							class:active={aidaMode === 'training'}
-							role="radio"
-							aria-checked={aidaMode === 'training'}
-							onclick={() => selectAidaMode('training')}
-						>
-							<strong>Training</strong>
-							<span>Standard training log.</span>
-						</button>
-						<button
-							type="button"
-							class="mode-option compact"
-							class:active={aidaMode === 'official-competition'}
-							role="radio"
-							aria-checked={aidaMode === 'official-competition'}
-							onclick={() => selectAidaMode('official-competition')}
-						>
-							<strong>Official AIDA</strong>
-							<span>Requires card in Quick Log.</span>
-						</button>
-						<button
-							type="button"
-							class="mode-option compact"
-							class:active={aidaMode === 'protocol-practice'}
-							role="radio"
-							aria-checked={aidaMode === 'protocol-practice'}
-							onclick={() => selectAidaMode('protocol-practice')}
-						>
-							<strong>AIDA practice</strong>
-							<span>Same protocol, training log.</span>
-						</button>
-					</div>
+				{/if}
+				<div class="toggle" role="radiogroup" aria-label="Session type">
+					<button
+						type="button"
+						class:active={aidaMode === 'training'}
+						role="radio"
+						aria-checked={aidaMode === 'training'}
+						onclick={() => selectAidaMode('training')}
+					>
+						Training
+					</button>
+					<button
+						type="button"
+						class:active={aidaMode === 'protocol-practice'}
+						role="radio"
+						aria-checked={aidaMode === 'protocol-practice'}
+						onclick={() => selectAidaMode('protocol-practice')}
+					>
+						AIDA practice
+					</button>
 				</div>
 				{#if hasAidaContext()}
+					<p class="field-hint">Times your surface protocol too. Saved as a training log.</p>
 					<div class="aida-ap-field">
 						{#if discipline === 'STA'}
 							<DurationInput
@@ -1514,17 +1450,10 @@
 					</div>
 				{/if}
 			</section>
+			{/if}
 
-			{#if discipline === 'STA'}
-				<section class="quick-start">
-					<div class="quick-defaults">
-						<span class="quick-eyebrow">Static setup</span>
-						<strong class="quick-summary">No pool distance needed</strong>
-					</div>
-					<p class="quick-hint">
-						The tracker will save the final hold duration into a Static Max log.
-					</p>
-				</section>
+			{#if !isDynamicDiscipline(discipline)}
+				<!-- Pool setup appears once a dynamic discipline is chosen; static needs none. -->
 			{:else if hasQuickStart && !quickStartExpanded && poolLength && waypointsPerLap}
 				<section class="quick-start">
 					<div class="quick-defaults">
@@ -1599,62 +1528,7 @@
 				</section>
 			{/if}
 
-			{#if captureMode === 'video' && isDynamicDiscipline(discipline)}
-			<section class="card">
-				<div class="field">
-					<span class="field-label">Video resolution</span>
-					<div class="segmented two" role="radiogroup" aria-label="Video resolution">
-						{#each [
-							{ value: '720p', label: '720p', sub: 'lighter' },
-							{ value: '1080p', label: '1080p', sub: 'sharper' }
-						] as opt (opt.value)}
-							<button
-								type="button"
-								class="seg-btn"
-								class:active={resolution === opt.value}
-								role="radio"
-								aria-checked={resolution === opt.value}
-								onclick={() => (resolution = opt.value as DiveVideoResolution)}
-							>
-								<span class="seg-label">{opt.label}</span>
-								<span class="seg-sub">{opt.sub}</span>
-							</button>
-						{/each}
-					</div>
-				</div>
-
-				<div class="field">
-					<span class="field-label">Recording quality</span>
-					<div class="segmented" role="radiogroup" aria-label="Recording quality">
-						{#each [
-							{ value: 'standard', label: 'Std', sub: 'smaller' },
-							{ value: 'high', label: 'High', sub: 'default' },
-							{ value: 'max', label: 'Max', sub: 'largest' }
-						] as opt (opt.value)}
-							<button
-								type="button"
-								class="seg-btn"
-								class:active={qualityPreset === opt.value}
-								role="radio"
-								aria-checked={qualityPreset === opt.value}
-								onclick={() => (qualityPreset = opt.value as DiveVideoQualityPreset)}
-							>
-								<span class="seg-label">{opt.label}</span>
-								<span class="seg-sub">{opt.sub}</span>
-							</button>
-						{/each}
-					</div>
-					<p class="field-hint">
-						About {estimatedRecordingSize(resolution, qualityPreset)} before audio and container overhead.
-					</p>
-				</div>
-			</section>
-			{/if}
-
 			<div class="actions">
-				<button class="btn btn-secondary" onclick={() => history.back()}>
-					Cancel
-				</button>
 				{#if captureMode === 'video' && isDynamicDiscipline(discipline)}
 				<label class="btn btn-secondary import-video-button" class:disabled={!discipline || importingVideo}>
 					<input
@@ -2182,6 +2056,9 @@
 		margin: 0 auto;
 	}
 
+	.setup-head {
+		margin-bottom: 1rem;
+	}
 	.setup-head h1 {
 		font-size: 1.6rem;
 		font-weight: 700;
@@ -2207,20 +2084,75 @@
 		flex-direction: column;
 		gap: 1.1rem;
 	}
-	.discipline-card.needs-choice {
-		border-color: rgba(20, 184, 166, 0.45);
-		box-shadow: 0 0 0 1px rgba(20, 184, 166, 0.08);
+
+	.discipline-picker {
+		margin-bottom: 1.25rem;
+	}
+	.discipline-chips {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 0.5rem;
+	}
+	.discipline-chip {
+		min-height: 3rem;
+		border: 1px solid rgba(148, 163, 184, 0.25);
+		border-radius: 999px;
+		background: rgba(15, 23, 42, 0.65);
+		color: var(--color-text);
+		font: inherit;
+		font-weight: 700;
+		font-size: 1rem;
+		letter-spacing: 0.02em;
+		cursor: pointer;
+	}
+	.discipline-chip.active {
+		border-color: var(--color-primary);
+		background: rgba(20, 184, 166, 0.18);
+		color: var(--color-primary);
+	}
+	.discipline-name {
+		margin: 0.55rem 0 0;
+		text-align: center;
+		font-size: 0.85rem;
+		color: var(--color-text);
+	}
+	.discipline-name.prompt {
+		color: var(--color-text-muted);
+	}
+
+	.options-card {
+		gap: 0.75rem;
+	}
+	.toggle {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.3rem;
+		padding: 0.25rem;
+		background: rgba(15, 23, 42, 0.65);
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		border-radius: 12px;
+	}
+	.toggle button {
+		min-height: 2.75rem;
+		border: 1px solid transparent;
+		border-radius: 9px;
+		background: transparent;
+		color: var(--color-text-muted);
+		font: inherit;
+		font-weight: 600;
+		font-size: 0.92rem;
+		cursor: pointer;
+	}
+	.toggle button.active {
+		background: rgba(20, 184, 166, 0.18);
+		border-color: rgba(20, 184, 166, 0.55);
+		color: var(--color-primary);
 	}
 
 	.field {
 		display: flex;
 		flex-direction: column;
 		gap: 0.35rem;
-	}
-	.field-label {
-		font-size: 0.85rem;
-		font-weight: 600;
-		color: var(--color-text);
 	}
 
 	.select {
@@ -2241,107 +2173,6 @@
 		color: var(--color-text-muted);
 	}
 
-	.segmented {
-		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: 0.4rem;
-		padding: 0.3rem;
-		background: rgba(15, 23, 42, 0.65);
-		border: 1px solid rgba(148, 163, 184, 0.2);
-		border-radius: 12px;
-	}
-	.segmented.two {
-		grid-template-columns: repeat(2, 1fr);
-	}
-	.seg-btn {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 0.1rem;
-		padding: 0.6rem 0.4rem;
-		background: transparent;
-		border: 1px solid transparent;
-		border-radius: 9px;
-		color: var(--color-text-muted);
-		font: inherit;
-		cursor: pointer;
-		transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
-		-webkit-tap-highlight-color: transparent;
-	}
-	.seg-btn:hover {
-		color: var(--color-text);
-	}
-	.seg-btn.active {
-		background: rgba(20, 184, 166, 0.18);
-		border-color: rgba(20, 184, 166, 0.55);
-		color: var(--color-primary);
-	}
-	.seg-label {
-		font-weight: 700;
-		font-size: 0.95rem;
-		letter-spacing: 0.02em;
-	}
-	.seg-sub {
-		font-size: 0.7rem;
-		color: var(--color-text-muted);
-	}
-	.seg-btn.active .seg-sub {
-		color: var(--color-primary);
-		opacity: 0.85;
-	}
-
-	.capture-mode-card {
-		gap: 0.75rem;
-	}
-
-	.mode-selector {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 0.55rem;
-	}
-	.mode-selector.three {
-		grid-template-columns: repeat(3, minmax(0, 1fr));
-	}
-
-	.mode-option {
-		display: flex;
-		min-height: 5.4rem;
-		flex-direction: column;
-		align-items: flex-start;
-		justify-content: center;
-		gap: 0.22rem;
-		padding: 0.85rem;
-		border: 1px solid rgba(148, 163, 184, 0.2);
-		border-radius: 8px;
-		background: rgba(15, 23, 42, 0.58);
-		color: var(--color-text);
-		font: inherit;
-		text-align: left;
-	}
-
-	.mode-option.active {
-		border-color: rgba(20, 184, 166, 0.55);
-		background: rgba(20, 184, 166, 0.11);
-		box-shadow: inset 0 0 0 1px rgba(20, 184, 166, 0.08);
-	}
-
-	.mode-option strong {
-		font-size: 0.96rem;
-		font-weight: 850;
-	}
-
-	.mode-option span {
-		color: var(--color-text-muted);
-		font-size: 0.78rem;
-		line-height: 1.3;
-	}
-
-	.mode-option.compact {
-		min-height: 4.5rem;
-		padding: 0.7rem 0.6rem;
-	}
-
 	.aida-context-card,
 	.aida-review-card {
 		border-color: rgba(251, 191, 36, 0.22);
@@ -2359,12 +2190,6 @@
 
 	.aida-sp-check {
 		margin-top: 0.1rem;
-	}
-
-	@media (max-width: 430px) {
-		.mode-selector.three {
-			grid-template-columns: 1fr;
-		}
 	}
 
 	.summary {
@@ -2546,10 +2371,6 @@
 	}
 
 	@media (max-width: 520px) {
-		.mode-selector {
-			grid-template-columns: 1fr;
-		}
-
 		.final-metric-inputs {
 			grid-template-columns: 1fr;
 		}

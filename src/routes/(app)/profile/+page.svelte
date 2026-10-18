@@ -12,7 +12,8 @@
 		updateUserSettings
 	} from '$lib/firestore';
 	import { getProfileCache, refreshProfileCache, updateProfileCache } from '$lib/utils/profileCache';
-	import type { Season, SessionVisibility, UserSettings, Gender } from '$lib/types';
+	import type { DiveVideoQualityPreset, DiveVideoResolution, Season, SessionVisibility, UserSettings, Gender } from '$lib/types';
+	import { formatRecordingSizePerMinute, recordingVideoSettings } from '$lib/capture/videoQuality';
 	import {
 		listPendingUploads,
 		resetAttempts,
@@ -48,7 +49,8 @@
 	let gender = $state<Gender | undefined>(undefined);
 	let publicModeAccess = $state<PublicModeAccess>('public');
 	let fullAccessGranted = $state(false);
-	let defaultVideoResolution = $state<'720p' | '1080p'>('720p');
+	let defaultVideoResolution = $state<DiveVideoResolution>(recordingVideoSettings(undefined).resolution);
+	let defaultVideoQualityPreset = $state<DiveVideoQualityPreset>(recordingVideoSettings(undefined).qualityPreset);
 	let settingsSaving = $state(false);
 	let settingsError = $state<string | null>(null);
 
@@ -220,9 +222,7 @@
 		} else if (settings?.publicModeAccess === 'advanced' || settings?.publicModeAccess === 'admin') {
 			fullAccessGranted = true;
 		}
-		if (settings?.defaultVideoResolution) {
-			defaultVideoResolution = settings.defaultVideoResolution;
-		}
+		({ resolution: defaultVideoResolution, qualityPreset: defaultVideoQualityPreset } = recordingVideoSettings(settings));
 	}
 
 	function buildNextSettings(): UserSettings {
@@ -234,7 +234,8 @@
 			fullAccessGranted,
 			showMenstrualCycleTracking,
 			gender,
-			defaultVideoResolution
+			defaultVideoResolution,
+			defaultVideoQualityPreset
 		};
 	}
 
@@ -256,7 +257,7 @@
 		}
 	}
 
-	async function handleDefaultVideoResolutionChange() {
+	async function handleVideoSettingsChange() {
 		if (!$user) return;
 		try {
 			settingsSaving = true;
@@ -713,13 +714,29 @@
 						id="video-resolution-select"
 						class="form-select"
 						bind:value={defaultVideoResolution}
-						onchange={handleDefaultVideoResolutionChange}
+						onchange={handleVideoSettingsChange}
 						disabled={settingsSaving}
 					>
-						<option value="720p">720p · smaller files (~22 MB/min)</option>
-						<option value="1080p">1080p · higher quality (~37 MB/min)</option>
+						<option value="1080p">1080p · sharper, best for sharing</option>
+						<option value="720p">720p · smaller files</option>
 					</select>
-					<p class="form-hint">Used when recording dynamic dive videos. 720p keeps uploads small and is plenty for coaching review.</p>
+				</div>
+				<div class="form-group">
+					<label class="form-label" for="video-quality-select">Dive video quality</label>
+					<select
+						id="video-quality-select"
+						class="form-select"
+						bind:value={defaultVideoQualityPreset}
+						onchange={handleVideoSettingsChange}
+						disabled={settingsSaving}
+					>
+						<option value="standard">Standard</option>
+						<option value="high">High</option>
+						<option value="max">Max</option>
+					</select>
+					<p class="form-hint">
+						About {formatRecordingSizePerMinute(defaultVideoResolution, defaultVideoQualityPreset)} of video. Used for every dive you record.
+					</p>
 				</div>
 			</section>
 		</div>

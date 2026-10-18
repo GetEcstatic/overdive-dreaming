@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
 	actualAverageBitrateBps,
 	bitrateForResolution,
-	estimateBytesPerMinute
+	estimateBytesPerMinute,
+	formatRecordingSizePerMinute,
+	recordingVideoSettings
 } from './videoQuality';
 
 describe('video quality presets', () => {
@@ -24,5 +26,21 @@ describe('video quality presets', () => {
 		expect(actualAverageBitrateBps(60_000_000, 60)).toBe(8_000_000);
 		expect(actualAverageBitrateBps(0, 60)).toBeUndefined();
 		expect(actualAverageBitrateBps(60_000_000, 0)).toBeUndefined();
+	});
+});
+
+describe('recordingVideoSettings', () => {
+	it('defaults to 1080p standard', () => {
+		expect(recordingVideoSettings(undefined)).toEqual({ resolution: '1080p', qualityPreset: 'standard' });
+		expect(recordingVideoSettings({})).toEqual({ resolution: '1080p', qualityPreset: 'standard' });
+	});
+
+	it('uses the Profile choice', () => {
+		expect(recordingVideoSettings({ defaultVideoResolution: '720p', defaultVideoQualityPreset: 'max' })).toEqual({ resolution: '720p', qualityPreset: 'max' });
+	});
+
+	it('formats the size per minute', () => {
+		expect(formatRecordingSizePerMinute('1080p', 'standard')).toBe('75 MB/min');
+		expect(formatRecordingSizePerMinute('720p', 'high')).toBe('60 MB/min');
 	});
 });
