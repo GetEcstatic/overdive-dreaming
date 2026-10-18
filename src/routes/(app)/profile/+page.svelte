@@ -20,12 +20,6 @@
 		type PendingUpload
 	} from '$lib/capture/uploadQueue';
 	import { drainUploadQueue } from '$lib/capture/uploadProcessor';
-	import {
-		checkUploadDiagnosticsStorage,
-		clearUploadDiagnostics,
-		listUploadDiagnostics,
-		type UploadDiagnosticEntry
-	} from '$lib/capture/uploadDiagnostics';
 	import type { PublicModeAccess } from '$lib/publicMode/capabilities';
 
 	type DefaultTimeframe = '1month' | '6months' | '1year';
@@ -76,26 +70,24 @@
 	const profileCacheTtlMs = 5 * 60 * 1000;
 
 	let pendingUploads = $state<PendingUpload[]>([]);
-	let pendingLoading = $state(false);
 	let pendingRetrying = $state(false);
 	let pendingError = $state<string | null>(null);
 	let pendingResultMessage = $state<string | null>(null);
 	let pendingProgressByLocalId = $state<Record<string, number>>({});
-	let uploadDiagnostics = $state<UploadDiagnosticEntry[]>([]);
-	let uploadDiagnosticsHealth = $state(checkUploadDiagnosticsStorage());
+	const pendingOverallFraction = $derived.by(() => {
+		const total = pendingUploads.reduce((acc, p) => acc + p.sizeBytes, 0);
+		if (total === 0) return 0;
+		return pendingUploads.reduce((acc, p) => acc + p.sizeBytes * (pendingProgressByLocalId[p.localId] ?? 0), 0) / total;
+	});
+	let showSeasonForm = $state(false);
 
 	async function loadPendingUploads() {
 		try {
-			pendingLoading = true;
 			pendingError = null;
 			pendingUploads = await listPendingUploads();
-			uploadDiagnosticsHealth = checkUploadDiagnosticsStorage();
-			uploadDiagnostics = listUploadDiagnostics();
 		} catch (error) {
 			console.error('Failed to load pending uploads:', error);
 			pendingError = 'Failed to read the pending uploads queue.';
-		} finally {
-			pendingLoading = false;
 		}
 	}
 
@@ -128,42 +120,10 @@
 		}
 	}
 
-	function handleClearUploadDiagnostics() {
-		clearUploadDiagnostics();
-		uploadDiagnostics = [];
-	}
-
 	function formatBytes(bytes: number): string {
 		if (bytes < 1024) return `${bytes} B`;
 		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
 		return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-	}
-
-	function formatPendingDate(ms: number): string {
-		const date = new Date(ms);
-		return date.toLocaleString(undefined, {
-			month: 'short',
-			day: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
-	}
-
-	function formatDiagnosticTime(ms: number): string {
-		return new Date(ms).toLocaleTimeString(undefined, {
-			hour: '2-digit',
-			minute: '2-digit',
-			second: '2-digit'
-		});
-	}
-
-	function formatDiagnosticDetails(details?: Record<string, unknown>): string {
-		if (!details) return '';
-		try {
-			return JSON.stringify(details);
-		} catch {
-			return '';
-		}
 	}
 
 	const toInputDate = (date: Date) => {
@@ -434,6 +394,7 @@
 			newSeasonName = '';
 			newSeasonStart = '';
 			newSeasonEnd = '';
+			showSeasonForm = false;
 			const freshSeasons = await getSeasonsForUser($user.uid);
 			seasons = freshSeasons;
 			updateProfileCache($user.uid, { seasons: freshSeasons });
@@ -567,55 +528,141 @@
 </script>
 
 <div class="profile-container">
-	<div class="profile-header">
-		<div>
-			<h1 class="profile-title">Profile</h1>
-			<p class="profile-subtitle">Manage your account, default analytics view, and seasons.</p>
-		</div>
-	</div>
+	<h1 class="profile-title">Profile</h1>
 
 	{#if $user}
 		<div class="profile-grid">
 			<section class="profile-card">
-				<div class="card-header">
-					<h2 class="card-title">Account</h2>
-				</div>
 				<div class="account-identity">
 					{#if $user.photoURL}
-						<img src={$user.photoURL} alt="Profile" class="avatar" />
+						<img src={$user.photoURL} alt="" class="avatar" />
 					{:else}
 						<div class="avatar placeholder">
 							{$user.displayName?.charAt(0) || 'U'}
 						</div>
 					{/if}
-					<div>
-						<h3 class="account-name">{$user.displayName || 'User'}</h3>
+					<div class="account-text">
+						<h2 class="account-name">{$user.displayName || 'User'}</h2>
+						<p class="account-meta">{$user.email}</p>
+						{#if $user.metadata.creationTime}
+							<p class="account-meta">
+								Member since {new Date($user.metadata.creationTime).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
+							</p>
+						{/if}
 					</div>
 				</div>
-				<div class="detail-grid">
-					<div class="detail-item">
-						<span class="detail-label">Email</span>
-						<span class="detail-value">{$user.email}</span>
-					</div>
-					<div class="detail-item">
-						<span class="detail-label">Member Since</span>
-						<span class="detail-value">
-							{new Date($user.metadata.creationTime || '').toLocaleDateString()}
-						</span>
-					</div>
-					<div class="detail-item">
-						<span class="detail-label">User ID</span>
-						<span class="detail-value mono">{$user.uid}</span>
-					</div>
+				<div class="access-mode-group">
+					{#if publicModeAccess === 'admin'}
+						<p class="form-hint">Admin access is enabled for this account.</p>
+					{:else if fullAccessGranted || publicModeAccess === 'advanced'}
+						<label class="toggle-label">
+							<input
+								type="checkbox"
+								checked={publicModeAccess !== 'public'}
+								onchange={(event) => handlePublicModeAccessChange(event.currentTarget.checked)}
+								disabled={settingsSaving}
+							/>
+							<span>Use full private beta app</span>
+						</label>
+						<p class="form-hint">Turn this off to preview the simpler public app.</p>
+					{:else}
+						<p class="form-hint">Your account is on the simpler public app.</p>
+						<a
+							class="access-request-link"
+							href="mailto:getecstatic.comp@gmail.com?subject=Overdive%20full%20access%20request"
+						>
+							Request full private beta access
+						</a>
+					{/if}
+				</div>
+			</section>
+
+			{#if pendingUploads.length > 0}
+				{@const totalBytes = pendingUploads.reduce((acc, p) => acc + p.sizeBytes, 0)}
+				{@const lastError = pendingUploads.find((p) => p.lastError)?.lastError}
+				<section class="profile-card pending-card">
+					<h2 class="card-title">Videos waiting to upload</h2>
+					<p class="card-subtitle">
+						{pendingUploads.length} video{pendingUploads.length === 1 ? '' : 's'} on this device · {formatBytes(totalBytes)}.
+						They upload automatically when you're online.
+					</p>
+					{#if pendingRetrying}
+						<div class="pending-progress">
+							<div class="pending-progress-bar" style="width: {Math.round(pendingOverallFraction * 100)}%"></div>
+						</div>
+					{/if}
+					{#if lastError}
+						<p class="form-hint error-text">Last error: {lastError}</p>
+					{/if}
+					<button
+						type="button"
+						class="button button-primary full-width"
+						onclick={handleRetryUploads}
+						disabled={pendingRetrying}
+					>
+						{pendingRetrying ? 'Uploading...' : 'Upload now'}
+					</button>
+				</section>
+			{/if}
+			{#if pendingResultMessage}
+				<p class="form-hint">{pendingResultMessage}</p>
+			{/if}
+			{#if pendingError}
+				<p class="form-hint error-text">{pendingError}</p>
+			{/if}
+
+			<section class="profile-card">
+				<h2 class="card-title">Recording</h2>
+				<div class="form-group">
+					<label class="form-label" for="video-resolution-select">Video resolution</label>
+					<select
+						id="video-resolution-select"
+						class="form-select"
+						bind:value={defaultVideoResolution}
+						onchange={handleVideoSettingsChange}
+						disabled={settingsSaving}
+					>
+						<option value="1080p">1080p · sharper, best for sharing</option>
+						<option value="720p">720p · smaller files</option>
+					</select>
+				</div>
+				<div class="form-group">
+					<label class="form-label" for="video-quality-select">Video quality</label>
+					<select
+						id="video-quality-select"
+						class="form-select"
+						bind:value={defaultVideoQualityPreset}
+						onchange={handleVideoSettingsChange}
+						disabled={settingsSaving}
+					>
+						<option value="standard">Standard</option>
+						<option value="high">High</option>
+						<option value="max">Max</option>
+					</select>
+					<p class="form-hint">
+						About {formatRecordingSizePerMinute(defaultVideoResolution, defaultVideoQualityPreset)} of video.
+					</p>
 				</div>
 			</section>
 
 			<section class="profile-card">
-				<div class="card-header">
-					<h2 class="card-title">Settings</h2>
+				<h2 class="card-title">Logs and analytics</h2>
+				<div class="form-group">
+					<label class="form-label" for="default-visibility">New logs are</label>
+					<select
+						id="default-visibility"
+						class="form-select"
+						bind:value={defaultSessionVisibility}
+						onchange={handleDefaultVisibilityChange}
+						disabled={settingsSaving}
+					>
+						<option value="private">Private</option>
+						<option value="public">Public</option>
+					</select>
+					<p class="form-hint">You can still change it for each session.</p>
 				</div>
 				<div class="form-group">
-					<label class="form-label" for="default-filter">Default Analytics Filter</label>
+					<label class="form-label" for="default-filter">Analytics period</label>
 					<select
 						id="default-filter"
 						class="form-select"
@@ -636,62 +683,11 @@
 							</optgroup>
 						{/if}
 					</select>
-					<p class="form-hint">Applies to analytics charts across the app.</p>
-					{#if settingsError}
-						<p class="form-hint error-text">{settingsError}</p>
-					{/if}
 				</div>
-				<div class="form-group">
-					<label class="form-label" for="default-visibility">Default Session Visibility</label>
-					<select
-						id="default-visibility"
-						class="form-select"
-						bind:value={defaultSessionVisibility}
-						onchange={handleDefaultVisibilityChange}
-						disabled={settingsSaving}
-					>
-						<option value="private">Private</option>
-						<option value="public">Public</option>
-					</select>
-					<p class="form-hint">New logs default to this setting unless you override per session.</p>
-				</div>
-				<div class="form-group access-mode-group">
-					<div class="form-label">App mode</div>
-					{#if publicModeAccess === 'admin'}
-						<p class="form-hint">Admin access is enabled for this account.</p>
-					{:else if fullAccessGranted || publicModeAccess === 'advanced'}
-						<label class="form-label toggle-label">
-							<input
-								type="checkbox"
-								checked={publicModeAccess !== 'public'}
-								onchange={(event) => handlePublicModeAccessChange(event.currentTarget.checked)}
-								disabled={settingsSaving}
-							/>
-							<span>Use full private beta app</span>
-						</label>
-						<p class="form-hint">Turn this off to preview the simpler public app.</p>
-					{:else}
-						<p class="form-hint">Your account is on the simpler public app.</p>
-						<a
-							class="access-request-link"
-							href="mailto:getecstatic.comp@gmail.com?subject=Overdive%20full%20access%20request"
-						>
-							Request full private beta access
-						</a>
-					{/if}
-				</div>
-				<div class="form-group">
-					<label class="form-label toggle-label">
-						<input
-							type="checkbox"
-							bind:checked={showMenstrualCycleTracking}
-							onchange={handleMenstrualCycleTrackingChange}
-							disabled={settingsSaving}
-						/>
-						<span>Show menstrual cycle tracking</span>
-					</label>
-					<p class="form-hint">Enable to track cycle day in session logs. Useful for correlating performance with your cycle.</p>
-				</div>
+			</section>
+
+			<section class="profile-card">
+				<h2 class="card-title">About you</h2>
 				<div class="form-group">
 					<label class="form-label" for="gender-select">Gender</label>
 					<select
@@ -706,340 +702,203 @@
 							<option value={option.value}>{option.label}</option>
 						{/each}
 					</select>
-					<p class="form-hint">Optional. May be used for future analytics and comparisons.</p>
 				</div>
 				<div class="form-group">
-					<label class="form-label" for="video-resolution-select">Dive video resolution</label>
-					<select
-						id="video-resolution-select"
-						class="form-select"
-						bind:value={defaultVideoResolution}
-						onchange={handleVideoSettingsChange}
-						disabled={settingsSaving}
-					>
-						<option value="1080p">1080p · sharper, best for sharing</option>
-						<option value="720p">720p · smaller files</option>
-					</select>
+					<label class="toggle-label">
+						<input
+							type="checkbox"
+							bind:checked={showMenstrualCycleTracking}
+							onchange={handleMenstrualCycleTrackingChange}
+							disabled={settingsSaving}
+						/>
+						<span>Track menstrual cycle day</span>
+					</label>
+					<p class="form-hint">Adds a cycle day field to session logs.</p>
 				</div>
-				<div class="form-group">
-					<label class="form-label" for="video-quality-select">Dive video quality</label>
-					<select
-						id="video-quality-select"
-						class="form-select"
-						bind:value={defaultVideoQualityPreset}
-						onchange={handleVideoSettingsChange}
-						disabled={settingsSaving}
-					>
-						<option value="standard">Standard</option>
-						<option value="high">High</option>
-						<option value="max">Max</option>
-					</select>
-					<p class="form-hint">
-						About {formatRecordingSizePerMinute(defaultVideoResolution, defaultVideoQualityPreset)} of video. Used for every dive you record.
-					</p>
+			</section>
+			{#if settingsError}
+				<p class="form-hint error-text">{settingsError}</p>
+			{/if}
+
+			<section class="profile-card">
+				<div class="card-header">
+					<h2 class="card-title">Seasons</h2>
+					{#if !showSeasonForm}
+						<button type="button" class="button button-secondary compact" onclick={() => (showSeasonForm = true)}>
+							Add
+						</button>
+					{/if}
 				</div>
+				<p class="card-subtitle">Training blocks you can filter analytics by.</p>
+
+				{#if showSeasonForm}
+					<div class="season-form">
+						<div class="form-group">
+							<label class="form-label" for="season-name">Name</label>
+							<input
+								id="season-name"
+								type="text"
+								class="form-input"
+								bind:value={newSeasonName}
+								placeholder="e.g. Winter build"
+							/>
+						</div>
+						<div class="form-row">
+							<div class="form-group">
+								<label class="form-label" for="season-start">Start</label>
+								<input id="season-start" type="date" class="form-input" bind:value={newSeasonStart} />
+							</div>
+							<div class="form-group">
+								<label class="form-label" for="season-end">End (optional)</label>
+								<input id="season-end" type="date" class="form-input" bind:value={newSeasonEnd} />
+							</div>
+						</div>
+						<div class="button-row">
+							<button
+								type="button"
+								class="button button-primary"
+								onclick={handleCreateSeason}
+								disabled={seasonSaving}
+							>
+								{seasonSaving ? 'Saving...' : 'Add season'}
+							</button>
+							<button
+								type="button"
+								class="button button-secondary"
+								onclick={() => (showSeasonForm = false)}
+								disabled={seasonSaving}
+							>
+								Cancel
+							</button>
+						</div>
+					</div>
+				{/if}
+
+				{#if seasonsLoading}
+					<p class="form-hint">Loading seasons...</p>
+				{:else if seasons.length > 0}
+					<div class="season-list">
+						{#each seasons as season}
+							<div class="season-card">
+								{#if editingSeasonId === season.id}
+									<div class="season-edit-grid">
+										<div class="form-group">
+											<label class="form-label" for={`season-name-${season.id}`}>Name</label>
+											<input
+												id={`season-name-${season.id}`}
+												type="text"
+												class="form-input"
+												bind:value={editSeasonName}
+											/>
+										</div>
+										<div class="form-row">
+											<div class="form-group">
+												<label class="form-label" for={`season-start-${season.id}`}>Start</label>
+												<input
+													id={`season-start-${season.id}`}
+													type="date"
+													class="form-input"
+													bind:value={editSeasonStart}
+												/>
+											</div>
+											<div class="form-group">
+												<label class="form-label" for={`season-end-${season.id}`}>End</label>
+												<input
+													id={`season-end-${season.id}`}
+													type="date"
+													class="form-input"
+													bind:value={editSeasonEnd}
+												/>
+											</div>
+										</div>
+										<div class="button-row">
+											<button
+												type="button"
+												class="button button-primary"
+												onclick={() => handleUpdateSeason(season.id)}
+												disabled={seasonSaving}
+											>
+												Save
+											</button>
+											<button
+												type="button"
+												class="button button-secondary"
+												onclick={cancelEditSeason}
+												disabled={seasonSaving}
+											>
+												Cancel
+											</button>
+										</div>
+									</div>
+								{:else}
+									<div class="season-row">
+										<div>
+											<h3 class="season-name">{season.name}</h3>
+											<p class="season-dates">
+												{toInputDate(season.startDate.toDate())}
+												{#if season.endDate}
+													→ {toInputDate(season.endDate.toDate())}
+												{:else}
+													→ Present
+												{/if}
+											</p>
+										</div>
+										<button
+											type="button"
+											class="button button-secondary compact"
+											onclick={() => startEditSeason(season)}
+										>
+											Edit
+										</button>
+									</div>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				{/if}
+				{#if seasonsError}
+					<p class="form-hint error-text">{seasonsError}</p>
+				{/if}
+			</section>
+
+			<section class="profile-card">
+				<h2 class="card-title">Import AIDA results</h2>
+				<p class="card-subtitle">Bring in competition results from an AIDA spreadsheet.</p>
+				<a class="button button-secondary full-width" href="/import/aida">Import results</a>
+				{#if lastImportBatchId}
+					{#if formatImportTimestamp(lastImportAt)}
+						<p class="form-hint">{formatImportTimestamp(lastImportAt)}</p>
+					{/if}
+					<button
+						type="button"
+						class="button button-secondary full-width"
+						onclick={handleUndoLastImport}
+						disabled={importUndoing}
+					>
+						{importUndoing ? 'Undoing import...' : 'Undo last import'}
+					</button>
+				{/if}
+				{#if importUndoSuccess}
+					<p class="form-hint">{importUndoSuccess}</p>
+				{/if}
+				{#if importUndoError}
+					<p class="form-hint error-text">{importUndoError}</p>
+				{/if}
+			</section>
+
+			<section id="safety" class="profile-card safety-card">
+				<h2 class="card-title">Safety first</h2>
+				<p class="safety-copy">
+					Never freedive alone. Train with a capable buddy, agree on safety signals before the session, and end the dive or session early if conditions change.
+				</p>
+				<a class="safety-link" href="https://www.aidainternational.org/" target="_blank" rel="noopener noreferrer">
+					AIDA International safety resources
+				</a>
 			</section>
 		</div>
 
-		<section id="safety" class="profile-card safety-card">
-			<div class="card-header">
-				<h2 class="card-title">Safety First</h2>
-				<span class="card-subtitle">Before training or recording</span>
-			</div>
-			<p class="safety-copy">
-				Never freedive alone. Train with a capable buddy, agree on safety signals before the session, and end the dive or session early if conditions change.
-			</p>
-			<a class="safety-link" href="https://www.aidainternational.org/" target="_blank" rel="noopener noreferrer">
-				AIDA International safety resources
-			</a>
-		</section>
-
-		<section class="profile-card">
-			<div class="card-header">
-				<h2 class="card-title">Pending video uploads</h2>
-				<span class="card-subtitle">Dive videos saved on this device but not yet sent to the cloud</span>
-			</div>
-			{#if pendingLoading}
-				<p class="form-hint">Checking queue...</p>
-			{:else if pendingUploads.length === 0}
-				<p class="form-hint">No pending uploads on this device.</p>
-			{:else}
-				{@const totalBytes = pendingUploads.reduce((acc, p) => acc + p.sizeBytes, 0)}
-				<p class="form-hint">
-					{pendingUploads.length} video{pendingUploads.length === 1 ? '' : 's'} waiting · {formatBytes(totalBytes)}
-				</p>
-				<div class="pending-list">
-					{#each pendingUploads as item (item.localId)}
-						{@const fraction = pendingProgressByLocalId[item.localId] ?? 0}
-						<div class="pending-item">
-							<div class="pending-row">
-								<div>
-									<div class="pending-title">
-										{item.metadata.discipline ?? 'Dive'} · {formatBytes(item.sizeBytes)}
-									</div>
-									<div class="pending-meta">
-										Recorded {formatPendingDate(item.createdAt)}
-										{#if item.attempts > 0}
-											· {item.attempts} previous attempt{item.attempts === 1 ? '' : 's'}
-										{/if}
-										{#if item.remoteVideoId}
-											· video {item.remoteVideoId}
-										{/if}
-									</div>
-									{#if item.intendedStoragePath}
-										<div class="pending-meta">{item.intendedStoragePath}</div>
-									{/if}
-									{#if item.lastError}
-										<div class="pending-error">Last error: {item.lastError}</div>
-									{/if}
-								</div>
-							</div>
-							{#if pendingRetrying && fraction > 0 && fraction < 1}
-								<div class="pending-progress">
-									<div class="pending-progress-bar" style="width: {Math.round(fraction * 100)}%"></div>
-								</div>
-							{/if}
-						</div>
-					{/each}
-				</div>
-				<button
-					type="button"
-					class="button button-primary full-width"
-					onclick={handleRetryUploads}
-					disabled={pendingRetrying}
-				>
-					{pendingRetrying ? 'Uploading...' : 'Retry uploads'}
-				</button>
-			{/if}
-			{#if pendingResultMessage}
-				<p class="form-hint">{pendingResultMessage}</p>
-			{/if}
-			{#if pendingError}
-				<p class="form-hint error-text">{pendingError}</p>
-			{/if}
-		</section>
-
-		<section class="profile-card">
-			<div class="card-header">
-				<h2 class="card-title">Upload diagnostics</h2>
-				<span class="card-subtitle">Recent local recorder upload events on this device</span>
-			</div>
-			<p class="form-hint">
-				Diagnostics storage:
-				{uploadDiagnosticsHealth.ok ? 'available' : 'unavailable'}
-				· {uploadDiagnosticsHealth.version}
-				{#if uploadDiagnosticsHealth.error}
-					· {uploadDiagnosticsHealth.error}
-				{/if}
-			</p>
-			{#if uploadDiagnostics.length === 0}
-				<p class="form-hint">No upload diagnostics on this device.</p>
-			{:else}
-				<div class="pending-list">
-					{#each uploadDiagnostics.slice(0, 12) as entry}
-						<div class="pending-item">
-							<div class="pending-row">
-								<div>
-									<div class="pending-title">
-										{formatDiagnosticTime(entry.at)} · {entry.step}
-									</div>
-									<div class="pending-meta">
-										{entry.level.toUpperCase()} · {entry.message}
-										{#if entry.localId}
-											· local {entry.localId.slice(0, 8)}
-										{/if}
-										{#if entry.videoId}
-											· video {entry.videoId}
-										{/if}
-									</div>
-									{#if formatDiagnosticDetails(entry.details)}
-										<div class="pending-error">{formatDiagnosticDetails(entry.details)}</div>
-									{/if}
-								</div>
-							</div>
-						</div>
-					{/each}
-				</div>
-				<button
-					type="button"
-					class="button button-secondary full-width"
-					onclick={handleClearUploadDiagnostics}
-				>
-					Clear diagnostics
-				</button>
-			{/if}
-		</section>
-
-		<section class="profile-card">
-			<div class="card-header">
-				<h2 class="card-title">Imports</h2>
-				<span class="card-subtitle">Bring in competition results from AIDA spreadsheets</span>
-			</div>
-			<a class="button button-secondary full-width" href="/import/aida">
-				Import AIDA Results
-			</a>
-			{#if lastImportBatchId}
-				{#if formatImportTimestamp(lastImportAt)}
-					<p class="form-hint">{formatImportTimestamp(lastImportAt)}</p>
-				{/if}
-				<button
-					type="button"
-					class="button button-secondary full-width"
-					onclick={handleUndoLastImport}
-					disabled={importUndoing}
-				>
-					{importUndoing ? 'Undoing Import...' : 'Undo Last Import'}
-				</button>
-			{/if}
-			{#if importUndoSuccess}
-				<p class="form-hint">{importUndoSuccess}</p>
-			{/if}
-			{#if importUndoError}
-				<p class="form-hint error-text">{importUndoError}</p>
-			{/if}
-		</section>
-
-		<section class="profile-card">
-			<div class="card-header">
-				<h2 class="card-title">Seasons</h2>
-				<span class="card-subtitle">Define training blocks for analytics</span>
-			</div>
-
-			<div class="season-form">
-				<div class="form-group">
-					<label class="form-label" for="season-name">Season Name</label>
-					<input
-						id="season-name"
-						type="text"
-						class="form-input"
-						bind:value={newSeasonName}
-						placeholder="e.g., Winter build"
-					/>
-				</div>
-				<div class="form-row">
-					<div class="form-group">
-						<label class="form-label" for="season-start">Start Date</label>
-						<input
-							id="season-start"
-							type="date"
-							class="form-input"
-							bind:value={newSeasonStart}
-						/>
-					</div>
-					<div class="form-group">
-						<label class="form-label" for="season-end">End Date (optional)</label>
-						<input
-							id="season-end"
-							type="date"
-							class="form-input"
-							bind:value={newSeasonEnd}
-						/>
-					</div>
-				</div>
-				<button
-					type="button"
-					class="button button-primary full-width"
-					onclick={handleCreateSeason}
-					disabled={seasonSaving}
-				>
-					{seasonSaving ? 'Saving...' : 'Add Season'}
-				</button>
-			</div>
-
-			{#if seasonsLoading}
-				<p class="form-hint">Loading seasons...</p>
-			{:else if seasons.length === 0}
-				<p class="form-hint">No seasons yet.</p>
-			{:else}
-				<div class="season-list">
-					{#each seasons as season}
-						<div class="season-card">
-							{#if editingSeasonId === season.id}
-								<div class="season-edit-grid">
-									<div class="form-group">
-										<label class="form-label" for={`season-name-${season.id}`}>Season Name</label>
-										<input
-											id={`season-name-${season.id}`}
-											type="text"
-											class="form-input"
-											bind:value={editSeasonName}
-										/>
-									</div>
-									<div class="form-row">
-										<div class="form-group">
-											<label class="form-label" for={`season-start-${season.id}`}>Start Date</label>
-											<input
-												id={`season-start-${season.id}`}
-												type="date"
-												class="form-input"
-												bind:value={editSeasonStart}
-											/>
-										</div>
-										<div class="form-group">
-											<label class="form-label" for={`season-end-${season.id}`}>End Date</label>
-											<input
-												id={`season-end-${season.id}`}
-												type="date"
-												class="form-input"
-												bind:value={editSeasonEnd}
-											/>
-										</div>
-									</div>
-									<div class="button-row">
-										<button
-											type="button"
-											class="button button-primary"
-											onclick={() => handleUpdateSeason(season.id)}
-											disabled={seasonSaving}
-										>
-											Save
-										</button>
-										<button
-											type="button"
-											class="button button-secondary"
-											onclick={cancelEditSeason}
-											disabled={seasonSaving}
-										>
-											Cancel
-										</button>
-									</div>
-								</div>
-							{:else}
-								<div class="season-row">
-									<div>
-										<h3 class="season-name">{season.name}</h3>
-										<p class="season-dates">
-											{toInputDate(season.startDate.toDate())}
-											{#if season.endDate}
-												→ {toInputDate(season.endDate.toDate())}
-											{:else}
-												→ Present
-											{/if}
-										</p>
-									</div>
-									<button
-										type="button"
-										class="button button-secondary compact"
-										onclick={() => startEditSeason(season)}
-									>
-										Edit
-									</button>
-								</div>
-							{/if}
-						</div>
-					{/each}
-				</div>
-			{/if}
-
-			{#if seasonsError}
-				<p class="form-hint error-text">{seasonsError}</p>
-			{/if}
-		</section>
-
 		<div class="profile-footer">
-			<button onclick={handleSignOut} class="button button-danger full-width">
-				Sign Out
-			</button>
+			<button onclick={handleSignOut} class="button button-secondary full-width">Sign out</button>
 		</div>
 	{/if}
 </div>
@@ -1063,32 +922,21 @@
 		}
 	}
 
-	.profile-header {
-		display: flex;
-		align-items: flex-end;
-		justify-content: space-between;
-		gap: 1rem;
-		margin-bottom: 2rem;
-	}
 
 	.profile-title {
+		margin-bottom: 1.25rem;
 		font-size: 2rem;
 		font-weight: 700;
 		background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
 		-webkit-background-clip: text;
 		background-clip: text;
 		-webkit-text-fill-color: transparent;
-		margin-bottom: 0.35rem;
 	}
 
-	.profile-subtitle {
-		color: var(--color-text-muted);
-		font-size: 0.95rem;
-	}
 
 	.profile-grid {
 		display: grid;
-		gap: 1.5rem;
+		gap: 1rem;
 		margin-bottom: 1.5rem;
 	}
 
@@ -1107,12 +955,16 @@
 		box-shadow: 0 10px 24px rgba(15, 23, 42, 0.25);
 	}
 
+	.profile-card {
+		display: grid;
+		gap: 1rem;
+	}
+
 	.card-header {
 		display: flex;
-		align-items: baseline;
+		align-items: center;
 		justify-content: space-between;
 		gap: 1rem;
-		margin-bottom: 1.25rem;
 	}
 
 	.card-title {
@@ -1122,8 +974,14 @@
 	}
 
 	.card-subtitle {
+		margin: -0.6rem 0 0;
 		font-size: 0.85rem;
+		line-height: 1.45;
 		color: var(--color-text-muted);
+	}
+
+	.pending-card {
+		border-color: rgba(20, 184, 166, 0.4);
 	}
 
 	.safety-card {
@@ -1152,11 +1010,19 @@
 		display: flex;
 		align-items: center;
 		gap: 1rem;
-		padding: 1rem;
-		border-radius: 14px;
-		border: 1px solid rgba(148, 163, 184, 0.12);
-		background: rgba(15, 23, 42, 0.4);
-		margin-bottom: 1.25rem;
+	}
+
+	.account-text {
+		min-width: 0;
+	}
+
+	.account-meta {
+		margin: 0.15rem 0 0;
+		font-size: 0.85rem;
+		color: var(--color-text-muted);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.avatar {
@@ -1182,46 +1048,14 @@
 		font-weight: 600;
 	}
 
-	.detail-grid {
-		display: grid;
-		gap: 1rem;
-	}
 
-	.detail-item {
-		display: flex;
-		flex-direction: column;
-		gap: 0.35rem;
-		background: rgba(15, 23, 42, 0.2);
-		border-radius: 12px;
-		padding: 0.75rem 1rem;
-		border: 1px solid rgba(148, 163, 184, 0.08);
-	}
 
-	.detail-label {
-		color: var(--color-text-muted);
-		font-size: 0.75rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-	}
 
-	.detail-value {
-		font-size: 0.95rem;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		word-break: break-word;
-	}
 
-	.detail-value.mono {
-		font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-		font-size: 0.8rem;
-		word-break: break-all;
-		color: rgba(226, 232, 240, 0.8);
-	}
 
 	.form-group {
 		display: grid;
 		gap: 0.5rem;
-		margin-bottom: 1rem;
 	}
 
 	.form-label {
@@ -1352,15 +1186,7 @@
 		border-color: rgba(148, 163, 184, 0.5);
 	}
 
-	.button-danger {
-		background: rgba(248, 113, 113, 0.15);
-		border-color: rgba(248, 113, 113, 0.35);
-		color: #fecaca;
-	}
 
-	.button-danger:hover {
-		background: rgba(248, 113, 113, 0.3);
-	}
 
 	.full-width {
 		width: 100%;
@@ -1374,9 +1200,8 @@
 
 	.season-form {
 		display: grid;
-		gap: 0.5rem;
-		margin-bottom: 1.5rem;
-		padding-bottom: 1.5rem;
+		gap: 0.75rem;
+		padding-bottom: 1rem;
 		border-bottom: 1px solid rgba(148, 163, 184, 0.1);
 	}
 
@@ -1424,42 +1249,11 @@
 		margin-top: 1.5rem;
 	}
 
-	.pending-list {
-		display: grid;
-		gap: 0.75rem;
-		margin: 1rem 0;
-	}
 
-	.pending-item {
-		border-radius: 12px;
-		padding: 0.85rem 1rem;
-		background: rgba(15, 23, 42, 0.35);
-		border: 1px solid rgba(148, 163, 184, 0.12);
-	}
 
-	.pending-row {
-		display: flex;
-		justify-content: space-between;
-		gap: 1rem;
-	}
 
-	.pending-title {
-		font-size: 0.95rem;
-		font-weight: 600;
-	}
 
-	.pending-meta {
-		font-size: 0.8rem;
-		color: var(--color-text-muted);
-		margin-top: 0.25rem;
-	}
 
-	.pending-error {
-		font-size: 0.8rem;
-		color: #f87171;
-		margin-top: 0.25rem;
-		word-break: break-word;
-	}
 
 	.pending-progress {
 		margin-top: 0.75rem;

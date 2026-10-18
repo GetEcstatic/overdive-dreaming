@@ -1345,7 +1345,7 @@
 						This device can't save uploads locally — recordings made now will
 						most likely be lost. Try closing private browsing, freeing up
 						space, or using a different device. If you record anyway, check
-						Profile › Pending video uploads after saving.
+						Profile › Videos waiting to upload after saving.
 					</p>
 				</div>
 			{/if}
