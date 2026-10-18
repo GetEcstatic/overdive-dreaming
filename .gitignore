@@ -16,3 +16,6 @@ individual_check.txt
 temp_check.txt
 
 .firebase/
+
+# Share HUD redesign: real-footage review renders (athlete footage, keep out of the public repo)
+/docs/video/fixtures/share-hud-redesign/local/

@@ -26,6 +26,7 @@ Foundational docs anyone touching the codebase should skim once.
 Things designed but not yet shipped, or shipped partially.
 
 ### Video
+- [Share HUD redesign](video/share-hud-redesign.md) — audit of the burned HUD export vs Instagram Reels and the selected "Reel-first broadcast" plan: three downloads (original, full with HUD, Instagram social cut), safe zones, split/PB moments, one-length speed graph, result card, shared renderer
 - [Imported video waypoint editor](video/imported-video-waypoint-editor.md) — plan for correcting dense imported-video waypoint data with quick fixes and lap-stacked marker editing
 - [Stored video waypoint reprocessing](video/stored-video-waypoint-reprocessing.md) — plan for editing already-uploaded video waypoints and syncing HUD, overlay downloads, and linked routine-log lap data
 - [Burned HUD parity](video/burned-hud-parity-plan.md) — investigation and implementation plan for making server-burned HUD downloads match the in-app HUD while preserving background readiness
@@ -49,6 +50,9 @@ Things designed but not yet shipped, or shipped partially.
 - [Quick Log v2 routine audit](routines/quick-log-v2-routine-audit.md) — audit and implementation plan for aligning Quick Log with v2 routines
 - [O2 static layer discipline](routines/o2-static-layer-discipline-plan.md) — plan for modelling O2 static as a layer-only unofficial static discipline
 - [Mixed-layer Quick Log UX](routines/pingu-quick-log-ux-plan.md) — evaluation and plan for Pingu-style and future mixed-layer quick-log form improvements
+
+### Biometrics
+- Underwater SpO₂ sensor hardware (design, sourcing, outreach) now lives in the Obsidian vault at `Hardware/Underwater SpO2 Sensor/`, outside this repo. App-side plans (Bluetooth ingest, Capacitor) go here when work starts.
 
 ### Revisit later (shipped but flagged for follow-up)
 - [Routine analytics](metrics-analytics/shipped/routine-analytics.md) — shipped per-routine page; flagged to revisit in future
