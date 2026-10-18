@@ -5,4 +5,4 @@
  *
  * Keep this file free of imports so the functions bundle can include it.
  */
-export const SERVER_OVERLAY_STYLE_VERSION = 'overdive-overlay-v15';
+export const SERVER_OVERLAY_STYLE_VERSION = 'overdive-overlay-v16';

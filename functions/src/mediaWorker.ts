@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { execFile } from 'node:child_process';
+import { execFile, fork } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { Resvg } from '@resvg/resvg-js';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
@@ -22,7 +22,10 @@ import type { DiveTimeline } from './lib/timelineToRoutineLog.js';
 import { SERVER_OVERLAY_STYLE_VERSION } from '../../src/lib/media/overlayStyle';
 import { OVERLAY_EXPORT_SHORT_EDGE_PX, scaleToShortEdge } from '../../src/lib/media/exportDimensions';
 import { collapseFrameRuns, concatListForRuns } from '../../src/lib/media/frameRuns';
-import { HUD_DEFAULT_FONT_FAMILY, HUD_FONT_FILES } from './hudFonts.js';
+import { prepareDive, shareHudSvg, type ShareHudContext } from '../../src/lib/media/shareHud/index';
+import { HUD_TICK_MS, hudFullTicks } from '../../src/lib/media/shareHud/exportPlan';
+import { HUD_DEFAULT_FONT_FAMILY, hudFontFiles } from './hudFonts.js';
+import type { HudRenderBatch } from './hudRenderChild.js';
 
 const require = createRequire(import.meta.url);
 const ffmpegPath = require('ffmpeg-static') as string | null;
@@ -38,7 +41,6 @@ const OVERLAY_EXPORT_PRESET = 'veryfast';
 // function being killed mid-encode.
 const OVERLAY_EXPORT_BUDGET_MS = 480 * 1000;
 const OVERLAY_MIN_ENCODE_TIMEOUT_MS = 30 * 1000;
-const OVERLAY_TICK_MS = 100;
 const MEDIA_JOB_PROCESSING_STALE_MS = 10 * 60 * 1000;
 
 const HUD_REFERENCE_SHORT_EDGE_PX = 390;
@@ -88,7 +90,7 @@ interface OverlayRequestLockDoc {
 	updatedAt?: FirebaseFirestore.Timestamp;
 }
 
-interface DiveVideoDoc {
+export interface DiveVideoDoc {
 	ownerId?: string;
 	userId?: string;
 	storagePathClean?: string;
@@ -111,6 +113,10 @@ interface DiveVideoDoc {
 	displayRotationDeg?: 0 | 90 | 180 | 270;
 	assetOrientation?: 'landscape' | 'portrait';
 	probeRotationDeg?: 0 | 90 | 180 | 270;
+	recordedAt?: FirebaseFirestore.Timestamp;
+	/** Snapshot taken when the video is saved (plan §5.1–5.2). */
+	shareContext?: { pbBeforeM?: number | null; athleteName?: string | null; dateLabel?: string | null };
+	shareEdit?: { firstLengthDirection?: 'ltr' | 'rtl'; protocolEndMs?: number };
 }
 
 interface DiveVideoArtifactRef {
@@ -246,14 +252,6 @@ function formatAssTime(seconds: number): string {
 
 function escapeAssText(value: string): string {
 	return value.replace(/[{}]/g, '').replace(/\r?\n/g, ' ');
-}
-
-function escapeXmlText(value: string): string {
-	return value
-		.replace(/&/g, '&amp;')
-		.replace(/</g, '&lt;')
-		.replace(/>/g, '&gt;')
-		.replace(/"/g, '&quot;');
 }
 
 function formatHudTime(ms: number): string {
@@ -472,146 +470,89 @@ function speedLineSamplesAt(args: {
 	return withFirstSpeedSegmentAcceleration(revealed, currentDistanceM, currentSpeedMs);
 }
 
-function steppedSvgPoints(points: { x: number; y: number }[]): string {
-	if (points.length === 0) return '';
-	const stepped = [`${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`];
-	for (let i = 0; i < points.length - 1; i += 1) {
-		const current = points[i];
-		const next = points[i + 1];
-		stepped.push(`${next.x.toFixed(1)},${current.y.toFixed(1)}`, `${next.x.toFixed(1)},${next.y.toFixed(1)}`);
-	}
-	return stepped.join(' ');
+/** Frames per render child; bounds its native memory to roughly 650 MB at 1080×1920. */
+const HUD_FRAMES_PER_CHILD = 60;
+/** Render children run in parallel, one per vCPU of processMediaJob. */
+const HUD_RENDER_CONCURRENCY = 2;
+
+function hudRenderChildPath(): { path: string; execArgv: string[] } {
+	// Bundled: lib/hudRenderChild.js next to lib/index.js. From source (local harness): run the .ts via tsx.
+	const fromSource = import.meta.url.endsWith('.ts');
+	return {
+		path: fileURLToPath(new URL(fromSource ? './hudRenderChild.ts' : './hudRenderChild.js', import.meta.url)),
+		execArgv: fromSource ? ['--import', 'tsx'] : []
+	};
 }
 
-function overlaySvg(args: {
-	timeline: DiveTimeline;
-	poolLength: number;
-	durationSeconds: number;
-	width: number;
-	height: number;
-	atMs: number;
-}): string {
-	const isPortrait = args.height > args.width;
-	const scale = Math.max(
-		0.5,
-		Math.min(2.5, (isPortrait ? args.width : args.height) / HUD_REFERENCE_SHORT_EDGE_PX)
-	);
-	const boxX = scaledCssPx(isPortrait ? rem(0.75) : rem(0.5), scale);
-	const boxY = scaledCssPx(rem(0.75), scale);
-	const boxW = isPortrait
-		? args.width - 2 * boxX
-		: Math.min(Math.round(args.width * 0.62), args.width - boxX * 2);
-	const padX = scaledCssPx(isPortrait ? rem(1.05) : rem(0.85), scale);
-	const padY = scaledCssPx(isPortrait ? rem(0.75) : rem(0.55), scale);
-	const labelSize = scaledCssPx(isPortrait ? rem(0.7) : rem(0.64), scale);
-	const valueSize = scaledCssPx(isPortrait ? rem(1.9) : rem(1.35), scale);
-	const subSize = scaledCssPx(isPortrait ? rem(0.85) : rem(0.76), scale);
-	const labelLineHeight = scaledCssPx((isPortrait ? rem(0.7) : rem(0.64)) * 1.2, scale);
-	const valueLineHeight = scaledCssPx((isPortrait ? rem(1.9) : rem(1.35)) * 1.1, scale);
-	const subLineHeight = scaledCssPx((isPortrait ? rem(0.85) : rem(0.76)) * 1.2, scale);
-	const subMarginTop = scaledCssPx(rem(0.4), scale);
-	const boxH = padY * 2 + labelLineHeight + valueLineHeight + subMarginTop + subLineHeight;
-	const radius = scaledCssPx(14, scale);
-	const labelSpacing = Math.max(0, labelSize * 0.08).toFixed(2);
-	const innerX = boxX + padX;
-	const innerY = boxY + padY;
-	const rightX = boxX + boxW - padX;
-	const valueY = innerY + labelLineHeight;
-	const subY = valueY + valueLineHeight + subMarginTop;
-	const atMs = Math.max(0, Math.min(args.atMs, args.durationSeconds * 1000));
-	const distance = distanceAt(args.timeline, atMs, args.poolLength);
-	const speed = speedAt(args.timeline, atMs, args.poolLength);
-	const laps = args.timeline.laps.filter((lap) => lap.atMs <= atMs).length;
-
-	const plotScale = Math.max(0.35, Math.min(1.25, args.width / SPEED_PLOT_REFERENCE_WIDTH_PX));
-	const bandHeight = Math.min(Math.round(315 * plotScale), Math.round(args.height * 0.3));
-	const safeX = Math.round(24 * plotScale);
-	const bottomInset = Math.round(32 * plotScale);
-	const bandX = safeX;
-	const bandY = Math.max(0, args.height - bandHeight - bottomInset);
-	const bandW = Math.max(1, args.width - safeX * 2);
-	const plotPadLeft = Math.round(150 * plotScale);
-	const plotPadRight = Math.round(96 * plotScale);
-	const plotPadTop = Math.round(44 * plotScale);
-	const plotPadBottom = Math.round(82 * plotScale);
-	const plotX = bandX + plotPadLeft;
-	const plotY = bandY + plotPadTop;
-	const plotW = Math.max(1, bandW - plotPadLeft - plotPadRight);
-	const plotH = Math.max(1, bandHeight - plotPadTop - plotPadBottom);
-	const domainDistanceM = speedPlotDomainM(args.timeline, args.poolLength);
-	const axisSize = Math.max(8, Math.round(24 * plotScale));
-	const lineWidth = Math.max(2, Math.round(4.5 * plotScale));
-	const gridWidth = Math.max(1, Math.round(1.35 * plotScale));
-	const plotRadius = Math.round(18 * plotScale);
-	const toX = (distanceM: number) => plotX + (Math.max(0, Math.min(domainDistanceM, distanceM)) / domainDistanceM) * plotW;
-	const toY = (speedMs: number) => plotY + (1 - Math.max(0, Math.min(SPEED_PLOT_MAX_SPEED_MS, speedMs)) / SPEED_PLOT_MAX_SPEED_MS) * plotH;
-	const xTicks = [0, 50, 100, 150, 200].filter((tick) => tick <= domainDistanceM);
-	const yTicks = [0, 0.5, 1, 1.5, 2];
-	const lineSamples = speedLineSamplesAt({ timeline: args.timeline, poolLength: args.poolLength, atMs });
-	const speedPoints = steppedSvgPoints(lineSamples.map((sample) => ({ x: toX(sample.distanceM), y: toY(sample.speedMs) })));
-	const currentPoint = distance > 0 ? { x: toX(distance), y: toY(speed) } : null;
-	const watermarkSize = scaledCssPx(isPortrait ? rem(0.68) : rem(0.62), scale);
-	const watermarkMargin = scaledCssPx(rem(0.75), scale);
-
-	return `<svg xmlns="http://www.w3.org/2000/svg" width="${args.width}" height="${args.height}" viewBox="0 0 ${args.width} ${args.height}">
-<defs>
-<linearGradient id="speedPlotBg" x1="0" y1="${bandY}" x2="0" y2="${bandY + bandHeight}" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#0d1320" stop-opacity="0.86"/><stop offset="1" stop-color="#000000" stop-opacity="0.86"/></linearGradient>
-<linearGradient id="speedPlotLine" x1="${plotX}" y1="0" x2="${plotX + plotW}" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#2dd4bf"/><stop offset="1" stop-color="#5eead4"/></linearGradient>
-</defs>
-<rect x="${boxX}" y="${boxY}" width="${boxW}" height="${boxH}" rx="${radius}" fill="rgba(15, 23, 42, 0.55)"/>
-<text x="${innerX}" y="${innerY}" dominant-baseline="text-before-edge" font-family="Barlow" font-size="${labelSize}" font-weight="400" letter-spacing="${labelSpacing}" fill="#cbd5e1">TIME</text>
-<text x="${rightX}" y="${innerY}" text-anchor="end" dominant-baseline="text-before-edge" font-family="Barlow" font-size="${labelSize}" font-weight="400" letter-spacing="${labelSpacing}" fill="#cbd5e1">DISTANCE</text>
-<text x="${innerX}" y="${valueY}" dominant-baseline="text-before-edge" font-family="Barlow Condensed" font-size="${valueSize}" font-weight="400" fill="#f1f5f9">${escapeXmlText(formatHudTime(diveElapsedAt(args.timeline, atMs)))}</text>
-<text x="${rightX}" y="${valueY}" text-anchor="end" dominant-baseline="text-before-edge" font-family="Barlow Condensed" font-size="${valueSize}" font-weight="400" fill="#f1f5f9">${escapeXmlText(`${distance.toFixed(1)} m`)}</text>
-<text x="${innerX}" y="${subY}" dominant-baseline="text-before-edge" font-family="Barlow" font-size="${subSize}" font-weight="400" fill="#cbd5e1">${escapeXmlText(`Lap ${laps}/${args.timeline.laps.length}`)}</text>
-<text x="${rightX}" y="${subY}" text-anchor="end" dominant-baseline="text-before-edge" font-family="Barlow Condensed" font-size="${subSize}" font-weight="400" fill="#cbd5e1">${escapeXmlText(`${speed.toFixed(2)} m/s`)}</text>
-<rect x="${bandX}" y="${bandY}" width="${bandW}" height="${bandHeight}" rx="${plotRadius}" fill="url(#speedPlotBg)"/>
-${xTicks.map((tick) => {
-		const x = Math.round(toX(tick));
-		return `<line x1="${x}" y1="${plotY}" x2="${x}" y2="${plotY + plotH}" stroke="rgba(255,255,255,0.1)" stroke-width="${gridWidth}"/><text x="${x}" y="${Math.round(plotY + plotH + axisSize * 1.35)}" text-anchor="middle" dominant-baseline="middle" font-family="Barlow" font-size="${axisSize}" font-weight="600" fill="rgba(203,213,225,0.82)">${tick}m</text>`;
-	}).join('')}
-${yTicks.map((tick) => {
-		const y = Math.round(toY(tick));
-		return `<line x1="${plotX}" y1="${y}" x2="${plotX + plotW}" y2="${y}" stroke="rgba(255,255,255,0.1)" stroke-width="${gridWidth}"/><text x="${Math.round(plotX - axisSize * 0.55)}" y="${Math.round(y + axisSize * 0.15)}" text-anchor="end" dominant-baseline="middle" font-family="Barlow" font-size="${axisSize}" font-weight="600" fill="rgba(203,213,225,0.82)">${tick % 1 === 0 ? tick.toFixed(0) : tick.toFixed(1)}</text>`;
-	}).join('')}
-<text x="${Math.round(bandX + axisSize * 2)}" y="${Math.round(plotY + plotH / 2)}" text-anchor="middle" dominant-baseline="middle" transform="rotate(-90 ${Math.round(bandX + axisSize * 2)} ${Math.round(plotY + plotH / 2)})" font-family="Barlow" font-size="${axisSize}" font-weight="600" fill="rgba(203,213,225,0.82)">speed [m/s]</text>
-${speedPoints ? `<polyline points="${speedPoints}" fill="none" stroke="url(#speedPlotLine)" stroke-width="${lineWidth}" stroke-linecap="round" stroke-linejoin="round"/>` : ''}
-${currentPoint ? `<circle cx="${currentPoint.x.toFixed(1)}" cy="${currentPoint.y.toFixed(1)}" r="${Math.max(3, Math.round(5.5 * plotScale))}" fill="#f8fafc"/>` : ''}
-<text x="${watermarkMargin}" y="${args.height - watermarkMargin}" dominant-baseline="auto" font-family="Barlow" font-size="${watermarkSize}" font-weight="400" fill="rgba(241,245,249,0.6)">${escapeXmlText('Overdive.app')}</text>
-</svg>`;
+function renderBatchInChild(batch: HudRenderBatch): Promise<void> {
+	const child = hudRenderChildPath();
+	return new Promise((resolve, reject) => {
+		const proc = fork(child.path, [], { execArgv: child.execArgv, stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
+		let settled = false;
+		proc.once('message', (message: { ok: boolean; error?: string }) => {
+			settled = true;
+			if (message.ok) resolve();
+			else reject(new Error(`HUD render child failed: ${message.error ?? 'unknown error'}`));
+		});
+		proc.once('error', (err) => {
+			if (!settled) reject(err);
+			settled = true;
+		});
+		proc.once('exit', (code) => {
+			if (!settled) reject(new Error(`HUD render child exited with code ${code}`));
+			settled = true;
+		});
+		proc.send(batch);
+	});
 }
 
-async function writeSvgOverlayFrameSequence(args: {
-	timeline: DiveTimeline;
-	poolLength: number;
-	durationSeconds: number;
-	width: number;
-	height: number;
-}): Promise<{ framesDir: string; concatListPath: string; renderedFrames: number; tickFrames: number }> {
+async function writeHudFrameSequence(svgs: readonly string[]): Promise<{
+	framesDir: string;
+	concatListPath: string;
+	renderedFrames: number;
+	tickFrames: number;
+}> {
+	const fontFiles = hudFontFiles();
 	const framesDir = join(tmpdir(), `overdive-overlay-frames-${randomUUID()}`);
 	await mkdir(framesDir, { recursive: true });
-	const durationSeconds = Math.max(args.durationSeconds, args.timeline.diveEndMs / 1000, 1);
-	const frameCount = Math.max(2, Math.ceil(durationSeconds * 10) + 1);
-	const svgs = Array.from({ length: frameCount }, (_, frame) =>
-		overlaySvg({ ...args, durationSeconds, atMs: Math.min(durationSeconds * 1000, frame * OVERLAY_TICK_MS) })
-	);
-	// Identical consecutive frames (before GO, after the finish) are rendered once.
+	// Identical consecutive frames (before GO, after the finish, the card hold) are rendered once.
 	const runs = collapseFrameRuns(svgs);
 	const fileName = (index: number) => join(framesDir, `frame-${index.toString().padStart(6, '0')}.png`);
-	for (const run of runs) {
-		const png = new Resvg(svgs[run.startIndex], {
-			fitTo: { mode: 'original' },
-			font: {
-				loadSystemFonts: false,
-				fontFiles: HUD_FONT_FILES,
-				defaultFontFamily: HUD_DEFAULT_FONT_FAMILY
-			}
-		}).render().asPng();
-		await writeFile(fileName(run.startIndex), png);
+	const frames = runs.map((run) => ({ svg: svgs[run.startIndex], path: fileName(run.startIndex) }));
+	const batches: HudRenderBatch[] = [];
+	for (let i = 0; i < frames.length; i += HUD_FRAMES_PER_CHILD) {
+		batches.push({ fontFiles, defaultFontFamily: HUD_DEFAULT_FONT_FAMILY, frames: frames.slice(i, i + HUD_FRAMES_PER_CHILD) });
 	}
+	let next = 0;
+	await Promise.all(
+		Array.from({ length: Math.min(HUD_RENDER_CONCURRENCY, batches.length) }, async () => {
+			while (next < batches.length) {
+				const batch = batches[next];
+				next += 1;
+				await renderBatchInChild(batch);
+			}
+		})
+	);
 	const concatListPath = join(framesDir, 'frames.txt');
-	await writeFile(concatListPath, concatListForRuns(runs, OVERLAY_TICK_MS, fileName));
-	return { framesDir, concatListPath, renderedFrames: runs.length, tickFrames: frameCount };
+	await writeFile(concatListPath, concatListForRuns(runs, HUD_TICK_MS, fileName));
+	return { framesDir, concatListPath, renderedFrames: runs.length, tickFrames: svgs.length };
+}
+
+function shareHudContextFor(video: DiveVideoDoc): ShareHudContext {
+	const recordedAt = video.recordedAt?.toDate?.();
+	return {
+		poolLengthM: video.poolLength ?? 25,
+		discipline: video.discipline ?? 'DYN',
+		pbBeforeM: video.shareContext?.pbBeforeM ?? null,
+		athleteName: video.shareContext?.athleteName ?? null,
+		dateLabel:
+			video.shareContext?.dateLabel ??
+			(recordedAt
+				? recordedAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+				: null),
+		branding: 'subtle',
+		firstLengthDirection: video.shareEdit?.firstLengthDirection ?? 'ltr'
+	};
 }
 
 function withFirstSpeedSegmentAcceleration(
@@ -997,6 +938,100 @@ async function generatePlaybackProxy(args: {
 	});
 }
 
+/**
+ * Render the share HUD over the whole recording, append the result card hold,
+ * and encode to `outputPath`. Exported for the local export harness.
+ */
+export async function encodeHudFullVideo(args: {
+	ffmpeg: string;
+	ffprobe: string;
+	inputPath: string;
+	outputPath: string;
+	videoId: string;
+	video: DiveVideoDoc;
+	outputDimensions: { width: number; height: number };
+	timeoutMs: () => number;
+	onFramesDir: (dir: string) => void;
+}): Promise<void> {
+	const { ffmpeg, ffprobe, inputPath, outputPath, outputDimensions, onFramesDir } = args;
+	const framesStartedAt = Date.now();
+	const timeline = args.video.timeline as DiveTimeline;
+	// Use the real file length so the card lands exactly after the last frame.
+	const sourceProbe = await probeMasterFile({ ffprobe, inputPath });
+	const recordingMs = Math.round(
+		Number(sourceProbe.durationSeconds ?? args.video.durationSeconds ?? 0) * 1000
+	);
+	const dive = prepareDive(timeline, shareHudContextFor(args.video));
+	const ticks = hudFullTicks(Math.max(recordingMs, timeline.diveEndMs, 1_000));
+	const overlayFrames = await writeHudFrameSequence(
+		ticks.map((tick) => shareHudSvg(dive, tick.atMs, outputDimensions, { cardAtMs: tick.cardAtMs }))
+	);
+	onFramesDir(overlayFrames.framesDir);
+	const outputSeconds = (ticks.length * HUD_TICK_MS) / 1000;
+	const cardAtSeconds = (ticks.find((tick) => tick.cardAtMs !== null)?.atMs ?? 0) / 1000;
+	logger.info('Overlay HUD frames rendered', {
+		videoId: args.videoId,
+		width: outputDimensions.width,
+		height: outputDimensions.height,
+		renderedFrames: overlayFrames.renderedFrames,
+		tickFrames: overlayFrames.tickFrames,
+		ms: Date.now() - framesStartedAt
+	});
+	const encodeStartedAt = Date.now();
+	const baseFilter = [
+		...displayRotationFilters(args.video),
+		`scale=${outputDimensions.width}:${outputDimensions.height}:flags=lanczos`
+	].join(',');
+	// Trim the source at the card start, then clone its last frame under the card hold.
+	const holdSeconds = Math.max(0.1, outputSeconds - cardAtSeconds);
+	const filterComplex =
+		`[0:v]trim=end=${cardAtSeconds.toFixed(3)},setpts=PTS-STARTPTS,${baseFilter},` +
+		`tpad=stop_mode=clone:stop_duration=${holdSeconds.toFixed(3)}[base];` +
+		`[1:v]format=rgba[overlay];[base][overlay]overlay=0:0:shortest=1,format=yuv420p[v]`;
+	await execFileAsync(ffmpeg, [
+		'-y',
+		'-fflags',
+		'+genpts',
+		'-i',
+		inputPath,
+		'-f',
+		'concat',
+		'-safe',
+		'0',
+		'-i',
+		overlayFrames.concatListPath,
+		'-t',
+		outputSeconds.toFixed(3),
+		'-filter_complex',
+		filterComplex,
+		'-map',
+		'[v]',
+		'-map',
+		'0:a:0?',
+		'-c:v',
+		'libx264',
+		'-preset',
+		OVERLAY_EXPORT_PRESET,
+		'-crf',
+		OVERLAY_EXPORT_CRF,
+		'-pix_fmt',
+		'yuv420p',
+		// Silence under the card hold.
+		'-af',
+		`atrim=end=${cardAtSeconds.toFixed(3)},apad`,
+		'-c:a',
+		'aac',
+		'-b:a',
+		'96k',
+		'-max_muxing_queue_size',
+		'1024',
+		'-movflags',
+		'+faststart',
+		outputPath
+	], { timeout: args.timeoutMs(), maxBuffer: 10 * 1024 * 1024 });
+	logger.info('Overlay video encoded', { videoId: args.videoId, ms: Date.now() - encodeStartedAt });
+}
+
 async function generateOverlayDownload(args: {
 	videoId: string;
 	video: DiveVideoDoc;
@@ -1019,69 +1054,19 @@ async function generateOverlayDownload(args: {
 		let svgFramesDir: string | null = null;
 		try {
 			try {
-				const framesStartedAt = Date.now();
-				const overlayFrames = await writeSvgOverlayFrameSequence({
-					timeline: args.video.timeline as DiveTimeline,
-					poolLength: args.video.poolLength ?? 25,
-					durationSeconds: args.video.durationSeconds ?? 0,
-					width: outputDimensions.width,
-					height: outputDimensions.height
-				});
-				svgFramesDir = overlayFrames.framesDir;
-				logger.info('Overlay HUD frames rendered', {
-					videoId: args.videoId,
-					width: outputDimensions.width,
-					height: outputDimensions.height,
-					renderedFrames: overlayFrames.renderedFrames,
-					tickFrames: overlayFrames.tickFrames,
-					ms: Date.now() - framesStartedAt
-				});
-				const encodeStartedAt = Date.now();
-				const baseFilter = [
-					...displayRotationFilters(args.video),
-					`scale=${outputDimensions.width}:${outputDimensions.height}:flags=lanczos`
-				].join(',');
-				const filterComplex = `[0:v]${baseFilter}[base];[1:v]format=rgba[overlay];[base][overlay]overlay=0:0:shortest=1,format=yuv420p[v]`;
-				await execFileAsync(ffmpeg, [
-					'-y',
-					'-fflags',
-					'+genpts',
-					'-i',
+				await encodeHudFullVideo({
+					ffmpeg,
+					ffprobe,
 					inputPath,
-					'-f',
-					'concat',
-					'-safe',
-					'0',
-					'-i',
-					overlayFrames.concatListPath,
-					'-t',
-					String(boundedDurationSeconds),
-					'-filter_complex',
-					filterComplex,
-					'-map',
-					'[v]',
-					'-map',
-					'0:a:0?',
-					'-c:v',
-					'libx264',
-					'-preset',
-					OVERLAY_EXPORT_PRESET,
-					'-crf',
-					OVERLAY_EXPORT_CRF,
-					'-pix_fmt',
-					'yuv420p',
-					'-c:a',
-					'aac',
-					'-b:a',
-					'96k',
-					'-shortest',
-					'-max_muxing_queue_size',
-					'1024',
-					'-movflags',
-					'+faststart',
-					outputPath
-				], { timeout: encodeTimeoutMs(), maxBuffer: 10 * 1024 * 1024 });
-				logger.info('Overlay video encoded', { videoId: args.videoId, ms: Date.now() - encodeStartedAt });
+					outputPath,
+					videoId: args.videoId,
+					video: args.video,
+					outputDimensions,
+					timeoutMs: encodeTimeoutMs,
+					onFramesDir: (dir) => {
+						svgFramesDir = dir;
+					}
+				});
 			} catch (err) {
 				logger.warn('SVG overlay render failed; falling back to ASS renderer', {
 					videoId: args.videoId,

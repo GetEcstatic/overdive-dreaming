@@ -7,8 +7,9 @@ import { build } from 'esbuild';
 await rm('lib', { recursive: true, force: true });
 
 await build({
-	entryPoints: ['src/index.ts'],
-	outfile: 'lib/index.js',
+	// hudRenderChild runs as a separate process (see src/hudRenderChild.ts).
+	entryPoints: { index: 'src/index.ts', hudRenderChild: 'src/hudRenderChild.ts' },
+	outdir: 'lib',
 	bundle: true,
 	platform: 'node',
 	format: 'esm',
