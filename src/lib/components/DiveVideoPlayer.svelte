@@ -110,6 +110,7 @@
 	} from '$lib/services/diveVideos';
 	import { getUserPBRecords, getUserPBs } from '$lib/utils/personalBests';
 	import { hasCurrentServerOverlayArtifact } from '$lib/media/processing';
+	import { sniffVideoMime, videoExtensionForMime, type SniffedVideoMime } from '$lib/media/videoFile';
 	import {
 		canvasFont,
 		hudFontLoadDescriptors,
@@ -755,12 +756,6 @@
 		void requestServerOverlay();
 	});
 
-	function fileExtensionFromMime(mime: string): string {
-		if (mime.includes('mp4')) return 'mp4';
-		if (mime.includes('webm')) return 'webm';
-		return 'bin';
-	}
-
 	function timestampMillis(value: { toMillis?: () => number } | Date | undefined): number {
 		if (!value) return 0;
 		if (value instanceof Date) return value.getTime();
@@ -851,43 +846,13 @@
 		}
 	}
 
-	/**
-	 * Sniff the real container of a video blob by inspecting magic bytes.
-	 * The MIME stored on the DiveVideo record (or reported by fetch) can
-	 * disagree with the actual bytes — that mismatch makes iOS refuse to
-	 * expose the "Save Video" (Photos) option in the share sheet. We
-	 * normalise to the real type so the share sheet behaves.
-	 *
-	 *  - MP4 (ISO BMFF): bytes 4..7 == "ftyp"
-	 *  - WebM/Matroska:  starts with 0x1A 0x45 0xDF 0xA3 (EBML header)
-	 */
-	async function sniffVideoContainer(
-		blob: Blob
-	): Promise<{ mime: 'video/mp4' | 'video/webm' | null }> {
+	/** Real container of a video blob from its magic bytes (see `sniffVideoMime`). */
+	async function sniffVideoContainer(blob: Blob): Promise<{ mime: SniffedVideoMime | null }> {
 		try {
-			const head = new Uint8Array(await blob.slice(0, 16).arrayBuffer());
-			if (
-				head.length >= 8 &&
-				head[4] === 0x66 /* f */ &&
-				head[5] === 0x74 /* t */ &&
-				head[6] === 0x79 /* y */ &&
-				head[7] === 0x70 /* p */
-			) {
-				return { mime: 'video/mp4' };
-			}
-			if (
-				head.length >= 4 &&
-				head[0] === 0x1a &&
-				head[1] === 0x45 &&
-				head[2] === 0xdf &&
-				head[3] === 0xa3
-			) {
-				return { mime: 'video/webm' };
-			}
+			return { mime: sniffVideoMime(new Uint8Array(await blob.slice(0, 16).arrayBuffer())) };
 		} catch {
-			/* fall through */
+			return { mime: null };
 		}
-		return { mime: null };
 	}
 
 	function isIOS(): boolean {
@@ -902,7 +867,7 @@
 	function suggestedFileName(mime: string, withOverlay: boolean): string {
 		const stamp = liveVideo.recordedAt?.toDate?.().toISOString?.().replace(/[:.]/g, '-') ?? 'dive';
 		const tag = withOverlay ? 'overlay' : 'clean';
-		return `overdive-${liveVideo.discipline}-${tag}-${stamp}.${fileExtensionFromMime(mime)}`;
+		return `overdive-${liveVideo.discipline}-${tag}-${stamp}.${videoExtensionForMime(mime)}`;
 	}
 
 	function clickDownloadUrl(url: string, fileName: string): void {
@@ -995,7 +960,7 @@
 			const sniffed = await sniffVideoContainer(blob);
 			if (sniffed.mime) mime = sniffed.mime;
 			if (blob.type !== mime) blob = new Blob([blob], { type: mime });
-			const fileName = args.fileName.replace(/\.(mp4|webm|bin)$/i, `.${fileExtensionFromMime(mime)}`);
+			const fileName = args.fileName.replace(/\.(mp4|mov|webm|mkv|bin)$/i, `.${videoExtensionForMime(mime)}`);
 			const file = new File([blob], fileName, { type: mime });
 
 			if (
