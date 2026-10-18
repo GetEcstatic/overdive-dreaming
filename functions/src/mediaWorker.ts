@@ -22,7 +22,7 @@ import type { DiveTimeline } from './lib/timelineToRoutineLog.js';
 import { SERVER_OVERLAY_STYLE_VERSION } from '../../src/lib/media/overlayStyle';
 import { OVERLAY_EXPORT_SHORT_EDGE_PX, scaleToShortEdge } from '../../src/lib/media/exportDimensions';
 import { collapseFrameRuns, concatListForRuns } from '../../src/lib/media/frameRuns';
-import { prepareDive, shareHudSvg, type ShareHudContext } from '../../src/lib/media/shareHud/index';
+import { prepareDive, shareHudContextForVideo, shareHudSvg } from '../../src/lib/media/shareHud/index';
 import { HUD_TICK_MS, hudFullTicks } from '../../src/lib/media/shareHud/exportPlan';
 import { HUD_DEFAULT_FONT_FAMILY, hudFontFiles } from './hudFonts.js';
 import type { HudRenderBatch } from './hudRenderChild.js';
@@ -550,22 +550,6 @@ async function writeHudFrameSequence(svgs: readonly string[]): Promise<{
 	return { framesDir, concatListPath, renderedFrames: runs.length, tickFrames: svgs.length };
 }
 
-function shareHudContextFor(video: DiveVideoDoc): ShareHudContext {
-	const recordedAt = video.recordedAt?.toDate?.();
-	return {
-		poolLengthM: video.poolLength ?? 25,
-		discipline: video.discipline ?? 'DYN',
-		pbBeforeM: video.shareContext?.pbBeforeM ?? null,
-		athleteName: video.shareContext?.athleteName ?? null,
-		dateLabel:
-			video.shareContext?.dateLabel ??
-			(recordedAt
-				? recordedAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
-				: null),
-		branding: 'subtle',
-		firstLengthDirection: video.shareEdit?.firstLengthDirection ?? 'ltr'
-	};
-}
 
 function withFirstSpeedSegmentAcceleration(
 	samples: { distanceM: number; speedMs: number }[],
@@ -973,7 +957,7 @@ export async function encodeHudFullVideo(args: {
 	const recordingMs = Math.round(
 		Number(sourceProbe.durationSeconds ?? args.video.durationSeconds ?? 0) * 1000
 	);
-	const dive = prepareDive(timeline, shareHudContextFor(args.video));
+	const dive = prepareDive(timeline, shareHudContextForVideo(args.video));
 	const ticks = hudFullTicks(Math.max(recordingMs, timeline.diveEndMs, 1_000));
 	const overlayFrames = await writeHudFrameSequence(
 		ticks.map((tick) => shareHudSvg(dive, tick.atMs, outputDimensions, { cardAtMs: tick.cardAtMs }))

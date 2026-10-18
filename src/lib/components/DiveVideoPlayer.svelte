@@ -85,8 +85,7 @@
 	import { Volume2, VolumeX } from 'lucide-svelte';
 	import { db } from '$lib/firebase';
 	import { user } from '$lib/stores/auth';
-	import MetricHudSvg from '$lib/components/MetricHudSvg.svelte';
-	import SpeedPlotHudSvg from '$lib/components/SpeedPlotHudSvg.svelte';
+	import ShareHudSvg from '$lib/components/ShareHudSvg.svelte';
 	import type { DiveTimeline, DiveVideo } from '$lib/types';
 	import {
 		distanceAt,
@@ -118,7 +117,7 @@
 		type HudRenderMode,
 		type HudTextStyle
 	} from '$lib/media/hudDesign';
-	import { createMetricHudFrame } from '$lib/media/metricHudFrame';
+	import { prepareDive, shareHudContextForVideo } from '$lib/media/shareHud';
 	import {
 		createSpeedPlotFrame,
 		projectSpeedPlot,
@@ -176,6 +175,8 @@
 	let videoEl: HTMLVideoElement | undefined = $state();
 	let containerEl: HTMLDivElement | undefined = $state();
 	let containerWidth = $state(390);
+	let containerHeight = $state(0);
+	let playbackEnded = $state(false);
 	let currentMs = $state(0);
 	let isPlaying = $state(false);
 	let inlineMuted = $state(false);
@@ -311,6 +312,7 @@
 
 	function onPlayStateChange() {
 		isPlaying = !!videoEl && !videoEl.paused && !videoEl.ended;
+		playbackEnded = !!videoEl?.ended;
 		revealFullscreenControls();
 	}
 
@@ -391,19 +393,9 @@
 	const displayAspectRatioNumber = $derived(
 		displayTransform.aspectRatio === '9 / 16' ? 9 / 16 : 16 / 9
 	);
-	const hudMode = $derived<HudRenderMode>(
-		fullscreenMode === 'landscape' || (!isFullscreen && displayTransform.hudMode === 'landscape')
-			? 'landscape'
-			: 'portrait'
-	);
-	const metricHudFrame = $derived(
-		createMetricHudFrame({
-			timeline,
-			poolLengthM: poolLength,
-			atMs: Math.max(0, currentMs),
-			widthPx: Math.max(320, containerWidth || 390),
-			mode: hudMode
-		})
+	// Same HUD as the server download (plan §6.4): pool, PB before this dive, name, date, graph direction.
+	const shareHudDive = $derived(
+		prepareDive(timeline, shareHudContextForVideo({ ...liveVideo, poolLength }))
 	);
 	const showAnyOverlay = $derived(showOverlay);
 	const requiresBrowserOverlayExport = $derived(false);
@@ -706,6 +698,8 @@
 
 	function onTimeUpdate(): void {
 		if (!videoEl) return;
+		// Seeking back after the end clears `ended`; hide the result card again.
+		playbackEnded = videoEl.ended;
 		// Fallback when rVFC isn't available.
 		if (rvfcHandle === null) {
 			currentMs = videoEl.currentTime * 1000;
@@ -1663,6 +1657,7 @@
 <div
 	bind:this={containerEl}
 	bind:clientWidth={containerWidth}
+	bind:clientHeight={containerHeight}
 	class="relative w-full overflow-hidden rounded-2xl bg-black shadow-lg"
 	class:dive-video-feed-player={feedFrame}
 	class:feed-frame={feedFrame && !isFullscreen}
@@ -1711,11 +1706,13 @@
 	{/if}
 
 	{#if showOverlay}
-		<MetricHudSvg frame={metricHudFrame} />
-	{/if}
-
-	{#if showSpeedPlot}
-		<SpeedPlotHudSvg model={speedPlotModel} style={speedPlotStyle} />
+		<ShareHudSvg
+			dive={shareHudDive}
+			atMs={currentMs}
+			width={containerWidth}
+			height={containerHeight}
+			showCard={playbackEnded}
+		/>
 	{/if}
 
 	{#if inlineScrubberVisible && !isFullscreen && inlineActions}

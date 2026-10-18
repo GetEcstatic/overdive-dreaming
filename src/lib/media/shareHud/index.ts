@@ -8,7 +8,9 @@ import { layoutLiveHud, layoutResultCard, type HudCanvas } from './layout';
 import { prepareDive, resultCard, shareHudFrame, type FrameOptions, type ShareHudDive } from './model';
 import { renderSvg } from './svg';
 
-export { prepareDive, resultCard, shareHudFrame } from './model';
+export { prepareDive, resultCard, shareHudFrame, CARD_FADE_MS } from './model';
+export { shareHudContextForVideo, type ShareHudVideoFields } from './context';
+export { HUD_TICK_MS } from './exportPlan';
 export type { ShareHudContext, ShareHudDive, ShareHudFrame, FrameOptions } from './model';
 export type { HudCanvas } from './layout';
 export type { GraphDirection } from './speedGraph';
