@@ -5,16 +5,16 @@ import type {
 	MediaObjectRef
 } from '$lib/types';
 
-import { SERVER_OVERLAY_STYLE_VERSION } from './overlayStyle';
+import { SERVER_OVERLAY_STYLE_VERSION, overlayRenderKey } from './overlayStyle';
 
-export { SERVER_OVERLAY_STYLE_VERSION };
+export { SERVER_OVERLAY_STYLE_VERSION, overlayRenderKey };
 
 export function serverOverlayArtifact(video: Pick<DiveVideo, 'artifacts'>): DiveVideoArtifactRef | undefined {
 	return video.artifacts?.find((artifact) => artifact.kind === 'overlay-download');
 }
 
-export function hasCurrentServerOverlayArtifact(video: Pick<DiveVideo, 'artifacts'>): boolean {
-	return serverOverlayArtifact(video)?.styleVersion === SERVER_OVERLAY_STYLE_VERSION;
+export function hasCurrentServerOverlayArtifact(video: Pick<DiveVideo, 'artifacts' | 'shareEdit'>): boolean {
+	return serverOverlayArtifact(video)?.styleVersion === overlayRenderKey(video);
 }
 
 export function initialDiveVideoProcessingState(): DiveVideoProcessingState {

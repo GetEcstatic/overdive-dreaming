@@ -54,8 +54,10 @@ import type {
 	DiveVideoGiftStatus,
 	DiveTimeline,
 	DiveVideoShareContext,
+	DiveVideoShareEdit,
 	DiveVideoUploadStatus
 } from '$lib/types';
+import { getUserSettings, updateUserSettings } from '$lib/firestore';
 
 const COLLECTION = 'diveVideos';
 
@@ -138,6 +140,39 @@ async function resolveShareContext(
 	}
 }
 
+/** The owner's last chosen graph direction, as the new video's share edit. Best effort, like the share context. */
+async function resolveShareEdit(ownerId: string): Promise<DiveVideoShareEdit | undefined> {
+	const lookup = getUserSettings(ownerId).then((settings) => {
+		const direction = settings?.shareHud?.firstLengthDirection;
+		return direction ? { firstLengthDirection: direction } : undefined;
+	});
+	const timeout = new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), SHARE_CONTEXT_TIMEOUT_MS));
+	try {
+		return await Promise.race([lookup, timeout]);
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Flip the speed graph's first-length direction for one video and remember it
+ * as the owner's default for new videos. Changes the video's overlay render
+ * key, so its HUD download is regenerated on the next request.
+ */
+export async function setDiveVideoGraphDirection(args: {
+	videoId: string;
+	ownerId: string;
+	direction: 'ltr' | 'rtl';
+}): Promise<void> {
+	await Promise.all([
+		updateDoc(doc(db, COLLECTION, args.videoId), {
+			'shareEdit.firstLengthDirection': args.direction,
+			updatedAt: serverTimestamp()
+		}),
+		updateUserSettings(args.ownerId, { shareHud: { firstLengthDirection: args.direction } })
+	]);
+}
+
 /**
  * Create the Firestore `DiveVideo` document. Upload of the actual media blob
  * is a separate step so callers can wire it up to a progress UI.
@@ -153,11 +188,15 @@ export async function createDiveVideo(
 		cleanVideoData.storagePathClean ??
 		cleanPathFor(cleanVideoData.userId, videoId, cleanVideoData.mimeType);
 
-	const shareContext = cleanVideoData.shareContext ?? (await resolveShareContext(cleanVideoData));
+	const [shareContext, shareEdit] = await Promise.all([
+		cleanVideoData.shareContext ?? resolveShareContext(cleanVideoData),
+		cleanVideoData.shareEdit ?? resolveShareEdit(cleanVideoData.ownerId ?? cleanVideoData.userId)
+	]);
 
 	const payload = {
 		...cleanVideoData,
 		...(shareContext ? { shareContext } : {}),
+		...(shareEdit ? { shareEdit } : {}),
 		id: videoId,
 		storagePathClean,
 		processingState: cleanVideoData.processingState ?? initialDiveVideoProcessingState(),

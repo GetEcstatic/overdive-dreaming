@@ -19,7 +19,7 @@ import {
 } from './wasabiClient.js';
 import type { DiveVideoProcessingJob } from './mediaProcessingJobs.js';
 import type { DiveTimeline } from './lib/timelineToRoutineLog.js';
-import { SERVER_OVERLAY_STYLE_VERSION } from '../../src/lib/media/overlayStyle';
+import { SERVER_OVERLAY_STYLE_VERSION, overlayRenderKey } from '../../src/lib/media/overlayStyle';
 import { OVERLAY_EXPORT_SHORT_EDGE_PX, scaleToShortEdge } from '../../src/lib/media/exportDimensions';
 import { collapseFrameRuns, concatListForRuns } from '../../src/lib/media/frameRuns';
 import { prepareDive, shareHudContextForVideo, shareHudSvg } from '../../src/lib/media/shareHud/index';
@@ -1146,7 +1146,7 @@ async function generateOverlayDownload(args: {
 				durationSeconds: probe.durationSeconds,
 				sizeBytes: bytes.byteLength,
 				contentType: 'video/mp4',
-				styleVersion: OVERLAY_STYLE_VERSION,
+				styleVersion: overlayRenderKey(args.video),
 				disposable: true
 			}) as unknown as DiveVideoArtifactRef;
 		} finally {
@@ -1304,7 +1304,7 @@ async function runMediaJob(args: { jobId: string; uid?: string; throwOnFailure?:
 			const lockSnap = await lockRef.get();
 			const lock = lockSnap.exists ? lockSnap.data() as OverlayRequestLockDoc : null;
 			const currentOverlay = video.artifacts?.find(
-				(artifact) => artifact.kind === 'overlay-download' && artifact.styleVersion === OVERLAY_STYLE_VERSION
+				(artifact) => artifact.kind === 'overlay-download' && artifact.styleVersion === overlayRenderKey(video)
 			);
 			if (currentOverlay) {
 				await Promise.all([
@@ -1399,7 +1399,7 @@ export const requestOverlayDownload = onCall(
 			}
 
 			const currentOverlay = video.artifacts?.find(
-				(artifact) => artifact.kind === 'overlay-download' && artifact.styleVersion === OVERLAY_STYLE_VERSION
+				(artifact) => artifact.kind === 'overlay-download' && artifact.styleVersion === overlayRenderKey(video)
 			);
 			if (currentOverlay) {
 				transaction.set(lockRef, {

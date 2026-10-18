@@ -35,6 +35,21 @@ describe('media processing helpers', () => {
 		});
 	});
 
+	it('treats a flipped graph direction as a different export', () => {
+		const artifact = (styleVersion: string) => ({
+			kind: 'overlay-download' as const,
+			profile: 'overlay-mp4-720p' as const,
+			object: { provider: 'wasabi' as const, key: 'users/u1/videos/v1/overlay/download.mp4' },
+			styleVersion
+		});
+		const ltr = artifact(SERVER_OVERLAY_STYLE_VERSION);
+		const rtl = artifact(`${SERVER_OVERLAY_STYLE_VERSION}+rtl`);
+		expect(hasCurrentServerOverlayArtifact({ artifacts: [ltr], shareEdit: { firstLengthDirection: 'ltr' } })).toBe(true);
+		expect(hasCurrentServerOverlayArtifact({ artifacts: [ltr], shareEdit: { firstLengthDirection: 'rtl' } })).toBe(false);
+		expect(hasCurrentServerOverlayArtifact({ artifacts: [rtl], shareEdit: { firstLengthDirection: 'rtl' } })).toBe(true);
+		expect(hasCurrentServerOverlayArtifact({ artifacts: [rtl] })).toBe(false);
+	});
+
 	it('detects stale server overlay artifacts', () => {
 		expect(hasCurrentServerOverlayArtifact({ artifacts: [] })).toBe(false);
 		expect(

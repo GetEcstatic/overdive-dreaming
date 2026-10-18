@@ -262,6 +262,7 @@ The whole dive unfolded is what Tom described ("only once the dive is complete i
 On the real clip the filmer walks along one side of the pool, so the diver's on-screen direction should alternate each length, which is exactly what option C draws. In practice, length 1 swims right to left on screen, so the default (left to right) was wrong for that clip. Even with the direction corrected, a few stretches still disagreed with the footage. In places the diver changes on-screen direction within a single "length", which can't happen without a wall, so these are errors in the clip's hand-fitted wall times, not the design. Either way, a graph running against the diver is visibly jarring. So:
 
 - Store **`firstLengthDirection: 'ltr' | 'rtl'`** per video (default `ltr`).
+- **Shipped (18 Oct 2026):** in the player, the video's owner taps the speed graph to flip it. The choice is saved to `shareEdit.firstLengthDirection` and to the owner's `settings.shareHud.firstLengthDirection`, which becomes the default for their next videos (filmers usually stand on the same side of the pool). The export's render key (`overlayRenderKey`: style version, plus `+rtl`) changes, so the HUD download is regenerated on the next request.
 - In the share preview, show a frame from length 1 with the graph and a one-tap **⇄ Flip graph direction** control.
 - If users find this confusing in testing, fall back to option D, which needs no setting.
 - Phase 5: infer the direction automatically from motion in the first length (optical flow of the largest moving blob).

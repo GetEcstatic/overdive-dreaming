@@ -12,7 +12,8 @@ export { prepareDive, resultCard, shareHudFrame, CARD_FADE_MS } from './model';
 export { shareHudContextForVideo, type ShareHudVideoFields } from './context';
 export { HUD_TICK_MS } from './exportPlan';
 export type { ShareHudContext, ShareHudDive, ShareHudFrame, FrameOptions } from './model';
-export type { HudCanvas } from './layout';
+export type { HudCanvas, Rect as HudRect } from './layout';
+export { graphDirectionHitRect } from './layout';
 export type { GraphDirection } from './speedGraph';
 export type { HudDiscipline } from './format';
 

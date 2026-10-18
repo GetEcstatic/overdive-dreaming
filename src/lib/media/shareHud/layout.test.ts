@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fixtureTimeline, FIXTURE_PB_M, FIXTURE_POOL_M, FIXTURE_RECORDING_MS } from './fixtures';
-import { geometry, layoutLiveHud, layoutResultCard, REEL_SAFE, type HudCanvas } from './layout';
+import { geometry, graphDirectionHitRect, layoutLiveHud, layoutResultCard, REEL_SAFE, type HudCanvas } from './layout';
 import { prepareDive, resultCard, shareHudFrame, type ShareHudContext } from './model';
 import type { HudPrimitive } from './svg';
 
@@ -82,6 +82,16 @@ describe('reel layout safe zones', () => {
 });
 
 describe('layout geometry', () => {
+	it('puts the direction tap target over the graph, in canvas pixels', () => {
+		const g = geometry(REEL);
+		const hit = graphDirectionHitRect(REEL);
+		expect(hit.y).toBeLessThan(g.graph.headerY - 32);
+		expect(hit.y + hit.h).toBe(g.graph.base);
+		const small = graphDirectionHitRect({ width: 360, height: 640 });
+		expect(small.w).toBeCloseTo(hit.w / 3, 6);
+		expect(small.h).toBeGreaterThanOrEqual(44);
+	});
+
 	it('pins the graph to the bottom on taller portrait canvases', () => {
 		expect(geometry({ width: 1080, height: 1974 }).graph.base - geometry(REEL).graph.base).toBeCloseTo(54, 6);
 	});

@@ -160,6 +160,11 @@ export interface UserSettings {
 	defaultWaypointsPerLap?: number;
 	defaultDiscipline?: 'DYN' | 'DYNB' | 'DNF';
 	defaultCameraPreference?: CameraPreference;
+	/** Share HUD defaults for new videos. */
+	shareHud?: {
+		/** Last graph direction this user chose; filmers usually stand on the same side of the pool. */
+		firstLengthDirection?: 'ltr' | 'rtl';
+	};
 }
 
 export interface User {

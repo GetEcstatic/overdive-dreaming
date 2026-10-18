@@ -449,6 +449,21 @@ function scaled(children: Prims, g: Geometry): Prims {
 	return g.scale === 1 ? children : [{ kind: 'group', transform: `scale(${g.scale.toFixed(5)})`, children }];
 }
 
+/**
+ * Tap target for flipping the graph direction in-app, in canvas pixels: the
+ * live graph's header row (with the swim-direction chevrons) and plot.
+ */
+export function graphDirectionHitRect(canvas: HudCanvas): Rect {
+	const g = geometry(canvas);
+	const top = g.graph.headerY - 50;
+	return {
+		x: g.graph.x0 * g.scale,
+		y: top * g.scale,
+		w: (g.graph.x1 - g.graph.x0) * g.scale,
+		h: (g.graph.base - top) * g.scale
+	};
+}
+
 /** Live HUD (pre, live and finish phases). */
 export function layoutLiveHud(dive: ShareHudDive, frame: ShareHudFrame, canvas: HudCanvas): HudPrimitive[] {
 	const g = geometry(canvas);

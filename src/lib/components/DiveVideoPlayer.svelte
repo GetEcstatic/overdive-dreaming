@@ -104,6 +104,7 @@
 	} from '$lib/stores/videoPlayback';
 	import {
 		getDiveVideoBurnedDownloadUrl,
+		setDiveVideoGraphDirection,
 		getDiveVideoDirectDownloadUrl,
 		requestDiveVideoOverlayDownload
 	} from '$lib/services/diveVideos';
@@ -397,6 +398,13 @@
 	const shareHudDive = $derived(
 		prepareDive(timeline, shareHudContextForVideo({ ...liveVideo, poolLength }))
 	);
+	const isVideoOwner = $derived($user?.uid === (liveVideo.ownerId ?? liveVideo.userId));
+
+	async function flipGraphDirection(): Promise<void> {
+		const ownerId = liveVideo.ownerId ?? liveVideo.userId;
+		const current = liveVideo.shareEdit?.firstLengthDirection ?? 'ltr';
+		await setDiveVideoGraphDirection({ videoId: liveVideo.id, ownerId, direction: current === 'rtl' ? 'ltr' : 'rtl' });
+	}
 	const showAnyOverlay = $derived(showOverlay);
 	const requiresBrowserOverlayExport = $derived(false);
 	const speedPlotFrame = $derived(
@@ -1712,6 +1720,7 @@
 			width={containerWidth}
 			height={containerHeight}
 			showCard={playbackEnded}
+			onFlipDirection={isVideoOwner && showPlayerActions ? flipGraphDirection : undefined}
 		/>
 	{/if}
 
