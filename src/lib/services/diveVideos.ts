@@ -31,7 +31,7 @@ import {
 	deleteObject,
 	type UploadTask
 } from 'firebase/storage';
-import { db, storage } from '$lib/firebase';
+import { auth, db, storage } from '$lib/firebase';
 import { functions } from '$lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import {
@@ -46,11 +46,14 @@ import {
 	initialDiveVideoProcessingState,
 	SERVER_OVERLAY_STYLE_VERSION
 } from '$lib/media/processing';
+import { pbBeforeFromRecords, shareDateLabel } from '$lib/media/shareContext';
+import { getUserPBRecords, getUserPBs } from '$lib/utils/personalBests';
 import type {
 	DiveVideo,
 	DiveVideoFormData,
 	DiveVideoGiftStatus,
 	DiveTimeline,
+	DiveVideoShareContext,
 	DiveVideoUploadStatus
 } from '$lib/types';
 
@@ -103,6 +106,38 @@ function artifactMediaKind(kind: string | undefined):
 	return null;
 }
 
+const SHARE_CONTEXT_TIMEOUT_MS = 3_000;
+
+/**
+ * Share HUD snapshot (PB before this dive, athlete name, date) for a new
+ * video. Best effort: returns undefined on any failure or after 3 s, so it
+ * never blocks saving (e.g. offline, or a coach without access to the
+ * athlete's PBs).
+ */
+async function resolveShareContext(
+	videoData: Pick<DiveVideoFormData, 'userId' | 'ownerId' | 'athleteId' | 'discipline' | 'routineLogId' | 'recordedAt'>
+): Promise<DiveVideoShareContext | undefined> {
+	const athleteId = videoData.athleteId ?? videoData.userId;
+	const selfRecorded = athleteId === videoData.ownerId;
+	const lookup = (async (): Promise<DiveVideoShareContext> => {
+		const [records, legacy] = await Promise.all([getUserPBRecords(athleteId), getUserPBs(athleteId)]);
+		const pb = pbBeforeFromRecords({ records, legacy, discipline: videoData.discipline, routineLogId: videoData.routineLogId });
+		const athleteName = selfRecorded ? auth.currentUser?.displayName?.trim() : undefined;
+		const recordedAt = videoData.recordedAt?.toDate?.() ?? new Date();
+		return {
+			...pb,
+			...(athleteName ? { athleteName } : {}),
+			dateLabel: shareDateLabel(recordedAt)
+		};
+	})();
+	const timeout = new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), SHARE_CONTEXT_TIMEOUT_MS));
+	try {
+		return await Promise.race([lookup, timeout]);
+	} catch {
+		return undefined;
+	}
+}
+
 /**
  * Create the Firestore `DiveVideo` document. Upload of the actual media blob
  * is a separate step so callers can wire it up to a progress UI.
@@ -118,8 +153,11 @@ export async function createDiveVideo(
 		cleanVideoData.storagePathClean ??
 		cleanPathFor(cleanVideoData.userId, videoId, cleanVideoData.mimeType);
 
+	const shareContext = cleanVideoData.shareContext ?? (await resolveShareContext(cleanVideoData));
+
 	const payload = {
 		...cleanVideoData,
+		...(shareContext ? { shareContext } : {}),
 		id: videoId,
 		storagePathClean,
 		processingState: cleanVideoData.processingState ?? initialDiveVideoProcessingState(),

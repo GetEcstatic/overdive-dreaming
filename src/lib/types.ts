@@ -1230,8 +1230,30 @@ export interface DiveVideo {
 	// Timeline — the key analytics artifact
 	timeline: DiveTimeline;
 
+	/** Share HUD snapshot taken when the video is created (docs/video/share-hud-redesign.md §5). */
+	shareContext?: DiveVideoShareContext;
+	/** Per-video share edits (docs/video/share-hud-redesign.md §5.5). */
+	shareEdit?: DiveVideoShareEdit;
+
 	createdAt: Timestamp;
 	updatedAt: Timestamp;
+}
+
+export interface DiveVideoShareContext {
+	/** Best standard distance PB for the discipline before this dive, or null. */
+	pbBeforeM: number | null;
+	pbSource: 'record' | 'legacy' | 'none';
+	/** Athlete name for the result card; only for self-recorded clips. */
+	athleteName?: string;
+	/** Recording date for the result card, e.g. `17 Oct 2026`. */
+	dateLabel?: string;
+}
+
+export interface DiveVideoShareEdit {
+	/** On-screen direction of the first length in the speed graph. */
+	firstLengthDirection?: 'ltr' | 'rtl';
+	/** Social cut end override (recording clock). */
+	protocolEndMs?: number;
 }
 
 export type DiveVideoFormData = Omit<DiveVideo, 'id' | 'createdAt' | 'updatedAt'>;
