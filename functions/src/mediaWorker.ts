@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { execFile, fork } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { tmpdir } from 'node:os';
+import { availableParallelism, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
@@ -470,10 +470,17 @@ function speedLineSamplesAt(args: {
 	return withFirstSpeedSegmentAcceleration(revealed, currentDistanceM, currentSpeedMs);
 }
 
-/** Frames per render child; bounds its native memory to roughly 650 MB at 1080×1920. */
-const HUD_FRAMES_PER_CHILD = 60;
-/** Render children run in parallel, one per vCPU of processMediaJob. */
-const HUD_RENDER_CONCURRENCY = 2;
+/**
+ * vCPUs for the media worker. Cloud Run bills vCPU-seconds while a job runs, so
+ * more CPUs cost about the same per export as long as the work parallelises
+ * (HUD frames: one render child per vCPU; x264 uses every core).
+ */
+const MEDIA_WORKER_CPU = 8;
+/** Frames per render child; bounds its native memory to about 200 MB at 1080×1920, so 8 children plus /tmp (in memory on Cloud Run) fit in 4 GiB. */
+const HUD_FRAMES_PER_CHILD = 16;
+const HUD_RENDER_CONCURRENCY = MEDIA_WORKER_CPU;
+/** Exports are capped at 30 fps; higher-rate sources would otherwise be decoded and scaled only to be dropped. */
+const OVERLAY_EXPORT_FPS = 30;
 
 function hudRenderChildPath(): { path: string; execArgv: string[] } {
 	// Bundled: lib/hudRenderChild.js next to lib/index.js. From source (local harness): run the .ts via tsx.
@@ -979,6 +986,7 @@ export async function encodeHudFullVideo(args: {
 	});
 	const encodeStartedAt = Date.now();
 	const baseFilter = [
+		`fps=${OVERLAY_EXPORT_FPS}`,
 		...displayRotationFilters(args.video),
 		`scale=${outputDimensions.width}:${outputDimensions.height}:flags=lanczos`
 	].join(',');
@@ -1029,7 +1037,12 @@ export async function encodeHudFullVideo(args: {
 		'+faststart',
 		outputPath
 	], { timeout: args.timeoutMs(), maxBuffer: 10 * 1024 * 1024 });
-	logger.info('Overlay video encoded', { videoId: args.videoId, ms: Date.now() - encodeStartedAt });
+	logger.info('Overlay video encoded', {
+		videoId: args.videoId,
+		ms: Date.now() - encodeStartedAt,
+		outputSeconds,
+		cpus: availableParallelism()
+	});
 }
 
 async function generateOverlayDownload(args: {
@@ -1085,6 +1098,7 @@ async function generateOverlayDownload(args: {
 					})
 				);
 				const filterChain = [
+					`fps=${OVERLAY_EXPORT_FPS}`,
 					...displayRotationFilters(args.video),
 					`scale=${outputDimensions.width}:${outputDimensions.height}:flags=lanczos`,
 					`subtitles=${assPath}`
@@ -1447,7 +1461,7 @@ export const processMediaJob = onCall(
 		secrets: [WASABI_ACCESS_KEY_ID, WASABI_SECRET_ACCESS_KEY],
 		timeoutSeconds: 540,
 		memory: '4GiB',
-		cpu: 2,
+		cpu: MEDIA_WORKER_CPU,
 		concurrency: 1,
 		maxInstances: 1
 	},
@@ -1465,7 +1479,7 @@ export const onMediaProcessingJobCreated = onDocumentCreated(
 		secrets: [WASABI_ACCESS_KEY_ID, WASABI_SECRET_ACCESS_KEY],
 		timeoutSeconds: 540,
 		memory: '4GiB',
-		cpu: 2,
+		cpu: MEDIA_WORKER_CPU,
 		concurrency: 1,
 		maxInstances: 1
 	},
