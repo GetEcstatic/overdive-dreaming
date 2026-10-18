@@ -1899,7 +1899,7 @@
 				type="button"
 				class="pill pill-primary"
 				onclick={downloadCurrentVideo}
-				disabled={downloading || requestingServerOverlay || (showOverlay && !requiresBrowserOverlayExport && effectiveOverlayDownloadStatus === 'queued')}
+				disabled={downloading || requestingServerOverlay || (showOverlay && !requiresBrowserOverlayExport && (effectiveOverlayDownloadStatus === 'queued' || effectiveOverlayDownloadStatus === 'processing'))}
 			>
 				{#if downloading}
 					<span class="pill-spinner" aria-hidden="true"></span>
@@ -1907,12 +1907,13 @@
 				{:else if showOverlay && !requiresBrowserOverlayExport && requestingServerOverlay}
 					<span class="pill-spinner" aria-hidden="true"></span>
 					<span>Queueing...</span>
-				{:else if showOverlay && !requiresBrowserOverlayExport && effectiveOverlayDownloadStatus === 'queued'}
+				{:else if showOverlay && !requiresBrowserOverlayExport && (effectiveOverlayDownloadStatus === 'queued' || effectiveOverlayDownloadStatus === 'processing')}
 					<span class="pill-spinner" aria-hidden="true"></span>
 					<span>Overlay processing...</span>
-				{:else if showOverlay && !requiresBrowserOverlayExport && (effectiveOverlayDownloadStatus === 'not-requested' || effectiveOverlayDownloadStatus === 'retryable' || effectiveOverlayDownloadStatus === 'processing')}
-					<span aria-hidden="true">⬇︎</span>
-					<span>Download</span>
+				{:else if showOverlay && !requiresBrowserOverlayExport && (effectiveOverlayDownloadStatus === 'not-requested' || effectiveOverlayDownloadStatus === 'retryable')}
+					<!-- No current export (none yet, failed, or an older HUD style): tapping queues one. -->
+					<span aria-hidden="true">↻</span>
+					<span>Create HUD video</span>
 				{:else}
 					<span aria-hidden="true">⬇︎</span>
 					<span>Download</span>

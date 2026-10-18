@@ -476,8 +476,13 @@ function speedLineSamplesAt(args: {
  * (HUD frames: one render child per vCPU; x264 uses every core).
  */
 const MEDIA_WORKER_CPU = 8;
-/** Frames per render child; bounds its native memory to about 200 MB at 1080×1920, so 8 children plus /tmp (in memory on Cloud Run) fit in 4 GiB. */
-const HUD_FRAMES_PER_CHILD = 16;
+/**
+ * Frames per render child. Each frame leaks ~8 MB of resvg native memory, so 8
+ * frames keep a child near 120 MB and 8 children under 1 GB. That leaves room
+ * in 4 GiB for /tmp (in memory on Cloud Run), which holds the source: a 4K
+ * iPhone clip is up to ~1 GB. 16 frames per child ran out of memory on one.
+ */
+const HUD_FRAMES_PER_CHILD = 8;
 const HUD_RENDER_CONCURRENCY = MEDIA_WORKER_CPU;
 /** Exports are capped at 30 fps; higher-rate sources would otherwise be decoded and scaled only to be dropped. */
 const OVERLAY_EXPORT_FPS = 30;
