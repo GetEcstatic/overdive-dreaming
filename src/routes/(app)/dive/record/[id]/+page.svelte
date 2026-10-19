@@ -14,6 +14,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
+	import { browser } from '$app/environment';
 	import { user } from '$lib/stores/auth';
 	import DiveRecorder from '$lib/components/DiveRecorder.svelte';
 	import MetricsOnlyRecorder from '$lib/components/MetricsOnlyRecorder.svelte';
@@ -51,6 +52,15 @@
 		recordingVideoSettings
 	} from '$lib/capture/videoQuality';
 	import { getUserSettings, updateUserSettings } from '$lib/firestore';
+	import { derivePublicModeCapabilities, readLocalAdvancedOverride, type PublicModeAccess } from '$lib/publicMode/capabilities';
+	import {
+		reviewPrimaryActionLabel,
+		reviewSaveStatus,
+		reviewSections,
+		validateReviewMetrics,
+		type ReviewCaptureSource,
+		type ReviewSaveState
+	} from '$lib/capture/reviewModel';
 	import { diveRecording } from '$lib/stores/videoPlayback';
 	import type {
 		CameraFacing,
@@ -213,6 +223,7 @@
 	let reviewDurationSeconds = $state<number | undefined>(undefined);
 	let reviewDistanceDirty = $state(false);
 	let reviewDurationDirty = $state(false);
+	let showReviewCorrections = $state(false);
 	let saveError = $state<string | null>(null);
 	let importError = $state<string | null>(null);
 	let importingVideo = $state(false);
@@ -230,6 +241,36 @@
 	let importPreviewUrl = $state<string | null>(null);
 	let importPreviewVideo = $state<HTMLVideoElement | null>(null);
 	let storageHealthy = $state<boolean | null>(null);
+	let publicModeAccess = $state<PublicModeAccess>('public');
+	let reviewSaveState = $state<ReviewSaveState>('idle');
+	let pendingUploadLocalId = $state<string | undefined>(undefined);
+	let savedAsGift = $state(false);
+
+	const publicCapabilities = $derived(
+		derivePublicModeCapabilities({
+			uid: $user?.uid,
+			email: $user?.email,
+			settings: { publicModeAccess },
+			localAdvancedOverride: browser && typeof window !== 'undefined' ? readLocalAdvancedOverride(window.localStorage) : false
+		})
+	);
+	const reviewCaptureSource = $derived<ReviewCaptureSource | null>(
+		capture
+			? capture.source === 'import'
+				? 'import'
+				: capture.source === 'metrics-only'
+					? 'metrics-only'
+					: capture.source === 'static-metrics-only'
+						? 'static-metrics-only'
+						: 'video'
+			: null
+	);
+	const reviewSectionsModel = $derived(
+		reviewCaptureSource
+			? reviewSections({ source: reviewCaptureSource, access: publicCapabilities.access, hasAidaContext: hasAidaContext() })
+			: null
+	);
+	const reviewStatus = $derived(reviewSaveStatus(reviewSaveState));
 
 	const canStartRecording = $derived(
 		discipline === 'STA' ? captureMode === 'metrics-only' : Boolean(discipline && poolLength && waypointsPerLap)
@@ -412,11 +453,11 @@
 	}
 
 	function reviewDistanceWheelMax(capturedDistanceM: number): number {
-		return Math.max(300, Math.ceil((capturedDistanceM + 50) / 10) * 10);
+		return Math.max(0, Math.ceil(capturedDistanceM * 10) / 10);
 	}
 
 	function reviewDurationWheelMax(capturedDurationSeconds: number): number {
-		return Math.max(600, Math.ceil((capturedDurationSeconds + 180) / 60) * 60);
+		return Math.max(0, Math.ceil(capturedDurationSeconds));
 	}
 
 	function formatReviewSpeed(speedMs: number | null): string {
@@ -468,6 +509,7 @@
 		getUserSettings(uid)
 			.then((settings) => {
 				({ resolution, qualityPreset } = recordingVideoSettings(settings));
+				publicModeAccess = settings?.publicModeAccess ?? 'public';
 				framingGuide = settings?.recorder?.framingGuide ?? true;
 				let gotAnyDefault = false;
 				if (typeof settings?.defaultPoolLength === 'number') {
@@ -521,6 +563,10 @@
 	function onCaptured(result: CaptureResult): void {
 		capture = result;
 		resetReviewMetricEdits(result);
+		reviewSaveState = 'idle';
+		pendingUploadLocalId = undefined;
+		showReviewCorrections = false;
+		savedAsGift = false;
 		stage = 'review';
 	}
 
@@ -1043,6 +1089,7 @@
 			// storage quota / private mode — the user can still fill the log manually
 		}
 
+		reviewSaveState = 'saved-metrics';
 		stage = 'done';
 		if (poolLength && waypointsPerLap) {
 			updateUserSettings(uid, {
@@ -1088,10 +1135,8 @@
 			// storage quota / private mode — the user can still fill the log manually
 		}
 
+		reviewSaveState = 'saved-metrics';
 		stage = 'done';
-		await goto(
-			`/dives?publicPreset=static-max&seed=${encodeURIComponent(sessionId)}`
-		);
 	}
 
 	async function save(): Promise<void> {
@@ -1106,7 +1151,20 @@
 			saveError = 'Choose a discipline before saving this dive.';
 			return;
 		}
+		const reviewMetrics = finalReviewMetricsFor(capture);
+		const capturedMetrics = capturedReviewMetricsFor(capture);
+		const metricValidation = validateReviewMetrics({
+			capturedDistanceM: capturedMetrics.distanceM,
+			capturedDurationSeconds: capturedMetrics.durationSeconds,
+			distanceM: reviewMetrics.distanceM,
+			durationSeconds: reviewMetrics.durationSeconds
+		});
+		if (!metricValidation.valid) {
+			saveError = 'Correct the result so it is not greater than the captured value.';
+			return;
+		}
 		stage = 'saving';
+		reviewSaveState = 'saving';
 		saveError = null;
 		try {
 			if (capture.source === 'static-metrics-only') {
@@ -1163,6 +1221,7 @@
 			});
 			if (pinned) metadata.retentionTier = 'pinned';
 			const pending = await enqueueUpload(capture.blob, metadata);
+			pendingUploadLocalId = pending.localId;
 			logUploadDiagnostic({
 				level: 'info',
 				step: 'record-save:queued',
@@ -1187,6 +1246,7 @@
 
 			void drainUploadQueue(undefined, { localIds: [pending.localId] })
 				.then((result) => {
+					reviewSaveState = result.uploaded > 0 ? 'saved-ready' : 'saved-upload-failed';
 					logUploadDiagnostic({
 						level: result.uploaded > 0 ? 'info' : 'warn',
 						step: 'record-save:background-upload',
@@ -1200,6 +1260,7 @@
 					});
 				})
 				.catch((err) => {
+					reviewSaveState = 'saved-upload-failed';
 					logUploadDiagnostic({
 						level: 'error',
 						step: 'record-save:background-upload',
@@ -1245,6 +1306,8 @@
 				}
 			}
 
+			savedAsGift = isGift;
+			reviewSaveState = 'saved-uploading';
 			stage = 'done';
 			// Persist the last-used recorder setup so next time we can offer
 			// a one-tap quick start. Fire-and-forget — any failure here is
@@ -1263,23 +1326,13 @@
 					console.warn('[dive-record] could not save recorder defaults', err);
 				});
 			}
-			if (isGift) {
-				// Gifted dive: send the gifter back to the dashboard. The
-				// recipient receives the video in their PendingGifts list and
-				// fills in the routine log themselves via /gift/{videoId}.
-				await goto('/dashboard');
-				return;
-			}
-			// Personal dive: open a new dynamic-max dive log pre-filled
-			// with the metrics parsed from the video (discipline, pool
-			// length, total distance, total time). The /dives page reads
-			// the `dive-log-seed:{sessionId}` sessionStorage bundle and
-			// auto-selects the system-dynamic-max routine.
-			await goto(
-				`/dives?publicPreset=dynamic-max&seed=${encodeURIComponent(sessionId)}`
-			);
-		} catch (err) {
-			saveError = err instanceof Error ? err.message : String(err);
+			// The saved hand-off stays on this page so the user can see whether
+			// the upload is still running before choosing the dive log.
+			// Gifted captures retain their existing dashboard destination via
+			// the Done action, while the recipient completes the log.
+		} catch {
+			saveError = 'We could not save this dive. Please try again.';
+			reviewSaveState = 'idle';
 			stage = 'review';
 		}
 	}
@@ -1287,7 +1340,34 @@
 	function discard(): void {
 		capture = null;
 		resetReviewMetricEdits(null);
+		reviewSaveState = 'idle';
+		pendingUploadLocalId = undefined;
+		showReviewCorrections = false;
+		savedAsGift = false;
 		stage = 'record';
+	}
+
+	async function completeDiveLog(): Promise<void> {
+		if (savedAsGift) {
+			await goto('/dashboard');
+			return;
+		}
+		if (capture?.source === 'static-metrics-only') {
+			await goto(`/dives?publicPreset=static-max&seed=${encodeURIComponent(sessionId)}`);
+			return;
+		}
+		await goto(`/dives?publicPreset=dynamic-max&seed=${encodeURIComponent(sessionId)}`);
+	}
+
+	async function retryUpload(): Promise<void> {
+		if (!pendingUploadLocalId) return;
+		reviewSaveState = 'saved-uploading';
+		try {
+			const result = await drainUploadQueue(undefined, { localIds: [pendingUploadLocalId] });
+			reviewSaveState = result.uploaded > 0 ? 'saved-ready' : 'saved-upload-failed';
+		} catch {
+			reviewSaveState = 'saved-upload-failed';
+		}
 	}
 
 	// While the recorder is active, lock scroll + iOS rubber-banding + pinch
@@ -1836,12 +1916,36 @@
 		<div class="review-inner">
 			<h1 class="review-title">Review &amp; save</h1>
 
+			{#if reviewSaveState !== 'idle'}
+				<section class="save-status-card" class:save-status-error={reviewSaveState === 'saved-upload-failed'} aria-live="polite">
+					<span class="save-status-eyebrow">{reviewStatus.label}</span>
+					<strong>{reviewStatus.detail}</strong>
+					{#if reviewSaveState === 'saving'}
+						<p>Keep this screen open for a moment.</p>
+					{:else if reviewStatus.canCompleteLog}
+						<p>{savedAsGift ? 'The recipient can complete the dive log from their gift.' : 'You can complete the dive log now or do it later.'}</p>
+					{/if}
+					{#if reviewStatus.canRetryUpload}
+						<button type="button" class="text-action" onclick={retryUpload}>Retry upload</button>
+					{/if}
+				</section>
+			{/if}
+
 			{#if capture && discipline}
 				{@const capturedMetrics = capturedReviewMetricsFor(capture)}
 				{@const finalMetrics = finalReviewMetricsFor(capture)}
 				{@const staticCapture = isStaticCapture(capture)}
+				{#if reviewSectionsModel?.videoPreview && capture.source !== 'import'}
+					<section class="capture-confirmation" aria-label="Video captured">
+						<span class="capture-confirmation-icon" aria-hidden="true">✓</span>
+						<div><strong>Video captured</strong><span>Ready to save with your dive result.</span></div>
+					</section>
+				{/if}
 				{#if capture.source === 'import' && importPreviewUrl}
 					<section class="import-review-card">
+						{#if importPreviewUrl}
+							<video class="review-video-preview" src={importPreviewUrl} controls playsinline preload="metadata"></video>
+						{/if}
 						<p class="import-review-hint">Imported video markers are ready to save. Re-open the marker flow if you need to adjust start, end, or waypoints.</p>
 						{#if importError}
 							<p class="import-review-error">{importError}</p>
@@ -1896,29 +2000,38 @@
 							<strong>{formatMeters(finalMetrics.distanceM)} m</strong>
 						</div>
 					{/if}
-					{#if isVideoCapture(capture)}
+					{#if reviewSectionsModel?.diagnostics && isVideoCapture(capture)}
 						<div><span>Size</span><strong>{formatMegabytes(capture.sizeBytes)}</strong></div>
 					{/if}
 				</div>
 
 				<section class="final-metrics-card" aria-label="Final editable metrics">
 					<div class="final-metrics-head">
-						<div>
-							<span class="final-metrics-eyebrow">Final metrics</span>
-							<strong>
-								{#if staticCapture}
-									{formatMs(Math.round(finalMetrics.durationSeconds * 1000))}
-								{:else}
-									{formatMeters(finalMetrics.distanceM)} m · {formatMs(Math.round(finalMetrics.durationSeconds * 1000))}
-								{/if}
-							</strong>
-						</div>
+						<button
+							class="correction-toggle"
+							type="button"
+							aria-expanded={showReviewCorrections}
+							onclick={() => (showReviewCorrections = !showReviewCorrections)}
+						>
+							<span>
+								<span class="final-metrics-eyebrow">Correct result</span>
+								<strong>
+									{#if staticCapture}
+										{formatMs(Math.round(finalMetrics.durationSeconds * 1000))}
+									{:else}
+										{formatMeters(finalMetrics.distanceM)} m · {formatMs(Math.round(finalMetrics.durationSeconds * 1000))}
+									{/if}
+								</strong>
+							</span>
+							<span class="correction-toggle-action">{showReviewCorrections ? 'Hide' : 'Edit'}</span>
+						</button>
 						{#if reviewDistanceDirty || reviewDurationDirty}
 							<button class="reset-metrics-button" type="button" onclick={() => resetReviewMetricEdits(capture)}>
 								Use captured
 							</button>
 						{/if}
 					</div>
+					{#if showReviewCorrections}
 					<div class="final-metric-inputs">
 						{#if !staticCapture}
 							<NumberWheelInput
@@ -1942,17 +2055,18 @@
 							onValueChange={markReviewDurationEdited}
 						/>
 					</div>
-					<div class="final-metrics-summary">
-						{#if staticCapture}
-							<span>Captured {formatMs(Math.round(capturedMetrics.durationSeconds * 1000))}</span>
-						{:else}
-							<span>Captured {formatMeters(capturedMetrics.distanceM)} m · {formatMs(Math.round(capturedMetrics.durationSeconds * 1000))}</span>
-							<span>Avg speed {formatReviewSpeed(finalMetrics.averageSpeedMs)}</span>
-						{/if}
-					</div>
+						<div class="final-metrics-summary">
+							{#if staticCapture}
+								<span>Captured {formatMs(Math.round(capturedMetrics.durationSeconds * 1000))}</span>
+							{:else}
+								<span>Captured {formatMeters(capturedMetrics.distanceM)} m · {formatMs(Math.round(capturedMetrics.durationSeconds * 1000))}</span>
+								<span>Avg speed {formatReviewSpeed(finalMetrics.averageSpeedMs)}</span>
+							{/if}
+						</div>
+					{/if}
 				</section>
 
-				{#if hasAidaContext()}
+				{#if reviewSectionsModel?.aidaProtocol}
 					<section class="final-metrics-card aida-review-card" aria-label="AIDA surface protocol">
 						<div class="final-metrics-head">
 							<div>
@@ -1979,7 +2093,7 @@
 					</section>
 				{/if}
 
-				{#if isVideoCapture(capture)}
+				{#if reviewSectionsModel?.diagnostics && isVideoCapture(capture)}
 				<section class="diagnostics-card" aria-label="Capture diagnostics">
 					<div class="diagnostics-head">
 						<div>
@@ -2005,15 +2119,16 @@
 						</ul>
 					{/if}
 				</section>
-				{:else}
+				{:else if !isVideoCapture(capture)}
 				<section class="import-review-card metrics-review-card">
 					<p class="import-review-hint">{staticCapture ? 'Static hold time is ready to save into a Static Max log. No video will be uploaded for this dive.' : 'Metrics are ready to save into the dive log. No video will be uploaded for this dive.'}</p>
 				</section>
 				{/if}
 			{/if}
 
-			{#if capture && isVideoCapture(capture)}
-			<section class="card">
+			{#if capture && isVideoCapture(capture) && reviewSectionsModel?.advancedActions}
+			<section class="card advanced-review-card">
+				<span class="advanced-review-eyebrow">More options</span>
 				<label class="pin">
 					<input type="checkbox" bind:checked={pinned} />
 					Pin this dive (keep beyond the 20-video cap)
@@ -2037,20 +2152,27 @@
 			{/if}
 
 			<div class="actions">
-				<button
-					class="btn btn-secondary"
-					onclick={discard}
-					disabled={stage === 'saving'}
-				>
-					{capture?.source === 'metrics-only' || capture?.source === 'static-metrics-only' ? 'Re-track' : 'Re-record'}
-				</button>
-				<button
-					class="btn btn-primary"
-					onclick={save}
-					disabled={stage === 'saving' || !capture}
-				>
-					{stage === 'saving' ? 'Saving locally…' : capture?.source === 'static-metrics-only' ? 'Save time' : capture?.source === 'metrics-only' ? 'Save metrics' : 'Save dive'}
-				</button>
+				{#if reviewSaveState === 'idle' || reviewSaveState === 'saving'}
+					<button
+						class="btn btn-secondary"
+						onclick={discard}
+						disabled={stage === 'saving'}
+					>
+						{capture?.source === 'metrics-only' || capture?.source === 'static-metrics-only' ? 'Track again' : 'Record again'}
+					</button>
+					<button
+						class="btn btn-primary"
+						onclick={save}
+						disabled={stage === 'saving' || !capture}
+					>
+						{stage === 'saving' ? reviewStatus.label : reviewPrimaryActionLabel()}
+					</button>
+				{:else}
+					<button class="btn btn-secondary" type="button" onclick={() => goto('/dashboard')}>Done</button>
+					{#if reviewStatus.canCompleteLog && !savedAsGift}
+						<button class="btn btn-primary" type="button" onclick={completeDiveLog}>Complete dive log</button>
+					{/if}
+				{/if}
 			</div>
 		</div>
 	</div>
@@ -2402,6 +2524,91 @@
 		}
 	}
 
+	.save-status-card,
+	.capture-confirmation {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		margin: 0 0 1rem;
+		padding: 0.9rem 1rem;
+		border: 1px solid rgba(45, 212, 191, 0.35);
+		border-radius: 0.9rem;
+		background: rgba(13, 148, 136, 0.12);
+	}
+	.save-status-card {
+		display: grid;
+		gap: 0.2rem;
+	}
+	.save-status-card strong,
+	.capture-confirmation strong {
+		display: block;
+		font-size: 1rem;
+	}
+	.save-status-card p,
+	.capture-confirmation span:not(.capture-confirmation-icon) {
+		margin: 0;
+		color: var(--color-text-muted);
+		font-size: 0.82rem;
+	}
+	.save-status-eyebrow,
+	.advanced-review-eyebrow {
+		color: var(--color-primary);
+		font-size: 0.7rem;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+	.save-status-error {
+		border-color: rgba(251, 146, 60, 0.55);
+		background: rgba(154, 52, 18, 0.16);
+	}
+	.text-action {
+		justify-self: start;
+		padding: 0;
+		border: 0;
+		background: none;
+		color: var(--color-primary);
+		font: inherit;
+		font-size: 0.85rem;
+		font-weight: 650;
+		cursor: pointer;
+	}
+	.capture-confirmation {
+		margin-top: 0;
+	}
+	.capture-confirmation-icon {
+		display: grid;
+		width: 2rem;
+		height: 2rem;
+		place-items: center;
+		border-radius: 50%;
+		background: rgba(45, 212, 191, 0.2);
+		color: var(--color-primary);
+		font-weight: 800;
+	}
+	.advanced-review-card {
+		display: grid;
+		gap: 0.75rem;
+	}
+	.correction-toggle {
+		display: flex;
+		flex: 1;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		padding: 0;
+		border: 0;
+		background: transparent;
+		color: inherit;
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+	}
+	.correction-toggle-action {
+		color: var(--color-primary);
+		font-size: 0.8rem;
+		font-weight: 650;
+	}
 	.review-title {
 		font-size: 1.4rem;
 		font-weight: 700;
@@ -2752,6 +2959,15 @@
 		display: none;
 	}
 
+	.review-video-preview {
+		display: block;
+		width: 100%;
+		max-height: 18rem;
+		margin-bottom: 0.85rem;
+		border-radius: 0.65rem;
+		background: #000;
+		object-fit: contain;
+	}
 	.import-review-card {
 		background: rgba(15, 23, 42, 0.72);
 		border: 1px solid rgba(148, 163, 184, 0.16);
