@@ -19,11 +19,11 @@ A short, prioritised checklist for work on Overdive Dreaming.
 
 - [ ] In AIDA competition mode, prefill the Review & save surface-protocol time from the active SP timer.  
   [[competition/aida-competition-mode|AIDA competition mode]]
-- [ ] Brainstorm and choose a contrast treatment for the video HUD speed graph on bright footage (including a bottom-to-graph dark gradient, readability across footage, and export/playback parity).  
+- [x] Brainstorm and choose a contrast treatment for the video HUD speed graph on bright footage (including a bottom-to-graph dark gradient, readability across footage, and export/playback parity).
   [[video/share-hud-redesign|Share HUD redesign]]
 - [x] Produce mobile-first wireframes and usability acceptance criteria for the public Review & save flow.
   [[video/review-save-public-ux|Public review & save UX]]
-- [ ] Break the approved Review & save design into implementation tasks and tests.  
+- [x] Break the approved Review & save design into implementation tasks and tests.
   [[video/review-save-public-ux|Public review & save UX]]
 
 ## Blocked / needs a decision

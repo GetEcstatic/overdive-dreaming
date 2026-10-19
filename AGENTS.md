@@ -29,6 +29,7 @@ Mobile-first pool freediving tracker: SvelteKit, TypeScript, Svelte 5, Firebase 
 ## Verify and report
 
 - Pure logic: targeted Vitest, then broader tests for cross-cutting changes. UI: `npm run check` and a phone-width visual check when practical.
+- **Reconcile the work queue:** when a change fulfils an item in `docs/TODO.md`, update its checkbox in the same change. If it does not fulfil an item, leave the item open and say why in the final report. Before finishing, review the queue for stale completed items and add any newly discovered follow-up work. The queue is part of the project knowledge graph, not optional project management.
 - `npm test`, `npm run check`, `npm run build`; development: `npm run dev`.
 - Knowledge graph: `python3 scripts/check-doc-graph.py` and `python3 scripts/audit-docs.py`. Its scope is deliberately small; passing does not certify historical documentation or semantic freshness.
 - Report changes, paths, checks and limitations concisely. Distinguish local, committed, pushed and deployed.
