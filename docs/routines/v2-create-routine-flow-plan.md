@@ -1,5 +1,7 @@
 # V2 Create Routine Flow Plan
 
+> **Historical — not a current architecture snapshot.** Create now uses `buildLayerRoutineCreateData` and navigates to the layer editor; the Current State section below describes the pre-change baseline. The editor still has an admin gate, so this record does not prove non-admin end-to-end creation/editing works. See the [implementation map](README.md) and [create tests](../../src/lib/routineLayers/create.test.ts).
+
 Status: initial implementation complete. This follows the completed [routine-builder implementation checklist](routine-builder-implementation-checklist.md) and explains the implementation slice that makes `Create Routine` start from the v2 layer model instead of the legacy `SimplifiedRoutineBuilder`.
 
 ## Current State

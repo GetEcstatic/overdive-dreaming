@@ -2,6 +2,19 @@
 
 Planning, design, and reference docs for the Overdive Dreaming app.
 
+Up: [Agent guide](../AGENTS.md)
+
+## Current navigation — start here for implementation
+
+- [Video implementation map](video/README.md) — task → owning code → tests and operational boundaries.
+- [Routines and persisted logs map](routines/README.md) — layer contracts, compatibility, row results, actual collection paths and verified access/authoring gaps.
+- [Storage, auth and deployment map](storage-infra/README.md) — sign-in/persistence, media storage, retention, Functions packaging and verification boundaries.
+- [Local development](../DEVELOPMENT.md) — checkout identity, build/test commands and release boundaries.
+- [Knowledge graph conventions](reference/knowledge-graph.md) — authority, parent links, lifecycle, validation and vault/Pi coherence.
+- [Document classification](code-health/document-classification.md) — per-file authority, evidence and outstanding reviews. Check this before treating a legacy document as guidance.
+
+The catalogue below includes legacy and partially implemented specifications. Its category alone does not certify freshness. Prefer the reviewed feature map and actual implementation; do not treat plan status as deployment evidence.
+
 **How this is organised**
 - Folders are by **topic** (`video/`, `routines/`, etc.).
 - Within each topic, the root holds **active plans + stable references**; a `shipped/` subfolder (if present) holds completed plans kept for historical context.
@@ -14,10 +27,9 @@ Planning, design, and reference docs for the Overdive Dreaming app.
 
 Foundational docs anyone touching the codebase should skim once.
 
-- [Data model](reference/data-model.md) — Firestore schema (users, routines, sessions, routine logs, dives)
+- [Routines/persistence map](routines/README.md) — current schema owners and storage boundaries; the old nested-log diagram is superseded.
 - [Training session design](reference/training-session-design.md) — sessions vs dives, routines, terminology
-- [How it works](reference/how-it-works.md) — user-facing explainer of Firebase / Firestore / Storage
-- [Webapp & iOS PWA](reference/webapp-pwa.md) — A2HS audit, custom auth domain (`auth.overdive.app`), Vercel domain setup
+- For authentication and PWA work, start with the [implementation map](storage-infra/README.md), not the old checklist below.
 
 ---
 
@@ -46,10 +58,8 @@ Things designed but not yet shipped, or shipped partially.
 - [AIDA competition mode](competition/aida-competition-mode.md) — planning for max-attempt competition logging, video/metric-only attempts, cards, penalties, and surface protocol capture
 
 ### Routines
-- [V2 create routine flow](routines/v2-create-routine-flow-plan.md) — plan for making Create Routine start from the layer model and route into the production layer editor
-- [Quick Log v2 routine audit](routines/quick-log-v2-routine-audit.md) — audit and implementation plan for aligning Quick Log with v2 routines
-- [O2 static layer discipline](routines/o2-static-layer-discipline-plan.md) — plan for modelling O2 static as a layer-only unofficial static discipline
-- [Mixed-layer Quick Log UX](routines/pingu-quick-log-ux-plan.md) — evaluation and plan for Pingu-style and future mixed-layer quick-log form improvements
+- [O2 static layer discipline](routines/o2-static-layer-discipline-plan.md) — partially implemented; selector/audit scope still needs review. Start with the verified gaps in the [routines map](routines/README.md).
+- [Logging request history](routines/Updates%202Be%20-%20Logging.md) — includes an unverified signup acknowledgement proposal; not a standing work or publishing instruction.
 
 ### Biometrics
 - Underwater SpO₂ sensor hardware (design, sourcing, outreach) now lives in the Obsidian vault at `Hardware/Underwater SpO2 Sensor/`, outside this repo. App-side plans (Bluetooth ingest, Capacitor) go here when work starts.
@@ -64,10 +74,10 @@ Things designed but not yet shipped, or shipped partially.
 Designs that are largely settled. Read for context, not as a roadmap.
 
 ### Routines
-- **Routine builder (canonical: [simplified](routines/builder-simplified.md))** — 3-type model (max-attempt, interval-series, hybrid). The simplified builder is the only one shipped.
+- **Routine creation:** inspect [layer creation](../src/lib/routineLayers/create.ts). The old three-type builder is no longer canonical; legacy documentation is listed under history below.
 - [Routine builder — original custom plan](routines/builder-custom.md) — older spec with the full 14-field tracking audit; superseded as a builder plan but useful for the metrics catalog
 - [Default routines config](routines/default-routines.md) — system-provided routines (CO₂ tables, statics, DNF/DYN, RV)
-- [Tags](routines/tags.md) — per-log tags vs routine-builder tags; `tagConfig.ts` location
+- [Tag implementation](../src/lib/config/tagConfig.ts) — current category capabilities; layer defaults and log-time selection are linked from the [routines map](routines/README.md).
 
 ### Metrics
 - [Training metrics catalog](metrics-analytics/training-metrics.md) — full metric inventory (200+), activity types, lung volume
@@ -75,13 +85,12 @@ Designs that are largely settled. Read for context, not as a roadmap.
 - [Analytics design](metrics-analytics/analytics-design.md) — exploratory: RPE zones, 80/20, TSS, filter builder ideas
 
 ### Video master spec
-- [Video overview](video/overview.md) — master spec covering UX, recorder, playback, gifting, retention, codecs
-- [Recording guide (user-facing)](video/recording-guide.md) — 13-step UX flow for coaches
+- [Video implementation map](video/README.md) — current ownership; older master specifications and user instructions are listed under history below.
 - [QA checklist](video/qa-checklist.md) — device matrix for dynamic video testing
 
 ### Storage / data import
-- [Firebase cost guardrails](storage-infra/firebase-cost-guardrails.md) — current GCP/Firebase budget alerts, Cloud Functions cost caps, and remaining billing risks
-- [CSV parser](storage-infra/csv-parser.md) — biometric import; handles three formats (single-round, multi-round, per-interval)
+- For code-owned resource limits and live-verification caveats, use the [storage/deployment map](storage-infra/README.md). Earlier budget rollout details are historical, listed below.
+- [Biometric parser implementation](../src/lib/utils/biometricCsvParser.ts) and [tests](../src/lib/utils/biometricCsvParser.test.ts) — current format handling; the old fix plan is historical below.
 - [Backend migration options](storage-infra/backend-migration-options.md) — Convex vs Supabase eval (no imminent action)
 
 ### UI patterns
@@ -125,9 +134,26 @@ Completed plans, kept for traceability. Source of truth is the code, not these d
 
 Superseded or stale. Don't follow as guidance.
 
-- [Portrait recording (original)](archive/portrait-recording-original.md) — superseded by [video/portrait-recording.md](video/portrait-recording.md)
-- [Rep editor — nudge removal & lung volume](archive/rep-editor-nudge-removal.md) — shipped; narrow fix, low future value
-- [Current updates](archive/current-updates.md) — stale snapshot of feature ideas & monetisation brainstorm
+- Historical: [Legacy agent context](archive/legacy-agent-context.md) — preserved former CLAUDE.md; not automatically loaded.
+- Superseded: [Original video overview](video/overview.md) — old storage, capture and export architecture.
+- Superseded: [PWA audit](reference/webapp-pwa.md) — outdated missing-feature checklist and redirect recommendation; device and live configuration claims require verification.
+- Historical: [Firebase cost guardrails](storage-infra/firebase-cost-guardrails.md) — earlier rollout, not current worker sizing or verified budget state.
+- Historical: [CSV parser fix plan](storage-infra/csv-parser.md) — core format/timestamp fixes are implemented; not every proposed refactor was adopted.
+- Superseded: [Recording guide](video/recording-guide.md) — inconsistent flows and outdated defaults; not a current user guide.
+- Superseded: [How it works](reference/how-it-works.md) — outdated storage/visibility claims; not a privacy policy.
+- Superseded: [Simplified builder](routines/builder-simplified.md) — legacy three-type design; Create Routine now uses layers.
+- Superseded: [Old data model](reference/data-model.md) — nested routine-log diagram and queries do not match current top-level CRUD.
+- Superseded: [Tag matrix](routines/tags.md) — old builder-only selection assumptions.
+- Historical: [V2 create flow](routines/v2-create-routine-flow-plan.md) — create projection implemented; layer-editor access gap still requires investigation.
+- Historical: [Builder implementation checklist](routines/routine-builder-implementation-checklist.md) — rollout record, not current acceptance evidence.
+- Historical: [Quick Log audit](routines/quick-log-v2-routine-audit.md) — mixed baseline and implementation record; no fresh production backfill verification.
+- Historical: [Multi-layer round-trip plan](routines/multilayer-log-roundtrip-plan.md) — core row editing/read paths exist; proposed shared-form architecture was not adopted verbatim.
+- Historical: [Mixed-layer Quick Log/mobile UX](routines/pingu-quick-log-ux-plan.md) — core read-model rules and responsive row markup exist; device acceptance not reverified.
+- Historical: [Layer editor flow recovery](routines/routine-editor-uiux-flow-recovery-plan.md) — canvas/debug/metrics steps exist; not a fresh implementation plan.
+
+- Historical: [Portrait recording (original)](archive/portrait-recording-original.md) — superseded by [video/portrait-recording.md](video/portrait-recording.md)
+- Historical: [Rep editor — nudge removal & lung volume](archive/rep-editor-nudge-removal.md) — shipped; narrow fix, low future value
+- Historical: [Current updates](archive/current-updates.md) — stale snapshot of feature ideas & monetisation brainstorm
 
 ---
 

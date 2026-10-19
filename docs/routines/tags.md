@@ -1,3 +1,5 @@
+> **Superseded — not implementation guidance.** The proposed matrix/config below predates current default/selectable tag behaviour. [tagConfig.ts](../../src/lib/config/tagConfig.ts) allows effort/adaptation/difficulty tags to be selectable, and Quick Log emits selected tags; they are not simply builder-only. Use the [routines map](README.md) for tag, layer-default and attempt-category owners.
+
 # Tag Configuration Reference
 
 This document defines which tags/fields are selectable per-log vs configured in the routine builder.

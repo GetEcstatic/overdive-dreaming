@@ -1,3 +1,5 @@
+> **Historical — not an outstanding implementation plan.** The central A/B/C format parsers and AM/PM timestamp fixes now exist in [biometricCsvParser.ts](../../src/lib/utils/biometricCsvParser.ts), with [fixture tests](../../src/lib/utils/biometricCsvParser.test.ts). The failure description below refers to the pre-fix parser. Not every proposed refactor/purity goal was adopted: the current parser still falls back to `new Date()` when the header timestamp is absent. Use code/tests for current behaviour; this notice does not certify all malformed inputs or deployment state.
+
 # Biometric CSV Parser — Fix Plan (April 2026 format)
 
 ## Context

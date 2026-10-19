@@ -1,3 +1,5 @@
+> **Historical — not an untouched implementation plan.** `quickLogReadModel.ts` and its mixed-row tests implement dynamic-only speed, recording/O2 availability and shortcut rules; Quick Log shows narrative, layer-aware Row Results and Geek Mode Metrics. `RepEditor.svelte` has a mobile grid/card breakpoint with labels and omitted non-applicable cells. The planned labels/TODOs below are the original baseline, not proof these changes remain unimplemented. Visual acceptance on real devices was not reverified. See the [implementation map](README.md).
+
 # Updates to implement
 
 ## Mobile Row Results Plan

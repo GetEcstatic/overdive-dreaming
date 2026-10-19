@@ -1,6 +1,8 @@
 # O2 Static Layer Discipline Plan
 
-Status: planned.
+Status: partially implemented; remaining scope needs review against code.
+
+> **Do not treat this as wholly unimplemented or wholly complete.** `O2STA` exists in the layer model, maps to stored `STA`, has a default example, legacy inference, tracking projection and O2 defaults in logging forms. However, blank-create and layer-editor discipline selectors still omit `O2STA`; dedicated audit/backfill completeness has not been established. The Current Gaps section below is the original baseline. Use the [implementation map](README.md) before selecting further work.
 
 ## Decision
 

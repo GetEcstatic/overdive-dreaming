@@ -1,5 +1,7 @@
 # Routine Builder Implementation Checklist
 
+> **Historical — rollout checklist, not current acceptance evidence.** The layer contract, compatibility adapters, read model, create path and logging helpers exist in code. These ticks do not independently verify every seeded record, deleted prototype, deployed permission or user workflow. In particular the layer editor remains admin-gated. Start with the [implementation map](README.md).
+
 - [x] Build the versioned v2 layer routine contract.
 - [x] Add legacy-to-layer projection adapters.
 - [x] Add the unified routine layer read model.

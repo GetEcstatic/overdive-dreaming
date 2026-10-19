@@ -1,80 +1,38 @@
 # Overdive Dreaming — Cloud Functions
 
-Server-side jobs for Overdive Dreaming. Currently:
+Up: [Storage, auth and deployment map](../docs/storage-infra/README.md)
 
-- **`onDiveVideoCreated`** (`src/retentionReaper.ts`) — Firestore trigger that
-  enforces the "keep 100 newest non-pinned `DiveVideo`s per owner" policy.
-  Writes an audit entry to `reaperAudit/*` every run.
-- **Wasabi media signing callables** (`src/mediaSigning.ts`) — authenticated
-  upload/read/delete URL signing plus multipart video upload completion for
-  Wasabi object storage.
-
-## Relationship to the client-side reaper
-
-`src/lib/services/diveVideos.ts::reapOwnedDiveVideos` runs in the browser
-after a successful upload. It covers the common case but can't be trusted:
-if a user uploads from one device and never returns to the app, the client
-path never fires. This Cloud Function is the **canonical** enforcement point
-and makes the client-side reaper safe to treat as a "happy-path nicety".
-
-Both implementations share the same semantics (keep 100 newest non-pinned,
-skip pinned, delete Firestore doc + all Storage blobs).
-
-## First-time setup
-
-```bash
-cd functions
-npm install
-firebase functions:secrets:set WASABI_ACCESS_KEY_ID
-firebase functions:secrets:set WASABI_SECRET_ACCESS_KEY
-# Requires Blaze plan on the Firebase project:
-firebase deploy --only functions
-```
-
-Expected non-secret Wasabi environment values are currently defaulted in code:
-
-```txt
-WASABI_REGION=ap-southeast-1
-WASABI_ENDPOINT=https://s3.ap-southeast-1.wasabisys.com
-WASABI_BUCKET_PROD=overdive-media-prod
-WASABI_BUCKET_DEV=overdive-media-dev
-```
-
-Set `WASABI_ENV=dev` for a deployed/test functions environment that should
-write to the dev bucket. Production defaults to `overdive-media-prod`.
+[The entrypoint](src/index.ts) is the authoritative export list: retention, media signing/multipart uploads, processing/recovery, overlay requests, gift acceptance and timeline correction. Do not rely on its older header comment as an exhaustive description.
 
 ## Build
 
-`npm run build` type-checks (`tsc --noEmit`) and then bundles `src/index.ts`
-with esbuild (`build.mjs`) into `lib/index.js`, copying the HUD fonts from
-`../static/fonts` to `lib/fonts`. npm packages stay external.
+Use Node 22, as specified in [package.json](package.json) and [firebase.json](../firebase.json).
 
-The bundle can import **pure, import-free** modules from the web app
-(`../src/lib/...`), such as the overlay style version and export sizing.
-`src/lib/media/functionsSharedImports.test.ts` fails if one of those modules
-gains a `$lib` or package import.
+From the repository root:
 
-Deploying: the root `firebase.json` runs `npm run build` as a `predeploy`
-hook, so the uploaded `lib/` is always fresh. `package.json` has an empty
-`gcp-build` script so Cloud Build does **not** rebuild remotely (the upload
-does not include `../src`, so a remote build would fail).
-
-## Dry-run mode
-
-Set the environment variable `REAPER_DRY_RUN=1` when deploying to log what
-WOULD be deleted without actually deleting anything. Useful when validating
-the policy in production:
-
-```bash
-firebase functions:config:set reaper.dry_run=true
-firebase deploy --only functions
+```sh
+npm --prefix functions ci
+npm --prefix functions run build
 ```
 
-## Emulator
+[build.mjs](build.mjs) type-checks through the build script, bundles `index` and `hudRenderChild` entrypoints, and copies the HUD fonts from `static/fonts`. npm dependencies stay external. The Firebase predeploy hook rebuilds locally; `gcp-build` is empty because the upload does not include the adjacent app source tree needed for bundling.
 
-```bash
-npm run serve
-```
+[Shared-import tests](../src/lib/media/functionsSharedImports.test.ts) protect selected app modules consumed by Functions. Shared HUD code must remain server-compatible; it may use relative imports within its pure module graph.
 
-Requires the Firebase CLI and the Functions emulator. The emulator needs
-`firebase-admin` credentials — run `firebase login` first.
+## Retention and dry run
+
+[retentionReaper.ts](src/retentionReaper.ts) owns server retention. The upload path passes its own retention count to the [client helper](../src/lib/services/diveVideos.ts); inspect the [call site](../src/lib/capture/uploadProcessor.ts), not just that helper's default.
+
+Dry run is enabled **only when the deployed process has `REAPER_DRY_RUN=1` or `REAPER_DRY_RUN=true`**. The implementation does not read legacy `reaper.dry_run` runtime config. Setting a variable only in your terminal does not demonstrate that a deployed function receives it. Verify environment delivery before any retention experiment. Dry-run avoids deletions but can still write `reaperAudit` documents.
+
+The query has a bounded scan and storage deletions are best-effort. Do not describe this as an exhaustive cleanup guarantee.
+
+## Deployment and local execution
+
+Deployment needs explicit approval and a verified project/account/worktree. After approval, `firebase deploy --only functions` uses the repository predeploy build hook. Run it in the foreground and verify the resulting deployment separately; successful compilation does not prove production state.
+
+`npm --prefix functions run serve` builds and starts the Functions emulator only. This is **not** a full isolated backend: Firestore, Storage and Wasabi access need separate isolation/configuration. Do not use production credentials or trigger destructive jobs assuming the emulator makes them safe.
+
+Wasabi credential bindings and non-secret bucket/region defaults are owned by [wasabiClient.ts](src/wasabiClient.ts). Provision secrets through the approved secret-management workflow; never paste them into documentation or logs. Check bucket selection before uploads or deletions.
+
+App deployment is separate from Functions deployment. Shared renderer/style changes can require both. See the [implementation map](../docs/storage-infra/README.md) for current code owners and operational caveats.

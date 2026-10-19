@@ -1,6 +1,8 @@
 # Quick Log V2 Routine Audit
 
-Status: audit and implementation plan. No code changes are included in this document.
+> **Historical — audit and implementation record.** The read model, row-result emission, advanced disclosure and attempt helpers exist in the current code; early Findings below describe the older form. Do not implement this checklist again from its opening snapshot. Historical backfill counts have not been reverified against production. See the [implementation map](README.md) for code/tests and remaining limitations.
+
+Status: historical audit and implementation record; not a current gap inventory.
 
 ## Goal
 

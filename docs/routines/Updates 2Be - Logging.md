@@ -1,4 +1,6 @@
-# Agent instructions
+> **Needs review — mixed request history and an unimplemented proposal.** This file is not a standing instruction source and does not authorise commits, pushes, deployment or production writes. Follow [AGENTS.md](../../AGENTS.md) and the current user request. The old workflow below is retained only as history. The signup acknowledgement proposal is not shown implemented in the audited auth/types paths; its priority and exact scope require confirmation.
+
+# Historical queue workflow (not operative instructions)
 
 Use this file as a project update queue and working memory. It can hold requests for any area of the app, not only video. When asked to check this file, work from the first numbered request at the top, then move downward only after that request is complete.
 

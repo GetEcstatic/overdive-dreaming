@@ -1,3 +1,5 @@
+> **Superseded — not implementation guidance.** Storage and visibility claims below conflict with the current implementation. Consult [storage.ts](../../src/lib/storage.ts), [types.ts](../../src/lib/types.ts) and the [docs index](../INDEX.md). See [audit evidence](../code-health/document-classification.md). This is not a verified privacy or backup policy.
+
 # How Overdive Dreaming Works
 
 A simple explanation of how the app stores and manages your freediving training data.

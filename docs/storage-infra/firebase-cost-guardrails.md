@@ -1,3 +1,5 @@
+> **Historical — not current configuration guidance.** This records an earlier guardrail rollout. In the audited checkout, `functions/src/mediaWorker.ts` configures 8 CPUs, not the 2 listed below. Budget alerts, deployed resources and billing settings have not been reverified. Use the [implementation map](README.md) for owning code and verification boundaries; do not quote the values below as current costs or deployed limits.
+
 # Firebase Cost Guardrails
 
 This note records the cost controls currently in place for the Firebase/GCP side of Overdive Dreaming, plus the remaining places where spend can still escape a simple monthly target.

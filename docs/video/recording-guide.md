@@ -1,4 +1,6 @@
 
+> **Superseded — not implementation guidance.** This guide mixes incompatible recording flows and old resolution/playback guidance. Use the [video implementation map](README.md) and linked code until a current user guide is verified. See [audit evidence](../code-health/document-classification.md).
+
 # Updates
 ## UX flow
 

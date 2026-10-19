@@ -1,6 +1,8 @@
 # Multi-Layer Log Round-Trip Plan
 
-Status: planned.
+> **Historical — not an untouched implementation plan.** Row conversion/hydration, saved-log summaries, session row display and row-aware metric resolution now exist. The implementation retained `EditableLogForm` with shared pure helpers rather than switching editing to `QuickLogForm` as proposed below. Treat unchecked TODOs as historical, not automatically outstanding. See the [implementation map](README.md) and [log-plan tests](../../src/lib/routineLayers/logPlan.test.ts). Manual media/edit round-trip and live deployment were not reverified in this audit.
+
+Status: historical design; core row round-trip/read-model paths implemented, not every proposed architecture adopted.
 
 This plan covers two related but separate mismatches found after logging a multi-layer routine such as Pingu through Quick Log:
 

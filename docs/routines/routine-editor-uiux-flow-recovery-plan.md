@@ -1,6 +1,8 @@
 # Routine Editor UI/UX Flow Recovery Plan
 
-Status: planning only. Do not implement this plan until the open questions are answered or explicitly waived.
+> **Historical — implementation and design record.** The current layer editor includes `showDebug`, layer/segment canvas selection and a `builderStep` metrics screen; Firestore layer writes use the cleaned compatibility projection. The opening problem and later completed checklists describe different stages. Do not rebuild the editor from the early snapshot. Access remains admin-gated and full device/browser acceptance was not reverified; see the [implementation map](README.md).
+
+Status: historical design and implementation record. Remaining product changes still require explicit scope/approval.
 
 ## Problem
 

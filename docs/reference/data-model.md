@@ -1,3 +1,5 @@
+> **Superseded — not implementation guidance.** The nested routine-log paths and query/migration examples below do not match current CRUD: routine logs are stored in top-level `routineLogs`. Layer contracts, visibility rules and media storage have also evolved. Use the [routines/persistence map](../routines/README.md), actual [CRUD](../../src/lib/firestore.ts), [types](../../src/lib/types.ts) and [rules](../../firestore.rules). Do not execute the historical migration snippets or infer privacy guarantees from this document.
+
 # Firestore Database Structure
 
 ## Visual Hierarchy

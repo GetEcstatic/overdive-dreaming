@@ -1,125 +1,53 @@
-# Development Guide - Overdive
+# Development
 
-Quick reference for editing and working with the codebase in VS Code.
+Up: [Docs index](docs/INDEX.md)
 
-## Opening Your Project
+## Choose the checkout first
 
-```bash
-# Option 1: From terminal
-cd /Users/thomasway/Documents/Obsidian.nosync/Freedive\ with\ Pat/Code/overdive-dreaming
-code .
+Open the intended repository **worktree**, not a permanently hard-coded vault path. Before editing or making Git changes:
 
-# Option 2: In VS Code, File → Open Folder → navigate to overdive-dreaming
+```sh
+pwd
+git status --short
+git branch --show-current
+git log -1 --oneline
+git worktree list
 ```
 
-## Workflow with Hot Reload
+Match the output to the task and expected commit. Stop if it differs; do not rebase another branch to make a push work. See [AGENTS.md](AGENTS.md) for approval and preservation rules.
 
-The dev server (`npm run dev`) automatically reloads when you save files:
+## Local loop
 
-1. **Keep dev server running** in terminal (or VS Code's integrated terminal: `` Ctrl+` ``)
-2. **Edit any file** in VS Code
-3. **Save** (`Cmd+S`)
-4. **Browser auto-refreshes** - see changes instantly!
+Follow [README setup](README.md), then run `npm run dev`. Vite reloads the app as files change. Keep development pointed at the intended backend; localhost is not an emulator or data-isolation boundary.
 
-## Key VS Code Shortcuts
+1. Read the relevant map in [docs/INDEX.md](docs/INDEX.md).
+2. Check [document authority](docs/code-health/document-classification.md) before following an older plan.
+3. Inspect owning code and nearby tests, then make a focused change.
+4. Run targeted tests; check mobile layout for UI changes.
+5. Report what was verified, what remains untested, and whether changes are local, committed, pushed or deployed.
 
-- `Cmd+P` - Quick file search (type filename)
-- `Cmd+Shift+F` - Search across all files
-- `Cmd+B` - Toggle sidebar
-- `Cmd+J` - Toggle terminal
-- `Cmd+/` - Comment/uncomment line
-- `Opt+Up/Down` - Move line up/down
-- `Cmd+D` - Select next occurrence (multi-cursor)
-- `Cmd+Shift+L` - Select all occurrences
+## Commands
 
-## File Organization
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Vite development server |
+| `npm run check` | SvelteKit sync and Svelte/TypeScript checks |
+| `npm test` | Vitest single run |
+| `npm run build` | Production app build, not deployment |
+| `npm run preview` | Local preview of the app build |
+| `npm --prefix functions run build` | Type-check and bundle Functions; see its [guide](functions/README.md) |
+| `python3 scripts/check-doc-graph.py` | Curated map links and parent edges |
+| `python3 scripts/audit-docs.py` | Classification policy and inventory freshness |
+| `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts -p 'test_doc*.py'` | Documentation-tool regression tests |
 
-**Key files you'll edit most:**
+For one Vitest file: `npx vitest run path/to/file.test.ts`. Do not run data scripts merely to validate application code; they can contact the configured backend.
 
-```
-src/routes/(app)/
-├── dashboard/+page.svelte    # Feed page
-├── dives/+page.svelte         # Log dive page
-├── analytics/+page.svelte     # Analytics page
-└── +layout.svelte             # Top nav (shared layout)
+## Editing
 
-src/lib/components/
-├── SessionCard.svelte         # Feed cards
-├── RoutineSelector.svelte     # Routine picker
-└── BottomNav.svelte           # Bottom navigation
+Use TypeScript and Svelte 5 runes for new components. Keep data transformations pure, with effects at component/adaptor boundaries and tests beside domain logic. Use scoped CSS and app variables; respect safe areas and the bottom navigation at phone widths.
 
-src/lib/
-├── types.ts                   # TypeScript types
-├── utils/                     # Helper functions
-└── firebase.ts                # Firebase setup
+VS Code with its Svelte extension is useful but optional. Find symbols rather than relying on old documentation line numbers. For Pi, launch in the intended worktree and use the concise [agent guide](AGENTS.md); feature knowledge stays in linked maps rather than duplicated editor instructions.
 
-src/app.css                    # Global styles & CSS variables
-```
+## Release boundary
 
-## Svelte File Structure
-
-Every `.svelte` file has this pattern:
-
-```svelte
-<script lang="ts">
-  // JavaScript/TypeScript logic here
-  let count = $state(0);
-</script>
-
-<!-- HTML markup here -->
-<button onclick={() => count++}>
-  Count: {count}
-</button>
-
-<style>
-  /* Scoped CSS here (only applies to this component) */
-  button {
-    color: var(--color-primary);
-  }
-</style>
-```
-
-## Making Your First Edit
-
-Try this simple change:
-
-1. Open `src/routes/(app)/+layout.svelte`
-2. Find line 35: `<h1 class="nav-title">Overdive [Proto]</h1>`
-3. Change to: `<h1 class="nav-title">Overdive [Proto] 🌊</h1>`
-4. Save (`Cmd+S`)
-5. Check browser - should auto-update!
-
-## Tips for Learning
-
-- **Read before editing**: Open files that were just changed to see what was done
-- **Use Cmd+Click**: Click on any component/function name while holding Cmd to jump to its definition
-- **Hover for docs**: Hover over variables/functions to see their types
-- **Format on save**: Enable in settings (search "format on save")
-- **Use git**: Make a commit before experimenting, easy to revert if needed
-
-## VS Code Settings (Optional)
-
-Press `Cmd+,` for settings, search and enable:
-
-- "Format On Save" ✓
-- "Auto Save" → `afterDelay`
-- "Tab Size" → `2` (match our project)
-
-## Essential Extensions
-
-Install these from the Extensions panel (`Cmd+Shift+X`):
-
-**Must-have:**
-- **Svelte for VS Code** (by Svelte) - Syntax highlighting, intellisense, formatting
-- **Prettier - Code formatter** (by Prettier) - Auto-formatting
-- **ESLint** (by Microsoft) - Code linting
-
-**Recommended:**
-- **Tailwind CSS IntelliSense** (by Tailwind Labs) - Tailwind autocomplete
-- **GitLens** (by GitKraken) - Enhanced Git features
-- **Error Lens** - Shows errors inline
-- **Auto Rename Tag** - Renames paired HTML/Svelte tags
-
----
-
-**Start simple**: Browse the files, make small tweaks to colors or text, and see the changes. The hot reload makes experimentation fun!
+Push/deploy requires explicit approval. Review all outgoing commits against the intended target. App, Functions and production data changes are separate operations; each needs its own verification. Never treat a successful local build as proof of a live release.

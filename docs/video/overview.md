@@ -1,3 +1,5 @@
+> **Superseded — not implementation guidance.** This original specification mixes historical decisions and proposals. Its recording defaults, storage and export architecture no longer describe the implementation. Use the [video implementation map](README.md); see [audit evidence](../code-health/document-classification.md).
+
 This is a core feature for the app pre-release. If there's one thing the app should do well, it's this. My original motivation to develop the app was for this feature.
 
 I want users to be able to video record their dynamic (DYN, DYNB, DNF) dives live in the pool. The idea is that the coach would start the recording while the diver is breathing up, and then follow the diver down the pool and back. The app records the dive and also records and overlay with the dive time, dive distance and dive speed. 

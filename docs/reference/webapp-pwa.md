@@ -1,3 +1,5 @@
+> **Superseded — not implementation guidance.** This earlier audit incorrectly describes manifest/meta/icons/persistence as missing and recommends redirect sign-in, while the current landing handler deliberately uses popup sign-in after a redirect regression. Use the [storage/auth implementation map](../storage-infra/README.md). Retain this document for rationale and possible device tests, not as an approved TODO list. Historical DNS/OAuth values and live-domain claims require fresh verification.
+
 # Overdive as an iOS Home-Screen Web App — Review & Action List
 
 > Goal: Let users add Overdive to the iOS home screen and have it behave like a real app — full-screen, persistent login, working camera/recorder, no Safari chrome, correct icons, safe-area aware, and resilient to mobile quirks.

@@ -1,4 +1,6 @@
 
+> **Superseded — not implementation guidance.** This is the legacy three-type builder design, not the current Create Routine architecture. Start with [layer creation](../../src/lib/routineLayers/create.ts) and the create route. Legacy compatibility may remain; this notice does not declare every feature below removed. See [audit evidence](../code-health/document-classification.md).
+
 # Simplified Routine Builder
 
 ## Overview
