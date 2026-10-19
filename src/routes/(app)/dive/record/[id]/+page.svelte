@@ -46,6 +46,7 @@
 		type PrecisionMarkingState
 	} from '$lib/capture/precisionWaypointMarker';
 	import { defaultSpeedMs } from '$lib/capture/disciplineSpeeds';
+	import { recorderDefaultsFor, withRecorderDefaults } from '$lib/capture/recorderDefaults';
 	import { buildAidaAttempt, surfaceProtocolPrefill } from '$lib/competition/aida';
 	import {
 		bitrateForResolution,
@@ -75,7 +76,9 @@
 		DiveVideoRotation,
 		Discipline,
 		AidaAttemptMode,
-		AidaCompetitionAttempt
+		AidaCompetitionAttempt,
+		RecorderDefaults,
+		UserSettings
 	} from '$lib/types';
 
 	const sessionId = $derived($page.params.id ?? '');
@@ -242,6 +245,7 @@
 	let importPreviewVideo = $state<HTMLVideoElement | null>(null);
 	let storageHealthy = $state<boolean | null>(null);
 	let publicModeAccess = $state<PublicModeAccess>('public');
+	let loadedUserSettings = $state<UserSettings | undefined>(undefined);
 	let reviewSaveState = $state<ReviewSaveState>('idle');
 	let pendingUploadLocalId = $state<string | undefined>(undefined);
 	let savedAsGift = $state(false);
@@ -322,9 +326,18 @@
 		return result.source === 'static-metrics-only';
 	}
 
+	function applyDisciplineDefaults(value: RecordDiscipline): void {
+		const defaults = recorderDefaultsFor(loadedUserSettings, value);
+		if (typeof defaults.poolLength === 'number' && value !== 'STA') poolLength = defaults.poolLength;
+		if (typeof defaults.waypointsPerLap === 'number' && value !== 'STA') waypointsPerLap = defaults.waypointsPerLap;
+		if (value === 'STA') aidaAnnouncedSeconds = defaults.announcedPerformanceSeconds;
+		else aidaAnnouncedMeters = defaults.announcedPerformanceMeters;
+	}
+
 	function selectDiscipline(value: RecordDiscipline): void {
 		const wasStatic = discipline === 'STA';
 		discipline = value;
+		applyDisciplineDefaults(value);
 		if (value === 'STA') captureMode = 'metrics-only';
 		else if (wasStatic) captureMode = 'video';
 	}
@@ -508,6 +521,7 @@
 		// Load user-level defaults (video settings from Profile + last-used pool setup).
 		getUserSettings(uid)
 			.then((settings) => {
+				loadedUserSettings = settings;
 				({ resolution, qualityPreset } = recordingVideoSettings(settings));
 				publicModeAccess = settings?.publicModeAccess ?? 'public';
 				framingGuide = settings?.recorder?.framingGuide ?? true;
@@ -520,9 +534,9 @@
 					waypointsPerLap = settings.defaultWaypointsPerLap;
 					gotAnyDefault = true;
 				}
-				// Discipline is deliberately not restored from saved settings. Each
-				// recording needs an explicit fresh choice so the recorder never starts
-				// with a stale fin/no-fin mode.
+				if (discipline) applyDisciplineDefaults(discipline);
+				// Discipline-specific setup defaults take precedence over the legacy global values. The user can
+				// still change discipline before starting a new capture.
 				// Note: we no longer restore `defaultCameraPreference` here. The
 				// recorder always starts with the auto rear camera and the user
 				// switches lenses from the on-screen pill once the preview is
@@ -1066,6 +1080,26 @@
 		});
 	}
 
+	function persistRecorderDefaults(uid: string): void {
+		if (!discipline) return;
+		const defaults: RecorderDefaults = {};
+		if (discipline !== 'STA') {
+			if (poolLength) defaults.poolLength = poolLength;
+			if (waypointsPerLap) defaults.waypointsPerLap = waypointsPerLap;
+			if (aidaAnnouncedMeters !== undefined) defaults.announcedPerformanceMeters = aidaAnnouncedMeters;
+		} else if (aidaAnnouncedSeconds !== undefined) {
+			defaults.announcedPerformanceSeconds = aidaAnnouncedSeconds;
+		}
+		const recorder = withRecorderDefaults(loadedUserSettings, discipline, defaults);
+		const settings: UserSettings = { recorder };
+		if (poolLength && discipline !== 'STA') settings.defaultPoolLength = poolLength;
+		if (waypointsPerLap && discipline !== 'STA') settings.defaultWaypointsPerLap = waypointsPerLap;
+		updateUserSettings(uid, settings).catch((err) => {
+			// eslint-disable-next-line no-console
+			console.warn('[dive-record] could not save recorder defaults', err);
+		});
+	}
+
 	async function saveMetricsOnlyCapture(
 		uid: string,
 		selectedDiscipline: DiveVideoDiscipline,
@@ -1096,15 +1130,7 @@
 
 		reviewSaveState = 'saved-metrics';
 		stage = 'done';
-		if (poolLength && waypointsPerLap) {
-			updateUserSettings(uid, {
-				defaultPoolLength: poolLength,
-				defaultWaypointsPerLap: waypointsPerLap
-			}).catch((err) => {
-				// eslint-disable-next-line no-console
-				console.warn('[dive-record] could not save recorder defaults', err);
-			});
-		}
+		persistRecorderDefaults(uid);
 		await goto(
 			`/dives?publicPreset=dynamic-max&seed=${encodeURIComponent(sessionId)}`
 		);
@@ -1142,6 +1168,7 @@
 
 		reviewSaveState = 'saved-metrics';
 		stage = 'done';
+		persistRecorderDefaults(uid);
 	}
 
 	async function save(): Promise<void> {
@@ -1322,15 +1349,7 @@
 			// recorder always starts on the auto rear camera and the user
 			// switches lenses from the on-screen pill once the preview is
 			// live (see comment on the setup-stage camera field).
-			if (poolLength && waypointsPerLap) {
-				updateUserSettings(uid, {
-					defaultPoolLength: poolLength,
-					defaultWaypointsPerLap: waypointsPerLap
-				}).catch((err) => {
-					// eslint-disable-next-line no-console
-					console.warn('[dive-record] could not save recorder defaults', err);
-				});
-			}
+			persistRecorderDefaults(uid);
 			// The saved hand-off stays on this page so the user can see whether
 			// the upload is still running before choosing the dive log.
 			// Gifted captures retain their existing dashboard destination via

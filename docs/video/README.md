@@ -7,6 +7,7 @@ Up: [Docs index](../INDEX.md) · Status: current navigation; verify behaviour in
 | Task | Implementation | Verification / context |
 |---|---|---|
 | Recording resolution, quality and size estimate | [videoQuality.ts](../../src/lib/capture/videoQuality.ts) | [Tests](../../src/lib/capture/videoQuality.test.ts); use recording defaults, not legacy-video fallbacks |
+| Recorder setup defaults | [recorderDefaults.ts](../../src/lib/capture/recorderDefaults.ts), [record route](../../src/routes/(app)/dive/record/%5Bid%5D/+page.svelte) | [Tests](../../src/lib/capture/recorderDefaults.test.ts); per-discipline pool, waypoint and optional AIDA AP values, with legacy global fallback |
 | Recorder transitions and timeline conversion | [recorderState.ts](../../src/lib/capture/recorderState.ts), [timeline.ts](../../src/lib/capture/timeline.ts) | [State tests](../../src/lib/capture/recorderState.test.ts), [timeline tests](../../src/lib/capture/timeline.test.ts) |
 | Pending uploads and exhausted retries | [uploadQueue.ts](../../src/lib/capture/uploadQueue.ts), [uploadProcessor.ts](../../src/lib/capture/uploadProcessor.ts) | Inspect attempt limit, resetAttempts and drain behaviour together; never remove the only recovery action |
 | HUD data, speed graph and layout | [shareHud](../../src/lib/media/shareHud/) | [Model tests](../../src/lib/media/shareHud/model.test.ts), [layout tests](../../src/lib/media/shareHud/layout.test.ts), [speed tests](../../src/lib/media/shareHud/speedGraph.test.ts) |
@@ -20,7 +21,8 @@ Up: [Docs index](../INDEX.md) · Status: current navigation; verify behaviour in
 - Shared HUD modules must remain browser-independent and usable from Functions; avoid DOM and app-only `$lib` imports there.
 - Changing shared rendering can require both app and Functions deployment. Check render-key/style invalidation, not just the visual result.
 - Automatic queue draining does not mean unlimited retries. Preserve manual recovery for exhausted attempts.
-- Recording defaults are owned by `videoQuality.ts`. Historical specifications below contain old defaults and must not override it.
+- Recording defaults are owned by `videoQuality.ts` for media quality and `recorderDefaults.ts` for setup values. Historical specifications below contain old defaults and must not override them.
+- `UserSettings.recorder.defaultsByDiscipline` is the per-user setup-default schema. Updates must preserve sibling recorder settings such as `framingGuide`.
 - Unit tests do not prove camera behaviour, offline recovery or export memory usage on real devices/workers.
 
 ## Design history and remaining work

@@ -137,6 +137,15 @@ export type CameraPreference =
 	| { kind: 'auto-rear' }
 	| { kind: 'device'; deviceId: string; label?: string };
 
+export type RecorderDiscipline = DiveVideoDiscipline | 'STA';
+
+export interface RecorderDefaults {
+	poolLength?: number;
+	waypointsPerLap?: number;
+	announcedPerformanceSeconds?: number;
+	announcedPerformanceMeters?: number;
+}
+
 export interface UserSettings {
 	defaultTimeframe?: '1month' | '6months' | '1year';
 	defaultAnalyticsFilter?: string;
@@ -164,6 +173,8 @@ export interface UserSettings {
 	recorder?: {
 		/** Show where the video HUD leaves the diver clear (default on). */
 		framingGuide?: boolean;
+		/** Last-used setup values, kept separately for each discipline. */
+		defaultsByDiscipline?: Partial<Record<RecorderDiscipline, RecorderDefaults>>;
 	};
 	/** Share HUD defaults for new videos. */
 	shareHud?: {
