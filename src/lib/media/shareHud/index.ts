@@ -11,6 +11,12 @@ import { renderSvg } from './svg';
 export { prepareDive, resultCard, shareHudFrame, CARD_FADE_MS } from './model';
 export { shareHudContextForVideo, type ShareHudVideoFields } from './context';
 export { HUD_TICK_MS } from './exportPlan';
+export {
+	socialCutEditList,
+	type SocialCutEditDecisionList,
+	type SocialCutOptions,
+	type SocialCutSegment
+} from './socialCut';
 export type { ShareHudContext, ShareHudDive, ShareHudFrame, FrameOptions } from './model';
 export type { HudCanvas, Rect as HudRect } from './layout';
 export { graphDirectionHitRect, liveHudClearZone, type HudClearZone } from './layout';
