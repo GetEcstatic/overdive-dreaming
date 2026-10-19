@@ -56,6 +56,7 @@
 		nextWaypointM,
 		primaryActionSpec,
 		shouldAutoAdvance,
+		surfaceProtocolCountdown,
 		waypointCount
 	} from '$lib/capture/recorderSelectors';
 	import type {
@@ -163,7 +164,11 @@
 	let waypointTapLocked = $state(false);
 	let pendingEndDiveAtPerfMs = $state<number | null>(null);
 
-	const primaryAction = $derived(primaryActionSpec(rs));
+	const primaryAction = $derived.by(() => {
+		const spec = primaryActionSpec(rs);
+		if (aidaMode === 'training' || spec.action !== 'protocolDone') return spec;
+		return { ...spec, label: 'SP completed', sub: undefined };
+	});
 	const canMoveWaypointBack = $derived(canMoveWaypointCursorBack(rs));
 	const elapsedMs = $derived(diveElapsedMs(rs, nowMs));
 	const distanceM = $derived(cumulativeDistanceM(rs, nowMs));
@@ -178,6 +183,13 @@
 			: cameraPreferenceLabel(selectedCamera)
 	);
 	const showAidaProtocol = $derived(aidaMode !== 'training');
+	const spCountdown = $derived(
+		showAidaProtocol && rs.phase === 'ended' ? surfaceProtocolCountdown(rs, nowMs) : null
+	);
+
+	function formatTenths(tenths: number): string {
+		return (tenths / 10).toFixed(1);
+	}
 
 	function formatMs(ms: number): string {
 		const totalSecs = Math.floor(ms / 1000);
@@ -299,6 +311,8 @@
 
 	function onPressProtocolDone(): void {
 		dispatch({ type: 'protocol/done', atPerfMs: performance.now() });
+		// The AIDA countdown kept the clock running after the dive ended.
+		stopTicking();
 	}
 
 	function onPressStartDive(): void {
@@ -329,7 +343,8 @@
 		pendingEndDiveAtPerfMs = null;
 		nowMs = atPerfMs;
 		dispatch({ type: 'dive/ended', atPerfMs });
-		stopTicking();
+		// AIDA mode keeps ticking so the 15 s surface protocol countdown runs.
+		if (!showAidaProtocol) stopTicking();
 	}
 
 	function resumeDiveAfterEndRequest(): void {
@@ -653,6 +668,27 @@
 			</div>
 		{/if}
 
+		{#if spCountdown}
+			<div
+				class="sp-countdown"
+				class:warning={!spCountdown.completed && spCountdown.withinLimit && spCountdown.remainingTenths <= 50}
+				class:over={!spCountdown.withinLimit}
+				class:done={spCountdown.completed && spCountdown.withinLimit}
+				role="timer"
+			>
+				{#if spCountdown.completed}
+					<span class="sp-label">{spCountdown.withinLimit ? 'SP completed' : 'SP after 15 s'}</span>
+					<span class="sp-value">{formatTenths(spCountdown.elapsedTenths)} s</span>
+				{:else if spCountdown.withinLimit}
+					<span class="sp-label">Surface protocol</span>
+					<span class="sp-value">{formatTenths(spCountdown.remainingTenths)}</span>
+				{:else}
+					<span class="sp-label">Over 15 s</span>
+					<span class="sp-value">+{formatTenths(spCountdown.overTenths)}</span>
+				{/if}
+			</div>
+		{/if}
+
 		{#if rs.phase === 'arming'}
 			<div class="overlay">
 				<span>Arming camera…</span>
@@ -943,6 +979,59 @@
 		color: #cbd5e1;
 		font-size: 0.85rem;
 		margin-top: 0.4rem;
+	}
+
+	.sp-countdown {
+		position: absolute;
+		left: 50%;
+		top: calc(max(0.75rem, env(safe-area-inset-top)) + 6.25rem);
+		transform: translateX(-50%);
+		z-index: 6;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		min-width: 9.5rem;
+		padding: 0.55rem 1.1rem 0.65rem;
+		border: 2px solid rgba(226, 232, 240, 0.35);
+		border-radius: 16px;
+		background: rgba(15, 23, 42, 0.72);
+		backdrop-filter: blur(8px);
+		-webkit-backdrop-filter: blur(8px);
+		color: #f8fafc;
+		pointer-events: none;
+	}
+	.sp-label {
+		font-size: 0.72rem;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: #cbd5e1;
+	}
+	.sp-value {
+		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+		font-size: 2.6rem;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		line-height: 1.05;
+	}
+	.sp-countdown.warning {
+		border-color: rgba(234, 179, 8, 0.9);
+	}
+	.sp-countdown.warning .sp-value {
+		color: #facc15;
+	}
+	.sp-countdown.over {
+		border-color: rgba(239, 68, 68, 0.95);
+		background: rgba(69, 10, 10, 0.78);
+	}
+	.sp-countdown.over .sp-value {
+		color: #fca5a5;
+	}
+	.sp-countdown.done {
+		border-color: rgba(34, 197, 94, 0.9);
+	}
+	.sp-countdown.done .sp-value {
+		color: #86efac;
 	}
 
 	.toast {
@@ -1425,6 +1514,17 @@
 			max-width: 9.5rem;
 			text-align: right;
 		}
+		.sp-countdown {
+			left: auto;
+			right: var(--recorder-edge-x);
+			top: max(0.5rem, env(safe-area-inset-top));
+			transform: none;
+			min-width: 8rem;
+			padding: 0.4rem 0.9rem 0.5rem;
+		}
+		.sp-value {
+			font-size: 2rem;
+		}
 		.camera-control {
 			top: auto;
 			right: var(--recorder-edge-x);
@@ -1538,6 +1638,16 @@
 			right: auto;
 			max-width: var(--recorder-lane-width);
 			white-space: normal;
+			transform: translateX(-50%);
+		}
+	}
+
+	/* Wide landscape centres the HUD, so sit the countdown just below it. */
+	@media (orientation: landscape) and (min-width: 768px) {
+		.sp-countdown {
+			left: 50%;
+			right: auto;
+			top: calc(max(0.75rem, env(safe-area-inset-top)) + 5.4rem);
 			transform: translateX(-50%);
 		}
 	}

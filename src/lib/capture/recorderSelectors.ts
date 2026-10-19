@@ -199,6 +199,51 @@ export function isProtocolMarked(state: RecorderState): boolean {
 	return state.timeline.protocolEndMs !== undefined;
 }
 
+/** AIDA: the surface protocol must be completed within 15.0 s of surfacing. */
+export const AIDA_SURFACE_PROTOCOL_LIMIT_MS = 15_000;
+
+export interface SurfaceProtocolCountdown {
+	/** Time since the dive end, in whole tenths (AIDA times SP to 0.1 s). */
+	elapsedTenths: number;
+	/** Tenths left before the limit; 0 once it has passed. */
+	remainingTenths: number;
+	/** Tenths past the limit; 0 while within it. */
+	overTenths: number;
+	/** True once SP completed has been tapped; the values are then frozen. */
+	completed: boolean;
+	withinLimit: boolean;
+}
+
+/**
+ * Surface protocol clock, measured from the dive end (the moment the
+ * end-dive hold began, i.e. when the diver surfaced). Runs until
+ * "Protocol done" is tapped, then freezes at the marked time.
+ */
+export function surfaceProtocolCountdown(
+	state: RecorderState,
+	nowPerfMs: number,
+	limitMs: number = AIDA_SURFACE_PROTOCOL_LIMIT_MS
+): SurfaceProtocolCountdown | null {
+	if (state.phase !== 'ended' && state.phase !== 'stopping') return null;
+	if (state.clocks.diveEndedPerfMs <= 0) return null;
+
+	const { protocolEndMs, diveEndMs } = state.timeline;
+	const completed = protocolEndMs !== undefined;
+	const elapsedMs = completed
+		? protocolEndMs - diveEndMs
+		: nowPerfMs - state.clocks.diveEndedPerfMs;
+	const elapsedTenths = Math.floor(Math.max(0, elapsedMs) / 100);
+	const limitTenths = Math.floor(limitMs / 100);
+
+	return {
+		elapsedTenths,
+		remainingTenths: Math.max(0, limitTenths - elapsedTenths),
+		overTenths: Math.max(0, elapsedTenths - limitTenths),
+		completed,
+		withinLimit: elapsedTenths <= limitTenths
+	};
+}
+
 export function canMoveWaypointCursorBack(state: RecorderState): boolean {
 	if (state.phase !== 'diving') return false;
 	return expectedWaypointIndex(state) > state.waypointCursor.lastManualIndex + 1;

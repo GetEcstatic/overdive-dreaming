@@ -16,6 +16,7 @@ import {
 	nextWaypointM,
 	primaryActionSpec,
 	shouldAutoAdvance,
+	surfaceProtocolCountdown,
 	waypointCount
 } from './recorderSelectors';
 
@@ -105,6 +106,46 @@ describe('recorderReducer — phase transitions', () => {
 		s = recorderReducer(s, { type: 'dive/ended', atPerfMs: 9000 });
 		s = recorderReducer(s, { type: 'protocol/done', atPerfMs: 8500 });
 		expect(s.timeline.protocolEndMs).toBe(8000);
+	});
+
+	it('surface protocol countdown runs from the dive end until Protocol done', () => {
+		let s = startDiveAt(startRecordingAt(arm(base), 1000), 5000);
+		const diving = s;
+		expect(surfaceProtocolCountdown(diving, 6000)).toBeNull();
+		s = recorderReducer(s, { type: 'dive/ended', atPerfMs: 9000 });
+
+		expect(surfaceProtocolCountdown(s, 9000)).toEqual({
+			elapsedTenths: 0,
+			remainingTenths: 150,
+			overTenths: 0,
+			completed: false,
+			withinLimit: true
+		});
+		expect(surfaceProtocolCountdown(s, 15_440)?.remainingTenths).toBe(86);
+
+		s = recorderReducer(s, { type: 'protocol/done', atPerfMs: 18_270 });
+		const marked = surfaceProtocolCountdown(s, 60_000);
+		expect(marked).toMatchObject({ elapsedTenths: 92, remainingTenths: 58, completed: true, withinLimit: true });
+	});
+
+	it('surface protocol countdown allows 15.0 s and flags anything later', () => {
+		let s = startDiveAt(startRecordingAt(arm(base), 1000), 5000);
+		s = recorderReducer(s, { type: 'dive/ended', atPerfMs: 9000 });
+		expect(surfaceProtocolCountdown(s, 24_099)).toMatchObject({ elapsedTenths: 150, withinLimit: true });
+		expect(surfaceProtocolCountdown(s, 26_350)).toMatchObject({
+			remainingTenths: 0,
+			overTenths: 23,
+			withinLimit: false
+		});
+
+		s = recorderReducer(s, { type: 'protocol/done', atPerfMs: 25_100 });
+		s = recorderReducer(s, { type: 'recording/stopping' });
+		expect(surfaceProtocolCountdown(s, 90_000)).toMatchObject({
+			elapsedTenths: 161,
+			overTenths: 11,
+			completed: true,
+			withinLimit: false
+		});
 	});
 
 	it('stopping without Protocol done leaves protocolEndMs unset', () => {
