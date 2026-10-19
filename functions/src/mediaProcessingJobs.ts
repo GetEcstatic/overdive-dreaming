@@ -5,7 +5,8 @@ export type DiveVideoProcessingJob =
 	| 'generate-thumbnail'
 	| 'generate-playback-proxy'
 	| 'generate-overlay-preview'
-	| 'generate-overlay-download';
+	| 'generate-overlay-download'
+	| 'generate-social-cut';
 
 export type DiveVideoProcessingStatus =
 	| 'not-requested'
@@ -21,6 +22,8 @@ export interface DiveVideoProcessingState {
 	playbackProxy: DiveVideoProcessingStatus;
 	overlayPreview: DiveVideoProcessingStatus;
 	overlayDownload: DiveVideoProcessingStatus;
+	socialCut?: DiveVideoProcessingStatus;
+	socialCutKey?: string;
 	pendingJobs?: DiveVideoProcessingJob[];
 	lastError?: string;
 	lastErrorAt?: FirebaseFirestore.FieldValue;

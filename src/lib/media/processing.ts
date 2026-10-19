@@ -5,9 +5,55 @@ import type {
 	MediaObjectRef
 } from '$lib/types';
 
-import { SERVER_OVERLAY_STYLE_VERSION, overlayRenderKey } from './overlayStyle';
+import {
+	DEFAULT_SOCIAL_CUT_OPTIONS,
+	SERVER_OVERLAY_STYLE_VERSION,
+	overlayRenderKey,
+	socialRenderKey,
+	type SocialCutRenderOptions
+} from './overlayStyle';
 
-export { SERVER_OVERLAY_STYLE_VERSION, overlayRenderKey };
+export { DEFAULT_SOCIAL_CUT_OPTIONS, SERVER_OVERLAY_STYLE_VERSION, overlayRenderKey, socialRenderKey, type SocialCutRenderOptions };
+
+/** A render left queued or processing this long is treated as failed, so the owner can retry. */
+export const SOCIAL_CUT_STALE_MS = 15 * 60 * 1000;
+
+export type SocialCutStatus = 'none' | 'rendering' | 'ready' | 'failed';
+
+export function socialCutArtifact(video: Pick<DiveVideo, 'artifacts'>): DiveVideoArtifactRef | undefined {
+	return video.artifacts?.find((artifact) => artifact.kind === 'social-cut');
+}
+
+/**
+ * Where the owner's social cut stands for the current edits and toggles.
+ * A cut rendered for other settings counts as `none`: the sheet offers to create it.
+ */
+export function socialCutStatus(args: {
+	video: Pick<DiveVideo, 'artifacts' | 'shareEdit' | 'processingState'>;
+	options: SocialCutRenderOptions;
+	/** Last update of the video document, ms. */
+	updatedAtMs: number;
+	nowMs: number;
+}): SocialCutStatus {
+	const key = socialRenderKey(args.video, args.options);
+	if (socialCutArtifact(args.video)?.styleVersion === key) return 'ready';
+	const state = args.video.processingState;
+	if (state?.socialCutKey !== key) return 'none';
+	if (state.socialCut === 'queued' || state.socialCut === 'processing') {
+		return args.nowMs - args.updatedAtMs > SOCIAL_CUT_STALE_MS ? 'failed' : 'rendering';
+	}
+	if (state.socialCut === 'retryable' || state.socialCut === 'failed') return 'failed';
+	return 'none';
+}
+
+/** Owner toggles from `UserSettings.shareHud`, defaulting to on. */
+export function socialCutOptionsFromSettings(shareHud?: { showName?: boolean; showPb?: boolean; socialHook?: boolean } | null): SocialCutRenderOptions {
+	return {
+		showName: shareHud?.showName ?? DEFAULT_SOCIAL_CUT_OPTIONS.showName,
+		showPb: shareHud?.showPb ?? DEFAULT_SOCIAL_CUT_OPTIONS.showPb,
+		hook: shareHud?.socialHook ?? DEFAULT_SOCIAL_CUT_OPTIONS.hook
+	};
+}
 
 export function serverOverlayArtifact(video: Pick<DiveVideo, 'artifacts'>): DiveVideoArtifactRef | undefined {
 	return video.artifacts?.find((artifact) => artifact.kind === 'overlay-download');

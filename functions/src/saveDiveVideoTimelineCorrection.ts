@@ -156,8 +156,9 @@ function routineLogUpdatePayload(args: { video: DiveVideoDoc; timeline: DiveTime
 	return payload;
 }
 
-function withoutOverlayDownloadArtifacts(video: DiveVideoDoc): unknown[] {
-	return (video.artifacts ?? []).filter((artifact) => artifact.kind !== 'overlay-download');
+/** Burned HUD exports and social cuts show the old timeline; their objects are overwritten on the next render. */
+function withoutHudArtifacts(video: DiveVideoDoc): unknown[] {
+	return (video.artifacts ?? []).filter((artifact) => artifact.kind !== 'overlay-download' && artifact.kind !== 'social-cut');
 }
 
 export const saveDiveVideoTimelineCorrection = onCall(
@@ -191,11 +192,12 @@ export const saveDiveVideoTimelineCorrection = onCall(
 				correctedBy: uid,
 				source: 'stored-video-scrub'
 			},
-			artifacts: withoutOverlayDownloadArtifacts(video),
+			artifacts: withoutHudArtifacts(video),
 			storagePathBurned: FieldValue.delete(),
 			burnedObject: FieldValue.delete(),
 			'processingState.overlayDownload': 'not-requested',
-			'processingState.pendingJobs': FieldValue.arrayRemove('generate-overlay-download'),
+			'processingState.socialCut': 'not-requested',
+			'processingState.pendingJobs': FieldValue.arrayRemove('generate-overlay-download', 'generate-social-cut'),
 			updatedAt: now
 		});
 

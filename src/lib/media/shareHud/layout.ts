@@ -528,6 +528,57 @@ export function layoutLiveHud(dive: ShareHudDive, frame: ShareHudFrame, canvas: 
 	return scaled(children, g);
 }
 
+/** Social cut extras (plan docs/video/social-cut-implementation.md §3): fast-forward badge and the PB hook. */
+export interface SocialExtras {
+	/** Fast-forward factor while the footage is sped up, else null. */
+	readonly fastForward: number | null;
+	/** `PB ATTEMPT · 175 m TO BEAT` pill over the opening, or null. */
+	readonly hook: { readonly targetM: number; readonly opacity: number } | null;
+}
+
+/** Rough width of condensed caps in reference px, for placing the badge after the pool label. */
+function condTextWidth(value: string, size: number, tracking: number): number {
+	return value.length * (size * 0.46 + tracking);
+}
+
+export function layoutSocialExtras(dive: ShareHudDive, extras: SocialExtras, canvas: HudCanvas): HudPrimitive[] {
+	const g = geometry(canvas);
+	const children: Prims = [];
+	if (extras.fastForward !== null && extras.fastForward > 1) {
+		// In the header row, after `50 M POOL`: the gap below the header is too tight above the TIME label.
+		const x = g.left + 116 + condTextWidth(`${dive.context.poolLengthM} M POOL`, 34, 2) + 24;
+		const y = g.headerY + 4;
+		const h = 46;
+		const chevron = (cx: number): HudPrimitive => ({ kind: 'path', d: `M ${cx} ${y + 13} L ${cx + 13} ${y + 23} L ${cx} ${y + 33} Z`, fill: COLOURS.panel });
+		children.push(
+			{ kind: 'rect', x, y, w: 132, h, rx: h / 2, fill: '#ffffff', opacity: 0.92 },
+			chevron(x + 18),
+			chevron(x + 32),
+			text(x + 92, y + 36, `${extras.fastForward}×`, 34, { weight: 700, anchor: 'middle', fill: COLOURS.panel, shadow: false })
+		);
+	}
+	if (extras.hook && extras.hook.opacity > 0) {
+		const y = g.subY - 44;
+		const h = 62;
+		const w = 580;
+		children.push({
+			kind: 'group',
+			opacity: extras.hook.opacity,
+			children: [
+				{ kind: 'rect', x: g.left, y, w, h, rx: h / 2, fill: COLOURS.panel, opacity: 0.86 },
+				{ kind: 'rect', x: g.left + 14, y: y + 14, w: 8, h: h - 28, rx: 4, fill: COLOURS.gold },
+				text(g.left + 40, y + 45, `PB ATTEMPT · ${formatFinalDistance(extras.hook.targetM)} m TO BEAT`, 40, {
+					weight: 700,
+					fill: COLOURS.gold,
+					tracking: 2,
+					shadow: false
+				})
+			]
+		});
+	}
+	return children.length ? scaled(children, g) : [];
+}
+
 function cardHeadline(card: ResultCardModel, cx: number, y0: number): Prims {
 	const out: Prims = [
 		...logo(cx - 34, y0 - 20, 68),

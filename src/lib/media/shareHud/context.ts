@@ -37,3 +37,15 @@ export function shareHudContextForVideo(video: ShareHudVideoFields): ShareHudCon
 		firstLengthDirection: video.shareEdit?.firstLengthDirection ?? 'ltr'
 	};
 }
+
+/** The social cut hides the name or the PB (flag, gold numerals, card badge, hook) when the owner turns them off. */
+export function socialHudContext(
+	context: ShareHudContext,
+	options: { readonly showName: boolean; readonly showPb: boolean }
+): ShareHudContext {
+	return {
+		...context,
+		athleteName: options.showName ? context.athleteName : null,
+		pbBeforeM: options.showPb ? context.pbBeforeM : null
+	};
+}

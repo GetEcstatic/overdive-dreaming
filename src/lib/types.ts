@@ -180,6 +180,10 @@ export interface UserSettings {
 	shareHud?: {
 		/** Last graph direction this user chose; filmers usually stand on the same side of the pool. */
 		firstLengthDirection?: 'ltr' | 'rtl';
+		/** Social cut toggles (docs/video/social-cut-implementation.md §5.2); each defaults to on. */
+		showName?: boolean;
+		showPb?: boolean;
+		socialHook?: boolean;
 	};
 }
 
@@ -1108,7 +1112,8 @@ export type DiveVideoProcessingJob =
 	| 'generate-thumbnail'
 	| 'generate-playback-proxy'
 	| 'generate-overlay-preview'
-	| 'generate-overlay-download';
+	| 'generate-overlay-download'
+	| 'generate-social-cut';
 
 export type DiveVideoArtifactKind =
 	| 'master'
@@ -1116,6 +1121,7 @@ export type DiveVideoArtifactKind =
 	| 'playback-proxy'
 	| 'overlay-preview'
 	| 'overlay-download'
+	| 'social-cut'
 	| 'hls-manifest';
 
 export type DiveVideoArtifactProfile =
@@ -1126,7 +1132,8 @@ export type DiveVideoArtifactProfile =
 	| 'hls-adaptive'
 	| 'overlay-mp4-540p'
 	| 'overlay-mp4-720p'
-	| 'overlay-mp4-1080p';
+	| 'overlay-mp4-1080p'
+	| 'social-mp4-1080x1920';
 
 export interface DiveVideoProcessingState {
 	master: DiveVideoProcessingStatus;
@@ -1134,6 +1141,10 @@ export interface DiveVideoProcessingState {
 	playbackProxy: DiveVideoProcessingStatus;
 	overlayPreview: DiveVideoProcessingStatus;
 	overlayDownload: DiveVideoProcessingStatus;
+	/** On-demand social cut; absent until first requested. */
+	socialCut?: DiveVideoProcessingStatus;
+	/** Render key of the requested social cut (`socialRenderKey`). */
+	socialCutKey?: string;
 	pendingJobs?: DiveVideoProcessingJob[];
 	lastError?: string;
 	lastErrorAt?: Timestamp;

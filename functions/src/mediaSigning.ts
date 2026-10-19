@@ -29,7 +29,9 @@ type MediaKind =
 	| 'dive-video-clean'
 	| 'dive-video-thumb'
 	| 'dive-video-playback-proxy'
-	| 'dive-video-burned';
+	| 'dive-video-burned'
+	/** Read-only: the on-demand social cut artifact. */
+	| 'dive-video-social';
 
 interface MediaObjectRef {
 	provider: 'wasabi';
@@ -259,6 +261,8 @@ function assertExistingDiveVideoObject(args: {
 				? playbackProxyObject
 			: args.kind === 'dive-video-burned'
 				? video?.burnedObject
+			: args.kind === 'dive-video-social'
+				? video?.artifacts?.find((artifact) => artifact.kind === 'social-cut')?.object
 				: video?.cleanObject;
 	if (ref && (ref.bucket !== args.bucket || ref.key !== args.key)) {
 		throw new HttpsError('permission-denied', 'Media object does not match the video document');
@@ -354,6 +358,8 @@ export const getMediaReadUrl = onCall(callableOptions, async (request) => {
 					? playbackProxyObject
 				: kind === 'dive-video-burned'
 					? video.burnedObject
+				: kind === 'dive-video-social'
+					? video.artifacts?.find((artifact) => artifact.kind === 'social-cut')?.object
 					: video.cleanObject;
 		expectedPrefix = `users/${diveVideoOwner(snap)}/videos/${videoId}/`;
 	}
@@ -413,6 +419,8 @@ export const deleteMediaObject = onCall(callableOptions, async (request) => {
 					? playbackProxyObject
 				: kind === 'dive-video-burned'
 					? video.burnedObject
+				: kind === 'dive-video-social'
+					? video.artifacts?.find((artifact) => artifact.kind === 'social-cut')?.object
 					: video.cleanObject;
 		expectedPrefix = `users/${diveVideoOwner(snap)}/videos/${videoId}/`;
 	}

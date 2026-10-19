@@ -14,6 +14,7 @@ import {
 	getDoc,
 	getDocs,
 	updateDoc,
+	deleteField,
 	deleteDoc,
 	query,
 	where,
@@ -39,6 +40,7 @@ import {
 	deleteWasabiObject,
 	getWasabiReadUrl,
 	requestWasabiOverlayDownload,
+	requestWasabiSocialCut,
 	saveWasabiDiveVideoTimelineCorrection,
 	uploadWithSignedUrl
 } from '$lib/media/client';
@@ -58,6 +60,7 @@ import type {
 	DiveVideoUploadStatus
 } from '$lib/types';
 import { getUserSettings, updateUserSettings } from '$lib/firestore';
+import type { SocialCutRenderOptions } from '$lib/media/overlayStyle';
 
 const COLLECTION = 'diveVideos';
 
@@ -100,11 +103,13 @@ function artifactMediaKind(kind: string | undefined):
 	| 'dive-video-thumb'
 	| 'dive-video-playback-proxy'
 	| 'dive-video-burned'
+	| 'dive-video-social'
 	| null {
 	if (kind === 'master') return 'dive-video-clean';
 	if (kind === 'thumbnail') return 'dive-video-thumb';
 	if (kind === 'playback-proxy') return 'dive-video-playback-proxy';
 	if (kind === 'overlay-download' || kind === 'overlay-preview') return 'dive-video-burned';
+	if (kind === 'social-cut') return 'dive-video-social';
 	return null;
 }
 
@@ -362,6 +367,42 @@ export async function requestDiveVideoOverlayDownload(videoId: string): Promise<
 	await requestWasabiOverlayDownload(videoId);
 }
 
+export async function requestDiveVideoSocialCut(videoId: string, options: SocialCutRenderOptions): Promise<void> {
+	await requestWasabiSocialCut(videoId, options);
+}
+
+export async function getDiveVideoSocialCutUrl(video: DiveVideo): Promise<string> {
+	const artifact = video.artifacts?.find((candidate) => candidate.kind === 'social-cut');
+	if (!artifact?.object?.key) throw new Error('This dive has no social cut yet');
+	const read = await getWasabiReadUrl({
+		kind: 'dive-video-social',
+		videoId: video.id,
+		key: artifact.object.key,
+		bucket: artifact.object.bucket,
+		downloadFileName: socialCutFileName(video)
+	});
+	return read.url;
+}
+
+export function socialCutFileName(video: Pick<DiveVideo, 'id' | 'discipline'>): string {
+	return `overdive-reel-${video.discipline}-${video.id}.mp4`;
+}
+
+/** Owner's protocol-end override for the social cut, or null to use the recorder's tap / default. */
+export async function setDiveVideoProtocolEnd(videoId: string, protocolEndMs: number | null): Promise<void> {
+	await updateDoc(doc(db, COLLECTION, videoId), {
+		'shareEdit.protocolEndMs': protocolEndMs === null ? deleteField() : Math.round(protocolEndMs),
+		updatedAt: serverTimestamp()
+	});
+}
+
+/** Social cut toggles, remembered for the owner's next share. */
+export async function saveSocialCutOptions(uid: string, options: SocialCutRenderOptions): Promise<void> {
+	await updateUserSettings(uid, {
+		shareHud: { showName: options.showName, showPb: options.showPb, socialHook: options.hook }
+	});
+}
+
 export async function saveDiveVideoTimelineCorrection(args: {
 	videoId: string;
 	timeline: DiveTimeline;
@@ -536,7 +577,7 @@ export async function deleteDiveVideo(video: DiveVideo): Promise<void> {
 	const deletedStoragePaths = new Set<string>();
 
 	function deleteWasabiOnce(args: {
-		kind: 'dive-video-clean' | 'dive-video-thumb' | 'dive-video-playback-proxy' | 'dive-video-burned';
+		kind: 'dive-video-clean' | 'dive-video-thumb' | 'dive-video-playback-proxy' | 'dive-video-burned' | 'dive-video-social';
 		key?: string;
 		bucket?: string;
 	}): void {

@@ -19,10 +19,29 @@ import {
 } from './wasabiClient.js';
 import type { DiveVideoProcessingJob } from './mediaProcessingJobs.js';
 import type { DiveTimeline } from './lib/timelineToRoutineLog.js';
-import { SERVER_OVERLAY_STYLE_VERSION, overlayRenderKey } from '../../src/lib/media/overlayStyle';
+import {
+	DEFAULT_SOCIAL_CUT_OPTIONS,
+	SERVER_OVERLAY_STYLE_VERSION,
+	overlayRenderKey,
+	socialRenderKey,
+	type SocialCutRenderOptions
+} from '../../src/lib/media/overlayStyle';
 import { OVERLAY_EXPORT_SHORT_EDGE_PX, scaleToShortEdge } from '../../src/lib/media/exportDimensions';
 import { collapseFrameRuns, concatListForRuns } from '../../src/lib/media/frameRuns';
-import { prepareDive, shareHudContextForVideo, shareHudSvg } from '../../src/lib/media/shareHud/index';
+import {
+	prepareDive,
+	SOCIAL_BACKGROUND,
+	SOCIAL_CANVAS,
+	shareHudContextForVideo,
+	shareHudSvg,
+	socialCutEditList,
+	socialCutFrameSvg,
+	socialCutInputForDive,
+	socialCutTicks,
+	socialHudContext,
+	socialVideoPlacement
+} from '../../src/lib/media/shareHud/index';
+import { socialCutFilter } from '../../src/lib/media/socialCutFilter';
 import { HUD_TICK_MS, hudFullTicks } from '../../src/lib/media/shareHud/exportPlan';
 import { HUD_DEFAULT_FONT_FAMILY, hudFontFiles } from './hudFonts.js';
 import type { HudRenderBatch } from './hudRenderChild.js';
@@ -35,6 +54,8 @@ const OVERLAY_STYLE_VERSION = SERVER_OVERLAY_STYLE_VERSION;
 const OVERLAY_REQUEST_LOCK_STALE_MS = 10 * 60 * 1000;
 const OVERLAY_EXPORT_CRF = '20';
 const OVERLAY_EXPORT_PRESET = 'veryfast';
+const SOCIAL_CUT_MAXRATE = '6M';
+const SOCIAL_CUT_BUFSIZE = '12M';
 // Time an overlay export may spend (download, HUD frames, FFmpeg) inside the
 // 540 s processMediaJob timeout, leaving about 60 s to upload and record the
 // artifact. FFmpeg gets whatever is left, so it fails cleanly instead of the
@@ -75,6 +96,9 @@ interface MediaProcessingJobDoc {
 	status: 'queued' | 'processing' | 'ready' | 'failed' | 'retryable';
 	attempts?: number;
 	claimedAt?: FirebaseFirestore.Timestamp;
+	/** Social cut only: the owner's toggles and the render key at request time. */
+	options?: SocialCutRenderOptions;
+	renderKey?: string;
 }
 
 type MediaProcessingResult = {
@@ -86,6 +110,7 @@ type MediaProcessingResult = {
 
 interface OverlayRequestLockDoc {
 	jobId?: string;
+	renderKey?: string;
 	status?: 'queued' | 'processing' | 'ready' | 'failed' | 'retryable';
 	updatedAt?: FirebaseFirestore.Timestamp;
 }
@@ -120,8 +145,17 @@ export interface DiveVideoDoc {
 }
 
 interface DiveVideoArtifactRef {
-	kind: 'master' | 'thumbnail' | 'playback-proxy' | 'overlay-preview' | 'overlay-download' | 'hls-manifest';
-	profile: 'original' | 'thumb-jpeg' | 'mp4-720p' | 'mp4-1080p' | 'hls-adaptive' | 'overlay-mp4-540p' | 'overlay-mp4-720p' | 'overlay-mp4-1080p';
+	kind: 'master' | 'thumbnail' | 'playback-proxy' | 'overlay-preview' | 'overlay-download' | 'social-cut' | 'hls-manifest';
+	profile:
+		| 'original'
+		| 'thumb-jpeg'
+		| 'mp4-720p'
+		| 'mp4-1080p'
+		| 'hls-adaptive'
+		| 'overlay-mp4-540p'
+		| 'overlay-mp4-720p'
+		| 'overlay-mp4-1080p'
+		| 'social-mp4-1080x1920';
 	object: MediaObjectRef;
 	widthPx?: number;
 	heightPx?: number;
@@ -186,6 +220,7 @@ function stateKeyFor(type: DiveVideoProcessingJob): string | null {
 	if (type === 'generate-playback-proxy') return 'playbackProxy';
 	if (type === 'generate-overlay-preview') return 'overlayPreview';
 	if (type === 'generate-overlay-download') return 'overlayDownload';
+	if (type === 'generate-social-cut') return 'socialCut';
 	return null;
 }
 
@@ -194,7 +229,8 @@ function isImplementedAutomaticJob(type: DiveVideoProcessingJob): boolean {
 		type === 'probe-master' ||
 		type === 'generate-thumbnail' ||
 		type === 'generate-playback-proxy' ||
-		type === 'generate-overlay-download'
+		type === 'generate-overlay-download' ||
+		type === 'generate-social-cut'
 	);
 }
 
@@ -1034,6 +1070,173 @@ export async function encodeHudFullVideo(args: {
 	});
 }
 
+/**
+ * Render the social cut (plan docs/video/social-cut-implementation.md): the
+ * edit list over the 1080×1920 reel canvas with the HUD at each moment's real
+ * dive time, then the result card after the surface protocol. Exported for the
+ * local export harness.
+ */
+export async function encodeSocialCut(args: {
+	ffmpeg: string;
+	ffprobe: string;
+	inputPath: string;
+	outputPath: string;
+	videoId: string;
+	video: DiveVideoDoc;
+	options: SocialCutRenderOptions;
+	timeoutMs: () => number;
+	onFramesDir: (dir: string) => void;
+}): Promise<{ outputSeconds: number; fastForwardFactor: number }> {
+	const { ffmpeg, ffprobe, inputPath, outputPath, onFramesDir } = args;
+	const timeline = args.video.timeline as DiveTimeline;
+	const sourceProbe = await probeMasterFile({ ffprobe, inputPath });
+	const recordingMs = Math.round(Number(sourceProbe.durationSeconds ?? args.video.durationSeconds ?? 0) * 1000);
+	const context = socialHudContext(shareHudContextForVideo(args.video), args.options);
+	const dive = prepareDive(timeline, context);
+	const edl = socialCutEditList(
+		socialCutInputForDive(dive, Math.max(recordingMs, timeline.diveEndMs), args.video.shareEdit?.protocolEndMs ?? null)
+	);
+	const framesStartedAt = Date.now();
+	const ticks = socialCutTicks(edl, HUD_TICK_MS);
+	const overlayFrames = await writeHudFrameSequence(
+		ticks.map((tick) => socialCutFrameSvg(dive, tick, SOCIAL_CANVAS, { hook: args.options.hook }))
+	);
+	onFramesDir(overlayFrames.framesDir);
+	logger.info('Social cut HUD frames rendered', {
+		videoId: args.videoId,
+		renderedFrames: overlayFrames.renderedFrames,
+		tickFrames: overlayFrames.tickFrames,
+		ms: Date.now() - framesStartedAt
+	});
+
+	const inputStartMs = edl.segments[0]?.fromMs ?? 0;
+	// Decode only the span the edit uses: never the wait before GO or anything after the protocol.
+	const spanMs = edl.protocolEndMs - inputStartMs + 500;
+	const filter = socialCutFilter({
+		edl,
+		inputStartMs,
+		placement: socialVideoPlacement(displayDimensions(args.video)),
+		rotation: displayRotationFilters(args.video),
+		canvas: SOCIAL_CANVAS,
+		background: SOCIAL_BACKGROUND,
+		fps: OVERLAY_EXPORT_FPS,
+		hasAudio: sourceProbe.hasAudio === true
+	});
+	const encodeStartedAt = Date.now();
+	await execFileAsync(ffmpeg, [
+		'-y',
+		'-fflags',
+		'+genpts',
+		'-ss',
+		(inputStartMs / 1000).toFixed(3),
+		'-t',
+		(spanMs / 1000).toFixed(3),
+		'-i',
+		inputPath,
+		'-f',
+		'concat',
+		'-safe',
+		'0',
+		'-i',
+		overlayFrames.concatListPath,
+		'-filter_complex',
+		filter.filterComplex,
+		'-map',
+		filter.videoLabel,
+		...(filter.audioLabel ? ['-map', filter.audioLabel, '-c:a', 'aac', '-b:a', '128k'] : []),
+		'-t',
+		filter.outputSeconds.toFixed(3),
+		'-c:v',
+		'libx264',
+		'-preset',
+		OVERLAY_EXPORT_PRESET,
+		'-crf',
+		OVERLAY_EXPORT_CRF,
+		// Instagram re-encodes Reels at about 3.5–5 Mbps; capping keeps the phone share small.
+		'-maxrate',
+		SOCIAL_CUT_MAXRATE,
+		'-bufsize',
+		SOCIAL_CUT_BUFSIZE,
+		'-pix_fmt',
+		'yuv420p',
+		'-max_muxing_queue_size',
+		'1024',
+		'-movflags',
+		'+faststart',
+		outputPath
+	], { timeout: args.timeoutMs(), maxBuffer: 10 * 1024 * 1024 });
+	logger.info('Social cut encoded', {
+		videoId: args.videoId,
+		ms: Date.now() - encodeStartedAt,
+		outputSeconds: filter.outputSeconds,
+		fastForwardFactor: edl.fastForwardFactor,
+		segments: edl.segments.length
+	});
+	return { outputSeconds: filter.outputSeconds, fastForwardFactor: edl.fastForwardFactor };
+}
+
+async function generateSocialCut(args: {
+	videoId: string;
+	video: DiveVideoDoc;
+	options: SocialCutRenderOptions;
+}): Promise<DiveVideoArtifactRef> {
+	const { ffmpeg, ffprobe } = assertWorkerBinaries();
+	const object = masterObject(args.video);
+	if (!args.video.timeline) {
+		throw new HttpsError('failed-precondition', 'Dive video has no timeline for a social cut');
+	}
+	const ownerId = args.video.ownerId ?? args.video.userId;
+	if (!ownerId) throw new HttpsError('failed-precondition', 'Dive video has no owner');
+	const deadline = Date.now() + OVERLAY_EXPORT_BUDGET_MS;
+	const timeoutMs = () => Math.max(OVERLAY_MIN_ENCODE_TIMEOUT_MS, deadline - Date.now());
+	return withMasterFile(args.video, async (inputPath) => {
+		const outputPath = join(tmpdir(), `overdive-social-${randomUUID()}.mp4`);
+		let framesDir: string | null = null;
+		try {
+			await encodeSocialCut({
+				ffmpeg,
+				ffprobe,
+				inputPath,
+				outputPath,
+				videoId: args.videoId,
+				video: args.video,
+				options: args.options,
+				timeoutMs,
+				onFramesDir: (dir) => {
+					framesDir = dir;
+				}
+			});
+			const bytes = await readFile(outputPath);
+			const key = `users/${ownerId}/videos/${args.videoId}/overlay/social.mp4`;
+			await putObjectBytes({ bucket: object.bucket, key, body: bytes, contentType: 'video/mp4' });
+			const probe = await probeMasterFile({ ffprobe, inputPath: outputPath });
+			return withoutUndefined({
+				kind: 'social-cut',
+				profile: 'social-mp4-1080x1920',
+				object: {
+					provider: 'wasabi',
+					bucket: object.bucket,
+					key,
+					contentType: 'video/mp4',
+					sizeBytes: bytes.byteLength
+				},
+				widthPx: probe.widthPx,
+				heightPx: probe.heightPx,
+				durationSeconds: probe.durationSeconds,
+				sizeBytes: bytes.byteLength,
+				contentType: 'video/mp4',
+				styleVersion: socialRenderKey(args.video, args.options),
+				disposable: true
+			}) as unknown as DiveVideoArtifactRef;
+		} finally {
+			await Promise.all([
+				rm(outputPath, { force: true }),
+				framesDir ? rm(framesDir, { recursive: true, force: true }) : Promise.resolve()
+			]);
+		}
+	});
+}
+
 async function generateOverlayDownload(args: {
 	videoId: string;
 	video: DiveVideoDoc;
@@ -1178,7 +1381,8 @@ async function probeMasterFile(args: {
 	return withoutUndefined({
 		widthPx: videoStream?.width,
 		heightPx: videoStream?.height,
-		durationSeconds: Number.isFinite(durationSeconds) ? durationSeconds : undefined
+		durationSeconds: Number.isFinite(durationSeconds) ? durationSeconds : undefined,
+		hasAudio: output.streams?.some((stream) => stream.codec_type === 'audio') ?? false
 	});
 }
 
@@ -1238,9 +1442,9 @@ async function markFailed(args: {
 	const updates: Promise<unknown>[] = [
 		videoRef.update(videoUpdate)
 	];
-	if (args.type === 'generate-overlay-download') {
+	if (args.type === 'generate-overlay-download' || args.type === 'generate-social-cut') {
 		updates.push(
-			videoRef.collection('processingLocks').doc('overlayDownload').set({
+			videoRef.collection('processingLocks').doc(stateKey as string).set({
 				jobId: args.jobId,
 				status: 'retryable',
 				updatedAt: FieldValue.serverTimestamp()
@@ -1349,6 +1553,44 @@ async function runMediaJob(args: { jobId: string; uid?: string; throwOnFailure?:
 				status: 'ready',
 				updatedAt: FieldValue.serverTimestamp()
 			}, { merge: true });
+		} else if (job.type === 'generate-social-cut') {
+			const options = job.options ?? DEFAULT_SOCIAL_CUT_OPTIONS;
+			const renderKey = socialRenderKey(video, options);
+			const lockRef = videoRef.collection('processingLocks').doc('socialCut');
+			const lockSnap = await lockRef.get();
+			const lock = lockSnap.exists ? lockSnap.data() as OverlayRequestLockDoc : null;
+			const current = video.artifacts?.some((artifact) => artifact.kind === 'social-cut' && artifact.styleVersion === renderKey);
+			// Already rendered for these settings, or a newer request replaced this one.
+			if (current || (lock?.jobId && lock.jobId !== args.jobId)) {
+				await db.collection('mediaProcessingJobs').doc(args.jobId).update({
+					status: 'ready',
+					...(current ? {} : { supersededByJobId: lock?.jobId }),
+					completedAt: FieldValue.serverTimestamp(),
+					updatedAt: FieldValue.serverTimestamp()
+				});
+				if (current) {
+					await videoRef.update({
+						'processingState.socialCut': 'ready',
+						'processingState.pendingJobs': FieldValue.arrayRemove(job.type),
+						updatedAt: FieldValue.serverTimestamp()
+					});
+				}
+				return { jobId: args.jobId, status: 'ready', type: job.type, alreadyComplete: true };
+			}
+			await Promise.all([
+				lockRef.set({ jobId: args.jobId, renderKey, status: 'processing', updatedAt: FieldValue.serverTimestamp() }, { merge: true }),
+				videoRef.update({ 'processingState.socialCut': 'processing', updatedAt: FieldValue.serverTimestamp() })
+			]);
+			const social = await generateSocialCut({ videoId: job.videoId, video, options });
+			// Re-read: the owner may have changed the edit while this rendered; keep their other artifacts.
+			const latest = (await videoRef.get()).data() as DiveVideoDoc | undefined;
+			await videoRef.update({
+				artifacts: withArtifact(latest?.artifacts ?? video.artifacts, social),
+				'processingState.socialCut': 'ready',
+				'processingState.pendingJobs': FieldValue.arrayRemove(job.type),
+				updatedAt: FieldValue.serverTimestamp()
+			});
+			await lockRef.set({ jobId: args.jobId, renderKey, status: 'ready', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
 		} else {
 			throw new HttpsError(
 				'failed-precondition',
@@ -1383,6 +1625,7 @@ export const requestOverlayDownload = onCall(
 		const uid = requireUid(request.auth);
 		const data = asRecord(request.data);
 		const videoId = requiredString(data, 'videoId');
+		if (data.kind === 'social-cut') return requestSocialCut({ uid, videoId, options: socialOptionsFrom(data.options) });
 		const db = getFirestore();
 		const videoRef = db.collection('diveVideos').doc(videoId);
 		const lockRef = videoRef.collection('processingLocks').doc('overlayDownload');
@@ -1444,6 +1687,64 @@ export const requestOverlayDownload = onCall(
 	}
 );
 
+
+function socialOptionsFrom(value: unknown): SocialCutRenderOptions {
+	const record = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+	const flag = (key: keyof SocialCutRenderOptions) =>
+		typeof record[key] === 'boolean' ? record[key] as boolean : DEFAULT_SOCIAL_CUT_OPTIONS[key];
+	return { showName: flag('showName'), showPb: flag('showPb'), hook: flag('hook') };
+}
+
+/**
+ * Queue a social cut for the owner's current edits and toggles (plan
+ * docs/video/social-cut-implementation.md §2). On demand only. A request for
+ * the key already rendering returns that job; a different key supersedes it.
+ */
+async function requestSocialCut(args: { uid: string; videoId: string; options: SocialCutRenderOptions }) {
+	const db = getFirestore();
+	const videoRef = db.collection('diveVideos').doc(args.videoId);
+	const lockRef = videoRef.collection('processingLocks').doc('socialCut');
+	return db.runTransaction(async (transaction) => {
+		const [videoSnap, lockSnap] = await Promise.all([transaction.get(videoRef), transaction.get(lockRef)]);
+		if (!videoSnap.exists) throw new HttpsError('not-found', 'Dive video not found');
+		const video = videoSnap.data() as DiveVideoDoc;
+		const ownerId = video.ownerId ?? video.userId;
+		if (ownerId !== args.uid) throw new HttpsError('permission-denied', 'Only the video owner can create a social cut');
+		if (!video.timeline) throw new HttpsError('failed-precondition', 'Dive video has no timeline for a social cut');
+		const renderKey = socialRenderKey(video, args.options);
+		if (video.artifacts?.some((artifact) => artifact.kind === 'social-cut' && artifact.styleVersion === renderKey)) {
+			transaction.update(videoRef, { 'processingState.socialCut': 'ready', 'processingState.socialCutKey': renderKey });
+			return { queued: false, ready: true };
+		}
+		const lock = lockSnap.exists ? lockSnap.data() as OverlayRequestLockDoc : null;
+		const lockActive =
+			(lock?.status === 'queued' || lock?.status === 'processing') &&
+			Date.now() - (lock?.updatedAt?.toMillis?.() ?? 0) < OVERLAY_REQUEST_LOCK_STALE_MS;
+		if (lockActive && lock?.jobId && lock.renderKey === renderKey) {
+			return { jobId: lock.jobId, queued: true, existing: true };
+		}
+		const jobRef = db.collection('mediaProcessingJobs').doc();
+		transaction.set(jobRef, {
+			videoId: args.videoId,
+			ownerId,
+			type: 'generate-social-cut',
+			status: 'queued',
+			attempts: 0,
+			options: args.options,
+			renderKey,
+			createdAt: FieldValue.serverTimestamp(),
+			updatedAt: FieldValue.serverTimestamp()
+		});
+		transaction.set(lockRef, { jobId: jobRef.id, renderKey, status: 'queued', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+		transaction.update(videoRef, {
+			'processingState.socialCut': 'queued',
+			'processingState.socialCutKey': renderKey,
+			'processingState.pendingJobs': FieldValue.arrayUnion('generate-social-cut'),
+			updatedAt: FieldValue.serverTimestamp()
+		});
+		return { jobId: jobRef.id, queued: true };
+	});
+}
 
 export const processMediaJob = onCall(
 	{

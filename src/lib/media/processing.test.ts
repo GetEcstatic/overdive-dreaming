@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+	DEFAULT_SOCIAL_CUT_OPTIONS,
+	SOCIAL_CUT_STALE_MS,
+	socialCutOptionsFromSettings,
+	socialCutStatus,
+	socialRenderKey,
 	hasCurrentServerOverlayArtifact,
 	initialDiveVideoProcessingState,
 	masterDiveVideoArtifact,
@@ -107,5 +112,42 @@ describe('media processing helpers', () => {
 			contentType: 'video/mp4',
 			disposable: false
 		});
+	});
+});
+describe('social cut status', () => {
+	const options = DEFAULT_SOCIAL_CUT_OPTIONS;
+	const shareEdit = { firstLengthDirection: 'rtl' as const, protocolEndMs: 185_040 };
+	const key = socialRenderKey({ shareEdit }, options);
+	const artifact = (styleVersion: string) => ({
+		kind: 'social-cut' as const,
+		profile: 'social-mp4-1080x1920' as const,
+		object: { provider: 'wasabi' as const, bucket: 'b', key: 'k' },
+		styleVersion
+	});
+	const base = { updatedAtMs: 0, nowMs: 1_000 };
+
+	it('keys on direction, protocol override (to 0.1 s) and toggles', () => {
+		expect(key).toContain('+rtl');
+		expect(key).toContain('pe185000');
+		expect(socialRenderKey({ shareEdit: { ...shareEdit, protocolEndMs: undefined } }, options)).toContain('pe-auto');
+		expect(socialRenderKey({ shareEdit }, { ...options, hook: false })).not.toBe(key);
+	});
+
+	it('is ready only for an artifact with the current key', () => {
+		expect(socialCutStatus({ ...base, video: { shareEdit, artifacts: [artifact(key)] }, options })).toBe('ready');
+		expect(socialCutStatus({ ...base, video: { shareEdit, artifacts: [artifact('old')] }, options })).toBe('none');
+	});
+
+	it('reports a render in flight for the same key, and failure when it stalls', () => {
+		const processingState = { ...initialDiveVideoProcessingState(), socialCut: 'processing' as const, socialCutKey: key };
+		expect(socialCutStatus({ ...base, video: { shareEdit, processingState }, options })).toBe('rendering');
+		expect(socialCutStatus({ updatedAtMs: 0, nowMs: SOCIAL_CUT_STALE_MS + 1, video: { shareEdit, processingState }, options })).toBe('failed');
+		expect(socialCutStatus({ ...base, video: { shareEdit, processingState: { ...processingState, socialCut: 'retryable' } }, options })).toBe('failed');
+		expect(socialCutStatus({ ...base, video: { shareEdit, processingState }, options: { ...options, showName: false } })).toBe('none');
+	});
+
+	it('defaults every toggle to on', () => {
+		expect(socialCutOptionsFromSettings(undefined)).toEqual({ showName: true, showPb: true, hook: true });
+		expect(socialCutOptionsFromSettings({ socialHook: false })).toEqual({ showName: true, showPb: true, hook: false });
 	});
 });

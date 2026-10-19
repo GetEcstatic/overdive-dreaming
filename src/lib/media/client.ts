@@ -2,6 +2,7 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '$lib/firebase';
 import type { DiveTimeline, MediaObjectRef } from '$lib/types';
 import type { MediaKind, SignedRead, SignedUpload } from './keys';
+import type { SocialCutRenderOptions } from './overlayStyle';
 
 interface CreateUploadArgs {
 	kind: MediaKind;
@@ -69,8 +70,8 @@ const abortMultipartUploadFn = httpsCallable<
 	{ aborted: boolean }
 >(functions, 'abortDiveVideoMultipartUpload');
 const requestOverlayDownloadFn = httpsCallable<
-	{ videoId: string },
-	{ jobId: string; queued: boolean }
+	{ videoId: string; kind?: 'hud-full' | 'social-cut'; options?: SocialCutRenderOptions },
+	{ jobId?: string; queued: boolean; ready?: boolean }
 >(functions, 'requestOverlayDownload');
 const saveDiveVideoTimelineCorrectionFn = httpsCallable<
 	{ videoId: string; timeline: DiveTimeline },
@@ -191,7 +192,12 @@ export async function requestWasabiOverlayDownload(videoId: string): Promise<{
 	jobId: string;
 	queued: boolean;
 }> {
-	return (await requestOverlayDownloadFn({ videoId })).data;
+	return (await requestOverlayDownloadFn({ videoId })).data as { jobId: string; queued: boolean };
+}
+
+/** Queue the social cut for the owner's toggles (on demand; docs/video/social-cut-implementation.md). */
+export async function requestWasabiSocialCut(videoId: string, options: SocialCutRenderOptions): Promise<{ queued: boolean; ready?: boolean }> {
+	return (await requestOverlayDownloadFn({ videoId, kind: 'social-cut', options })).data;
 }
 
 export async function saveWasabiDiveVideoTimelineCorrection(args: {

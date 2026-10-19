@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fixtureTimeline, FIXTURE_PB_M, FIXTURE_POOL_M, FIXTURE_RECORDING_MS } from './fixtures';
-import { geometry, graphDirectionHitRect, layoutLiveHud, layoutResultCard, liveHudClearZone, REEL_SAFE, type HudCanvas } from './layout';
+import { geometry, graphDirectionHitRect, layoutLiveHud, layoutResultCard, layoutSocialExtras, liveHudClearZone, REEL_SAFE, type HudCanvas } from './layout';
 import { prepareDive, resultCard, shareHudFrame, type ShareHudContext } from './model';
 import type { HudPrimitive } from './svg';
 
@@ -170,5 +170,41 @@ describe('layout geometry', () => {
 		expect(texts).not.toContain('OVERDIVE');
 		const card = JSON.stringify(layoutResultCard(resultCard(dive), null, REEL));
 		expect(card).not.toContain('overdive.app');
+	});
+});
+
+describe('social cut extras', () => {
+	const dive = prepareDive(fixtureTimeline(), context);
+	const boxes = layoutSocialExtras(dive, { fastForward: 16, hook: { targetM: 175, opacity: 1 } }, REEL).flatMap(bounds);
+
+	it('stays inside the safe area and out of the diver band', () => {
+		expect(boxes.length).toBeGreaterThan(0);
+		for (const b of boxes) {
+			expect(b.y0).toBeGreaterThanOrEqual(REEL_SAFE.top);
+			expect(b.x0).toBeGreaterThanOrEqual(REEL_SAFE.side - 1);
+			expect(b.x1).toBeLessThanOrEqual(1080 - REEL_SAFE.side + 1);
+			expect(b.y1).toBeLessThanOrEqual(600);
+		}
+	});
+
+	it('keeps the badge in the header row, clear of the pool label and the wordmark', () => {
+		const g = geometry(REEL);
+		const badge = boxes[0];
+		expect(badge.y0).toBeGreaterThanOrEqual(g.headerY);
+		expect(badge.y1).toBeLessThanOrEqual(g.headerY + 56);
+		expect(badge.x0).toBeGreaterThan(g.left + 116 + 9 * 17);
+		expect(badge.x1).toBeLessThan(g.right - 66 - 8 * 18);
+	});
+
+	it('keeps the hook clear of the LENGTH label on the right of the sub line', () => {
+		const pre = layoutLiveHud(dive, shareHudFrame(dive, 0, { cardAtMs: null }), REEL).flatMap(bounds);
+		const hook = boxes.find((b) => b.x0 === REEL_SAFE.side && b.y0 > 400)!;
+		const lengthLabel = pre.filter((b) => b.y0 > 500 && b.y1 < 600 && b.x1 > 900);
+		expect(lengthLabel.length).toBeGreaterThan(0);
+		for (const b of lengthLabel) expect(hook.x1).toBeLessThan(b.x0);
+	});
+
+	it('draws nothing without fast-forward or hook', () => {
+		expect(layoutSocialExtras(dive, { fastForward: null, hook: null }, REEL)).toEqual([]);
 	});
 });

@@ -41,6 +41,8 @@ interface DiveVideoDoc {
 	cleanObject?: { bucket?: string; key: string; provider?: string };
 	burnedObject?: { bucket?: string; key: string; provider?: string };
 	thumbnailObject?: { bucket?: string; key: string; provider?: string };
+	/** Derived media (playback proxy, HUD download, social cut). */
+	artifacts?: Array<{ object?: { bucket?: string; key: string; provider?: string } }>;
 	recordedAt?: Timestamp;
 }
 
@@ -122,9 +124,12 @@ export const onDiveVideoCreated = onDocumentCreated(
 					const refs = [
 						video.cleanObject,
 						video.burnedObject,
-						video.thumbnailObject
+						video.thumbnailObject,
+						...(video.artifacts ?? []).map((artifact) => artifact.object)
 					].filter((ref): ref is { bucket?: string; key: string } => Boolean(ref?.key));
-					for (const ref of refs) {
+					// The master and the HUD download also appear as artifacts: delete each object once.
+					const unique = [...new Map(refs.map((ref) => [`${ref.bucket ?? ''}/${ref.key}`, ref])).values()];
+					for (const ref of unique) {
 						if (await deleteWasabiRef(ref)) storageDeleted.push(ref.key);
 					}
 				} else {
