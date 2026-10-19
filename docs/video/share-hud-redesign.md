@@ -193,13 +193,13 @@ All motion is a pure function of `atMs`, so playback, export and scrubbing alway
 
 ### 4.7 Data rules
 
-| Value | Live format | Result card |
-|---|---|---|
-| Time | `m:ss.t` (`45.3` under a minute) | `m:ss.t` |
-| Distance | whole metres, floored | exact realised distance, 0 dp unless it has a fraction |
-| Speed | `x.xx m/s` (small) | average `x.xx` |
-| Position | `LENGTH n` (current length, 1-based, never `/total`) | split time per length under the full-dive graph (§4.8.4) |
-| PB | `pbBeforeM`: best standard distance PB **before this dive** | badge |
+| Value    | Live format                                                 | Result card                                              |
+| -------- | ----------------------------------------------------------- | -------------------------------------------------------- |
+| Time     | `m:ss.t` (`45.3` under a minute)                            | `m:ss.t`                                                 |
+| Distance | whole metres, floored                                       | exact realised distance, 0 dp unless it has a fraction   |
+| Speed    | `x.xx m/s` (small)                                          | average `x.xx`                                           |
+| Position | `LENGTH n` (current length, 1-based, never `/total`)        | split time per length under the full-dive graph (§4.8.4) |
+| PB       | `pbBeforeM`: best standard distance PB **before this dive** | badge                                                    |
 
 ### 4.8 Speed graph
 

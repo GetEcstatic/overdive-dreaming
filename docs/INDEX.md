@@ -25,6 +25,8 @@ The catalogue below includes legacy and partially implemented specifications. It
 
 ## Start here
 
+- [Work queue](TODO.md) — short, prioritised actionable checklist; update this as work is selected or completed.
+
 Foundational docs anyone touching the codebase should skim once.
 
 - [Routines/persistence map](routines/README.md) — current schema owners and storage boundaries; the old nested-log diagram is superseded.
@@ -46,6 +48,7 @@ Things designed but not yet shipped, or shipped partially.
 - [Fullscreen distance scrubber](video/fullscreen-distance-scrubber.md) — dashboard fullscreen video timeline with distance markers and scrub preview
 - [WebCodecs evaluation](video/webcodecs-evaluation.md) — research only; do **not** replace MediaRecorder yet
 - [Portrait recording (copilot)](video/portrait-recording.md) — server-side transcode v2; supersedes the original portrait-recording plan. Upcoming, but needs more thought before implementation.
+- [Public review & save UX](video/review-save-public-ux.md) — discovery brief for redesigning the post-recording review/save flow around a simple public-user path while separating advanced/admin tools.
 
 ### UI / code health
 - [Medium-priority improvements](ui-patterns/medium-priority-improvements.md) — partial; remaining: integration, shared styles, form validation
