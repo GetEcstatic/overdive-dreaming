@@ -40,9 +40,10 @@ const DEFS = `<defs>
 <filter id="hud-shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#000" flood-opacity="0.55"/></filter>
 <linearGradient id="hud-brand" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#10b981"/><stop offset="1" stop-color="#2dd4bf"/></linearGradient>
 <linearGradient id="hud-top-scrim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0.62"/><stop offset="0.6" stop-color="#000" stop-opacity="0.25"/><stop offset="1" stop-color="#000" stop-opacity="0"/></linearGradient>
-<linearGradient id="hud-bottom-scrim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="0.35" stop-color="#000" stop-opacity="0.45"/><stop offset="1" stop-color="#000" stop-opacity="0.7"/></linearGradient>
+<linearGradient id="hud-graph-ramp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="0.55" stop-color="#000" stop-opacity="0.34"/><stop offset="1" stop-color="#000" stop-opacity="0.6"/></linearGradient>
+<linearGradient id="hud-graph-bed" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0.6"/><stop offset="1" stop-color="#000" stop-opacity="0.74"/></linearGradient>
 <linearGradient id="hud-fill" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#10b981"/><stop offset="1" stop-color="#5eead4"/></linearGradient>
-<linearGradient id="hud-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2dd4bf" stop-opacity="0.55"/><stop offset="1" stop-color="#2dd4bf" stop-opacity="0.04"/></linearGradient>
+<linearGradient id="hud-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2dd4bf" stop-opacity="0.42"/><stop offset="1" stop-color="#2dd4bf" stop-opacity="0.04"/></linearGradient>
 <radialGradient id="hud-glow"><stop offset="0" stop-color="#5eead4" stop-opacity="0.9"/><stop offset="1" stop-color="#5eead4" stop-opacity="0"/></radialGradient>
 </defs>`;
 

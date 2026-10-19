@@ -5,7 +5,7 @@
  *
  * Keep this file free of imports so the functions bundle can include it.
  */
-export const SERVER_OVERLAY_STYLE_VERSION = 'overdive-overlay-v17';
+export const SERVER_OVERLAY_STYLE_VERSION = 'overdive-overlay-v18';
 
 /**
  * Key stamped on an `overlay-download` artifact: the style version plus the

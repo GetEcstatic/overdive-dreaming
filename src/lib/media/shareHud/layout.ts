@@ -77,7 +77,6 @@ interface Geometry {
 	readonly statsRight: number;
 	readonly subY: number;
 	readonly topScrim: number;
-	readonly bottomScrimY: number;
 	readonly graph: GraphBox;
 }
 
@@ -109,7 +108,6 @@ export function geometry(canvas: HudCanvas): Geometry {
 			statsRight: rw - left,
 			subY: 566,
 			topScrim: 720,
-			bottomScrimY: b - 280,
 			graph: { x0: 124, x1: 900, headerY: b - 274, top: b - 230, base: b - 72, railY: b - 24 }
 		};
 	}
@@ -128,7 +126,6 @@ export function geometry(canvas: HudCanvas): Geometry {
 		statsRight: left + 800,
 		subY: 346,
 		topScrim: 470,
-		bottomScrimY: 690,
 		graph: { x0: left + 60, x1: left + 836, headerY: 772, top: 830, base: 970, railY: 1018 }
 	};
 }
@@ -256,6 +253,9 @@ function toast(frame: ShareHudFrame, g: Geometry): HudPrimitive {
 // Speed graph (§4.8.3)
 // ---------------------------------------------------------------------------
 
+/** Under-stroke colour that keeps thin graph lines legible over bright footage. */
+const HALO = '#000000';
+
 function yFor(scale: SpeedScale, top: number, base: number): (v: number) => number {
 	return (v) => base - ((Math.max(scale.lo, Math.min(scale.hi, v)) - scale.lo) / (scale.hi - scale.lo)) * (base - top);
 }
@@ -276,7 +276,10 @@ function speedLine(segs: readonly SpeedSegment[], toX: (d: number) => number, y:
 	if (segs.length === 0) return [];
 	const measured = segs.filter((s) => !s.estimated);
 	const estimated = segs.filter((s) => s.estimated);
-	const out: Prims = [{ kind: 'path', d: areaPath(segs, toX, y, base), fill: PAINT.area }];
+	const out: Prims = [
+		{ kind: 'path', d: areaPath(segs, toX, y, base), fill: PAINT.area },
+		{ kind: 'path', d: steppedPath(segs, toX, y), stroke: HALO, strokeWidth: width + 8, opacity: 0.5 }
+	];
 	if (measured.length) out.push({ kind: 'path', d: steppedPath(measured, toX, y), stroke: COLOURS.teal, strokeWidth: width });
 	if (estimated.length) {
 		const joined = measured.length ? [{ ...estimated[0], fromM: estimated[0].fromM }] : estimated;
@@ -289,7 +292,7 @@ function guideLines(scale: SpeedScale, x0: number, x1: number, top: number, base
 	const y = yFor(scale, top, base);
 	return scale.guides.flatMap((v): Prims => {
 		const gy = y(v);
-		const line: HudPrimitive = { kind: 'line', x1: x0, y1: gy, x2: x1, y2: gy, stroke: '#ffffff', strokeWidth: 2, opacity: 0.16, dash: '6 10' };
+		const line: HudPrimitive = { kind: 'line', x1: x0, y1: gy, x2: x1, y2: gy, stroke: '#ffffff', strokeWidth: 2, opacity: 0.26, dash: '6 10' };
 		return labelX === null
 			? [line]
 			: [line, text(labelX, gy + 9, v.toFixed(1), 26, { fill: COLOURS.label, anchor: 'end', opacity: 0.8 })];
@@ -314,6 +317,22 @@ function cursorTag(box: GraphBox, x: number, y: number, speedMs: number, anchorR
 		{ kind: 'circle', cx: x, cy: y, r: 11, fill: '#ffffff' },
 		{ kind: 'rect', x: bx, y: by, w, h, rx: h / 2, fill: '#ffffff' },
 		text(bx + w / 2, by + 34, `${formatSpeed(speedMs)} m/s`, 32, { weight: 700, fill: COLOURS.panel, anchor: 'middle', shadow: false })
+	];
+}
+
+/** Above the graph header the bed fades in over this height (reference px). */
+const GRAPH_RAMP_H = 160;
+
+/**
+ * Bottom scrim (plan §4.8.6): fades in above the graph, then a dense bed
+ * from just above the header to the canvas bottom, so the header row and
+ * thin graph strokes stay readable over white tiles and sunlit water.
+ */
+function graphScrim(g: Geometry): Prims {
+	const bedY = g.graph.headerY - 50;
+	return [
+		{ kind: 'rect', x: 0, y: bedY - GRAPH_RAMP_H, w: g.rw, h: GRAPH_RAMP_H, fill: PAINT.graphRamp },
+		{ kind: 'rect', x: 0, y: bedY, w: g.rw, h: g.rh - bedY, fill: PAINT.graphBed }
 	];
 }
 
@@ -354,7 +373,7 @@ function liveGraph(graph: SpeedGraphFrame, box: GraphBox): Prims {
 	const spacing = tickSpacingM(poolLengthM);
 	for (let d = spacing; d < poolLengthM - 1e-9; d += spacing) {
 		const x = box.x0 + (d / poolLengthM) * (box.x1 - box.x0);
-		out.push({ kind: 'line', x1: x, y1: box.top - 10, x2: x, y2: box.base, stroke: '#ffffff', strokeWidth: 2, opacity: 0.08 });
+		out.push({ kind: 'line', x1: x, y1: box.top - 10, x2: x, y2: box.base, stroke: '#ffffff', strokeWidth: 2, opacity: 0.14 });
 	}
 	out.push(...guideLines(graph.scale, box.x0 + 8, box.x1 - 8, box.top, box.base, box.x0 - 14));
 	out.push({ kind: 'line', x1: box.x0, y1: box.base, x2: box.x1, y2: box.base, stroke: '#ffffff', strokeWidth: 2, opacity: 0.35 });
@@ -369,7 +388,10 @@ function liveGraph(graph: SpeedGraphFrame, box: GraphBox): Prims {
 			kind: 'group',
 			opacity: ghost.opacity,
 			transform: ghost.flip === 0 ? undefined : `translate(${cx} 0) scale(${sx.toFixed(3)} 1) translate(${-cx} 0)`,
-			children: [{ kind: 'path', d: steppedPath(ghost.segments, ghostX, y), stroke: '#ffffff', strokeWidth: 4, dash: ghost.dashed ? '10 10' : undefined }]
+			children: [
+				{ kind: 'path', d: steppedPath(ghost.segments, ghostX, y), stroke: HALO, strokeWidth: 10, opacity: 0.4 },
+				{ kind: 'path', d: steppedPath(ghost.segments, ghostX, y), stroke: '#ffffff', strokeWidth: 4, dash: ghost.dashed ? '10 10' : undefined }
+			]
 		});
 		if (ghost.showLabel) {
 			const last = ghost.segments[ghost.segments.length - 1];
@@ -409,7 +431,8 @@ function liveGraph(graph: SpeedGraphFrame, box: GraphBox): Prims {
 		out.push(text(mid, y(s.speedMs) - 14, formatSpeed(s.speedMs), 34, { weight: 700, anchor: 'middle' }));
 		if (s.label.deltaMs !== null) {
 			const d = s.label.deltaMs;
-			const fill = d > 0.005 ? COLOURS.faster : d < -0.005 ? COLOURS.slower : COLOURS.label;
+			// Lighter tints than the toasts: these sit on the teal area fill.
+			const fill = d > 0.005 ? COLOURS.fasterOnGraph : d < -0.005 ? COLOURS.slowerOnGraph : COLOURS.label;
 			out.push(text(mid, y(s.speedMs) + 36, formatSignedDelta(d, 2), 28, { weight: 700, anchor: 'middle', fill }));
 		}
 	}
@@ -469,7 +492,7 @@ export function layoutLiveHud(dive: ShareHudDive, frame: ShareHudFrame, canvas: 
 	const g = geometry(canvas);
 	const children: Prims = [
 		{ kind: 'rect', x: 0, y: 0, w: g.rw, h: g.topScrim, fill: PAINT.topScrim },
-		{ kind: 'rect', x: 0, y: g.bottomScrimY, w: g.rw, h: g.rh - g.bottomScrimY, fill: PAINT.bottomScrim },
+		...graphScrim(g),
 		...header(dive, g),
 		...stats(frame, g),
 		...liveGraph(frame.graph, g.graph),

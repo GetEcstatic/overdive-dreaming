@@ -15,6 +15,8 @@ export const COLOURS = {
 	onTeal: '#04201c',
 	faster: '#34d399',
 	slower: '#fb7185',
+	fasterOnGraph: '#6ee7b7',
+	slowerOnGraph: '#fda4af',
 	slowerSplit: '#fbbf24',
 	panel: '#0b1220',
 	cardDim: '#020617'
@@ -31,7 +33,8 @@ export type FontToken = keyof typeof FONT_FAMILIES;
 export const PAINT = {
 	brand: 'url(#hud-brand)',
 	topScrim: 'url(#hud-top-scrim)',
-	bottomScrim: 'url(#hud-bottom-scrim)',
+	graphRamp: 'url(#hud-graph-ramp)',
+	graphBed: 'url(#hud-graph-bed)',
 	fill: 'url(#hud-fill)',
 	area: 'url(#hud-area)',
 	glow: 'url(#hud-glow)'

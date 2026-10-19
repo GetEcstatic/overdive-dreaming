@@ -170,14 +170,14 @@ Based on Meta's published Reels guidance (keep text out of roughly the top 14%, 
 | Event toasts | y 520–590, in the stats row | Split toast (§4.6) or PB moment. A compact 64 px pill that **temporarily replaces the speed / `LENGTH n` line** instead of taking its own band below the stats. This keeps y 600–1040 free for the diver (§4.9.2). The audit mock-ups show the earlier y 640–744 position. |
 | Speed graph | y≈1050–1270, x 124–900 | **One pool length per screen, tracing back and forth** with labelled segment speeds and the previous length as a ghost. Full spec in §4.8. |
 | Progress rail | y≈1316, x 124–900 | Thin whole-dive rail (8 px): teal fill to current distance, a tick at each pool length, gold PB tick, white current dot. No labels; it gives whole-dive context while the graph zooms into the current length. |
-| Bottom scrim | y 1060–1920 | Black gradient 0% → 70%, which also sits under Instagram's caption |
+| Bottom scrim | y≈1052–1920 | Fades in over 160 px to 60% black just above the graph header, then a 60% → 74% bed to the bottom, which also sits under Instagram's caption (§4.8.6) |
 
 Stacked landscape: the header strip, stats and rail move into the top panel (y 250–800), with the video band below. Toasts sit bottom-left inside the video band.
 
 ### 4.5 Typography and colour
 
 - **Fonts:** Barlow Condensed (Bold 700 for numerals, SemiBold 600 for labels with 2–3 px tracking) and Barlow (Medium/SemiBold for small text). SIL OFL. Bundle the TTFs with the functions deploy and the web app. **Freeze tabular figures** into the numeral font (T2).
-- **Colour tokens:** text `#ffffff` / labels `#cbd5e1`; brand teal `#2dd4bf` → green `#10b981` gradient (from the app icon); PB gold `#facc15` (text on gold `#111827`); faster split `#34d399`; slower split `#fbbf24`; panels `#0b1220` at 78%.
+- **Colour tokens:** text `#ffffff` / labels `#cbd5e1`; brand teal `#2dd4bf` → green `#10b981` gradient (from the app icon); PB gold `#facc15` (text on gold `#111827`); faster split `#34d399`; slower split `#fbbf24`; graph deltas use lighter tints (`#6ee7b7` faster, `#fda4af` slower) because they sit on the teal area fill; panels `#0b1220` at 78%.
 - **Legibility:** drop shadow (`dy 3, blur 6, 55% black`) on all text over video; scrims behind the stat zones.
 
 ### 4.6 Moments and motion
@@ -232,10 +232,10 @@ Tom's "clear the line at each turn" works better with one change: **keep the pre
 - **Frame:** the graph is a picture of the pool. Two white wall posts at x 124 and 900, a baseline, faint ticks at the waypoint spacing. Header row: `LENGTH 3`, the wall distances above their walls (`100 m` … `150 m`), and three chevrons pointing in the swim direction.
 - **Direction:** length 1 runs in the direction set for the video (§4.8.5). Each later length reverses.
 - **Scale:** dive-wide auto y (§4.8.1), two dashed guide lines labelled outside the left wall (e.g. `1.0`, `1.2`).
-- **Line:** stepped teal line, 6 px, with the gradient area fill. It grows from the wall the diver pushed off.
+- **Line:** stepped teal line, 6 px, over a 14 px black halo at 50%, with the gradient area fill (42% → 4%). It grows from the wall the diver pushed off.
 - **Segment labels:** each completed segment shows its speed (`1.17`, Barlow Condensed Bold 34 px, white) above the step. Under the step is the delta vs the same segment of the previous length (`−0.02` rose `#fb7185`, `+0.02` green `#34d399`, `=` grey). Rose rather than amber keeps gold exclusive to the PB.
 - **Cursor:** white dot plus a white pill tag with the live speed (`1.12 m/s`). The tag flips side near the far wall.
-- **Ghost:** the previous length as a 4 px white dashed line at 38% opacity, **aligned by distance off the wall** and labelled `L2` at the far end. Only one ghost is shown.
+- **Ghost:** the previous length as a 4 px white dashed line at 38% opacity over a 10 px black halo, **aligned by distance off the wall** and labelled `L2` at the far end. Only one ghost is shown.
 - **PB post:** a gold vertical post appears only in the length that contains the PB (`PB 175`, then `PB` once passed). The rail below always shows the PB tick.
 - **Turn animation** (pure function of `atMs`):
   1. Wall touch to +500 ms: **hold**. The finished length stays fully drawn with all its labels and the cursor pinned to the wall. The split toast appears at the same time, so the cursor tag is hidden.
@@ -268,6 +268,16 @@ On the real clip the filmer walks along one side of the pool, so the diver's on-
 - Phase 5: infer the direction automatically from motion in the first length (optical flow of the largest moving blob).
 
 A 58 s real-footage render of option C (length 2 → 3 turn, then PB crossing → finish → result card) is at `fixtures/share-hud-redesign/local/speedgraph-lane-sample-94-124-158-186s.mp4` (local only, length 1 set to right to left).
+
+#### 4.8.6 Contrast on bright footage
+
+White tiles and sunlit water washed out the graph header row, the ghost line, the axis labels and the deltas, because the old bottom scrim (0% → 70% from y 1060) was still almost transparent at the header.
+
+- **Graph bed:** the bottom scrim is two rects. A 160 px ramp (0% → 34% → 60% black) ends 50 px above the graph header, so the bed is fully dense behind the header row. A bed of 60% → 74% black then runs to the canvas bottom. The same geometry applies in landscape (bed from y≈722).
+- **Halos:** black under-strokes beneath the speed line (+8 px, 50%) and ghost (10 px, 40%).
+- **Faint lines:** guides 26% (was 16%), waypoint ticks 14% (was 8%).
+- **Diver band:** the ramp starts at y≈1052 on the reel canvas and is under 34% until y≈1140, so the swimmer stays clear.
+- **Parity:** it's the shared layout, so playback and exports match. The style version went to `overdive-overlay-v18`, so older exports re-render.
 
 ### 4.9 Recorder changes
 

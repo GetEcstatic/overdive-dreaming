@@ -114,6 +114,27 @@ describe('layout geometry', () => {
 		expect(clockX(120_000)).toEqual([70, 'start']);
 	});
 
+	it('puts a dense scrim behind the graph header on reel and landscape canvases', () => {
+		const dive = prepareDive(fixtureTimeline(), context);
+		for (const canvas of [REEL, { width: 1920, height: 1080 }]) {
+			const g = geometry(canvas);
+			const prims = layoutLiveHud(dive, shareHudFrame(dive, 120_000, { cardAtMs: null }), canvas);
+			const bed = prims.find((p) => p.kind === 'rect' && p.fill === 'url(#hud-graph-bed)');
+			expect(bed?.kind).toBe('rect');
+			if (bed?.kind !== 'rect') continue;
+			// The header text's cap height is about 24 px above its baseline.
+			expect(bed.y).toBeLessThanOrEqual(g.graph.headerY - 40);
+			expect(bed.y + bed.h).toBe(g.rh);
+		}
+	});
+
+	it('keeps the reel scrim fade-in below the swimmer (light until y 1140)', () => {
+		const dive = prepareDive(fixtureTimeline(), context);
+		const prims = layoutLiveHud(dive, shareHudFrame(dive, 120_000, { cardAtMs: null }), REEL);
+		const ramp = prims.find((p) => p.kind === 'rect' && p.fill === 'url(#hud-graph-ramp)');
+		expect(ramp?.kind === 'rect' && ramp.y).toBeGreaterThanOrEqual(1000);
+	});
+
 	it('omits branding when it is off', () => {
 		const dive = prepareDive(fixtureTimeline(), { ...context, branding: 'off' });
 		const texts = JSON.stringify(layoutLiveHud(dive, shareHudFrame(dive, 40_000, { cardAtMs: null }), REEL));
