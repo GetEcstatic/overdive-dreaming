@@ -1572,8 +1572,10 @@
 		}
 		.summary-line {
 			left: auto;
-			right: calc(9.5rem + env(safe-area-inset-right));
+			right: calc(1rem + env(safe-area-inset-right) + clamp(10rem, 25vw, 13rem) + 0.75rem);
 			bottom: calc(1.35rem + env(safe-area-inset-bottom));
+			max-width: calc(100vw - clamp(10rem, 25vw, 13rem) - 3.5rem);
+			white-space: normal;
 			transform: none;
 		}
 		.hud-value {
@@ -1642,13 +1644,17 @@
 		}
 	}
 
-	/* Wide landscape centres the HUD, so sit the countdown just below it. */
+	/* Wide landscape centres the HUD and primary button: sit the countdown
+	   below the HUD and the summary line above the button. */
 	@media (orientation: landscape) and (min-width: 768px) {
 		.sp-countdown {
 			left: 50%;
 			right: auto;
 			top: calc(max(0.75rem, env(safe-area-inset-top)) + 5.4rem);
 			transform: translateX(-50%);
+		}
+		.summary-line {
+			bottom: calc(1rem + env(safe-area-inset-bottom) + 6.4rem);
 		}
 	}
 </style>
