@@ -5,6 +5,7 @@ import {
 	deriveAidaStartPenalty,
 	deriveUnderApPenalty,
 	dqOtherReferenceItems,
+	surfaceProtocolPrefill,
 	scoreAidaPerformance
 } from './aida';
 
@@ -85,6 +86,24 @@ describe('AIDA competition helpers', () => {
 			compeitionOrg: null,
 			cardTag: 'white',
 			recordTag: undefined
+		});
+	});
+
+	it('prefills the review SP field from the completed recorder timer', () => {
+		expect(surfaceProtocolPrefill({ diveEndMs: 30_000, protocolEndMs: 44_250 })).toEqual({
+			 elapsedSeconds: 14.3,
+			 completed: true
+		});
+	});
+
+	it('leaves the SP field empty when the protocol was not completed', () => {
+		expect(surfaceProtocolPrefill({ diveEndMs: 30_000 })).toEqual({ completed: false });
+	});
+
+	it('never produces a negative SP duration', () => {
+		expect(surfaceProtocolPrefill({ diveEndMs: 30_000, protocolEndMs: 29_000 })).toEqual({
+			 elapsedSeconds: 0,
+			 completed: true
 		});
 	});
 

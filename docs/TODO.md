@@ -17,7 +17,7 @@ A short, prioritised checklist for work on Overdive Dreaming.
 
 ## Next
 
-- [ ] In AIDA competition mode, prefill the Review & save surface-protocol time from the active SP timer.  
+- [x] In AIDA competition mode, prefill the Review & save surface-protocol time from the active SP timer.
   [[competition/aida-competition-mode|AIDA competition mode]]
 - [x] Brainstorm and choose a contrast treatment for the video HUD speed graph on bright footage (including a bottom-to-graph dark gradient, readability across footage, and export/playback parity).
   [[video/share-hud-redesign|Share HUD redesign]]

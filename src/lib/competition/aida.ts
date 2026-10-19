@@ -1,3 +1,4 @@
+import type { DiveTimeline } from '$lib/capture/timelineTypes';
 import type {
 	AidaCompetitionAttempt,
 	AidaDisqualificationCode,
@@ -18,6 +19,23 @@ export const AIDA_PENALTY_CODES: readonly AidaPenaltyCode[] = [
 	'TURN',
 	'PULL'
 ];
+
+export interface SurfaceProtocolPrefill {
+	elapsedSeconds?: number;
+	completed: boolean;
+}
+
+/** Convert the recorder's completed SP timer into the review form's value. */
+export function surfaceProtocolPrefill(timeline: Pick<DiveTimeline, 'diveEndMs' | 'protocolEndMs'>): SurfaceProtocolPrefill {
+	if (timeline.protocolEndMs === undefined || !Number.isFinite(timeline.diveEndMs)) {
+		return { completed: false };
+	}
+	const elapsedSeconds = Math.max(0, timeline.protocolEndMs - timeline.diveEndMs) / 1000;
+	return {
+		elapsedSeconds: Math.round(elapsedSeconds * 10) / 10,
+		completed: true
+	};
+}
 
 export const AIDA_DISQUALIFICATION_CODES: readonly AidaDisqualificationCode[] = [
 	'DQBO',

@@ -46,7 +46,7 @@
 		type PrecisionMarkingState
 	} from '$lib/capture/precisionWaypointMarker';
 	import { defaultSpeedMs } from '$lib/capture/disciplineSpeeds';
-	import { buildAidaAttempt } from '$lib/competition/aida';
+	import { buildAidaAttempt, surfaceProtocolPrefill } from '$lib/competition/aida';
 	import {
 		bitrateForResolution,
 		recordingVideoSettings
@@ -563,6 +563,11 @@
 	function onCaptured(result: CaptureResult): void {
 		capture = result;
 		resetReviewMetricEdits(result);
+		if (aidaMode !== 'training') {
+			const prefill = surfaceProtocolPrefill(result.timeline);
+			aidaSurfaceProtocolSeconds = prefill.elapsedSeconds;
+			aidaSurfaceProtocolCompleted = prefill.completed;
+		}
 		reviewSaveState = 'idle';
 		pendingUploadLocalId = undefined;
 		showReviewCorrections = false;
