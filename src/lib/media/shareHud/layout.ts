@@ -472,6 +472,38 @@ function scaled(children: Prims, g: Geometry): Prims {
 	return g.scale === 1 ? children : [{ kind: 'group', transform: `scale(${g.scale.toFixed(5)})`, children }];
 }
 
+/** Clear band between the stats block and the speed graph, plus what covers the rest. */
+export interface HudClearZone {
+	/** Full-width band the live HUD never draws in, in canvas pixels. */
+	readonly band: Rect;
+	/** Covered areas (HUD and, on reel canvases, Instagram's UI), in canvas pixels. */
+	readonly covered: readonly Rect[];
+}
+
+/**
+ * Where the diver is unobstructed by the live HUD (plan §4.9.2). The recorder's
+ * framing guide reads this, so it follows any change to the layout.
+ * Portrait canvases also mark Instagram's action column, which cuts into the
+ * bottom-right of the band once the video is posted as a Reel.
+ */
+export function liveHudClearZone(canvas: HudCanvas): HudClearZone {
+	const g = geometry(canvas);
+	// The toast pill ends 18 px below the sub line; graph header text and the cursor tag start about 30 px above the header.
+	const top = g.subY + 34;
+	const bottom = g.graph.headerY - (g.portrait ? 32 : 50);
+	const px = (r: Rect): Rect => ({ x: r.x * g.scale, y: r.y * g.scale, w: r.w * g.scale, h: r.h * g.scale });
+	const covered: Rect[] = [
+		{ x: 0, y: 0, w: g.rw, h: top },
+		{ x: 0, y: bottom, w: g.rw, h: g.rh - bottom }
+	];
+	if (g.portrait && bottom > REEL_SAFE.actionColumnTopY) {
+		// Portrait canvases are always 1080 reference px wide.
+		const x = REEL_SAFE.actionColumnX;
+		covered.push({ x, y: REEL_SAFE.actionColumnTopY, w: g.rw - x, h: bottom - REEL_SAFE.actionColumnTopY });
+	}
+	return { band: px({ x: 0, y: top, w: g.rw, h: bottom - top }), covered: covered.map(px) };
+}
+
 /**
  * Tap target for flipping the graph direction in-app, in canvas pixels: the
  * live graph's header row (with the swim-direction chevrons) and plot.

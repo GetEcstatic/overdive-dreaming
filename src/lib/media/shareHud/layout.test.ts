@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fixtureTimeline, FIXTURE_PB_M, FIXTURE_POOL_M, FIXTURE_RECORDING_MS } from './fixtures';
-import { geometry, graphDirectionHitRect, layoutLiveHud, layoutResultCard, REEL_SAFE, type HudCanvas } from './layout';
+import { geometry, graphDirectionHitRect, layoutLiveHud, layoutResultCard, liveHudClearZone, REEL_SAFE, type HudCanvas } from './layout';
 import { prepareDive, resultCard, shareHudFrame, type ShareHudContext } from './model';
 import type { HudPrimitive } from './svg';
 
@@ -50,9 +50,8 @@ function bounds(p: HudPrimitive): Box[] {
 }
 
 /** Live elements, excluding the full-width scrims (backgrounds, allowed anywhere). */
-function liveBoxes(atMs: number): Box[] {
-	const dive = prepareDive(fixtureTimeline(), context);
-	const prims = layoutLiveHud(dive, shareHudFrame(dive, atMs, { cardAtMs: null }), REEL);
+function liveBoxes(atMs: number, canvas: HudCanvas = REEL, dive = prepareDive(fixtureTimeline(), context)): Box[] {
+	const prims = layoutLiveHud(dive, shareHudFrame(dive, atMs, { cardAtMs: null }), canvas);
 	return prims.filter((p) => !(p.kind === 'rect' && p.w >= 1080)).flatMap(bounds);
 }
 
@@ -79,6 +78,36 @@ describe('reel layout safe zones', () => {
 			}
 		}
 	});
+});
+
+describe('live HUD clear zone (framing guide)', () => {
+	const samples = Array.from({ length: Math.ceil(FIXTURE_RECORDING_MS / 500) }, (_, i) => i * 500);
+
+	it('matches the reel diver band (y 600–1230) and marks the action column', () => {
+		const zone = liveHudClearZone(REEL);
+		expect(zone.band).toEqual({ x: 0, y: 600, w: 1080, h: 630 });
+		expect(zone.covered).toContainEqual({ x: 940, y: 1100, w: 140, h: 130 });
+	});
+
+	it('scales with the canvas', () => {
+		const zone = liveHudClearZone({ width: 720, height: 1280 });
+		expect(zone.band.y).toBeCloseTo(400, 6);
+		expect(zone.band.w).toBeCloseTo(720, 6);
+	});
+
+	for (const canvas of [REEL, { width: 1080, height: 1974 }, { width: 1920, height: 1080 }, { width: 1440, height: 1080 }, { width: 3840, height: 2160 }]) {
+		it(`keeps every live element out of the band on ${canvas.width}×${canvas.height}`, () => {
+			const dive = prepareDive(fixtureTimeline(), context);
+			const { band } = liveHudClearZone(canvas);
+			const s = Math.min(canvas.width, canvas.height) / 1080;
+			expect(band.h).toBeGreaterThan(300 * s);
+			for (const atMs of samples) {
+				for (const b of liveBoxes(atMs, { width: canvas.width / s, height: canvas.height / s }, dive)) {
+					expect(b.y1 * s <= band.y + 0.5 || b.y0 * s >= band.y + band.h - 0.5, `${atMs} ms ${JSON.stringify(b)}`).toBe(true);
+				}
+			}
+		});
+	}
 });
 
 describe('layout geometry', () => {

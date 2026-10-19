@@ -13,7 +13,7 @@ export { shareHudContextForVideo, type ShareHudVideoFields } from './context';
 export { HUD_TICK_MS } from './exportPlan';
 export type { ShareHudContext, ShareHudDive, ShareHudFrame, FrameOptions } from './model';
 export type { HudCanvas, Rect as HudRect } from './layout';
-export { graphDirectionHitRect } from './layout';
+export { graphDirectionHitRect, liveHudClearZone, type HudClearZone } from './layout';
 export type { GraphDirection } from './speedGraph';
 export type { HudDiscipline } from './format';
 

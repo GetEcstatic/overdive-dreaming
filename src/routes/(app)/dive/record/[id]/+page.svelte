@@ -194,6 +194,7 @@
 	let aidaSurfaceProtocolSeconds = $state<number | undefined>(undefined);
 	let aidaSurfaceProtocolCompleted = $state(false);
 	let cameraPreference = $state<CameraPreference>(AUTO_REAR_CAMERA);
+	let framingGuide = $state(true);
 	let resolutionLoaded = $state(false);
 	/**
 	 * Quick-start state.
@@ -448,6 +449,16 @@
 		return `${mm}:${ss}.${tenths}`;
 	}
 
+	function saveFramingGuide(on: boolean): void {
+		framingGuide = on;
+		const uid = $user?.uid;
+		if (!uid) return;
+		updateUserSettings(uid, { recorder: { framingGuide: on } }).catch((err) => {
+			// eslint-disable-next-line no-console
+			console.warn('[dive-record] could not save the framing guide setting', err);
+		});
+	}
+
 	$effect(() => {
 		const uid = $user?.uid;
 		if (!uid || resolutionLoaded) return;
@@ -457,6 +468,7 @@
 		getUserSettings(uid)
 			.then((settings) => {
 				({ resolution, qualityPreset } = recordingVideoSettings(settings));
+				framingGuide = settings?.recorder?.framingGuide ?? true;
 				let gotAnyDefault = false;
 				if (typeof settings?.defaultPoolLength === 'number') {
 					poolLength = settings.defaultPoolLength;
@@ -1812,6 +1824,8 @@
 			{discipline}
 			{cameraPreference}
 			{aidaMode}
+			{framingGuide}
+			onFramingGuideChange={saveFramingGuide}
 			onCameraPreferenceResolved={(preference) => (cameraPreference = preference)}
 			onCapture={onCaptured}
 			onCancel={() => (stage = 'setup')}

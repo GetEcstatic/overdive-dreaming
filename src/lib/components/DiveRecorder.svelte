@@ -28,6 +28,7 @@
 	import { createRecorder, type RecorderHandle } from '$lib/capture/recorder';
 	import { requestWakeLock, type WakeLockHandle } from '$lib/capture/wakeLock';
 	import { finalizeTimeline, summariseTimeline } from '$lib/capture/timeline';
+	import { bracketPath, framingGuide as computeFramingGuide } from '$lib/capture/framingGuide';
 	import {
 		decideDisplayOrientation,
 		posturefromViewport,
@@ -102,6 +103,9 @@
 		cameraPreference?: CameraPreference;
 		aidaMode?: 'training' | AidaAttemptMode;
 		autoAdvanceThresholdM?: number;
+		/** Show the framing guide (initial value; the camera sheet can toggle it). */
+		framingGuide?: boolean;
+		onFramingGuideChange?: (on: boolean) => void;
 		onCapture: (result: CaptureResult) => void;
 		onCancel?: () => void;
 		onCameraPreferenceResolved?: (preference: CameraPreference) => void;
@@ -116,6 +120,8 @@
 		cameraPreference = AUTO_REAR_CAMERA,
 		aidaMode = 'training',
 		autoAdvanceThresholdM = 10,
+		framingGuide = true,
+		onFramingGuideChange,
 		onCapture,
 		onCancel,
 		onCameraPreferenceResolved
@@ -139,6 +145,24 @@
 	let selectedCamera = $state<CameraPreference>(initialCameraPreference());
 	let cameraOptions = $state<CameraDeviceOption[]>([]);
 	let showCameraSheet = $state(false);
+
+	// Framing guide (docs/video/share-hud-redesign.md §4.9.2): where the export HUD leaves the diver clear.
+	let showFramingGuide = $state(initialFramingGuide());
+	function initialFramingGuide(): boolean {
+		return framingGuide;
+	}
+	let streamW = $state(0);
+	let streamH = $state(0);
+	let previewW = $state(0);
+	let previewH = $state(0);
+	function onVideoSize(): void {
+		streamW = videoEl?.videoWidth ?? 0;
+		streamH = videoEl?.videoHeight ?? 0;
+	}
+	function setFramingGuide(on: boolean): void {
+		showFramingGuide = on;
+		onFramingGuideChange?.(on);
+	}
 	let cameraMessage = $state<string | null>(null);
 
 	let rs: RecorderState = $state(initialRecorderState(initialConfig()));
@@ -186,6 +210,17 @@
 	const spCountdown = $derived(
 		showAidaProtocol && rs.phase === 'ended' ? surfaceProtocolCountdown(rs, nowMs) : null
 	);
+
+	const guide = $derived(
+		computeFramingGuide(streamW, streamH, previewW, previewH, previewW >= previewH ? 'landscape' : 'portrait')
+	);
+	/** Dimmed masks and a hint while setting up; faint brackets only once the dive is on. */
+	const guideMode = $derived.by((): 'setup' | 'faint' | null => {
+		if (!showFramingGuide) return null;
+		if (rs.phase === 'ready' || rs.phase === 'prepping') return 'setup';
+		if (rs.phase === 'diving' || rs.phase === 'ended') return 'faint';
+		return null;
+	});
 
 	function formatTenths(tenths: number): string {
 		return (tenths / 10).toFixed(1);
@@ -605,9 +640,23 @@
 </script>
 
 <div class="recorder">
-	<div class="preview">
+	<div class="preview" bind:clientWidth={previewW} bind:clientHeight={previewH}>
 		<!-- svelte-ignore a11y_media_has_caption -->
-		<video bind:this={videoEl} muted playsinline autoplay></video>
+		<video bind:this={videoEl} muted playsinline autoplay onloadedmetadata={onVideoSize} onresize={onVideoSize}></video>
+
+		{#if guide && guideMode}
+			<svg class="framing-guide" class:faint={guideMode === 'faint'} width={previewW} height={previewH} aria-hidden="true">
+				{#if guideMode === 'setup'}
+					{#each guide.masks as m, i (i)}
+						<rect x={m.x} y={m.y} width={m.w} height={m.h} />
+					{/each}
+				{/if}
+				<path d={bracketPath(guide.band)} />
+			</svg>
+			{#if guideMode === 'setup'}
+				<div class="framing-hint" style:top="{guide.band.y + 12}px">Keep the diver inside the frame</div>
+			{/if}
+		{/if}
 
 		<div class="hud hud-top">
 			<div class="hud-row">
@@ -729,6 +778,17 @@
 						compact
 						onChange={switchCamera}
 					/>
+					<label class="guide-toggle">
+						<input
+							type="checkbox"
+							checked={showFramingGuide}
+							onchange={(e) => setFramingGuide(e.currentTarget.checked)}
+						/>
+						<span>
+							<span class="guide-toggle-title">Framing guide</span>
+							<span class="guide-toggle-sub">Shows where the video HUD won't cover the diver</span>
+						</span>
+					</label>
 				</div>
 			</div>
 		{/if}
@@ -879,6 +939,65 @@
 		height: 100%;
 		object-fit: cover;
 		display: block;
+	}
+	.framing-guide {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		transition: opacity 0.3s ease;
+	}
+	.framing-guide rect {
+		fill: rgba(0, 0, 0, 0.35);
+	}
+	.framing-guide path {
+		fill: none;
+		stroke: #fff;
+		stroke-width: 3;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+	}
+	/* 30% vanished on bright water; the brackets sit at the edges, clear of the buttons. */
+	.framing-guide.faint {
+		opacity: 0.5;
+	}
+	.framing-hint {
+		position: absolute;
+		left: 50%;
+		transform: translateX(-50%);
+		max-width: calc(100% - 2rem);
+		padding: 0.25rem 0.65rem;
+		border-radius: 999px;
+		background: rgba(15, 23, 42, 0.55);
+		color: #f8fafc;
+		font-size: 0.78rem;
+		font-weight: 600;
+		white-space: nowrap;
+		pointer-events: none;
+	}
+	.guide-toggle {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.65rem;
+		margin-top: 0.9rem;
+		padding-top: 0.85rem;
+		border-top: 1px solid rgba(148, 163, 184, 0.18);
+		cursor: pointer;
+	}
+	.guide-toggle input {
+		width: 1.15rem;
+		height: 1.15rem;
+		margin-top: 0.1rem;
+		accent-color: var(--color-primary);
+	}
+	.guide-toggle-title {
+		display: block;
+		font-weight: 650;
+	}
+	.guide-toggle-sub {
+		display: block;
+		color: var(--color-text-muted);
+		font-size: 0.82rem;
 	}
 
 	.hud {

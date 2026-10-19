@@ -160,6 +160,11 @@ export interface UserSettings {
 	defaultWaypointsPerLap?: number;
 	defaultDiscipline?: 'DYN' | 'DYNB' | 'DNF';
 	defaultCameraPreference?: CameraPreference;
+	/** Dive recorder preferences. */
+	recorder?: {
+		/** Show where the video HUD leaves the diver clear (default on). */
+		framingGuide?: boolean;
+	};
 	/** Share HUD defaults for new videos. */
 	shareHud?: {
 		/** Last graph direction this user chose; filmers usually stand on the same side of the pool. */

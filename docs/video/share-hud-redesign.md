@@ -320,6 +320,15 @@ Design:
 - Tests (`framingGuide.test.ts`): portrait and landscape postures, a 16:9 stream in a portrait viewport, a 4:3 stream, and the band lying inside the viewport after the cover crop.
 - Needs the phase 1 layout, so it ships in **phase 2**.
 
+**Implemented (19 Oct 2026).** What shipped differs from the design above in four ways:
+
+- **Zones come from the layouts that exist today.** Neither the social cut nor the stacked layout has been built, so the guide follows the live HUD that the full HUD download and in-app player draw. `liveHudClearZone(canvas)` in `layout.ts` returns the band between the stats block and the speed graph: reel y 600–1230 for portrait, plus Instagram's action column; y 380–722 for native landscape (1920×1080 reference). A layout test checks that no live element ever enters the band, on five canvas sizes. Once the stacked layout exists, landscape should switch to its zones.
+- **`framingGuide.ts`** (`src/lib/capture/`) maps the band and masks through the viewfinder's `object-fit: cover` crop. It returns `null` for a landscape stream with the phone upright, because the export rotates that clip (`decideDisplayOrientation`) and the guide would not line up.
+- **Diving opacity is 50%,** not 30%. At 30% the brackets disappeared on bright water.
+- **Setting:** `UserSettings.recorder.framingGuide`, toggled in the camera sheet (default on). The record page saves it when it changes.
+
+Not verified on a phone: the guide was checked in headless Chrome with a fake camera in both postures. Still needed: the acceptance check that a diver kept inside the band is unobstructed in a real export.
+
 ---
 
 ## 5. Data and schema requirements
