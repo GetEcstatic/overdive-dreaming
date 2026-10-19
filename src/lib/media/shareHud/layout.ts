@@ -483,8 +483,8 @@ export interface HudClearZone {
 /**
  * Where the diver is unobstructed by the live HUD (plan §4.9.2). The recorder's
  * framing guide reads this, so it follows any change to the layout.
- * Portrait canvases also mark Instagram's action column, which cuts into the
- * bottom-right of the band once the video is posted as a Reel.
+ * The guide deliberately marks only the HUD's top and bottom covered areas;
+ * platform UI outside the exported HUD is not part of the camera framing guide.
  */
 export function liveHudClearZone(canvas: HudCanvas): HudClearZone {
 	const g = geometry(canvas);
@@ -496,11 +496,6 @@ export function liveHudClearZone(canvas: HudCanvas): HudClearZone {
 		{ x: 0, y: 0, w: g.rw, h: top },
 		{ x: 0, y: bottom, w: g.rw, h: g.rh - bottom }
 	];
-	if (g.portrait && bottom > REEL_SAFE.actionColumnTopY) {
-		// Portrait canvases are always 1080 reference px wide.
-		const x = REEL_SAFE.actionColumnX;
-		covered.push({ x, y: REEL_SAFE.actionColumnTopY, w: g.rw - x, h: bottom - REEL_SAFE.actionColumnTopY });
-	}
 	return { band: px({ x: 0, y: top, w: g.rw, h: bottom - top }), covered: covered.map(px) };
 }
 

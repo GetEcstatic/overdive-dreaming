@@ -83,10 +83,10 @@ describe('reel layout safe zones', () => {
 describe('live HUD clear zone (framing guide)', () => {
 	const samples = Array.from({ length: Math.ceil(FIXTURE_RECORDING_MS / 500) }, (_, i) => i * 500);
 
-	it('matches the reel diver band (y 600–1230) and marks the action column', () => {
+	it('matches the reel diver band (y 600–1230)', () => {
 		const zone = liveHudClearZone(REEL);
 		expect(zone.band).toEqual({ x: 0, y: 600, w: 1080, h: 630 });
-		expect(zone.covered).toContainEqual({ x: 940, y: 1100, w: 140, h: 130 });
+		expect(zone.covered).toHaveLength(2);
 	});
 
 	it('scales with the canvas', () => {

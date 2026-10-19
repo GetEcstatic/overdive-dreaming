@@ -5,8 +5,8 @@ describe('framingGuide', () => {
 	it('maps the reel band straight through when the viewport matches the stream', () => {
 		const g = framingGuide(1080, 1920, 1080, 1920, 'portrait');
 		expect(g?.band).toEqual({ x: 0, y: 600, w: 1080, h: 630 });
-		// Above the band, below it, and Instagram's action column.
-		expect(g?.masks).toHaveLength(3);
+		// The HUD's top and bottom covered areas remain visible throughout the dive.
+		expect(g?.masks).toHaveLength(2);
 	});
 
 	it('scales a 9:16 stream into a 9:16 phone viewport', () => {
@@ -20,9 +20,8 @@ describe('framingGuide', () => {
 		const g = framingGuide(1080, 1920, 390, 844, 'portrait');
 		const s = 844 / 1920;
 		expect(g?.band).toEqual({ x: 0, y: 600 * s, w: 390, h: 630 * s });
-		const column = g?.masks.find((m) => m.y > 0 && m.x > 0);
-		expect(column?.x).toBeCloseTo(940 * s - (1080 * s - 390) / 2, 6);
-		expect(column!.x + column!.w).toBeCloseTo(390, 6);
+		expect(g?.masks).toHaveLength(2);
+		expect(g?.masks.every((m) => m.x === 0 && m.w === 390)).toBe(true);
 	});
 
 	it('keeps band and masks inside the viewport', () => {

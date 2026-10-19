@@ -645,13 +645,13 @@
 		<video bind:this={videoEl} muted playsinline autoplay onloadedmetadata={onVideoSize} onresize={onVideoSize}></video>
 
 		{#if guide && guideMode}
-			<svg class="framing-guide" class:faint={guideMode === 'faint'} width={previewW} height={previewH} aria-hidden="true">
+			<svg class="framing-guide" width={previewW} height={previewH} aria-hidden="true">
+				{#each guide.masks as m, i (i)}
+					<rect x={m.x} y={m.y} width={m.w} height={m.h} />
+				{/each}
 				{#if guideMode === 'setup'}
-					{#each guide.masks as m, i (i)}
-						<rect x={m.x} y={m.y} width={m.w} height={m.h} />
-					{/each}
+					<path d={bracketPath(guide.band)} />
 				{/if}
-				<path d={bracketPath(guide.band)} />
 			</svg>
 			{#if guideMode === 'setup'}
 				<div class="framing-hint" style:top="{guide.band.y + 12}px">Keep the diver inside the frame</div>
@@ -956,10 +956,6 @@
 		stroke-linecap: round;
 		stroke-linejoin: round;
 		filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
-	}
-	/* 30% vanished on bright water; the brackets sit at the edges, clear of the buttons. */
-	.framing-guide.faint {
-		opacity: 0.5;
 	}
 	.framing-hint {
 		position: absolute;
