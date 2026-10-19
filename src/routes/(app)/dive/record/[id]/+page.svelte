@@ -2546,7 +2546,8 @@
 	}
 	.save-status-card p,
 	.capture-confirmation span:not(.capture-confirmation-icon) {
-		margin: 0;
+		display: block;
+		margin: 0.2rem 0 0;
 		color: var(--color-text-muted);
 		font-size: 0.82rem;
 	}
