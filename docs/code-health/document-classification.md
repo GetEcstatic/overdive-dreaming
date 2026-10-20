@@ -10,12 +10,12 @@ Code checkpoint 022496b plus local knowledge-graph changes; not a production aud
 
 ## Coverage
 
-83 Markdown files (tracked plus non-ignored local additions).
+87 Markdown files (tracked plus non-ignored local additions).
 
 - **active-plan:** 0
 - **current-reference:** 11
 - **historical:** 12
-- **needs-review:** 53
+- **needs-review:** 57
 - **superseded:** 7
 
 No claim is made about production deployments. Code comparison is scoped in each evidence cell. Unimplemented proposals are not automatically abandoned.
@@ -40,6 +40,8 @@ Run `python3 scripts/audit-docs.py` to check policy and report freshness. Use `-
 | [README.md](../../README.md) | current-reference | Full old document reviewed and rewritten. Node 18/free-tier-only setup and illustrative security rules were unsafe or outdated. Setup now points to firebase.ts, firebase.json and owning rules; Node requirements checked against Vite 7 and Functions package configuration. |
 | [claude.md](../../claude.md) | current-reference | Single @AGENTS.md import; enforced by check-doc-graph.py. |
 | [docs/INDEX.md](../INDEX.md) | current-reference | Navigation only. Legacy catalogue entries are not certified current; consult this classification before using them. |
+| [docs/Sims/Example data set.md](../Sims/Example%20data%20set.md) | needs-review | Not substantively reviewed against implementation. Do not use as current authority without checking the relevant code and tests. |
+| [docs/TODO.md](../TODO.md) | needs-review | Not substantively reviewed against implementation. Do not use as current authority without checking the relevant code and tests. |
 | [docs/archive/current-updates.md](../archive/current-updates.md) | historical | Already explicitly archived by the existing index. Placement establishes document authority only, not whether every feature was abandoned. |
 | [docs/archive/legacy-agent-context.md](../archive/legacy-agent-context.md) | historical | Preserved former agent manual, explicitly retired from auto-loaded instructions. Contains deployment TBD and early architecture; not reviewed as current behaviour. |
 | [docs/archive/portrait-recording-original.md](../archive/portrait-recording-original.md) | historical | Existing index explicitly names video/portrait-recording.md as its replacement. Replacement remains needs-review; no claim of implemented portrait behaviour. |
@@ -93,6 +95,7 @@ Run `python3 scripts/audit-docs.py` to check policy and report freshness. Use `-
 | [docs/video/portrait-recording.md](../video/portrait-recording.md) | needs-review | Not substantively reviewed against implementation. Do not use as current authority without checking the relevant code and tests. |
 | [docs/video/qa-checklist.md](../video/qa-checklist.md) | needs-review | Not substantively reviewed against implementation. Do not use as current authority without checking the relevant code and tests. |
 | [docs/video/recording-guide.md](../video/recording-guide.md) | superseded | Full document read. It recommends 720p and calls 1080p opt-in; videoQuality.ts DEFAULT_RECORDING_RESOLUTION is 1080p. Its playback description predates ShareHudSvg in DiveVideoPlayer.svelte. Mixed contradictory recording flows must not guide implementation. |
+| [docs/video/review-save-public-ux.md](../video/review-save-public-ux.md) | needs-review | Not substantively reviewed against implementation. Do not use as current authority without checking the relevant code and tests. |
 | [docs/video/server-side-recording-pipeline.md](../video/server-side-recording-pipeline.md) | needs-review | Not substantively reviewed against implementation. Do not use as current authority without checking the relevant code and tests. |
 | [docs/video/share-hud-redesign.md](../video/share-hud-redesign.md) | needs-review | Mixed status: headline says Not started, later sections describe implementation and shipped flips. shareHud/ and DiveVideoPlayer.svelte confirm implementation exists, but remaining proposals need section-by-section reconciliation. |
 | [docs/video/shipped/camera-lens-selection.md](../video/shipped/camera-lens-selection.md) | needs-review | Not substantively reviewed against implementation. Do not use as current authority without checking the relevant code and tests. |
@@ -109,6 +112,7 @@ Run `python3 scripts/audit-docs.py` to check policy and report freshness. Use `-
 | [docs/video/shipped/overlay-export-audio-photos.md](../video/shipped/overlay-export-audio-photos.md) | needs-review | Not substantively reviewed against implementation. Do not use as current authority without checking the relevant code and tests. |
 | [docs/video/shipped/portrait-feed-lock.md](../video/shipped/portrait-feed-lock.md) | needs-review | Not substantively reviewed against implementation. Do not use as current authority without checking the relevant code and tests. |
 | [docs/video/shipped/quality-improvements.md](../video/shipped/quality-improvements.md) | needs-review | Not substantively reviewed against implementation. Do not use as current authority without checking the relevant code and tests. |
+| [docs/video/social-cut-implementation.md](../video/social-cut-implementation.md) | needs-review | Not substantively reviewed against implementation. Do not use as current authority without checking the relevant code and tests. |
 | [docs/video/speed-plot-hud-overlay.md](../video/speed-plot-hud-overlay.md) | needs-review | Not substantively reviewed against implementation. Do not use as current authority without checking the relevant code and tests. |
 | [docs/video/stored-video-waypoint-reprocessing.md](../video/stored-video-waypoint-reprocessing.md) | needs-review | Not substantively reviewed against implementation. Do not use as current authority without checking the relevant code and tests. |
 | [docs/video/upload-recovery-plan.md](../video/upload-recovery-plan.md) | needs-review | Not substantively reviewed against implementation. Do not use as current authority without checking the relevant code and tests. |

@@ -7,7 +7,7 @@ Up: [Docs index](../INDEX.md) · Status: current navigation; verify behaviour in
 | Task | Implementation | Verification / context |
 |---|---|---|
 | Recording resolution, quality and size estimate | [videoQuality.ts](../../src/lib/capture/videoQuality.ts) | [Tests](../../src/lib/capture/videoQuality.test.ts); use recording defaults, not legacy-video fallbacks |
-| Recorder setup defaults | [recorderDefaults.ts](../../src/lib/capture/recorderDefaults.ts), [record route](../../src/routes/(app)/dive/record/%5Bid%5D/+page.svelte) | [Tests](../../src/lib/capture/recorderDefaults.test.ts); per-discipline pool, waypoint and optional AIDA AP values, with legacy global fallback |
+| Recorder setup defaults | [recorderDefaults.ts](../../src/lib/capture/recorderDefaults.ts), [record route](../../src/routes/%28app%29/dive/record/%5Bid%5D/+page.svelte) | [Tests](../../src/lib/capture/recorderDefaults.test.ts); per-discipline pool, waypoint and optional AIDA AP values, with legacy global fallback |
 | Recorder transitions and timeline conversion | [recorderState.ts](../../src/lib/capture/recorderState.ts), [timeline.ts](../../src/lib/capture/timeline.ts) | [State tests](../../src/lib/capture/recorderState.test.ts), [timeline tests](../../src/lib/capture/timeline.test.ts) |
 | Pending uploads and exhausted retries | [uploadQueue.ts](../../src/lib/capture/uploadQueue.ts), [uploadProcessor.ts](../../src/lib/capture/uploadProcessor.ts) | Inspect attempt limit, resetAttempts and drain behaviour together; never remove the only recovery action |
 | HUD data, speed graph and layout | [shareHud](../../src/lib/media/shareHud/) | [Model tests](../../src/lib/media/shareHud/model.test.ts), [layout tests](../../src/lib/media/shareHud/layout.test.ts), [speed tests](../../src/lib/media/shareHud/speedGraph.test.ts) |
@@ -27,6 +27,7 @@ Up: [Docs index](../INDEX.md) · Status: current navigation; verify behaviour in
 
 ## Design history and remaining work
 
+- [Social cut implementation](social-cut-implementation.md): plan and status for the Reel-first social cut (phase 2 of the share HUD redesign).
 - [Share HUD redesign](share-hud-redesign.md): mixed implementation history and proposed follow-ups. Read individual sections against code; its old headline status is not a deployment record.
 - Superseded: [Original video overview](overview.md): historical master specification containing superseded defaults and proposals.
 - [Device QA checklist](qa-checklist.md): starting point for manual coverage; review against the flow being changed.

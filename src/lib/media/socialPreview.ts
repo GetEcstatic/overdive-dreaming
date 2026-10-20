@@ -50,3 +50,46 @@ export function previewSync(
 		inCard: false
 	};
 }
+
+export interface EditStripBlock {
+	/** Percent of the strip. */
+	readonly left: number;
+	readonly width: number;
+	readonly kind: 'normal' | 'fast' | 'unused';
+}
+
+export interface EditStrip {
+	readonly blocks: readonly EditStripBlock[];
+	/** Where the protocol-end handle may move (percent), from surfacing to the end of the recording. */
+	readonly handleLeft: number;
+	readonly handleWidth: number;
+	/** Wall touches, percent. */
+	readonly walls: readonly number[];
+}
+
+/**
+ * The share sheet's edit strip: the recording from the cut's first frame to
+ * its end, with 1× pieces, fast-forward pieces and the unused tail after the
+ * protocol end.
+ */
+export function editStrip(
+	edl: SocialCutEditDecisionList,
+	args: { readonly diveEndMs: number; readonly recordingEndMs: number; readonly wallsMs: readonly number[] }
+): EditStrip {
+	const startMs = edl.segments[0]?.fromMs ?? 0;
+	const endMs = Math.max(args.recordingEndMs, edl.protocolEndMs, startMs + 1);
+	const pct = (ms: number) => ((Math.min(endMs, Math.max(startMs, ms)) - startMs) / (endMs - startMs)) * 100;
+	const blocks: EditStripBlock[] = edl.segments.map((segment) => ({
+		left: pct(segment.fromMs),
+		width: pct(segment.toMs) - pct(segment.fromMs),
+		kind: segment.speed === 1 ? 'normal' : 'fast'
+	}));
+	if (edl.protocolEndMs < endMs) blocks.push({ left: pct(edl.protocolEndMs), width: 100 - pct(edl.protocolEndMs), kind: 'unused' });
+	const handleLeft = pct(args.diveEndMs);
+	return {
+		blocks,
+		handleLeft,
+		handleWidth: 100 - handleLeft,
+		walls: args.wallsMs.filter((at) => at > startMs && at < endMs).map(pct)
+	};
+}

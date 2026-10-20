@@ -40,6 +40,7 @@ Foundational docs anyone touching the codebase should skim once.
 Things designed but not yet shipped, or shipped partially.
 
 ### Video
+- [Social cut implementation](video/social-cut-implementation.md) — how the Reel-first social cut is built: edit list, server render, share sheet, schema and deploy order
 - [Share HUD redesign](video/share-hud-redesign.md) — audit of the burned HUD export vs Instagram Reels and the selected "Reel-first broadcast" plan: three downloads (original, full with HUD, Instagram social cut), safe zones, split/PB moments, one-length speed graph, result card, shared renderer
 - [Imported video waypoint editor](video/imported-video-waypoint-editor.md) — plan for correcting dense imported-video waypoint data with quick fixes and lap-stacked marker editing
 - [Stored video waypoint reprocessing](video/stored-video-waypoint-reprocessing.md) — plan for editing already-uploaded video waypoints and syncing HUD, overlay downloads, and linked routine-log lap data

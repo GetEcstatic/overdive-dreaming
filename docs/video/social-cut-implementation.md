@@ -162,7 +162,7 @@ When the server render is ready, the same button becomes **Share to Instagram**.
 4. [x] Types, signing kind, service functions, settings persistence
 5. [x] Worker job: encoder, request kind, lock, artefact, invalidation, reaper fix
 6. [x] Local render of the audit clip (portrait and landscape): timing, length, visual check of the contact sheet
-7. [ ] `SocialCutSheet` and the player actions, with a phone-width visual check
+7. [x] `SocialCutSheet` and the player actions, with a phone-width visual check
 8. [ ] Checks (vitest, svelte-check, functions typecheck/build, app build), docs, TODO, commits
 
 ## 8. Plan evaluation log

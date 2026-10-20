@@ -28,7 +28,14 @@ export {
 	type SocialCutSegment,
 	type SocialCutTick
 } from './socialCut';
-export { SOCIAL_BACKGROUND, SOCIAL_CANVAS, socialVideoPlacement, type SocialVideoPlacement } from './socialCanvas';
+export {
+	displayRotationDeg,
+	displaySize,
+	SOCIAL_BACKGROUND,
+	SOCIAL_CANVAS,
+	socialVideoPlacement,
+	type SocialVideoPlacement
+} from './socialCanvas';
 export type { ShareHudContext, ShareHudDive, ShareHudFrame, FrameOptions } from './model';
 export type { HudCanvas, Rect as HudRect } from './layout';
 export { graphDirectionHitRect, liveHudClearZone, type HudClearZone } from './layout';

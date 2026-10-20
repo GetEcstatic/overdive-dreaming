@@ -39,7 +39,8 @@ import {
 	socialCutInputForDive,
 	socialCutTicks,
 	socialHudContext,
-	socialVideoPlacement
+	socialVideoPlacement,
+	displaySize
 } from '../../src/lib/media/shareHud/index';
 import { socialCutFilter } from '../../src/lib/media/socialCutFilter';
 import { HUD_TICK_MS, hudFullTicks } from '../../src/lib/media/shareHud/exportPlan';
@@ -1115,7 +1116,7 @@ export async function encodeSocialCut(args: {
 	const filter = socialCutFilter({
 		edl,
 		inputStartMs,
-		placement: socialVideoPlacement(displayDimensions(args.video)),
+		placement: socialVideoPlacement(displaySize(args.video)),
 		rotation: displayRotationFilters(args.video),
 		canvas: SOCIAL_CANVAS,
 		background: SOCIAL_BACKGROUND,

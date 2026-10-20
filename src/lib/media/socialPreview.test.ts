@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { socialCutEditList } from './shareHud/socialCut';
-import { previewSync } from './socialPreview';
+import { editStrip, previewSync } from './socialPreview';
 
 const edl = socialCutEditList({
 	diveStartMs: 10_000,
@@ -39,5 +39,18 @@ describe('previewSync', () => {
 			seek: false,
 			inCard: true
 		});
+	});
+});
+
+describe('editStrip', () => {
+	it('lays the cut and the unused tail across the recording', () => {
+		const strip = editStrip(edl, { diveEndMs: 175_000, recordingEndMs: 200_000, wallsMs: [50_000, 95_000, 140_000] });
+		const total = strip.blocks.reduce((sum, b) => sum + b.width, 0);
+		expect(total).toBeCloseTo(100, 6);
+		expect(strip.blocks[0]).toMatchObject({ left: 0, kind: 'normal' });
+		expect(strip.blocks.at(-1)).toMatchObject({ kind: 'unused' });
+		expect(strip.handleLeft).toBeCloseTo(((175_000 - 8_000) / 192_000) * 100, 6);
+		expect(strip.handleLeft + strip.handleWidth).toBeCloseTo(100, 6);
+		expect(strip.walls).toHaveLength(3);
 	});
 });

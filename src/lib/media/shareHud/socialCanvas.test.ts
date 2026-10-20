@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { fixtureTimeline, FIXTURE_PB_M, FIXTURE_POOL_M } from './fixtures';
 import { socialCutFrameSvg } from './index';
 import { prepareDive } from './model';
-import { socialVideoPlacement } from './socialCanvas';
+import { displaySize, socialVideoPlacement } from './socialCanvas';
 
 describe('socialVideoPlacement', () => {
   it('covers the canvas with a portrait source, centre-cropped', () => {
@@ -66,5 +66,15 @@ describe('socialCutFrameSvg', () => {
     const svg = socialCutFrameSvg(dive, { outputMs: 40_000, sourceMs: 191_000, speed: 1, cardAtMs: 190_000 }, canvas, { hook: true });
     expect(svg).toContain('METRES');
     expect(svg).not.toContain('×</text>');
+  });
+});
+
+describe('displaySize', () => {
+  it('matches the worker rules for rotated and forced orientations', () => {
+    expect(displaySize({ widthPx: 1920, heightPx: 1080 })).toEqual({ width: 1920, height: 1080 });
+    expect(displaySize({ widthPx: 1920, heightPx: 1080, displayOrientation: 'portrait-left' })).toEqual({ width: 1080, height: 1920 });
+    expect(displaySize({ widthPx: 1080, heightPx: 1920, displayOrientation: 'portrait-left', displayRotationDeg: 0 })).toEqual({ width: 1080, height: 1920 });
+    expect(displaySize({ widthPx: 1080, heightPx: 1920, displayOrientation: 'landscape' })).toEqual({ width: 1920, height: 1080 });
+    expect(displaySize({})).toEqual({ width: 1280, height: 720 });
   });
 });

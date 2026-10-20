@@ -415,6 +415,8 @@ Target: a 3-minute dive renders HUD frames in < 90 s and encodes (`veryfast`, CR
 - Acceptance: a portrait and a landscape test dive export at short edge 1080. Speed-graph tests pass (segment deltas, ghost alignment by distance off the wall, flip timing, PB post only in its length). No digit jitter (fixture diff). Render plus encode is under 270 s for a 3-minute dive on the worker.
 
 ### Phase 2: social cut and share UX
+Implementation plan and status: [Social cut implementation](social-cut-implementation.md).
+
 - `socialCut.ts` edit decision list with tests (target length, fast-forward factor choice, turn selection on long dives, output→source time mapping).
 - Server `social-cut` job: 1080×1920 reel canvas, `trim`/`setpts`/`concat`, audio muted in fast-forward with fades, hook, result card after `protocolEndMs`.
 - Download menu with the three choices. Social cut sheet: preview, toggles, protocol-end handle, direction flip, caption copy, "Share to Instagram".

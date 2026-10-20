@@ -86,6 +86,7 @@
 	import { db } from '$lib/firebase';
 	import { user } from '$lib/stores/auth';
 	import ShareHudSvg from '$lib/components/ShareHudSvg.svelte';
+	import SocialCutSheet from '$lib/components/SocialCutSheet.svelte';
 	import type { DiveTimeline, DiveVideo } from '$lib/types';
 	import {
 		distanceAt,
@@ -1649,18 +1650,38 @@
 		}
 	}
 
-	async function downloadCurrentVideo(): Promise<void> {
+	let showReelSheet = $state(false);
+	let showDownloadMenu = $state(false);
+	const hudDownloadBusy = $derived(
+		requestingServerOverlay || effectiveOverlayDownloadStatus === 'queued' || effectiveOverlayDownloadStatus === 'processing'
+	);
+	const hudDownloadLabel = $derived(
+		requestingServerOverlay
+			? 'Queueing…'
+			: hudDownloadBusy
+				? 'Preparing… check back in a minute'
+				: effectiveOverlayDownloadStatus === 'ready'
+					? 'Full dive, ready'
+					: 'Full dive · tap to create'
+	);
+
+	async function downloadHudVideo(): Promise<void> {
 		if (requiresBrowserOverlayExport) {
 			await downloadToPhotos();
 			return;
 		}
-		if (showOverlay) {
-			await downloadServerOverlay();
-			return;
-		}
-		await downloadOriginalVideo();
+		await downloadServerOverlay();
 	}
 </script>
+
+<svelte:window
+	onpointerdown={(event) => {
+		if (showDownloadMenu && !(event.target as Element | null)?.closest?.('.download-menu-wrap')) showDownloadMenu = false;
+	}}
+	onkeydown={(event) => {
+		if (event.key === 'Escape') showDownloadMenu = false;
+	}}
+/>
 
 <div
 	bind:this={containerEl}
@@ -1869,27 +1890,60 @@
 			<button
 				type="button"
 				class="pill pill-primary"
-				onclick={downloadCurrentVideo}
-				disabled={downloading || requestingServerOverlay || (showOverlay && !requiresBrowserOverlayExport && (effectiveOverlayDownloadStatus === 'queued' || effectiveOverlayDownloadStatus === 'processing'))}
+				onclick={() => {
+					showDownloadMenu = false;
+					showReelSheet = true;
+				}}
+				disabled={downloading}
 			>
-				{#if downloading}
-					<span class="pill-spinner" aria-hidden="true"></span>
-					<span>Preparing…</span>
-				{:else if showOverlay && !requiresBrowserOverlayExport && requestingServerOverlay}
-					<span class="pill-spinner" aria-hidden="true"></span>
-					<span>Queueing...</span>
-				{:else if showOverlay && !requiresBrowserOverlayExport && (effectiveOverlayDownloadStatus === 'queued' || effectiveOverlayDownloadStatus === 'processing')}
-					<span class="pill-spinner" aria-hidden="true"></span>
-					<span>Overlay processing...</span>
-				{:else if showOverlay && !requiresBrowserOverlayExport && (effectiveOverlayDownloadStatus === 'not-requested' || effectiveOverlayDownloadStatus === 'retryable')}
-					<!-- No current export (none yet, failed, or an older HUD style): tapping queues one. -->
-					<span aria-hidden="true">↻</span>
-					<span>Create HUD video</span>
-				{:else}
-					<span aria-hidden="true">⬇︎</span>
-					<span>Download</span>
-				{/if}
+				<span aria-hidden="true">✦</span>
+				<span>Share reel</span>
 			</button>
+			<div class="download-menu-wrap">
+				<button
+					type="button"
+					class="pill pill-secondary"
+					aria-haspopup="menu"
+					aria-expanded={showDownloadMenu}
+					onclick={() => (showDownloadMenu = !showDownloadMenu)}
+					disabled={downloading}
+				>
+					{#if downloading}
+						<span class="pill-spinner pill-spinner-light" aria-hidden="true"></span>
+						<span>Preparing…</span>
+					{:else}
+						<span aria-hidden="true">⬇︎</span>
+						<span>Download</span>
+					{/if}
+				</button>
+				{#if showDownloadMenu}
+					<div class="download-menu" role="menu">
+						<button
+							type="button"
+							role="menuitem"
+							onclick={() => {
+								showDownloadMenu = false;
+								void downloadOriginalVideo();
+							}}
+						>
+							<span>Original video</span>
+							<small>As recorded, no HUD</small>
+						</button>
+						<button
+							type="button"
+							role="menuitem"
+							disabled={hudDownloadBusy}
+							onclick={() => {
+								showDownloadMenu = false;
+								void downloadHudVideo();
+							}}
+						>
+							<span>Video with HUD</span>
+							<small>{hudDownloadLabel}</small>
+						</button>
+					</div>
+				{/if}
+			</div>
 		{/if}
 
 		{#if canEditWaypoints && !inlineActions}
@@ -1910,6 +1964,16 @@
 			<p class="export-diagnostic">{exportDiagnostic}</p>
 		{/if}
 	</div>
+{/if}
+
+{#if showReelSheet && canDownloadVideo}
+	<SocialCutSheet
+		video={liveVideo}
+		{srcUrl}
+		{poolLength}
+		ownerId={liveVideo.ownerId ?? liveVideo.userId}
+		onClose={() => (showReelSheet = false)}
+	/>
 {/if}
 
 <style>
@@ -2405,6 +2469,56 @@
 	}
 	.pill-primary:hover:not(:disabled) {
 		filter: brightness(1.05);
+	}
+	.pill-spinner-light {
+		border-color: rgba(226, 232, 240, 0.25);
+		border-top-color: var(--color-text);
+	}
+	.download-menu-wrap {
+		position: relative;
+	}
+	.download-menu {
+		position: absolute;
+		z-index: 20;
+		bottom: calc(100% + 0.4rem);
+		left: 50%;
+		transform: translateX(-50%);
+		display: flex;
+		flex-direction: column;
+		min-width: 14rem;
+		padding: 0.3rem;
+		border: 1px solid rgba(148, 163, 184, 0.22);
+		border-radius: 0.9rem;
+		background: var(--color-bg-card-solid);
+		box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+	}
+	.download-menu button {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.15rem;
+		padding: 0.65rem 0.8rem;
+		border: 0;
+		border-radius: 0.6rem;
+		background: none;
+		color: var(--color-text);
+		font: inherit;
+		font-size: 0.9rem;
+		font-weight: 600;
+		text-align: left;
+		cursor: pointer;
+	}
+	.download-menu button:hover:not(:disabled) {
+		background: rgba(51, 65, 85, 0.6);
+	}
+	.download-menu button:disabled {
+		opacity: 0.6;
+		cursor: default;
+	}
+	.download-menu small {
+		color: var(--color-text-muted);
+		font-size: 0.75rem;
+		font-weight: 500;
 	}
 	.pill-spinner {
 		display: inline-block;

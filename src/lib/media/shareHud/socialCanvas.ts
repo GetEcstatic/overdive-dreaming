@@ -68,3 +68,29 @@ export function socialVideoPlacement(source: HudCanvas, canvas: HudCanvas = SOCI
     y: even(band.y + (band.h - cropH) / 2)
   };
 }
+
+/** The video fields that decide how a clip is displayed (structural: app and worker types both fit). */
+export interface DisplayFields {
+  readonly widthPx?: number;
+  readonly heightPx?: number;
+  readonly displayOrientation?: 'landscape' | 'portrait-left' | 'portrait-right';
+  readonly displayRotationDeg?: 0 | 90 | 180 | 270;
+}
+
+/** Rotation applied to show the clip upright (portrait clips stored sideways). */
+export function displayRotationDeg(video: DisplayFields): 0 | 90 | 180 | 270 {
+  if (video.displayOrientation === 'portrait-left') return video.displayRotationDeg ?? 90;
+  if (video.displayOrientation === 'portrait-right') return video.displayRotationDeg ?? 270;
+  return 0;
+}
+
+/** Size of the clip as displayed (after rotation), forced to the display orientation. */
+export function displaySize(video: DisplayFields): HudCanvas {
+  const w = video.widthPx && video.widthPx > 0 ? video.widthPx : 1280;
+  const h = video.heightPx && video.heightPx > 0 ? video.heightPx : 720;
+  const rotation = displayRotationDeg(video);
+  const rotated = rotation === 90 || rotation === 270 ? { width: h, height: w } : { width: w, height: h };
+  const portrait = video.displayOrientation === 'portrait-left' || video.displayOrientation === 'portrait-right';
+  if (portrait === rotated.width > rotated.height) return { width: rotated.height, height: rotated.width };
+  return rotated;
+}
