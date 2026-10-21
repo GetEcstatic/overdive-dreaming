@@ -130,3 +130,25 @@ export function socialCutProgress(video: Pick<DiveVideo, 'processingState'>): nu
 	const value = video.processingState?.socialCutProgress;
 	return typeof value === 'number' && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
 }
+
+/**
+ * Identifies the file a dive video plays from. The video document also
+ * changes for unrelated reasons (render progress every few seconds, edits), so
+ * players re-sign and reload their source only when this key changes.
+ * Mirrors `getPreferredDiveVideoPlaybackUrl`.
+ */
+export function playbackSourceKey(
+	video: Pick<DiveVideo, 'id' | 'uploadStatus' | 'processingState' | 'artifacts' | 'cleanObject' | 'storagePathClean'>
+): string {
+	if (video.uploadStatus !== 'uploaded') return `${video.id}|pending`;
+	const proxy =
+		video.processingState?.playbackProxy === 'ready'
+			? video.artifacts?.find((artifact) => artifact.kind === 'playback-proxy')?.object?.key
+			: undefined;
+	return `${video.id}|${proxy ? `proxy:${proxy}` : `clean:${video.cleanObject?.key ?? video.storagePathClean ?? ''}`}`;
+}
+
+/** Same idea for the poster frame. */
+export function thumbnailSourceKey(video: Pick<DiveVideo, 'id' | 'thumbnailObject' | 'thumbnailPath'>): string {
+	return `${video.id}|${video.thumbnailObject?.key ?? video.thumbnailPath ?? ''}`;
+}

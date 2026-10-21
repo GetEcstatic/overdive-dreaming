@@ -13,6 +13,7 @@
 	import { formatAttemptBadge } from '$lib/utils/attemptCategories';
 	import { formatGroupParticipants } from '$lib/utils/groupParticipants';
 	import { getWasabiReadUrl } from '$lib/media/client';
+	import { playbackSourceKey, thumbnailSourceKey } from '$lib/media/processing';
 	import { onMount } from 'svelte';
 	import { diveVideoBehavior } from '$lib/stores/videoPlayback';
 	import CommentSection from '$lib/components/CommentSection.svelte';
@@ -309,11 +310,19 @@
 	onMount(() => {
 		if (!isDynamicDiscipline) return;
 		let loadToken = 0;
+		let posterToken = 0;
+		// The video document updates every few seconds while a reel renders.
+		// Re-sign (and remount the player, which would also close an open
+		// share sheet) only when the file it plays actually changes.
+		let sourceKey: string | null = null;
+		let posterKey: string | null = null;
 		const unsubscribe = subscribeDiveVideosForSession(
 			log.id,
 			(videos) => {
-				const token = ++loadToken;
 				if (videos.length === 0) {
+					loadToken += 1;
+					posterToken += 1;
+					sourceKey = posterKey = null;
 					diveVideo = null;
 					diveVideoUrl = null;
 					diveVideoPosterUrl = null;
@@ -322,17 +331,27 @@
 
 				const pick = videos.find((v) => v.retentionTier === 'pinned') ?? videos[0];
 				diveVideo = pick;
-				diveVideoUrl = null;
-				diveVideoPosterUrl = null;
-				if (pick.uploadStatus !== 'uploaded') return;
 
-				if (pick.thumbnailObject || pick.thumbnailPath) {
-					void (async () => {
-						const posterUrl = await getDiveVideoThumbnailUrl(pick).catch(() => null);
-						if (token !== loadToken) return;
-						diveVideoPosterUrl = posterUrl;
-					})();
+				const nextPosterKey = thumbnailSourceKey(pick);
+				if (nextPosterKey !== posterKey) {
+					posterKey = nextPosterKey;
+					const token = ++posterToken;
+					diveVideoPosterUrl = null;
+					if (pick.uploadStatus === 'uploaded' && (pick.thumbnailObject || pick.thumbnailPath)) {
+						void (async () => {
+							const posterUrl = await getDiveVideoThumbnailUrl(pick).catch(() => null);
+							if (token !== posterToken) return;
+							diveVideoPosterUrl = posterUrl;
+						})();
+					}
 				}
+
+				const nextSourceKey = playbackSourceKey(pick);
+				if (nextSourceKey === sourceKey) return;
+				sourceKey = nextSourceKey;
+				const token = ++loadToken;
+				diveVideoUrl = null;
+				if (pick.uploadStatus !== 'uploaded') return;
 
 				void (async () => {
 					try {
@@ -348,6 +367,7 @@
 		);
 		return () => {
 			loadToken += 1;
+			posterToken += 1;
 			unsubscribe();
 		};
 	});

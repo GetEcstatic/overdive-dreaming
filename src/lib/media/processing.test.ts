@@ -5,6 +5,8 @@ import {
 	socialCutOptionsFromSettings,
 	socialCutStatus,
 	shouldRequestSocialCut,
+	playbackSourceKey,
+	thumbnailSourceKey,
 	socialCutProgress,
 	socialRenderKey,
 	hasCurrentServerOverlayArtifact,
@@ -174,5 +176,34 @@ describe('social cut requests', () => {
 		expect(socialCutProgress({ processingState: { socialCutProgress: 0.42 } as never })).toBe(0.42);
 		expect(socialCutProgress({ processingState: { socialCutProgress: 3 } as never })).toBe(1);
 		expect(socialCutProgress({})).toBe(0);
+	});
+});
+
+describe('playback source keys', () => {
+	const uploaded = {
+		id: 'v1',
+		uploadStatus: 'uploaded',
+		cleanObject: { provider: 'wasabi', bucket: 'b', key: 'master.mp4' },
+		processingState: { socialCut: 'processing', socialCutProgress: 0.2 },
+		artifacts: []
+	} as never;
+
+	it('ignores render progress and other document changes', () => {
+		const later = { ...(uploaded as object), processingState: { socialCut: 'processing', socialCutProgress: 0.6 } } as never;
+		expect(playbackSourceKey(later)).toBe(playbackSourceKey(uploaded));
+	});
+
+	it('changes when the proxy becomes ready or the upload finishes', () => {
+		const withProxy = {
+			...(uploaded as object),
+			processingState: { playbackProxy: 'ready' },
+			artifacts: [{ kind: 'playback-proxy', object: { key: 'proxy.mp4' } }]
+		} as never;
+		expect(playbackSourceKey(withProxy)).not.toBe(playbackSourceKey(uploaded));
+		expect(playbackSourceKey({ ...(uploaded as object), uploadStatus: 'uploading' } as never)).toBe('v1|pending');
+	});
+
+	it('keys posters by object', () => {
+		expect(thumbnailSourceKey({ id: 'v1', thumbnailObject: { key: 't.jpg' } } as never)).toBe('v1|t.jpg');
 	});
 });

@@ -19,6 +19,7 @@
 		pinDiveVideo
 	} from '$lib/services/diveVideos';
 	import { getPublicUserProfile } from '$lib/firestore';
+	import { playbackSourceKey, thumbnailSourceKey } from '$lib/media/processing';
 	import DiveVideoPlayer from './DiveVideoPlayer.svelte';
 	import type { DiveVideo, Discipline } from '$lib/types';
 
@@ -87,6 +88,23 @@
 		};
 	});
 
+	// Signed URLs by source key. Document updates (render progress every few
+	// seconds) must not re-sign, which would swap `src` and reload the video.
+	const urlCache = new Map<string, string>();
+	const posterCache = new Map<string, string>();
+
+	async function cachedUrl(cache: Map<string, string>, key: string, load: () => Promise<string>): Promise<string> {
+		const hit = cache.get(key);
+		if (hit !== undefined) return hit;
+		try {
+			const url = await load();
+			cache.set(key, url);
+			return url;
+		} catch {
+			return '';
+		}
+	}
+
 	async function resolveVideoList(list: DiveVideo[], isCurrent: () => boolean): Promise<void> {
 		loadError = null;
 		try {
@@ -111,23 +129,15 @@
 			const entries = await Promise.all(
 				list.map(async (v) => {
 					if (v.uploadStatus !== 'uploaded') return [v.id, ''] as const;
-					try {
-						const url = await getPreferredDiveVideoPlaybackUrl(v);
-						return [v.id, url] as const;
-					} catch {
-						return [v.id, ''] as const;
-					}
+					const url = await cachedUrl(urlCache, playbackSourceKey(v), () => getPreferredDiveVideoPlaybackUrl(v));
+					return [v.id, url] as const;
 				})
 			);
 			const posterEntries = await Promise.all(
 				list.map(async (v) => {
 					if (!v.thumbnailObject && !v.thumbnailPath) return [v.id, ''] as const;
-					try {
-						const url = await getDiveVideoThumbnailUrl(v);
-						return [v.id, url] as const;
-					} catch {
-						return [v.id, ''] as const;
-					}
+					const url = await cachedUrl(posterCache, thumbnailSourceKey(v), () => getDiveVideoThumbnailUrl(v));
+					return [v.id, url] as const;
 				})
 			);
 			if (!isCurrent()) return;
