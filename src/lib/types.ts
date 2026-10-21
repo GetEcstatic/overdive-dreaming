@@ -1145,6 +1145,8 @@ export interface DiveVideoProcessingState {
 	socialCut?: DiveVideoProcessingStatus;
 	/** Render key of the requested social cut (`socialRenderKey`). */
 	socialCutKey?: string;
+	/** 0–1 while the social cut renders; written every few seconds, so it is also a heartbeat. */
+	socialCutProgress?: number;
 	pendingJobs?: DiveVideoProcessingJob[];
 	lastError?: string;
 	lastErrorAt?: Timestamp;

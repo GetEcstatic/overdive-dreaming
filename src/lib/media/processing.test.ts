@@ -4,6 +4,8 @@ import {
 	SOCIAL_CUT_STALE_MS,
 	socialCutOptionsFromSettings,
 	socialCutStatus,
+	shouldRequestSocialCut,
+	socialCutProgress,
 	socialRenderKey,
 	hasCurrentServerOverlayArtifact,
 	initialDiveVideoProcessingState,
@@ -149,5 +151,28 @@ describe('social cut status', () => {
 	it('defaults every toggle to on', () => {
 		expect(socialCutOptionsFromSettings(undefined)).toEqual({ showName: true, showPb: true, hook: true });
 		expect(socialCutOptionsFromSettings({ socialHook: false })).toEqual({ showName: true, showPb: true, hook: false });
+	});
+});
+
+describe('social cut requests', () => {
+	const base = { status: 'none' as const, renderKey: 'k1', lastRequestedKey: null, settingsLoaded: true };
+
+	it('asks once per settings key, after the settings load', () => {
+		expect(shouldRequestSocialCut(base)).toBe(true);
+		expect(shouldRequestSocialCut({ ...base, settingsLoaded: false })).toBe(false);
+		expect(shouldRequestSocialCut({ ...base, lastRequestedKey: 'k1' })).toBe(false);
+		expect(shouldRequestSocialCut({ ...base, lastRequestedKey: 'k0' })).toBe(true);
+	});
+
+	it('leaves ready, rendering and failed reels alone', () => {
+		for (const status of ['ready', 'rendering', 'failed'] as const) {
+			expect(shouldRequestSocialCut({ ...base, status })).toBe(false);
+		}
+	});
+
+	it('clamps progress', () => {
+		expect(socialCutProgress({ processingState: { socialCutProgress: 0.42 } as never })).toBe(0.42);
+		expect(socialCutProgress({ processingState: { socialCutProgress: 3 } as never })).toBe(1);
+		expect(socialCutProgress({})).toBe(0);
 	});
 });

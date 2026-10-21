@@ -26,6 +26,7 @@ export {
 } from './mediaSigning.js';
 export {
 	onMediaProcessingJobCreated,
+	onSocialCutJobCreated,
 	processMediaJob,
 	recoverStaleMediaProcessingJobs,
 	requestOverlayDownload

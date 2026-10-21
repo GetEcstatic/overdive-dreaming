@@ -24,6 +24,8 @@ export interface DiveVideoProcessingState {
 	overlayDownload: DiveVideoProcessingStatus;
 	socialCut?: DiveVideoProcessingStatus;
 	socialCutKey?: string;
+	/** 0–1 while the reel renders; also its heartbeat. */
+	socialCutProgress?: number;
 	pendingJobs?: DiveVideoProcessingJob[];
 	lastError?: string;
 	lastErrorAt?: FirebaseFirestore.FieldValue;

@@ -16,7 +16,8 @@ import {
 export { DEFAULT_SOCIAL_CUT_OPTIONS, SERVER_OVERLAY_STYLE_VERSION, overlayRenderKey, socialRenderKey, type SocialCutRenderOptions };
 
 /** A render left queued or processing this long is treated as failed, so the owner can retry. */
-export const SOCIAL_CUT_STALE_MS = 15 * 60 * 1000;
+/** A rendering reel with no document update (progress heartbeat) for this long has died. */
+export const SOCIAL_CUT_STALE_MS = 5 * 60 * 1000;
 
 export type SocialCutStatus = 'none' | 'rendering' | 'ready' | 'failed';
 
@@ -109,4 +110,23 @@ export function masterDiveVideoArtifact(args: {
 		contentType: args.contentType,
 		disposable: false
 	};
+}
+/**
+ * Whether the share sheet should ask for a reel now: only when none exists or
+ * is rendering for the current settings, once per settings key (a failure
+ * waits for the owner's "Try again").
+ */
+export function shouldRequestSocialCut(args: {
+	status: SocialCutStatus;
+	renderKey: string;
+	lastRequestedKey: string | null;
+	settingsLoaded: boolean;
+}): boolean {
+	return args.settingsLoaded && args.status === 'none' && args.renderKey !== args.lastRequestedKey;
+}
+
+/** Render progress 0–1 for a rendering reel (queued reads as just started). */
+export function socialCutProgress(video: Pick<DiveVideo, 'processingState'>): number {
+	const value = video.processingState?.socialCutProgress;
+	return typeof value === 'number' && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
 }

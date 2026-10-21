@@ -2,7 +2,7 @@
 
 Up: [Video docs](README.md) · Spec: [Share HUD redesign](share-hud-redesign.md) §4.2.1, §6.3–§6.4, phase 2
 
-Status: **Plan v2, evaluated, in implementation** (19 Oct 2026). This doc owns *how* the social cut is built. The spec owns *what* it looks like.
+Status: **v3, ready before you tap** (21 Oct 2026): shipped v2 on 20 Oct, then reworked after the first real use (§9). This doc owns *how* the social cut is built. The spec owns *what* it looks like.
 
 ## 1. Outcome
 
@@ -10,10 +10,9 @@ From any saved dive video, the owner taps **Share reel**. A sheet opens with a 9
 
 - adjust the protocol end;
 - toggle name, PB and intro hook;
-- flip the graph;
-- tap **Create reel**.
+- flip the graph.
 
-When the server render is ready, the same button becomes **Share to Instagram**. It opens the system share sheet with the MP4 and copies a caption.
+The reel is rendered right after upload with the owner's remembered settings, so the sheet normally opens on **Share reel**. It opens the system share sheet with the MP4 and copies a caption. An edit re-renders on the server automatically and shows progress.
 
 ## 2. Architecture (pure core, effects at the edges)
 
@@ -53,7 +52,11 @@ When the server render is ready, the same button becomes **Share to Instagram**.
 
 ## 4. Server render (speed and cost)
 
-- **On demand only**, never at upload. It runs in the existing `processMediaJob` worker with no CPU, memory or instance changes.
+- **Ready before you tap:** queued automatically when the playback proxy is ready (only for videos with a timeline), with the owner's saved toggles. The sheet also asks for one when none matches the current settings, debounced after edits.
+- **Own worker:** `onSocialCutJobCreated` (8 vCPU, 4 GiB, up to 5 instances, 240 s). The general media worker runs one job at a time across all users, so reels queued behind full-length HUD exports.
+- **Source:** the 720p playback proxy, falling back to the original. 4K originals in `/tmp` (which is RAM) ran the 4 GiB worker out of memory, and the job sat in "processing" until recovery.
+- **Overlap:** the HUD frames render while the source downloads.
+- **Progress:** FFmpeg `-progress` → `processingState.socialCutProgress` every 2 s. It doubles as the heartbeat: the app treats a reel with no update for 5 minutes as failed.
 - **Input seek:** `-ss firstSegmentStart -t span` before `-i`, so FFmpeg never decodes the pre-dive wait or anything after the protocol.
 - **Order of filters:** per-segment `trim` and `setpts=(PTS-STARTPTS)/speed`, then `concat`, then `fps=30`. Rotation and scaling run after that, so fast-forward frames are dropped before the expensive scale.
 - **HUD frames** run at 10 Hz over *output* time: about 450 ticks for a 45 s cut, deduplicated by the existing frame-run collapse.
@@ -68,9 +71,10 @@ When the server render is ready, the same button becomes **Share to Instagram**.
 
   The full HUD export of the same clip takes 76 s.
 
-- **Bitrate:** capped at 6 Mbps (`-maxrate 6M`). Instagram re-encodes Reels at about 3.5–5 Mbps. The cap halved the file size (48 → 30 MB) and keeps phone sharing quick.
+- **Bitrate and preset:** capped at 4 Mbps (`-maxrate 4M`), preset `superfast`. Instagram re-encodes Reels at about 3.5–5 Mbps. From the proxy: 20 MB; encode 8.4 s locally against 11.4 s at `veryfast`, with no visible difference.
+- **Production, first day (v2, from the original):** 37–64 s from tap to ready, of which download ~14 s, HUD frames ~12 s, encode 23–66 s. Long 4K clips ran out of memory.
 
-- **Expected cost per cut:** about 1–2 US cents, from the worker's vCPU and memory seconds. Wasabi adds about 20–40 MB per cut, held as a disposable artefact.
+- **Expected cost per cut:** under 1 US cent from the proxy (8 vCPU and 4 GiB for roughly 20–30 s), now for every uploaded dive with a timeline, plus one per edit. Wasabi adds about 20 MB per dive, held as a disposable artefact.
 - **Artefact:**
   - kind `social-cut`;
   - profile `social-mp4-1080x1920`;
@@ -105,7 +109,7 @@ When the server render is ready, the same button becomes **Share to Instagram**.
 │ surfacing        Reset       │
 │ [Name ●] [PB ●] [Intro ●] ⇄  │
 │ ┌──────────────────────────┐ │
-│ │   Create reel            │ │  → Rendering… → Share to Instagram
+│ │   Share reel             │ │  or: Preparing your reel… 45%
 │ └──────────────────────────┘ │
 │ Copy caption                 │
 └──────────────────────────────┘
@@ -122,11 +126,12 @@ When the server render is ready, the same button becomes **Share to Instagram**.
 - **Toggles** are saved per user in `UserSettings.shareHud`.
   - **Intro** is disabled, with a hint, when there is no PB.
   - **⇄** flips the graph direction, reusing the existing per-video edit.
+- **Share first:** the edit strip, protocol line and toggles sit behind **Edit reel**.
 - **Primary button states:**
-  - Create reel;
-  - Rendering… (spinner, "usually under a minute — you can close this");
-  - Share to Instagram;
+  - Share reel (with "Getting your reel… N%" while the file downloads);
+  - Preparing your reel… N% (a progress bar; "you can close this");
   - Try again (after a failure).
+- **Sheet mounting:** moved to `document.body` (`src/lib/actions/portal.ts`). Inside a dashboard card, the card's `backdrop-filter` and `overflow: hidden` clipped it and sent taps to the backdrop.
 
   When the reel is ready and the sheet is open, the file is pre-fetched. The tap then shares at once, which keeps the iOS user-gesture rule.
 - **Share:**
@@ -152,6 +157,8 @@ When the server render is ready, the same button becomes **Share to Instagram**.
 
 **Storage:** a new key `overlay/social.mp4`.
 
+**v3 additions:** optional `processingState.socialCutProgress` (number 0–1); new function `onSocialCutJobCreated` (a second trigger on `mediaProcessingJobs/{jobId}`; the general trigger now skips reel jobs).
+
 **Deploy order:** Functions first, then the app. A new app on old Functions would queue a HUD download instead.
 
 ## 7. Implementation checklist
@@ -163,7 +170,7 @@ When the server render is ready, the same button becomes **Share to Instagram**.
 5. [x] Worker job: encoder, request kind, lock, artefact, invalidation, reaper fix
 6. [x] Local render of the audit clip (portrait and landscape): timing, length, visual check of the contact sheet
 7. [x] `SocialCutSheet` and the player actions, with a phone-width visual check
-8. [ ] Checks (vitest, svelte-check, functions typecheck/build, app build), docs, TODO, commits
+8. [x] Checks (vitest, svelte-check, functions typecheck/build, app build), docs, TODO, commits
 
 ## 8. Plan evaluation log
 
@@ -207,3 +214,15 @@ When the server render is ready, the same button becomes **Share to Instagram**.
   - Listed for device QA.
 - **Cost and speed:** on demand only, with the decode span cut. No infrastructure change.
 - **No open decision gates.** v2 approved for implementation.
+
+## 9. v3: ready before you tap (21 Oct 2026)
+
+First real use (Tom, 20 Oct): the reels were good, but some never finished, the sheet glitched on the dashboard, and waiting after tapping Share felt wrong next to Instagram, where an edit is ready at once.
+
+Causes found in the logs and code:
+
+- Long 4K originals ran the worker out of memory; the job stayed "processing" until the 10-minute recovery, and the app waited 15 minutes before showing a failure.
+- One worker instance serves every media job, so a reel queued behind full-length HUD exports.
+- The sheet was rendered inside the dashboard card (see §5.2, sheet mounting).
+
+Changes: §4 (automatic render, own worker, proxy source, overlap, progress, faster encode) and §5.2 (share first, progress, portal). Each artefact write is now a transaction against the latest document, because jobs for one video run on different workers. Building the reel on the phone (no wait, no server cost) needs the native app; deferred.

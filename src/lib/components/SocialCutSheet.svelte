@@ -1,8 +1,8 @@
 <!--
-  Share reel sheet (docs/video/social-cut-implementation.md §5.2). Previews the
-  social cut in the browser with the same edit list and HUD the server burns in,
-  lets the owner adjust the protocol end and what the reel shows, then creates
-  the reel on the server and shares it.
+  Share reel sheet (docs/video/social-cut-implementation.md §5.2). Share first:
+  the reel is normally rendered after upload, so the sheet opens ready to share.
+  The preview uses the same edit list and HUD the server burns in; edits (behind
+  "Edit reel") re-render on the server automatically, with progress.
 -->
 <script lang="ts">
 	import { onMount } from 'svelte';
@@ -24,7 +24,15 @@
 		HUD_TICK_MS,
 		type SocialCutTick
 	} from '$lib/media/shareHud';
-	import { socialCutOptionsFromSettings, socialCutStatus, socialRenderKey, type SocialCutRenderOptions } from '$lib/media/processing';
+	import {
+		shouldRequestSocialCut,
+		socialCutOptionsFromSettings,
+		socialCutProgress,
+		socialCutStatus,
+		socialRenderKey,
+		type SocialCutRenderOptions
+	} from '$lib/media/processing';
+	import { portal } from '$lib/actions/portal';
 	import { editStrip, previewSync, type PreviewMode } from '$lib/media/socialPreview';
 	import { socialCaption } from '$lib/media/socialCaption';
 	import {
@@ -50,6 +58,8 @@
 
 	// --- What the reel shows -------------------------------------------------
 	let options = $state<SocialCutRenderOptions>(socialCutOptionsFromSettings(undefined));
+	let settingsLoaded = $state(false);
+	let showEdit = $state(false);
 	let protocolDraftMs = $state<number | null>(null);
 	let elementDurationMs = $state(0);
 	const recordingMs = $derived(
@@ -227,6 +237,10 @@
 	let notice = $state<string | null>(null);
 	let prepared = $state<{ key: string; file: File } | null>(null);
 	let preparing = $state(false);
+	let fetchProgress = $state(0);
+	const FETCH_STALL_MS = 20_000;
+	/** Settings key whose download failed: sharing then falls back to a download link instead of retrying. */
+	let fetchFailedKey = $state<string | null>(null);
 	const renderKey = $derived(socialRenderKey(video, options));
 	const updatedAtMs = $derived(
 		(video.updatedAt as { toMillis?: () => number } | undefined)?.toMillis?.() ?? nowMs
@@ -242,8 +256,16 @@
 		})
 	);
 
-	async function createReel(): Promise<void> {
+	const progress = $derived(socialCutProgress(video));
+	// Before the first request lands, "none" is about to be "rendering": never flash a button.
+	const busy = $derived(status === 'rendering' || requesting || (status === 'none' && !error));
+
+	let lastRequestedKey: string | null = null;
+	let requestTimer: ReturnType<typeof setTimeout> | null = null;
+
+	async function requestReel(): Promise<void> {
 		if (requesting) return;
+		lastRequestedKey = renderKey;
 		requesting = true;
 		error = null;
 		try {
@@ -255,20 +277,56 @@
 		}
 	}
 
+	// Ask for the reel whenever none exists for the current settings: on open
+	// (older dives, or settings changed elsewhere) and after each edit, debounced
+	// so a run of toggles costs one render.
+	$effect(() => {
+		const wanted = shouldRequestSocialCut({ status, renderKey, lastRequestedKey, settingsLoaded });
+		if (requestTimer) clearTimeout(requestTimer);
+		requestTimer = null;
+		if (!wanted) return;
+		requestTimer = setTimeout(() => void requestReel(), lastRequestedKey === null ? 0 : 900);
+	});
+
 	// Fetch the ready reel while the sheet is open, so the share tap can open the share sheet at once (iOS needs the tap).
 	$effect(() => {
-		if (status !== 'ready' || preparedFile || preparing) return;
+		if (status !== 'ready' || preparedFile || preparing || fetchFailedKey === renderKey) return;
 		const key = renderKey;
 		preparing = true;
+		fetchProgress = 0;
+		// Give up after a stall (no link or no bytes for a while): Share then falls back to a download link.
+		const controller = new AbortController();
+		let stall = setTimeout(() => controller.abort(), FETCH_STALL_MS);
+		const alive = () => {
+			clearTimeout(stall);
+			stall = setTimeout(() => controller.abort(), FETCH_STALL_MS);
+		};
+		const aborted = new Promise<never>((_, reject) =>
+			controller.signal.addEventListener('abort', () => reject(new Error('stalled')))
+		);
 		void (async () => {
 			try {
-				const response = await fetch(await getDiveVideoSocialCutUrl(video));
-				if (!response.ok) throw new Error(`HTTP ${response.status}`);
-				const blob = await response.blob();
-				prepared = { key, file: new File([blob], socialCutFileName(video), { type: 'video/mp4' }) };
+				const url = await Promise.race([getDiveVideoSocialCutUrl(video), aborted]);
+				alive();
+				const response = await fetch(url, { signal: controller.signal });
+				if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
+				const total = Number(response.headers.get('content-length')) || 0;
+				const reader = response.body.getReader();
+				const chunks: Uint8Array[] = [];
+				let received = 0;
+				for (;;) {
+					const { done, value } = await reader.read();
+					if (done) break;
+					alive();
+					chunks.push(value);
+					received += value.byteLength;
+					if (total > 0) fetchProgress = received / total;
+				}
+				prepared = { key, file: new File(chunks as BlobPart[], socialCutFileName(video), { type: 'video/mp4' }) };
 			} catch {
-				// Sharing falls back to a download link.
+				fetchFailedKey = key;
 			} finally {
+				clearTimeout(stall);
 				preparing = false;
 			}
 		})();
@@ -324,19 +382,25 @@
 		raf = requestAnimationFrame(frame);
 		const clock = setInterval(() => (nowMs = Date.now()), 15_000);
 		sheetEl?.focus();
+		// Keep the feed behind still while the sheet is open.
+		const previousOverflow = document.body.style.overflow;
+		document.body.style.overflow = 'hidden';
 		void getUserSettings(ownerId)
 			.then((settings) => (options = socialCutOptionsFromSettings(settings?.shareHud)))
-			.catch(() => undefined);
+			.catch(() => undefined)
+			.finally(() => (settingsLoaded = true));
 		return () => {
 			cancelAnimationFrame(raf);
 			clearInterval(clock);
+			if (requestTimer) clearTimeout(requestTimer);
+			document.body.style.overflow = previousOverflow;
 		};
 	});
 </script>
 
 <svelte:window onkeydown={onKeydown} />
 
-<div class="reel-layer">
+<div class="reel-layer" use:portal>
 	<button type="button" class="reel-backdrop" aria-label="Close" onclick={onClose}></button>
 	<div class="reel-sheet" role="dialog" aria-modal="true" aria-labelledby="reel-title" tabindex="-1" bind:this={sheetEl}>
 		<header class="reel-header">
@@ -373,6 +437,12 @@
 
 			<div class="reel-controls">
 				<p class="reel-summary">{summary}</p>
+				{#if !showEdit}
+					<p class="reel-about">Turns and the surface protocol play at normal speed, then your result card.</p>
+					<button type="button" class="reel-edit" aria-expanded="false" onclick={() => (showEdit = true)}>
+						Edit reel <span aria-hidden="true">›</span>
+					</button>
+				{:else}
 
 				<div class="reel-strip-wrap">
 					<div class="reel-strip" aria-hidden="true">
@@ -422,6 +492,7 @@
 					</button>
 					<button type="button" class="reel-toggle reel-flip" onclick={flipGraph} aria-label="Flip the speed graph direction">⇄ Graph</button>
 				</div>
+				{/if}
 			</div>
 		</div>
 
@@ -429,27 +500,34 @@
 			{#if status === 'ready'}
 				<button type="button" class="reel-primary" onclick={shareReel} disabled={preparing && !preparedFile}>
 					{#if preparing && !preparedFile}
-						<span class="reel-spinner" aria-hidden="true"></span> Getting your reel…
+						<span class="reel-spinner" aria-hidden="true"></span>
+						{fetchProgress > 0 ? `Getting your reel… ${Math.round(fetchProgress * 100)}%` : 'Getting your reel…'}
 					{:else}
-						Share to Instagram
+						Share reel
 					{/if}
 				</button>
 				<div class="reel-secondary">
 					<button type="button" class="reel-link" onclick={copyCaption}>Copy caption</button>
 					<button type="button" class="reel-link" onclick={saveReel}>Save video</button>
 				</div>
-			{:else if status === 'rendering' || requesting}
-				<button type="button" class="reel-primary" disabled>
-					<span class="reel-spinner" aria-hidden="true"></span> Creating your reel…
-				</button>
-				<p class="reel-hint">Usually under a minute. You can close this; it keeps going.</p>
+			{:else if busy}
+				<div
+					class="reel-progress"
+					role="progressbar"
+					aria-label="Preparing your reel"
+					aria-valuemin="0"
+					aria-valuemax="100"
+					aria-valuenow={Math.round(progress * 100)}
+				>
+					<span class="reel-progress-fill" style="width:{Math.max(6, progress * 100)}%;"></span>
+					<span class="reel-progress-label">
+						{progress > 0 ? `Preparing your reel… ${Math.round(progress * 100)}%` : 'Preparing your reel…'}
+					</span>
+				</div>
+				<p class="reel-hint">Usually ready in under a minute. You can close this; it keeps going.</p>
 			{:else}
-				<button type="button" class="reel-primary" onclick={createReel}>
-					{status === 'failed' ? 'Try again' : 'Create reel'}
-				</button>
-				<p class="reel-hint">
-					{status === 'failed' ? "We couldn't create the reel last time." : 'We build the reel on our server with the edits above.'}
-				</p>
+				<button type="button" class="reel-primary" onclick={requestReel}>Try again</button>
+				<p class="reel-hint">We couldn't prepare the reel.</p>
 			{/if}
 			{#if error}
 				<p class="reel-error" role="alert">{error}</p>
@@ -575,6 +653,45 @@
 	.reel-summary {
 		margin: 0;
 		font-weight: 600;
+		font-size: 0.95rem;
+	}
+	.reel-about {
+		margin: 0;
+		color: var(--color-text-muted);
+		font-size: 0.82rem;
+		line-height: 1.4;
+	}
+	.reel-edit {
+		align-self: flex-start;
+		min-height: 2.2rem;
+		padding: 0 0.9rem;
+		border: 1px solid rgba(148, 163, 184, 0.28);
+		border-radius: 999px;
+		background: transparent;
+		color: var(--color-text);
+		font: inherit;
+		font-size: 0.85rem;
+		cursor: pointer;
+	}
+	.reel-progress {
+		position: relative;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 3rem;
+		border-radius: 999px;
+		background: rgba(20, 184, 166, 0.14);
+		overflow: hidden;
+	}
+	.reel-progress-fill {
+		position: absolute;
+		inset: 0 auto 0 0;
+		background: linear-gradient(135deg, rgba(45, 212, 191, 0.55), rgba(16, 185, 129, 0.55));
+		transition: width 1.8s linear;
+	}
+	.reel-progress-label {
+		position: relative;
+		font-weight: 700;
 		font-size: 0.95rem;
 	}
 	.reel-strip-wrap {
