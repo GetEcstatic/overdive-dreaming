@@ -225,4 +225,9 @@ Causes found in the logs and code:
 - One worker instance serves every media job, so a reel queued behind full-length HUD exports.
 - The sheet was rendered inside the dashboard card (see §5.2, sheet mounting).
 
+Follow-ups the same day:
+
+- **Dashboard flicker:** the card rebuilt its player on every document update, so the 2-second progress heartbeat made the feed jump and closed the open sheet. Players now re-sign and remount only when the file they play changes (`playbackSourceKey`).
+- **Full HUD export:** also renders from the proxy, at 720p (`overlay-mp4-720p`; Tom, 21 Oct: 720p is fine for now, 1080p standardisation later). Its upload job is now created when the proxy job finishes, so it never races ahead onto a 4K original. Locally: 200 s clip in 46 s, 86 MB.
+
 Changes: §4 (automatic render, own worker, proxy source, overlap, progress, faster encode) and §5.2 (share first, progress, portal). Each artefact write is now a transaction against the latest document, because jobs for one video run on different workers. Building the reel on the phone (no wait, no server cost) needs the native app; deferred.

@@ -17,7 +17,7 @@ import {
 	WASABI_ACCESS_KEY_ID,
 	WASABI_SECRET_ACCESS_KEY
 } from './wasabiClient.js';
-import type { DiveVideoProcessingJob } from './mediaProcessingJobs.js';
+import { enqueueAfterProxyJobs, type DiveVideoProcessingJob } from './mediaProcessingJobs.js';
 import type { DiveTimeline } from './lib/timelineToRoutineLog.js';
 import {
 	DEFAULT_SOCIAL_CUT_OPTIONS,
@@ -342,12 +342,17 @@ function displayDimensions(video: DiveVideoDoc): { width: number; height: number
 	return dimensions;
 }
 
-function overlayExportProfile(): {
+/** 720p when rendering from the playback proxy (never upscale), 1080p from an original. */
+function overlayExportProfile(fromProxy: boolean): {
 	shortEdgePx: number;
-	profile: 'overlay-mp4-1080p';
+	profile: 'overlay-mp4-720p' | 'overlay-mp4-1080p';
 } {
-	return { shortEdgePx: OVERLAY_EXPORT_SHORT_EDGE_PX, profile: 'overlay-mp4-1080p' };
+	return fromProxy
+		? { shortEdgePx: OVERLAY_EXPORT_PROXY_SHORT_EDGE_PX, profile: 'overlay-mp4-720p' }
+		: { shortEdgePx: OVERLAY_EXPORT_SHORT_EDGE_PX, profile: 'overlay-mp4-1080p' };
 }
+
+const OVERLAY_EXPORT_PROXY_SHORT_EDGE_PX = 720;
 
 function diveElapsedAt(timeline: DiveTimeline, atMs: number): number {
 	if (atMs <= timeline.diveStartMs) return 0;
@@ -859,11 +864,14 @@ async function downloadObjectFile(object: { bucket: string; key: string }, path:
 
 /**
  * The 720p playback proxy when there is one: a fraction of the original's size,
- * so the reel downloads and decodes quickly and stays far inside the memory limit
- * (4K originals in /tmp, which is RAM, ran it out). The reel is 1080 wide; the
- * proxy's 720 short edge upscales cleanly and Instagram re-encodes anyway.
+ * so renders download and decode quickly and stay far inside the memory limit
+ * (4K originals in /tmp, which is RAM, ran it out). Used by the reel (1080 wide;
+ * the proxy upscales cleanly and Instagram re-encodes anyway) and the HUD export
+ * (kept at 720p). The proxy is already upright from the file's rotation tag,
+ * exactly as FFmpeg decodes the original, so `displayRotationFilters` still
+ * applies once on top.
  */
-function socialCutSource(video: DiveVideoDoc): { bucket: string; key: string; ext: string; durationSeconds?: number; proxy: boolean } {
+function renderSource(video: DiveVideoDoc): { bucket: string; key: string; ext: string; durationSeconds?: number; proxy: boolean } {
 	const proxy = video.artifacts?.find((artifact) => artifact.kind === 'playback-proxy' && artifact.object?.key);
 	if (proxy?.object) {
 		const master = masterObject(video);
@@ -1292,7 +1300,7 @@ async function generateSocialCut(args: {
 	if (!ownerId) throw new HttpsError('failed-precondition', 'Dive video has no owner');
 	const bucket = masterObject(args.video).bucket;
 	const deadline = Date.now() + SOCIAL_CUT_BUDGET_MS;
-	const source = socialCutSource(args.video);
+	const source = renderSource(args.video);
 	const inputPath = join(tmpdir(), `overdive-social-src-${randomUUID()}.${source.ext}`);
 	const outputPath = join(tmpdir(), `overdive-social-${randomUUID()}.mp4`);
 	let framesDir: string | null = null;
@@ -1373,10 +1381,13 @@ async function generateOverlayDownload(args: {
 	if (!ownerId) throw new HttpsError('failed-precondition', 'Dive video has no owner');
 	const exportDeadline = Date.now() + OVERLAY_EXPORT_BUDGET_MS;
 	const encodeTimeoutMs = () => Math.max(OVERLAY_MIN_ENCODE_TIMEOUT_MS, exportDeadline - Date.now());
-	const exportProfile = overlayExportProfile();
+	// Long 4K originals ran the 4 GiB worker out of memory; the proxy is a fraction of the size.
+	const source = renderSource(args.video);
+	const exportProfile = overlayExportProfile(source.proxy);
 	const outputDimensions = scaleToShortEdge(displayDimensions(args.video), exportProfile.shortEdgePx);
 	const boundedDurationSeconds = Math.max(1, Math.ceil((args.video.durationSeconds ?? 0) + 1));
-	return withMasterFile(args.video, async (inputPath) => {
+	logger.info('Overlay export source', { videoId: args.videoId, proxy: source.proxy, profile: exportProfile.profile });
+	return withObjectFile(source, source.ext, async (inputPath) => {
 		const outputPath = join(tmpdir(), `overdive-overlay-${randomUUID()}.mp4`);
 		let assPath: string | null = null;
 		let svgFramesDir: string | null = null;
@@ -1635,6 +1646,7 @@ async function runMediaJob(args: { jobId: string; uid?: string; throwOnFailure?:
 			});
 			// Make the reel now, from the proxy, so it is ready before the owner taps Share.
 			await autoQueueSocialCut(job.videoId);
+			await queueAfterProxyJobs(job);
 		} else if (job.type === 'generate-overlay-download') {
 			const lockRef = videoRef.collection('processingLocks').doc('overlayDownload');
 			const lockSnap = await lockRef.get();
@@ -1753,6 +1765,8 @@ async function runMediaJob(args: { jobId: string; uid?: string; throwOnFailure?:
 	} catch (err) {
 		logger.error('processMediaJob failed', { jobId: args.jobId, err });
 		await markFailed({ jobId: args.jobId, videoId: job.videoId, type: job.type, error: err });
+		// Without a proxy the HUD export falls back to the original.
+		if (job.type === 'generate-playback-proxy') await queueAfterProxyJobs(job);
 		if (args.throwOnFailure === false) {
 			return { jobId: args.jobId, status: 'retryable', type: job.type };
 		}
@@ -1907,6 +1921,17 @@ async function ownerSocialCutOptions(ownerId: string): Promise<SocialCutRenderOp
 }
 
 /** After upload: queue the reel with the owner's toggles. Never fails the calling job. */
+async function queueAfterProxyJobs(job: { videoId: string; ownerId: string }): Promise<void> {
+	try {
+		await enqueueAfterProxyJobs({ videoId: job.videoId, ownerId: job.ownerId });
+	} catch (err) {
+		logger.warn('Could not queue the HUD export after the proxy', {
+			videoId: job.videoId,
+			error: err instanceof Error ? err.message : String(err)
+		});
+	}
+}
+
 async function autoQueueSocialCut(videoId: string): Promise<void> {
 	try {
 		const video = (await getFirestore().collection('diveVideos').doc(videoId).get()).data() as DiveVideoDoc | undefined;

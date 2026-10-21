@@ -62,6 +62,12 @@ export function uploadedDiveVideoProcessingState(): DiveVideoProcessingState {
 	};
 }
 
+/**
+ * Queued (state "queued") at upload but created only when the playback proxy
+ * job finishes, so the export renders from the proxy rather than a 4K original.
+ */
+const AFTER_PROXY_UPLOAD_JOBS: readonly DiveVideoProcessingJob[] = ['generate-overlay-download'];
+
 export function mediaProcessingJobId(videoId: string, type: DiveVideoProcessingJob): string {
 	return `${videoId}_${type}`;
 }
@@ -71,15 +77,16 @@ export async function enqueueUploadProcessingJobs(args: {
 	ownerId: string;
 }): Promise<void> {
 	const db = getFirestore();
-	const refs = LIGHTWEIGHT_UPLOAD_JOBS.map((type) =>
+	const types = LIGHTWEIGHT_UPLOAD_JOBS.filter((type) => !AFTER_PROXY_UPLOAD_JOBS.includes(type));
+	const refs = types.map((type) =>
 		db.collection('mediaProcessingJobs').doc(mediaProcessingJobId(args.videoId, type))
 	);
 	const existingSnaps = await db.getAll(...refs);
 	const batch = db.batch();
-	for (let index = 0; index < LIGHTWEIGHT_UPLOAD_JOBS.length; index += 1) {
+	for (let index = 0; index < types.length; index += 1) {
 		const snap = existingSnaps[index];
 		if (snap.exists) continue;
-		const type = LIGHTWEIGHT_UPLOAD_JOBS[index];
+		const type = types[index];
 		const ref = refs[index];
 		batch.set(
 			ref,
@@ -95,4 +102,29 @@ export async function enqueueUploadProcessingJobs(args: {
 		);
 	}
 	await batch.commit();
+}
+
+/** Create the upload jobs that wait for the proxy. Idempotent: an existing job is left alone. */
+export async function enqueueAfterProxyJobs(args: { videoId: string; ownerId: string }): Promise<void> {
+	const db = getFirestore();
+	await Promise.all(
+		AFTER_PROXY_UPLOAD_JOBS.map((type) =>
+			db
+				.collection('mediaProcessingJobs')
+				.doc(mediaProcessingJobId(args.videoId, type))
+				.create({
+					videoId: args.videoId,
+					ownerId: args.ownerId,
+					type,
+					status: 'queued',
+					attempts: 0,
+					createdAt: FieldValue.serverTimestamp(),
+					updatedAt: FieldValue.serverTimestamp()
+				} satisfies MediaProcessingJobPayload)
+				.catch((err: { code?: number }) => {
+					// 6 = ALREADY_EXISTS
+					if (err?.code !== 6) throw err;
+				})
+		)
+	);
 }
