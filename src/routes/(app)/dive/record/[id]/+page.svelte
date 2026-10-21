@@ -230,6 +230,14 @@
 	let saveError = $state<string | null>(null);
 	let importError = $state<string | null>(null);
 	let importingVideo = $state(false);
+	/**
+	 * The Photos picker is open. iOS gives the page no progress while it
+	 * downloads an iCloud video, so this is the only "busy" signal we have.
+	 * Cleared on change or cancel; the button stays tappable in case a browser
+	 * never reports a cancel.
+	 */
+	let waitingForPicker = $state(false);
+	const VIDEO_METADATA_TIMEOUT_MS = 20_000;
 	let importPreviewPlaying = $state(false);
 	let importPreviewTimeMs = $state(0);
 	let importFlowPhase = $state<ImportFlowPhase>('ready');
@@ -593,6 +601,7 @@
 		const input = event.currentTarget as HTMLInputElement;
 		const file = input.files?.[0];
 		input.value = '';
+		waitingForPicker = false;
 		if (!file) return;
 		if (!isDynamicDiscipline(discipline)) {
 			importError = 'Choose a discipline before selecting a video.';
@@ -1063,9 +1072,22 @@
 		return new Promise((resolve, reject) => {
 			const url = URL.createObjectURL(file);
 			const video = document.createElement('video');
-			video.preload = 'metadata';
-			video.onloadedmetadata = () => {
+			const finish = () => {
+				clearTimeout(timeout);
+				video.onloadedmetadata = null;
+				video.onerror = null;
+				video.removeAttribute('src');
 				URL.revokeObjectURL(url);
+			};
+			const timeout = setTimeout(() => {
+				finish();
+				reject(new Error("We couldn't read this video. Try again, or pick a shorter clip."));
+			}, VIDEO_METADATA_TIMEOUT_MS);
+			video.preload = 'metadata';
+			video.muted = true;
+			video.playsInline = true;
+			video.onloadedmetadata = () => {
+				finish();
 				resolve({
 					durationSeconds: Number.isFinite(video.duration) ? video.duration : 0,
 					widthPx: video.videoWidth || 0,
@@ -1073,7 +1095,7 @@
 				});
 			};
 			video.onerror = () => {
-				URL.revokeObjectURL(url);
+				finish();
 				reject(new Error('Could not read this video file.'));
 			};
 			video.src = url;
@@ -1646,14 +1668,26 @@
 
 			<div class="actions">
 				{#if captureMode === 'video' && isDynamicDiscipline(discipline)}
-				<label class="btn btn-secondary import-video-button" class:disabled={!discipline || importingVideo}>
+				<label
+					class="btn btn-secondary import-video-button"
+					class:disabled={!discipline || importingVideo}
+					class:busy={waitingForPicker || importingVideo}
+				>
 					<input
 						type="file"
 						accept="video/*"
 						disabled={!discipline || importingVideo}
+						onclick={() => (waitingForPicker = true)}
+						oncancel={() => (waitingForPicker = false)}
 						onchange={importVideoFile}
 					/>
-					{importingVideo ? 'Reading video...' : 'Select video'}
+					{#if importingVideo}
+						<span class="import-spinner" aria-hidden="true"></span> Reading…
+					{:else if waitingForPicker}
+						<span class="import-spinner" aria-hidden="true"></span> Waiting…
+					{:else}
+						Select video
+					{/if}
 				</label>
 				{/if}
 				<button
@@ -1674,6 +1708,13 @@
 					{/if}
 				</button>
 			</div>
+			{#if captureMode === 'video' && isDynamicDiscipline(discipline)}
+				<p class="import-hint" class:active={waitingForPicker} aria-live="polite">
+					{waitingForPicker
+						? 'Waiting for Photos. Videos stored in iCloud download first; long ones can take a few minutes.'
+						: 'Videos stored in iCloud download before they open. Long ones can take a few minutes.'}
+				</p>
+			{/if}
 		</div>
 	</div>
 {:else if stage === 'importModeChoice' && capture && discipline && importPreviewUrl}
@@ -2403,6 +2444,11 @@
 		border-color: rgba(148, 163, 184, 0.25);
 		color: var(--color-text-muted);
 	}
+	.actions .import-video-button,
+	.actions .import-video-button + .btn {
+		flex: 1 1 0;
+		white-space: nowrap;
+	}
 	.import-video-button {
 		display: inline-flex;
 		align-items: center;
@@ -2415,6 +2461,33 @@
 		height: 1px;
 		overflow: hidden;
 		clip: rect(0 0 0 0);
+	}
+	.import-video-button.busy {
+		gap: 0.5rem;
+		color: var(--color-text);
+	}
+	.import-spinner {
+		width: 1rem;
+		height: 1rem;
+		border: 2px solid rgba(148, 163, 184, 0.35);
+		border-top-color: var(--color-text);
+		border-radius: 50%;
+		animation: import-spin 0.8s linear infinite;
+	}
+	@keyframes import-spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+	.import-hint {
+		margin: 0.6rem 0 0;
+		color: var(--color-text-muted);
+		font-size: 0.8rem;
+		line-height: 1.4;
+		text-align: center;
+	}
+	.import-hint.active {
+		color: var(--color-text);
 	}
 	.import-video-button.disabled {
 		opacity: 0.5;
