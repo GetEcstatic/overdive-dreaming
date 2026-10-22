@@ -1,3 +1,6 @@
+import { createWriteStream } from 'node:fs';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import {
 	AbortMultipartUploadCommand,
 	CompleteMultipartUploadCommand,
@@ -106,6 +109,19 @@ export async function getObjectBytes(args: { bucket: string; key: string }): Pro
 		chunks.push(Buffer.from(chunk));
 	}
 	return Buffer.concat(chunks);
+}
+
+/**
+ * Stream an object straight to a file. Never holds the object in memory: on
+ * Cloud Run /tmp is itself memory, so buffering a 1 GB 4K original as well
+ * doubled its footprint and ran the 4 GiB worker out of memory.
+ */
+export async function downloadObjectToFile(args: { bucket: string; key: string }, path: string): Promise<void> {
+	const result = await getWasabiClient().send(
+		new GetObjectCommand({ Bucket: args.bucket, Key: args.key })
+	);
+	if (!result.Body) throw new Error('Wasabi object response had no body');
+	await pipeline(result.Body as Readable, createWriteStream(path));
 }
 
 export async function putObjectBytes(args: {

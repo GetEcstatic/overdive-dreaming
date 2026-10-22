@@ -12,7 +12,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { logger } from 'firebase-functions/v2';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import {
-	getObjectBytes,
+	downloadObjectToFile,
 	putObjectBytes,
 	WASABI_ACCESS_KEY_ID,
 	WASABI_SECRET_ACCESS_KEY
@@ -865,8 +865,7 @@ async function withObjectFile<T>(
 }
 
 async function downloadObjectFile(object: { bucket: string; key: string }, path: string): Promise<void> {
-	const bytes = await getObjectBytes({ bucket: object.bucket, key: object.key });
-	await writeFile(path, bytes);
+	await downloadObjectToFile({ bucket: object.bucket, key: object.key }, path);
 }
 
 /**
