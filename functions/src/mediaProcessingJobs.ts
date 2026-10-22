@@ -68,6 +68,13 @@ export function uploadedDiveVideoProcessingState(): DiveVideoProcessingState {
  */
 const AFTER_PROXY_UPLOAD_JOBS: readonly DiveVideoProcessingJob[] = ['generate-overlay-download'];
 
+/**
+ * The probe and thumbnail run inside the proxy job, from its one download of
+ * the original; separate jobs each downloaded it again (about a minute each
+ * for a 4K clip). Their job types remain for re-running one step on its own.
+ */
+const RUN_BY_PROXY_JOB: readonly DiveVideoProcessingJob[] = ['probe-master', 'generate-thumbnail'];
+
 export function mediaProcessingJobId(videoId: string, type: DiveVideoProcessingJob): string {
 	return `${videoId}_${type}`;
 }
@@ -77,7 +84,9 @@ export async function enqueueUploadProcessingJobs(args: {
 	ownerId: string;
 }): Promise<void> {
 	const db = getFirestore();
-	const types = LIGHTWEIGHT_UPLOAD_JOBS.filter((type) => !AFTER_PROXY_UPLOAD_JOBS.includes(type));
+	const types = LIGHTWEIGHT_UPLOAD_JOBS.filter(
+		(type) => !AFTER_PROXY_UPLOAD_JOBS.includes(type) && !RUN_BY_PROXY_JOB.includes(type)
+	);
 	const refs = types.map((type) =>
 		db.collection('mediaProcessingJobs').doc(mediaProcessingJobId(args.videoId, type))
 	);

@@ -134,6 +134,8 @@ export interface DiveVideoDoc {
 	sizeBytes?: number;
 	actualAverageBitrateBps?: number;
 	probeAudioCodec?: string;
+	probeVideoCodec?: string;
+	thumbnailObject?: { key?: string };
 	widthPx?: number;
 	heightPx?: number;
 	durationSeconds?: number;
@@ -864,8 +866,15 @@ async function withObjectFile<T>(
 	}
 }
 
-async function downloadObjectFile(object: { bucket: string; key: string }, path: string): Promise<void> {
-	await downloadObjectToFile({ bucket: object.bucket, key: object.key }, path);
+async function downloadObjectFile(
+	object: { bucket: string; key: string },
+	path: string,
+	onProgress?: (fraction: number) => void
+): Promise<void> {
+	const startedAt = Date.now();
+	const { sizeBytes } = await downloadObjectToFile({ bucket: object.bucket, key: object.key }, path, onProgress);
+	const ms = Date.now() - startedAt;
+	logger.info('Media download', { key: object.key, sizeBytes, ms, mbPerSecond: Math.round(sizeBytes / 1e3 / Math.max(ms, 1)) });
 }
 
 /**
@@ -935,36 +944,38 @@ function runFfmpegWithProgress(
 }
 
 async function probeMaster(video: DiveVideoDoc): Promise<Record<string, unknown>> {
+	return withMasterFile(video, (inputPath) => probeMasterAt(video, inputPath));
+}
+
+async function probeMasterAt(video: DiveVideoDoc, inputPath: string): Promise<Record<string, unknown>> {
 	const { ffprobe } = assertWorkerBinaries();
-	return withMasterFile(video, async (inputPath) => {
-		const { stdout } = await execFileAsync(ffprobe, [
-			'-v',
-			'error',
-			'-print_format',
-			'json',
-			'-show_format',
-			'-show_streams',
-			inputPath
-		]);
-		const output = JSON.parse(stdout) as ProbeOutput;
-		const videoStream = output.streams?.find((stream) => stream.codec_type === 'video');
-		const audioStream = output.streams?.find((stream) => stream.codec_type === 'audio');
-		const durationSeconds = Number(output.format?.duration);
-		const sizeBytes = Number(output.format?.size);
-		return withoutUndefined({
-			widthPx: videoStream?.width ?? video.widthPx,
-			heightPx: videoStream?.height ?? video.heightPx,
-			durationSeconds: Number.isFinite(durationSeconds) ? durationSeconds : video.durationSeconds,
-			sizeBytes: Number.isFinite(sizeBytes) ? sizeBytes : video.sizeBytes,
-			actualFrameRate:
-				frameRate(videoStream?.avg_frame_rate) ??
-				frameRate(videoStream?.r_frame_rate) ??
-				video.actualFrameRate,
-			probeFormatName: output.format?.format_name,
-			probeVideoCodec: videoStream?.codec_name,
-			probeAudioCodec: audioStream?.codec_name,
-			probeRotationDeg: streamRotation(videoStream)
-		});
+	const { stdout } = await execFileAsync(ffprobe, [
+		'-v',
+		'error',
+		'-print_format',
+		'json',
+		'-show_format',
+		'-show_streams',
+		inputPath
+	]);
+	const output = JSON.parse(stdout) as ProbeOutput;
+	const videoStream = output.streams?.find((stream) => stream.codec_type === 'video');
+	const audioStream = output.streams?.find((stream) => stream.codec_type === 'audio');
+	const durationSeconds = Number(output.format?.duration);
+	const sizeBytes = Number(output.format?.size);
+	return withoutUndefined({
+		widthPx: videoStream?.width ?? video.widthPx,
+		heightPx: videoStream?.height ?? video.heightPx,
+		durationSeconds: Number.isFinite(durationSeconds) ? durationSeconds : video.durationSeconds,
+		sizeBytes: Number.isFinite(sizeBytes) ? sizeBytes : video.sizeBytes,
+		actualFrameRate:
+			frameRate(videoStream?.avg_frame_rate) ??
+			frameRate(videoStream?.r_frame_rate) ??
+			video.actualFrameRate,
+		probeFormatName: output.format?.format_name,
+		probeVideoCodec: videoStream?.codec_name,
+		probeAudioCodec: audioStream?.codec_name,
+		probeRotationDeg: streamRotation(videoStream)
 	});
 }
 
@@ -972,98 +983,109 @@ async function generateThumbnail(args: {
 	videoId: string;
 	video: DiveVideoDoc;
 }): Promise<{ bucket: string; key: string; sizeBytes: number }> {
+	return withMasterFile(args.video, (inputPath) => generateThumbnailAt(args, inputPath));
+}
+
+async function generateThumbnailAt(
+	args: { videoId: string; video: DiveVideoDoc },
+	inputPath: string
+): Promise<{ bucket: string; key: string; sizeBytes: number }> {
 	const { ffmpeg } = assertWorkerBinaries();
 	const object = masterObject(args.video);
-	return withMasterFile(args.video, async (inputPath) => {
-		const outputPath = join(tmpdir(), `overdive-thumb-${randomUUID()}.jpg`);
-		try {
-			await execFileAsync(ffmpeg, [
-				'-y',
-				'-i',
-				inputPath,
-				'-vf',
-				'scale=480:-2',
-				'-frames:v',
-				'1',
-				'-q:v',
-				'4',
-				outputPath
-			]);
-			const bytes = await readFile(outputPath);
-			const ownerId = args.video.ownerId ?? args.video.userId;
-			if (!ownerId) throw new HttpsError('failed-precondition', 'Dive video has no owner');
-			const key = `users/${ownerId}/videos/${args.videoId}/thumb.jpg`;
-			await putObjectBytes({ bucket: object.bucket, key, body: bytes, contentType: 'image/jpeg' });
-			return { bucket: object.bucket, key, sizeBytes: bytes.byteLength };
-		} finally {
-			await rm(outputPath, { force: true });
-		}
-	});
+	const outputPath = join(tmpdir(), `overdive-thumb-${randomUUID()}.jpg`);
+	try {
+		await execFileAsync(ffmpeg, [
+			'-y',
+			'-i',
+			inputPath,
+			'-vf',
+			'scale=480:-2',
+			'-frames:v',
+			'1',
+			'-q:v',
+			'4',
+			outputPath
+		]);
+		const bytes = await readFile(outputPath);
+		const ownerId = args.video.ownerId ?? args.video.userId;
+		if (!ownerId) throw new HttpsError('failed-precondition', 'Dive video has no owner');
+		const key = `users/${ownerId}/videos/${args.videoId}/thumb.jpg`;
+		await putObjectBytes({ bucket: object.bucket, key, body: bytes, contentType: 'image/jpeg' });
+		return { bucket: object.bucket, key, sizeBytes: bytes.byteLength };
+	} finally {
+		await rm(outputPath, { force: true });
+	}
 }
 
 async function generatePlaybackProxy(args: {
 	videoId: string;
 	video: DiveVideoDoc;
+	inputPath: string;
 }): Promise<DiveVideoArtifactRef> {
 	const { ffmpeg, ffprobe } = assertWorkerBinaries();
 	const object = masterObject(args.video);
-	return withMasterFile(args.video, async (inputPath) => {
-		const outputPath = join(tmpdir(), `overdive-proxy-${randomUUID()}.mp4`);
-		try {
-			const sourceProbe = await probeMasterFile({ ffprobe, inputPath });
-			await execFileAsync(ffmpeg, [
-				'-y',
-				'-i',
-				inputPath,
-				'-map',
-				'0:v:0',
-				...audioMapArgs(sourceProbe),
-				'-vf',
-				'scale=1280:1280:force_original_aspect_ratio=decrease:force_divisible_by=2',
-				'-c:v',
-				'libx264',
-				'-preset',
-				'veryfast',
-				'-crf',
-				'28',
-				'-pix_fmt',
-				'yuv420p',
-				'-c:a',
-				'aac',
-				'-b:a',
-				'96k',
-				'-movflags',
-				'+faststart',
-				outputPath
-			]);
+	const { inputPath } = args;
+	const outputPath = join(tmpdir(), `overdive-proxy-${randomUUID()}.mp4`);
+	try {
+		const sourceProbe = await probeMasterFile({ ffprobe, inputPath });
+		const encodeStartedAt = Date.now();
+		await execFileAsync(ffmpeg, [
+			'-y',
+			'-i',
+			inputPath,
+			'-map',
+			'0:v:0',
+			...audioMapArgs(sourceProbe),
+			'-vf',
+			'scale=1280:1280:force_original_aspect_ratio=decrease:force_divisible_by=2',
+			'-c:v',
+			'libx264',
+			'-preset',
+			'veryfast',
+			'-crf',
+			'28',
+			'-pix_fmt',
+			'yuv420p',
+			'-c:a',
+			'aac',
+			'-b:a',
+			'96k',
+			'-movflags',
+			'+faststart',
+			outputPath
+		]);
 
-			const bytes = await readFile(outputPath);
-			const ownerId = args.video.ownerId ?? args.video.userId;
-			if (!ownerId) throw new HttpsError('failed-precondition', 'Dive video has no owner');
-			const key = `users/${ownerId}/videos/${args.videoId}/proxy/720p.mp4`;
-			await putObjectBytes({ bucket: object.bucket, key, body: bytes, contentType: 'video/mp4' });
+		logger.info('Playback proxy encoded', {
+			videoId: args.videoId,
+			ms: Date.now() - encodeStartedAt,
+			sourceSeconds: sourceProbe.durationSeconds
+		});
+		const bytes = await readFile(outputPath);
+		const ownerId = args.video.ownerId ?? args.video.userId;
+		if (!ownerId) throw new HttpsError('failed-precondition', 'Dive video has no owner');
+		const key = `users/${ownerId}/videos/${args.videoId}/proxy/720p.mp4`;
+		await putObjectBytes({ bucket: object.bucket, key, body: bytes, contentType: 'video/mp4' });
 
-			const probe = await probeMasterFile({ ffprobe, inputPath: outputPath });
-			return withoutUndefined({
-				kind: 'playback-proxy',
-				profile: 'mp4-720p',
-				object: {
-					provider: 'wasabi',
-					bucket: object.bucket,
-					key,
-					contentType: 'video/mp4',
-					sizeBytes: bytes.byteLength
-				},
-				widthPx: probe.widthPx,
-				heightPx: probe.heightPx,
-				durationSeconds: probe.durationSeconds,
-				sizeBytes: bytes.byteLength,
-				contentType: 'video/mp4'
-			}) as unknown as DiveVideoArtifactRef;
-		} finally {
-			await rm(outputPath, { force: true });
-		}
-	});
+		const probe = await probeMasterFile({ ffprobe, inputPath: outputPath });
+		return withoutUndefined({
+			kind: 'playback-proxy',
+			profile: 'mp4-720p',
+			object: {
+				provider: 'wasabi',
+				bucket: object.bucket,
+				key,
+				contentType: 'video/mp4',
+				sizeBytes: bytes.byteLength
+			},
+			widthPx: probe.widthPx,
+			heightPx: probe.heightPx,
+			durationSeconds: probe.durationSeconds,
+			sizeBytes: bytes.byteLength,
+			contentType: 'video/mp4'
+		}) as unknown as DiveVideoArtifactRef;
+	} finally {
+		await rm(outputPath, { force: true });
+	}
 }
 
 /**
@@ -1313,7 +1335,8 @@ async function generateSocialCut(args: {
 	let framesDir: string | null = null;
 	const startedAt = Date.now();
 	try {
-		const download = downloadObjectFile(source, inputPath).then(() => probeMasterFile({ ffprobe, inputPath }));
+		// The bar moves during the download (5–30%); from an original it takes a while.
+		const download = downloadObjectFile(source, inputPath, (fraction) => args.onProgress(0.05 + 0.25 * fraction)).then(() => probeMasterFile({ ffprobe, inputPath }));
 		const knownMs = Math.round(Number(source.durationSeconds ?? 0) * 1000);
 		// The edit only needs the recording length; with it known, draw the HUD during the download.
 		const plan = knownMs > 0
@@ -1624,6 +1647,22 @@ async function markFailed(args: {
 	await Promise.all(updates);
 }
 
+function thumbnailUpdate(thumbnail: { bucket: string; key: string; sizeBytes: number }): Record<string, unknown> {
+	return {
+		thumbnailPath: thumbnail.key,
+		thumbnailObject: {
+			provider: 'wasabi',
+			bucket: thumbnail.bucket,
+			key: thumbnail.key,
+			contentType: 'image/jpeg',
+			sizeBytes: thumbnail.sizeBytes
+		},
+		'processingState.thumbnail': 'ready',
+		'processingState.pendingJobs': FieldValue.arrayRemove('generate-thumbnail'),
+		updatedAt: FieldValue.serverTimestamp()
+	};
+}
+
 async function runMediaJob(args: { jobId: string; uid?: string; throwOnFailure?: boolean }): Promise<MediaProcessingResult> {
 	const db = getFirestore();
 	const job = await claimJob({ uid: args.uid, jobId: args.jobId });
@@ -1652,21 +1691,58 @@ async function runMediaJob(args: { jobId: string; uid?: string; throwOnFailure?:
 			});
 		} else if (job.type === 'generate-thumbnail') {
 			const thumbnail = await generateThumbnail({ videoId: job.videoId, video });
-			await videoRef.update({
-				thumbnailPath: thumbnail.key,
-				thumbnailObject: {
-					provider: 'wasabi',
-					bucket: thumbnail.bucket,
-					key: thumbnail.key,
-					contentType: 'image/jpeg',
-					sizeBytes: thumbnail.sizeBytes
-				},
-				'processingState.thumbnail': 'ready',
-				'processingState.pendingJobs': FieldValue.arrayRemove(job.type),
-				updatedAt: FieldValue.serverTimestamp()
-			});
+			await videoRef.update(thumbnailUpdate(thumbnail));
 		} else if (job.type === 'generate-playback-proxy') {
-			const proxy = await generatePlaybackProxy({ videoId: job.videoId, video });
+			// One download for every upload step (the probe and thumbnail used to
+			// be separate jobs, each fetching the whole original). The thumbnail
+			// goes first so the feed shows it within seconds of the download.
+			const proxy = await withMasterFile(video, async (inputPath) => {
+				if (!video.probeVideoCodec) {
+					try {
+						const probe = await probeMasterAt(video, inputPath);
+						await videoRef.update({
+							...probe,
+							'processingState.master': 'ready',
+							'processingState.pendingJobs': FieldValue.arrayRemove('probe-master'),
+							updatedAt: FieldValue.serverTimestamp()
+						});
+					} catch (err) {
+						logger.warn('Probe failed; continuing with the proxy', {
+							videoId: job.videoId,
+							error: err instanceof Error ? err.message : String(err)
+						});
+					}
+				}
+				if (!video.thumbnailObject) {
+					try {
+						const thumbnail = await generateThumbnailAt({ videoId: job.videoId, video }, inputPath);
+						await videoRef.update(thumbnailUpdate(thumbnail));
+					} catch (err) {
+						logger.warn('Thumbnail failed; continuing with the proxy', {
+							videoId: job.videoId,
+							error: err instanceof Error ? err.message : String(err)
+						});
+						await videoRef.update({
+							'processingState.thumbnail': 'retryable',
+							'processingState.pendingJobs': FieldValue.arrayRemove('generate-thumbnail'),
+							updatedAt: FieldValue.serverTimestamp()
+						});
+					}
+				}
+				return generatePlaybackProxy({ videoId: job.videoId, video, inputPath });
+			}).catch(async (err) => {
+				// A failed download must not leave the thumbnail queued forever.
+				if (!video.thumbnailObject) {
+					const fresh = (await videoRef.get()).data() as DiveVideoDoc | undefined;
+					if (!fresh?.thumbnailObject) {
+						await videoRef.update({
+							'processingState.thumbnail': 'retryable',
+							'processingState.pendingJobs': FieldValue.arrayRemove('generate-thumbnail', 'probe-master')
+						}).catch(() => undefined);
+					}
+				}
+				throw err;
+			});
 			await saveArtifact(videoRef, proxy, {
 				'processingState.playbackProxy': 'ready',
 				'processingState.pendingJobs': FieldValue.arrayRemove(job.type)

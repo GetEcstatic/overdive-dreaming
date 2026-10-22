@@ -73,6 +73,8 @@ Camera capture cannot be server-side in a web app or native app; the device owns
 
 Add a server-owned job model, separate from the `diveVideos` user-facing record:
 
+> **Current (22 Oct 2026):** an upload creates only `generate-playback-proxy`. That job downloads the original once and runs the probe, then the thumbnail, then the proxy; `probe-master` and `generate-thumbnail` remain as job types for re-running one step. See [social cut implementation](social-cut-implementation.md) for why.
+
 ```ts
 type MediaJobType =
   | 'probe-master'
