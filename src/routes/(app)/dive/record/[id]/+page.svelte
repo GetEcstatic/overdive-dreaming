@@ -614,6 +614,7 @@
 			const metadata = await readVideoMetadata(file);
 			if (importPreviewUrl) URL.revokeObjectURL(importPreviewUrl);
 			importPreviewUrl = URL.createObjectURL(file);
+			importPreviewReloaded = false;
 			const durationSeconds = Math.max(0, metadata.durationSeconds);
 			const durationMs = Math.round(durationSeconds * 1000);
 			capture = {
@@ -1059,9 +1060,30 @@
 		}
 	}
 
-	function handleImportPreviewPlaybackError(): void {
+	let importPreviewReloaded = false;
+
+	function handleImportPreviewPlaybackError(event: Event): void {
 		importPreviewPlaying = false;
-		importError = 'This browser could not play the selected video. Try an MP4/H.264 clip if this came from another camera app.';
+		importScrubSeeking = false;
+		const element = event.currentTarget as HTMLVideoElement;
+		const at = element.currentTime;
+		// iOS Safari sometimes drops a large picked file's blob URL (memory
+		// pressure, app backgrounded). A fresh URL for the same file usually plays.
+		const file = capture && 'blob' in capture ? capture.blob : null;
+		if (!importPreviewReloaded && file) {
+			importPreviewReloaded = true;
+			if (importPreviewUrl) URL.revokeObjectURL(importPreviewUrl);
+			importPreviewUrl = URL.createObjectURL(file);
+			element.addEventListener('loadedmetadata', () => (element.currentTime = at), { once: true });
+			return;
+		}
+		const media = element.error;
+		const reason = media ? ` (${mediaErrorName(media.code)}${media.message ? `: ${media.message}` : ''})` : '';
+		importError = `This browser could not play the selected video${reason}. Close other apps and select it again; if it keeps failing, try an MP4/H.264 clip.`;
+	}
+
+	function mediaErrorName(code: number): string {
+		return ['', 'aborted', 'network error', 'decode error', 'format not supported'][code] ?? `error ${code}`;
 	}
 
 	function clamp(value: number, min: number, max: number): number {

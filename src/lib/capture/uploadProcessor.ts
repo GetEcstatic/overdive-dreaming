@@ -19,6 +19,7 @@ import {
 	completeWasabiMultipartUpload,
 	createWasabiMultipartUpload,
 	uploadWasabiPart,
+	UploadSessionExpiredError,
 	type UploadedPart
 } from '$lib/media/client';
 import {
@@ -62,7 +63,8 @@ async function requestUploadWakeLock(): Promise<WakeLockHandle | null> {
 
 async function uploadOne(
 	entry: PendingUpload,
-	onProgress?: UploadProgressListener
+	onProgress?: UploadProgressListener,
+	restarted = false
 ): Promise<void> {
 	const alreadySent = (entry.wasabiUpload?.uploadedParts ?? []).reduce(
 		(sum, part) => sum + part.sizeBytes,
@@ -167,14 +169,31 @@ async function uploadOne(
 		const start = (partNumber - 1) * wasabiUpload.partSizeBytes;
 		const end = Math.min(start + wasabiUpload.partSizeBytes, entry.blob.size);
 		const partBlob = entry.blob.slice(start, end, entry.mimeType);
-		const uploadedPart = await uploadWasabiPart({
-			videoId,
-			bucket: wasabiUpload.bucket,
-			key: wasabiUpload.key,
-			uploadId: wasabiUpload.uploadId,
-			partNumber,
-			blob: partBlob
-		});
+		let uploadedPart: UploadedPart;
+		try {
+			uploadedPart = await uploadWasabiPart({
+				videoId,
+				bucket: wasabiUpload.bucket,
+				key: wasabiUpload.key,
+				uploadId: wasabiUpload.uploadId,
+				partNumber,
+				blob: partBlob
+			});
+		} catch (err) {
+			if (!(err instanceof UploadSessionExpiredError) || restarted) throw err;
+			// Uploads left in the queue for days outlive their storage session.
+			// Forget it and send the whole file again under a new one.
+			logUploadDiagnostic({
+				level: 'warn',
+				step: 'storage:restart',
+				message: 'Upload session expired; starting a new one',
+				localId: entry.localId,
+				videoId,
+				details: { partNumber }
+			});
+			await updatePendingUpload(entry.localId, { wasabiUpload: undefined });
+			return uploadOne({ ...entry, remoteVideoId: videoId, wasabiUpload: undefined }, onProgress, true);
+		}
 		uploadedParts.set(partNumber, uploadedPart);
 		const parts = Array.from(uploadedParts.values()).sort((a, b) => a.partNumber - b.partNumber);
 		await updatePendingUpload(entry.localId, {

@@ -136,6 +136,18 @@ export async function createWasabiMultipartUpload(args: {
 	return (await createMultipartUploadFn(args)).data;
 }
 
+/**
+ * The multipart upload no longer exists on storage (Wasabi answers 404
+ * NoSuchUpload once an unfinished upload expires). Retrying the same upload id
+ * can never succeed; the caller must start a new multipart upload.
+ */
+export class UploadSessionExpiredError extends Error {
+	constructor(partNumber: number) {
+		super(`Upload session expired at part ${partNumber}`);
+		this.name = 'UploadSessionExpiredError';
+	}
+}
+
 export async function uploadWasabiPart(args: {
 	videoId: string;
 	bucket: string;
@@ -155,6 +167,7 @@ export async function uploadWasabiPart(args: {
 		method: 'PUT',
 		body: args.blob
 	});
+	if (response.status === 404) throw new UploadSessionExpiredError(args.partNumber);
 	if (!response.ok) {
 		throw new Error(`Part ${args.partNumber} upload failed with HTTP ${response.status}`);
 	}
