@@ -559,8 +559,14 @@ function renderBatchInChild(batch: HudRenderBatch): Promise<void> {
 			if (!settled) reject(err);
 			settled = true;
 		});
-		proc.once('exit', (code) => {
-			if (!settled) reject(new Error(`HUD render child exited with code ${code}`));
+		// 'close', not 'exit': 'exit' can arrive before the child's last IPC
+		// message, which failed good renders. The child exits 0 only after
+		// reporting success, so a clean exit without a message still counts.
+		proc.once('close', (code) => {
+			if (!settled) {
+				if (code === 0) resolve();
+				else reject(new Error(`HUD render child exited with code ${code}`));
+			}
 			settled = true;
 		});
 		proc.send(batch);
