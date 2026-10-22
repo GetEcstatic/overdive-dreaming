@@ -27,6 +27,7 @@ import {
 	type SocialCutRenderOptions
 } from '../../src/lib/media/overlayStyle';
 import { OVERLAY_EXPORT_SHORT_EDGE_PX, scaleToShortEdge } from '../../src/lib/media/exportDimensions';
+import { decodableAudioIndex } from '../../src/lib/media/audioStreams';
 import { collapseFrameRuns, concatListForRuns } from '../../src/lib/media/frameRuns';
 import {
 	prepareDive,
@@ -1004,14 +1005,14 @@ async function generatePlaybackProxy(args: {
 	return withMasterFile(args.video, async (inputPath) => {
 		const outputPath = join(tmpdir(), `overdive-proxy-${randomUUID()}.mp4`);
 		try {
+			const sourceProbe = await probeMasterFile({ ffprobe, inputPath });
 			await execFileAsync(ffmpeg, [
 				'-y',
 				'-i',
 				inputPath,
 				'-map',
 				'0:v:0',
-				'-map',
-				'0:a?',
+				...audioMapArgs(sourceProbe),
 				'-vf',
 				'scale=1280:1280:force_original_aspect_ratio=decrease:force_divisible_by=2',
 				'-c:v',
@@ -1129,8 +1130,7 @@ export async function encodeHudFullVideo(args: {
 		filterComplex,
 		'-map',
 		'[v]',
-		'-map',
-		'0:a:0?',
+		...audioMapArgs(sourceProbe),
 		'-c:v',
 		'libx264',
 		'-preset',
@@ -1209,6 +1209,7 @@ export async function encodeSocialCut(args: {
 	plan: SocialCutPlan;
 	concatListPath: string;
 	hasAudio: boolean;
+	audioStream?: number;
 	timeoutMs: number;
 	preset?: string;
 	onProgress?: (fraction: number) => void;
@@ -1225,7 +1226,8 @@ export async function encodeSocialCut(args: {
 		canvas: SOCIAL_CANVAS,
 		background: SOCIAL_BACKGROUND,
 		fps: OVERLAY_EXPORT_FPS,
-		hasAudio: args.hasAudio
+		hasAudio: args.hasAudio,
+		audioStream: args.audioStream
 	});
 	const startedAt = Date.now();
 	await runFfmpegWithProgress(args.ffmpeg, [
@@ -1332,6 +1334,7 @@ async function generateSocialCut(args: {
 			plan,
 			concatListPath: frames.concatListPath,
 			hasAudio: probe.hasAudio === true,
+			audioStream: typeof probe.audioIndex === 'number' ? probe.audioIndex : undefined,
 			timeoutMs: Math.max(OVERLAY_MIN_ENCODE_TIMEOUT_MS, deadline - Date.now()),
 			onProgress: (fraction) => args.onProgress(0.3 + 0.65 * fraction)
 		});
@@ -1439,8 +1442,7 @@ async function generateOverlayDownload(args: {
 					String(boundedDurationSeconds),
 					'-map',
 					'0:v:0',
-					'-map',
-					'0:a:0?',
+					...audioMapArgs(await probeMasterFile({ ffprobe, inputPath })),
 					'-vf',
 					filterChain,
 					'-c:v',
@@ -1496,6 +1498,11 @@ async function generateOverlayDownload(args: {
 	});
 }
 
+/** Map only the first audio track FFmpeg can decode (never iPhone spatial audio), or none. */
+function audioMapArgs(probe: Record<string, unknown>): string[] {
+	return typeof probe.audioIndex === 'number' ? ['-map', `0:a:${probe.audioIndex}`] : [];
+}
+
 async function probeMasterFile(args: {
 	ffprobe: string;
 	inputPath: string;
@@ -1512,11 +1519,13 @@ async function probeMasterFile(args: {
 	const output = JSON.parse(stdout) as ProbeOutput;
 	const videoStream = output.streams?.find((stream) => stream.codec_type === 'video');
 	const durationSeconds = Number(output.format?.duration);
+	const audioIndex = decodableAudioIndex(output.streams);
 	return withoutUndefined({
 		widthPx: videoStream?.width,
 		heightPx: videoStream?.height,
 		durationSeconds: Number.isFinite(durationSeconds) ? durationSeconds : undefined,
-		hasAudio: output.streams?.some((stream) => stream.codec_type === 'audio') ?? false
+		hasAudio: audioIndex !== null,
+		audioIndex: audioIndex ?? undefined
 	});
 }
 
@@ -1576,6 +1585,19 @@ async function markFailed(args: {
 		return;
 	}
 
+	// Reels and HUD exports can be re-requested while an older job is still
+	// running. A late failure of a superseded job (a timeout recovered after a
+	// newer render finished) must not overwrite the newer job's state.
+	const locked = args.type === 'generate-overlay-download' || args.type === 'generate-social-cut';
+	if (locked) {
+		const lock = await videoRef.collection('processingLocks').doc(stateKey as string).get();
+		const currentJobId = lock.exists ? (lock.data() as { jobId?: string }).jobId : undefined;
+		if (currentJobId && currentJobId !== args.jobId) {
+			logger.info('Superseded media job failed; video state left alone', { jobId: args.jobId, videoId: args.videoId, type: args.type });
+			return;
+		}
+	}
+
 	const videoUpdate: Record<string, unknown> = {
 		'processingState.lastError': message,
 		'processingState.lastErrorAt': FieldValue.serverTimestamp(),
@@ -1585,7 +1607,7 @@ async function markFailed(args: {
 	const updates: Promise<unknown>[] = [
 		videoRef.update(videoUpdate)
 	];
-	if (args.type === 'generate-overlay-download' || args.type === 'generate-social-cut') {
+	if (locked) {
 		updates.push(
 			videoRef.collection('processingLocks').doc(stateKey as string).set({
 				jobId: args.jobId,

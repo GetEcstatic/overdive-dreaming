@@ -46,7 +46,7 @@ describe('socialCutFilter', () => {
     const { filterComplex, audioLabel } = socialCutFilter({ ...base, placement: socialVideoPlacement({ width: 1080, height: 1920 }) });
     expect(audioLabel).toBe('[a]');
     const oneX = edl.segments.filter((seg) => seg.speed === 1).length;
-    expect(filterComplex).toContain(`[0:a]asplit=${oneX}`);
+    expect(filterComplex).toContain(`[0:a:0]asplit=${oneX}`);
     expect(filterComplex).toContain('afade=t=in:st=0:d=0.150,afade=t=out:st=4.850:d=0.150[ap0]');
     expect(filterComplex).toMatch(/anullsrc=channel_layout=stereo:sample_rate=48000,atrim=duration=2\.958/);
     expect(filterComplex).toContain(`apad=whole_dur=${(edl.outputDurationMs / 1000).toFixed(3)}[a]`);
@@ -55,6 +55,11 @@ describe('socialCutFilter', () => {
   it('has no audio graph for silent sources', () => {
     const result = socialCutFilter({ ...base, hasAudio: false, placement: socialVideoPlacement({ width: 1080, height: 1920 }) });
     expect(result.audioLabel).toBeNull();
-    expect(result.filterComplex).not.toContain('[0:a]');
+    expect(result.filterComplex).not.toContain('[0:a');
+  });
+
+  it('uses the chosen audio track (skipping iPhone spatial audio)', () => {
+    const { filterComplex } = socialCutFilter({ ...base, audioStream: 1, placement: socialVideoPlacement({ width: 1080, height: 1920 }) });
+    expect(filterComplex).toContain('[0:a:1]asplit=');
   });
 });

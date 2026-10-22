@@ -24,6 +24,8 @@ export interface SocialCutFilterArgs {
   readonly background: string;
   readonly fps: number;
   readonly hasAudio: boolean;
+  /** Which audio track to use (`0:a:N`); defaults to the first. */
+  readonly audioStream?: number;
 }
 
 export interface SocialCutFilter {
@@ -72,7 +74,7 @@ export function socialCutFilter(args: SocialCutFilterArgs): SocialCutFilter {
   let audioLabel: string | null = null;
   if (args.hasAudio) {
     const oneX = segments.map((seg, i) => ({ seg, i })).filter(({ seg }) => seg.speed === 1);
-    if (oneX.length > 0) parts.push(`[0:a]asplit=${oneX.length}${oneX.map(({ i }) => `[as${i}]`).join('')}`);
+    if (oneX.length > 0) parts.push(`[0:a:${args.audioStream ?? 0}]asplit=${oneX.length}${oneX.map(({ i }) => `[as${i}]`).join('')}`);
     segments.forEach((seg, i) => {
       const durMs = (seg.toMs - seg.fromMs) / seg.speed;
       if (seg.speed === 1) {
